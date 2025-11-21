@@ -429,16 +429,16 @@ class InspectionOverlayWidget(QWidget):
         # Draw hot spots
         for hot_spot in self.hot_spots:
             painter.setPen(QPen(QColor(255, 0, 0), 2))  # Red
-            x, y = hot_spot.center
+            x, y = hot_spot.centroid
             painter.drawEllipse(int(x) - 5, int(y) - 5, 10, 10)
-            painter.drawText(int(x) + 10, int(y), f"{hot_spot.temperature:.1f}°C")
+            painter.drawText(int(x) + 10, int(y), f"{hot_spot.max_temp:.1f}°C")
 
         # Draw cold spots
         for cold_spot in self.cold_spots:
             painter.setPen(QPen(QColor(0, 128, 255), 2))  # Light blue
-            x, y = cold_spot.center
+            x, y = cold_spot.centroid
             painter.drawEllipse(int(x) - 5, int(y) - 5, 10, 10)
-            painter.drawText(int(x) + 10, int(y), f"{cold_spot.temperature:.1f}°C")
+            painter.drawText(int(x) + 10, int(y), f"{cold_spot.min_temp:.1f}°C")
 
         # Draw anomalies
         for anomaly in self.anomalies:
@@ -638,31 +638,31 @@ class ControlPanel(QWidget):
     def _connect_signals(self):
         """Connect button signals."""
         # Simple controls
-        self.palette_btn.clicked.connect(self.palette_clicked)
-        self.view_btn.clicked.connect(self.view_mode_clicked)
-        self.day_night_btn.clicked.connect(self.day_night_clicked)
+        self.palette_btn.clicked.connect(lambda: self.palette_clicked.emit())
+        self.view_btn.clicked.connect(lambda: self.view_mode_clicked.emit())
+        self.day_night_btn.clicked.connect(lambda: self.day_night_clicked.emit())
 
         # Recording
-        self.record_btn.toggled.connect(self.record_toggled)
-        self.snapshot_btn.clicked.connect(self.snapshot_clicked)
-        self.freeze_btn.toggled.connect(self.freeze_frame_toggled)
+        self.record_btn.toggled.connect(self.record_toggled.emit)
+        self.snapshot_btn.clicked.connect(lambda: self.snapshot_clicked.emit())
+        self.freeze_btn.toggled.connect(self.freeze_frame_toggled.emit)
 
         # ROI
-        self.auto_roi_btn.clicked.connect(self.auto_roi_clicked)
-        self.draw_roi_btn.clicked.connect(self.draw_roi_clicked)
-        self.clear_roi_btn.clicked.connect(self.clear_rois_clicked)
-        self.save_roi_btn.clicked.connect(self.save_rois_clicked)
-        self.load_roi_btn.clicked.connect(self.load_rois_clicked)
+        self.auto_roi_btn.clicked.connect(lambda: self.auto_roi_clicked.emit())
+        self.draw_roi_btn.clicked.connect(lambda: self.draw_roi_clicked.emit())
+        self.clear_roi_btn.clicked.connect(lambda: self.clear_rois_clicked.emit())
+        self.save_roi_btn.clicked.connect(lambda: self.save_rois_clicked.emit())
+        self.load_roi_btn.clicked.connect(lambda: self.load_rois_clicked.emit())
 
         # Processing
-        self.device_btn.clicked.connect(self.device_clicked)
-        self.motion_btn.toggled.connect(self.motion_detection_toggled)
-        self.edge_btn.toggled.connect(self.edge_detection_toggled)
+        self.device_btn.clicked.connect(lambda: self.device_clicked.emit())
+        self.motion_btn.toggled.connect(self.motion_detection_toggled.emit)
+        self.edge_btn.toggled.connect(self.edge_detection_toggled.emit)
 
         # Fusion
-        self.fusion_mode_btn.clicked.connect(self.fusion_mode_clicked)
-        self.fusion_alpha_btn.clicked.connect(self.fusion_alpha_clicked)
-        self.fusion_priority_btn.clicked.connect(self.fusion_priority_clicked)
+        self.fusion_mode_btn.clicked.connect(lambda: self.fusion_mode_clicked.emit())
+        self.fusion_alpha_btn.clicked.connect(lambda: self.fusion_alpha_clicked.emit())
+        self.fusion_priority_btn.clicked.connect(lambda: self.fusion_priority_clicked.emit())
 
     def show_developer_controls(self, show: bool):
         """Toggle developer controls visibility."""
@@ -766,6 +766,8 @@ class ThermalAnalysisPanel(QWidget):
     Right sidebar panel for thermal analysis display.
     Shows temperature statistics, hot/cold spots, trends, and anomalies.
     """
+    
+    baseline_toggled = pyqtSignal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -811,6 +813,12 @@ class ThermalAnalysisPanel(QWidget):
         self.stats_label.setWordWrap(True)
         self.stats_label.setFont(QFont("Courier", 9))
         stats_layout.addWidget(self.stats_label)
+        
+        # Baseline control
+        self.baseline_btn = QPushButton("🔒 Lock Baseline")
+        self.baseline_btn.setCheckable(True)
+        self.baseline_btn.setToolTip("Lock current mean temperature as baseline for relative measurements")
+        stats_layout.addWidget(self.baseline_btn)
 
         self.content_layout.addWidget(stats_group)
 
@@ -859,6 +867,8 @@ class ThermalAnalysisPanel(QWidget):
 
         scroll.setWidget(content)
         main_layout.addWidget(scroll)
+        
+        self.baseline_btn.toggled.connect(self.baseline_toggled.emit)
 
     def update_rois(self, rois: List[ROI]):
         """Update ROI list."""
@@ -873,25 +883,30 @@ class ThermalAnalysisPanel(QWidget):
             self.stats_label.setText("No data")
             return
 
+        unit = stats.unit
         text = (
-            f"Min:  {stats.min_temp:.1f}°C\n"
-            f"Max:  {stats.max_temp:.1f}°C\n"
-            f"Mean: {stats.mean_temp:.1f}°C\n"
-            f"Std:  {stats.std_temp:.1f}°C"
+            f"Min:  {stats.min_temp:.1f}{unit}\n"
+            f"Max:  {stats.max_temp:.1f}{unit}\n"
+            f"Mean: {stats.mean_temp:.1f}{unit}\n"
+            f"Std:  {stats.std_temp:.1f}{unit}"
         )
+        
+        if stats.relative_mean is not None:
+            text += f"\n\nΔ Mean: {stats.relative_mean:+.1f}{unit}"
+            
         self.stats_label.setText(text)
 
     def update_hot_spots(self, hot_spots: List[HotSpot]):
         """Update hot spot list."""
         self.hotspot_list.clear()
-        for i, hs in enumerate(hot_spots, 1):
-            self.hotspot_list.addItem(f"#{i}: {hs.temperature:.1f}°C at ({hs.center[0]:.0f}, {hs.center[1]:.0f})")
+        for i, hs in enumerate(hot_spots):
+            self.hotspot_list.addItem(f"#{i}: {hs.max_temp:.1f}{hs.unit} at ({hs.centroid[0]:.0f}, {hs.centroid[1]:.0f})")
 
     def update_cold_spots(self, cold_spots: List[ColdSpot]):
         """Update cold spot list."""
         self.coldspot_list.clear()
-        for i, cs in enumerate(cold_spots, 1):
-            self.coldspot_list.addItem(f"#{i}: {cs.temperature:.1f}°C at ({cs.center[0]:.0f}, {cs.center[1]:.0f})")
+        for i, cs in enumerate(cold_spots):
+            self.coldspot_list.addItem(f"#{i}: {cs.min_temp:.1f}{cs.unit} at ({cs.centroid[0]:.0f}, {cs.centroid[1]:.0f})")
 
     def update_anomalies(self, anomalies: List[ThermalAnomaly]):
         """Update anomaly list."""
@@ -1009,7 +1024,11 @@ class InspectionAppWindow(QMainWindow):
         # Fusion
         self.control_panel.fusion_mode_clicked.connect(self._on_fusion_mode_cycle)
         self.control_panel.fusion_alpha_clicked.connect(self._on_fusion_alpha_cycle)
+        self.control_panel.fusion_alpha_clicked.connect(self._on_fusion_alpha_cycle)
         self.control_panel.fusion_priority_clicked.connect(self._on_fusion_priority_cycle)
+        
+        # Analysis
+        self.analysis_panel.baseline_toggled.connect(self._on_baseline_toggle)
 
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""
@@ -1080,15 +1099,13 @@ class InspectionAppWindow(QMainWindow):
     def _on_palette_cycle(self):
         """Cycle through palettes."""
         if self.app:
-            # Call app's palette cycle method
-            pass
+            self.app.cycle_palette()
         logger.info("Palette cycle")
 
     def _on_view_mode_cycle(self):
         """Cycle through view modes."""
         if self.app:
-            # Call app's view mode cycle method
-            pass
+            self.app.cycle_view_mode()
         logger.info("View mode cycle")
 
     def _on_record_toggle(self, enabled: bool):
@@ -1096,15 +1113,13 @@ class InspectionAppWindow(QMainWindow):
         self.recording = enabled
         self.control_panel.update_record_button(enabled)
         if self.app:
-            # Call app's record toggle method
-            pass
+            self.app.toggle_recording(enabled)
         logger.info(f"Recording: {'ON' if enabled else 'OFF'}")
 
     def _on_snapshot(self):
         """Take a snapshot."""
         if self.app:
-            # Call app's snapshot method
-            pass
+            self.app.capture_snapshot()
         logger.info("Snapshot captured")
 
     def _on_freeze_toggle(self, enabled: bool):
@@ -1112,8 +1127,7 @@ class InspectionAppWindow(QMainWindow):
         self.frozen = enabled
         self.control_panel.update_freeze_button(enabled)
         if self.app:
-            # Call app's freeze toggle method
-            pass
+            self.app.toggle_freeze(enabled)
         logger.info(f"Frame freeze: {'ON' if enabled else 'OFF'}")
 
     def _on_auto_roi(self):
@@ -1126,15 +1140,13 @@ class InspectionAppWindow(QMainWindow):
     def _on_draw_roi(self):
         """Enter ROI drawing mode."""
         if self.app:
-            # Call app's draw ROI method
-            pass
+            self.app.draw_roi()
         logger.info("Draw ROI mode activated")
 
     def _on_clear_rois(self):
         """Clear all ROIs."""
         if self.app:
-            # Call app's clear ROIs method
-            pass
+            self.app.clear_rois()
         logger.info("ROIs cleared")
 
     def _on_save_rois(self):
@@ -1144,9 +1156,9 @@ class InspectionAppWindow(QMainWindow):
         )
         if filename:
             if self.app:
-                # Call app's save ROIs method with filename
-                pass
-            logger.info(f"ROIs saved to {filename}")
+                self.app.save_rois(filename)
+            else:
+                logger.info(f"ROIs saved to {filename}")
 
     def _on_load_rois(self):
         """Load ROIs from file."""
@@ -1155,53 +1167,55 @@ class InspectionAppWindow(QMainWindow):
         )
         if filename:
             if self.app:
-                # Call app's load ROIs method with filename
-                pass
-            logger.info(f"ROIs loaded from {filename}")
+                self.app.load_rois(filename)
+            else:
+                logger.info(f"ROIs loaded from {filename}")
 
     def _on_device_cycle(self):
         """Cycle processing device."""
         if self.app:
-            # Call app's device cycle method
-            pass
+            self.app.cycle_device()
         logger.info("Device cycle")
 
     def _on_motion_toggle(self, enabled: bool):
         """Toggle motion detection."""
         self.control_panel.update_motion_button(enabled)
         if self.app:
-            # Call app's motion toggle method
-            pass
+            self.app.toggle_motion(enabled)
         logger.info(f"Motion detection: {'ON' if enabled else 'OFF'}")
 
     def _on_edge_toggle(self, enabled: bool):
         """Toggle edge detection."""
         self.control_panel.update_edge_button(enabled)
         if self.app:
-            # Call app's edge toggle method
-            pass
+            self.app.toggle_edge(enabled)
         logger.info(f"Edge detection: {'ON' if enabled else 'OFF'}")
 
     def _on_fusion_mode_cycle(self):
         """Cycle fusion mode."""
         if self.app:
-            # Call app's fusion mode cycle method
-            pass
+            self.app.cycle_fusion_mode()
         logger.info("Fusion mode cycle")
 
     def _on_fusion_alpha_cycle(self):
         """Cycle fusion alpha."""
         if self.app:
-            # Call app's fusion alpha cycle method
-            pass
+            self.app.cycle_fusion_alpha()
         logger.info("Fusion alpha cycle")
 
     def _on_fusion_priority_cycle(self):
         """Cycle fusion priority."""
         if self.app:
-            # Call app's fusion priority cycle method
-            pass
+            self.app.cycle_fusion_priority()
         logger.info("Fusion priority cycle")
+
+    def _on_baseline_toggle(self, enabled: bool):
+        """Toggle baseline lock for relative temperature."""
+        if self.app:
+            # Call app's baseline toggle method
+            if hasattr(self.app, 'lock_baseline'):
+                self.app.lock_baseline(enabled)
+        logger.info(f"Baseline lock: {'ON' if enabled else 'OFF'}")
 
     def update_frame(self, frame: np.ndarray):
         """Update video display."""

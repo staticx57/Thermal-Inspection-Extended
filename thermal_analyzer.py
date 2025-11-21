@@ -42,6 +42,8 @@ class ThermalStatistics:
     percentile_95: float
     percentile_5: float
     pixel_count: int
+    unit: str = "°C"
+    relative_mean: Optional[float] = None
     timestamp: float = field(default_factory=time.time)
 
 
@@ -54,6 +56,7 @@ class HotSpot:
     mean_temp: float
     area: int
     confidence: float
+    unit: str = "°C"
     timestamp: float = field(default_factory=time.time)
 
 
@@ -66,6 +69,7 @@ class ColdSpot:
     mean_temp: float
     area: int
     confidence: float
+    unit: str = "°C"
     timestamp: float = field(default_factory=time.time)
 
 
@@ -141,6 +145,23 @@ class ThermalAnalyzer:
         self.last_frame_stats: Dict[str, ThermalStatistics] = {}
         self.calibration_offset = self.config.get("calibration_offset", 0.0)
         self.calibration_scale = self.config.get("calibration_scale", 1.0)
+        
+        # Radiometric mode
+        self.is_radiometric = self.config.get("radiometric", False)
+        if not self.is_radiometric:
+            self.temp_unit = TemperatureUnit.CELSIUS # Placeholder, will be treated as Raw
+            
+        # Baseline for relative measurements
+        self.baseline_value: Optional[float] = None
+
+    def set_baseline(self, value: float):
+        """Set baseline value for relative measurements."""
+        self.baseline_value = value
+        
+    def get_baseline(self) -> Optional[float]:
+        """Get current baseline value."""
+        return self.baseline_value
+
 
     def analyze_frame(self, thermal_frame: np.ndarray,
                      roi_mask: Optional[np.ndarray] = None) -> ThermalStatistics:
@@ -175,16 +196,24 @@ class ThermalAnalyzer:
             pixels = pixels * self.calibration_scale + self.calibration_offset
 
         # Compute statistics
+        mean_val = float(np.mean(pixels))
+        
+        relative_mean = None
+        if self.baseline_value is not None:
+            relative_mean = mean_val - self.baseline_value
+
         stats = ThermalStatistics(
             min_temp=float(np.min(pixels)),
             max_temp=float(np.max(pixels)),
-            mean_temp=float(np.mean(pixels)),
+            mean_temp=mean_val,
             median_temp=float(np.median(pixels)),
             std_temp=float(np.std(pixels)),
             temp_range=float(np.max(pixels) - np.min(pixels)),
             percentile_95=float(np.percentile(pixels, 95)),
             percentile_5=float(np.percentile(pixels, 5)),
-            pixel_count=int(pixels.size)
+            pixel_count=int(pixels.size),
+            unit="°C" if self.is_radiometric else " (raw)",
+            relative_mean=relative_mean
         )
 
         return stats
@@ -203,6 +232,10 @@ class ThermalAnalyzer:
         """
         if thermal_frame is None or thermal_frame.size == 0:
             return []
+        
+        # Ensure grayscale input
+        if len(thermal_frame.shape) == 3:
+            thermal_frame = cv2.cvtColor(thermal_frame, cv2.COLOR_BGR2GRAY)
 
         # Determine threshold
         if absolute_threshold is not None:
@@ -247,7 +280,8 @@ class ThermalAnalyzer:
                 max_temp=max_temp,
                 mean_temp=mean_temp,
                 area=int(area),
-                confidence=float(confidence)
+                confidence=confidence,
+                unit="°C" if self.is_radiometric else " (raw)"
             )
             hot_spots.append(hot_spot)
 
@@ -270,6 +304,10 @@ class ThermalAnalyzer:
         """
         if thermal_frame is None or thermal_frame.size == 0:
             return []
+        
+        # Ensure grayscale input
+        if len(thermal_frame.shape) == 3:
+            thermal_frame = cv2.cvtColor(thermal_frame, cv2.COLOR_BGR2GRAY)
 
         # Determine threshold
         if absolute_threshold is not None:
@@ -314,7 +352,8 @@ class ThermalAnalyzer:
                 min_temp=min_temp,
                 mean_temp=mean_temp,
                 area=int(area),
-                confidence=float(confidence)
+                confidence=float(confidence),
+                unit="°C" if self.is_radiometric else " (raw)"
             )
             cold_spots.append(cold_spot)
 

@@ -217,10 +217,26 @@ class ThermalProcessor:
             if gray.dtype == np.uint16:
                 gray = cv2.convertScaleAbs(gray, alpha=(255.0/65535.0))
 
+            # Ensure uint8
+            if gray.dtype != np.uint8:
+                gray = gray.astype(np.uint8)
+
             # Apply palette
             if palette in self.color_palettes:
                 lut = self.color_palettes[palette]
-                return cv2.applyColorMap(gray, lut)
+                # LUT is (256, 1, 3) - extract B, G, R channels
+                # cv2.LUT requires separate 1D LUTs for each channel
+                lut_b = lut[:, 0, 0]  # Blue channel
+                lut_g = lut[:, 0, 1]  # Green channel
+                lut_r = lut[:, 0, 2]  # Red channel
+                
+                # Apply LUT to each channel separately
+                b = cv2.LUT(gray, lut_b)
+                g = cv2.LUT(gray, lut_g)
+                r = cv2.LUT(gray, lut_r)
+                
+                # Merge channels back to BGR
+                return cv2.merge([b, g, r])
             else:
                 logger.warning(f"Palette {palette} not found, using fallback")
                 return cv2.applyColorMap(gray, cv2.COLORMAP_HOT)
@@ -236,7 +252,7 @@ class ThermalProcessor:
         Detect motion using temporal differencing.
 
         Args:
-            frame: Input image (BGR format)
+            frame: Input image (grayscale OR BGR format)
 
         Returns:
             List of MotionDetection objects
@@ -250,14 +266,22 @@ class ThermalProcessor:
             frame_h, frame_w = frame.shape[:2]
             frame_area = frame_h * frame_w
 
-            # Convert to grayscale
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            # Convert to grayscale if needed (thermal camera gives grayscale)
+            if len(frame.shape) == 3:
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            else:
+                gray = frame  # Already grayscale
+            
             gray = cv2.GaussianBlur(gray, (21, 21), 0)
 
             # Initialize previous frame
             if self.prev_frame is None:
-                self.prev_frame = gray
+                self.prev_frame = gray.copy()
                 return []
+            
+            # Ensure matching dtypes for absdiff
+            if self.prev_frame.dtype != gray.dtype:
+                self.prev_frame = self.prev_frame.astype(gray.dtype)
 
             # Compute difference
             frame_diff = cv2.absdiff(self.prev_frame, gray)
@@ -360,7 +384,15 @@ class ThermalProcessor:
                 if len(frame.shape) == 3:
                     gray_np = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 else:
-                    gray_np = frame
+                    gray_np = frame.copy() if frame.ndim == 2 else frame
+                
+                # Ensure uint8 dtype (thermal cameras may output uint16)
+                if gray_np.dtype != np.uint8:
+                    gray_np = cv2.convertScaleAbs(gray_np, alpha=(255.0/65535.0) if gray_np.dtype == np.uint16 else 1.0)
+                
+                # Ensure contiguous array
+                if not gray_np.flags['C_CONTIGUOUS']:
+                    gray_np = np.ascontiguousarray(gray_np)
 
                 blurred_np = cv2.GaussianBlur(gray_np, (7, 7), 1.5)
                 edges_np = cv2.Canny(blurred_np, self.edge_threshold_low, self.edge_threshold_high)

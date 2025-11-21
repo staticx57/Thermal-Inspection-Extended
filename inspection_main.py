@@ -200,6 +200,9 @@ class ThermalInspectionFusion:
         self.latest_hot_spots = []
         self.latest_cold_spots = []
         self.latest_anomalies = []
+        self.latest_stats = None
+        self.latest_display_frame = None
+        self.latest_rois = []
 
         # ROI auto-detection settings
         self.auto_roi_enabled = getattr(args, 'auto_roi', False)
@@ -245,6 +248,8 @@ class ThermalInspectionFusion:
                     info = self.thermal_camera.get_camera_info()
                     if info:
                         logger.info(f"  Camera SN: {info.serial_number}")
+                        logger.info(f"  Camera PN: {info.camera_part_number}")
+                        logger.info(f"  Sensor PN: {info.sensor_part_number}")
                         logger.info(f"  Software: {info.software_version}")
                         temp = self.thermal_camera.get_fpa_temperature()
                         if temp:
@@ -256,6 +261,13 @@ class ThermalInspectionFusion:
                     logger.warning("SDK was requested but connection failed - continuing in video-only mode")
 
                 self.thermal_connected = True
+                
+                # Auto-detect radiometric mode
+                is_radiometric = self._detect_radiometric_mode()
+                if is_radiometric:
+                    self.args.radiometric = True
+                    logger.info("Auto-enabled radiometric mode")
+                
                 return True
             else:
                 logger.debug("Thermal camera not found")
@@ -265,6 +277,39 @@ class ThermalInspectionFusion:
         except Exception as e:
             logger.debug(f"Thermal camera connection failed: {e}")
             self.thermal_camera = None
+            return False
+
+    def _detect_radiometric_mode(self) -> bool:
+        """
+        Detect if camera is providing radiometric data (T-Linear).
+        Heuristic: T-Linear values are typically > 20000 (Kelvin * 100).
+        Raw values are typically < 16384 (14-bit).
+        """
+        if not self.thermal_camera:
+            return False
+            
+        logger.info("Detecting camera mode...")
+        
+        # Grab a few frames to settle
+        for _ in range(5):
+            self.thermal_camera.read_thermal()
+            
+        success, frame = self.thermal_camera.read_thermal()
+        if not success or frame is None:
+            logger.warning("Could not grab frame for mode detection")
+            return False
+            
+        # Check median value
+        median_val = np.median(frame)
+        logger.info(f"Median pixel value: {median_val:.1f}")
+        
+        # T-Linear check: 0°C = 273.15K = 27315
+        # Allow range 20000 (200K/-73°C) to 60000 (600K/327°C)
+        if 20000 < median_val < 65000:
+            logger.info("[DETECTED] Radiometric Mode (T-Linear)")
+            return True
+        else:
+            logger.info("[DETECTED] Non-Radiometric Mode (Raw/AGC)")
             return False
 
     def _try_connect_rgb(self) -> bool:
@@ -381,7 +426,8 @@ class ThermalInspectionFusion:
                 'temperature_unit': 'C',
                 'hot_spot_threshold': 0.85,
                 'cold_spot_threshold': 0.15,
-                'anomaly_sensitivity': 0.7
+                'anomaly_sensitivity': 0.7,
+                'radiometric': getattr(self.args, 'radiometric', False)
             }
             self.thermal_analyzer = ThermalAnalyzer(analyzer_config)
             logger.info("[OK] Thermal analyzer initialized")
@@ -449,11 +495,15 @@ class ThermalInspectionFusion:
             use_qt = not use_opencv and self.qt_app is not None
 
             if use_qt:
-                # TODO: Create inspection_gui_qt.py
-                logger.info("Qt GUI selected (inspection_gui_qt.py - TO BE IMPLEMENTED)")
-                # Temporarily use placeholder
-                self.gui_type = 'qt'
-                self.gui = None  # Will be implemented in next phase
+                try:
+                    from inspection_gui_qt import InspectionAppWindow
+                    logger.info("Qt GUI selected")
+                    self.gui_type = 'qt'
+                    self.gui = InspectionAppWindow(self)
+                except ImportError as e:
+                    logger.error(f"Failed to import Qt GUI: {e}")
+                    self.gui_type = 'opencv'
+                    self.gui = None
             elif use_opencv:
                 # TODO: Create simple OpenCV GUI for inspection
                 logger.info("OpenCV GUI selected (simple inspection view)")
@@ -568,8 +618,8 @@ class ThermalInspectionFusion:
 
             # 6. Fusion (if RGB available) - PARAMOUNT!
             if rgb_frame is not None and self.fusion_processor:
-                fused = self.fusion_processor.fuse(
-                    thermal_colorized, rgb_frame, mode=self.fusion_mode
+                fused = self.fusion_processor.fuse_frames(
+                    thermal_colorized, rgb_frame
                 )
                 result['fused_frame'] = fused
             else:
@@ -588,6 +638,9 @@ class ThermalInspectionFusion:
             self.latest_hot_spots = result['hot_spots']
             self.latest_cold_spots = result['cold_spots']
             self.latest_anomalies = result['anomalies']
+            self.latest_stats = result['thermal_stats']
+            self.latest_display_frame = result['display_frame']
+            self.latest_rois = result['rois']
 
         except Exception as e:
             logger.error(f"Frame processing error: {e}", exc_info=True)
@@ -729,8 +782,32 @@ class ThermalInspectionFusion:
                                 logger.warning("Could not read FPA temperature")
                         else:
                             logger.warning("Temperature reading requires Boson SDK connection")
-
-                # 6. Update performance metrics
+                # Update Qt GUI
+                elif self.gui_type == 'qt' and self.gui:
+                    if display_frame is not None:
+                        self.gui.update_frame(display_frame)
+                    
+                    # Update metrics
+                    self.gui.update_metrics(
+                        fps=self.smoothed_fps,
+                        roi_count=len(result.get('rois', [])),
+                        thermal_connected=self.thermal_connected,
+                        rgb_connected=self.rgb_available
+                    )
+                    
+                    # Update thermal analysis
+                    self.gui.update_thermal_analysis(
+                        stats=result.get('thermal_stats'),
+                        hot_spots=result.get('hot_spots', []),
+                        cold_spots=result.get('cold_spots', []),
+                        anomalies=result.get('anomalies', []),
+                        trend=None
+                    )
+                    
+                    # Update ROIs
+                    self.gui.update_rois(result.get('rois', []))
+                    
+                    self.qt_app.processEvents()
                 loop_time = time.time() - loop_start
                 self.frame_times.append(loop_time)
                 if len(self.frame_times) > 0:
@@ -752,6 +829,171 @@ class ThermalInspectionFusion:
             logger.error(f"Main loop error: {e}", exc_info=True)
         finally:
             self.cleanup()
+    # ========================================================================
+    # GUI Control Methods
+    # ========================================================================
+
+    def cycle_palette(self):
+        """Cycle to next palette."""
+        if self.palette_manager:
+            palettes = self.palette_manager.get_available_palettes()
+            current = self.palette_manager.global_palette.palette_type.value
+            try:
+                idx = palettes.index(current)
+                next_palette = palettes[(idx + 1) % len(palettes)]
+                self.palette_manager.set_global_palette(PaletteType(next_palette))
+                if self.gui and hasattr(self.gui, 'control_panel'):
+                    self.gui.control_panel.update_palette_button(next_palette)
+                logger.info(f"Switched to palette: {next_palette}")
+            except (ValueError, IndexError):
+                # Fallback to first palette
+                if palettes:
+                    self.palette_manager.set_global_palette(PaletteType(palettes[0]))
+                    if self.gui and hasattr(self.gui, 'control_panel'):
+                        self.gui.control_panel.update_palette_button(palettes[0])
+
+    def cycle_view_mode(self):
+        """Cycle view mode."""
+        modes = [ViewMode.THERMAL_ONLY, ViewMode.RGB_ONLY, ViewMode.FUSION, ViewMode.SIDE_BY_SIDE, ViewMode.PICTURE_IN_PICTURE]
+        try:
+            idx = modes.index(self.view_mode)
+            self.view_mode = modes[(idx + 1) % len(modes)]
+            if self.gui and hasattr(self.gui, 'control_panel'):
+                self.gui.control_panel.update_view_button(self.view_mode)
+            logger.info(f"Switched to view mode: {self.view_mode}")
+        except ValueError:
+            pass
+
+    def toggle_recording(self, enabled: bool):
+        """Toggle recording."""
+        self.recording_enabled = enabled
+        if self.recording_enabled:
+            if self.video_recorder:
+                filename = self.video_recorder.start_recording((self.args.width, self.args.height))
+                logger.info(f"Started recording: {filename}")
+        else:
+            if self.video_recorder:
+                self.video_recorder.stop_recording()
+                logger.info("Stopped recording")
+
+    def capture_snapshot(self):
+        """Capture snapshot."""
+        if self.snapshot_manager:
+            # We need the latest frame. It's not stored globally, so we might need to grab it from last processing result
+            # For now, we'll rely on the main loop to handle 's' key, but for GUI button we need a way.
+            # Let's store the latest display frame in self
+            if hasattr(self, 'latest_display_frame') and self.latest_display_frame is not None:
+                path = self.snapshot_manager.capture_snapshot(
+                    self.latest_display_frame,
+                    self.latest_rois,
+                    self.latest_stats,
+                    self.latest_hot_spots,
+                    self.latest_cold_spots,
+                    self.latest_anomalies
+                )
+                logger.info(f"Snapshot saved: {path}")
+            else:
+                logger.warning("No frame available for snapshot")
+
+    def toggle_freeze(self, enabled: bool):
+        """Toggle frame freeze."""
+        # Logic to pause processing loop or just display
+        # For now, we don't have a pause mechanism in run(), but we can implement it later.
+        # Just log for now.
+        logger.info(f"Freeze not fully implemented yet: {enabled}")
+
+    def toggle_motion(self, enabled: bool):
+        """Toggle motion detection."""
+        if self.thermal_processor:
+            self.thermal_processor.set_motion_enabled(enabled)
+            logger.info(f"Motion detection: {enabled}")
+
+    def toggle_edge(self, enabled: bool):
+        """Toggle edge detection."""
+        if self.thermal_processor:
+            self.thermal_processor.set_edge_enabled(enabled)
+            logger.info(f"Edge detection: {enabled}")
+
+    def cycle_fusion_mode(self):
+        """Cycle fusion mode."""
+        self.current_fusion_mode_index = (self.current_fusion_mode_index + 1) % len(self.available_fusion_modes)
+        self.fusion_mode = self.available_fusion_modes[self.current_fusion_mode_index]
+        logger.info(f"Fusion mode: {self.fusion_mode}")
+
+    def cycle_fusion_alpha(self):
+        """Cycle fusion alpha."""
+        self.fusion_alpha += 0.1
+        if self.fusion_alpha > 1.0:
+            self.fusion_alpha = 0.0
+        logger.info(f"Fusion alpha: {self.fusion_alpha:.1f}")
+
+    def cycle_fusion_priority(self):
+        """Cycle fusion priority."""
+        logger.info("Fusion priority cycling not implemented yet")
+
+    def draw_roi(self):
+        """Enable ROI drawing mode in GUI."""
+        if self.gui:
+            # GUI will handle drawing mode
+            logger.info("Draw ROI mode activated")
+    
+    def auto_roi_detect(self):
+        """Automatically detect ROIs based on temperature gradients."""
+        if self.roi_manager and self.last_thermal_frame is not None:
+            from roi_manager import ROISource
+            if self.thermal_analyzer:
+                stats = self.thermal_analyzer.compute_statistics(self.last_thermal_frame)
+                hot_threshold = stats.percentile_95
+                cold_threshold = stats.percentile_5
+                hot_rois = self.roi_manager.auto_detect_roi_by_temperature(
+                    self.last_thermal_frame, hot_threshold, is_hot_region=True
+                )
+                cold_rois = self.roi_manager.auto_detect_roi_by_temperature(
+                    self.last_thermal_frame, cold_threshold, is_hot_region=False
+                )
+                logger.info(f"Auto-detected {len(hot_rois)} hot regions and {len(cold_rois)} cold regions")
+    
+    def clear_rois(self):
+        """Clear all ROIs."""
+        if self.roi_manager:
+            self.roi_manager.clear_all()
+            logger.info("All ROIs cleared")
+    
+    def save_rois(self, filename: str):
+        """Save ROIs to JSON file."""
+        if self.roi_manager:
+            success = self.roi_manager.save_rois(filename)
+            logger.info(f"ROIs {'saved to' if success else 'failed to save to'} {filename}")
+            return success
+        return False
+    
+    def load_rois(self, filename: str):
+        """Load ROIs from JSON file."""
+        if self.roi_manager:
+            success = self.roi_manager.load_rois(filename)
+            logger.info(f"ROIs {'loaded from' if success else 'failed to load from'} {filename}")
+            return success
+        return False
+    
+    def cycle_device(self):
+        """Cycle processing device (CPU/CUDA)."""
+        if self.thermal_processor:
+            current_device = self.thermal_processor.device
+            new_device = 'cpu' if current_device == 'cuda' else 'cuda'
+            self.thermal_processor.switch_device(new_device)
+            logger.info(f"Switched device: {current_device} -> {new_device}")
+    def lock_baseline(self, enabled: bool):
+        """Lock/unlock baseline temperature."""
+        if self.thermal_analyzer:
+            if enabled:
+                # Lock current mean temp as baseline
+                if self.latest_stats:
+                    self.thermal_analyzer.set_baseline(self.latest_stats.mean_temp)
+                    logger.info(f"Baseline locked at {self.latest_stats.mean_temp:.1f}")
+            else:
+                self.thermal_analyzer.set_baseline(None)
+                logger.info("Baseline unlocked")
+
 
     def cleanup(self):
         """Clean up resources."""
@@ -808,9 +1050,11 @@ def parse_arguments():
     parser.add_argument('--device', choices=['cuda', 'cpu'], default='cuda',
                        help='Processing device (default: cuda)')
     parser.add_argument('--palette', type=str, default='ironbow',
-                       help='Default thermal palette (default: ironbow)')
-
-    # Fusion settings (PARAMOUNT!)
+                      help='Thermal palette name (default: ironbow)')
+    parser.add_argument('--radiometric', action='store_true',
+                      help='Enable radiometric temperature measurement (default: False)')
+    
+    # GUI options settings (PARAMOUNT!)
     parser.add_argument('--fusion-mode', type=str, default='thermal_overlay',
                        choices=['alpha_blend', 'edge_enhanced', 'thermal_overlay',
                                'side_by_side', 'picture_in_picture', 'max_intensity',

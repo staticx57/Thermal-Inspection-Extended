@@ -495,9 +495,10 @@ class SnapshotManager:
                 if hot_spots:
                     metadata['hot_spots'] = [
                         {
-                            'temperature': hs.temperature,
-                            'center': list(hs.center),
-                            'area': hs.area
+                            'max_temp': hs.max_temp,
+                            'centroid': list(hs.centroid),
+                            'area': hs.area,
+                            'unit': hs.unit
                         }
                         for hs in hot_spots
                     ]
@@ -506,9 +507,10 @@ class SnapshotManager:
                 if cold_spots:
                     metadata['cold_spots'] = [
                         {
-                            'temperature': cs.temperature,
-                            'center': list(cs.center),
-                            'area': cs.area
+                            'min_temp': cs.min_temp,
+                            'centroid': list(cs.centroid),
+                            'area': cs.area,
+                            'unit': cs.unit
                         }
                         for cs in cold_spots
                     ]

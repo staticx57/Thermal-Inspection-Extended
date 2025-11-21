@@ -704,9 +704,21 @@ class PaletteManager:
             # Use OpenCV built-in colormap
             colorized = cv2.applyColorMap(thermal_adjusted, self.OPENCV_COLORMAPS[palette_type])
         elif palette_type in self.palette_cache:
-            # Use custom palette
+            # Use custom palette - LUT is (256, 3)
             lut = self.palette_cache[palette_type]
-            colorized = cv2.LUT(thermal_adjusted, lut)
+            
+            # Split into separate channel LUTs for cv2.LUT()
+            lut_b = lut[:, 0]  # Blue channel
+            lut_g = lut[:, 1]  # Green channel  
+            lut_r = lut[:, 2]  # Red channel
+            
+            # Apply to each channel
+            b = cv2.LUT(thermal_adjusted, lut_b)
+            g = cv2.LUT(thermal_adjusted, lut_g)
+            r = cv2.LUT(thermal_adjusted, lut_r)
+            
+            # Merge channels
+            colorized = cv2.merge([b, g, r])
         else:
             # Fallback to white_hot (grayscale)
             colorized = cv2.cvtColor(thermal_adjusted, cv2.COLOR_GRAY2BGR)

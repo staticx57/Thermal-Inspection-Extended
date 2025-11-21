@@ -1,0 +1,190 @@
+WARNING:rgb_camera_firefly:PySpin not available. FLIR Firefly support disabled.
+WARNING:rgb_camera_firefly:Install Spinnaker SDK from: https://www.flir.com/products/spinnaker-sdk/
+WARNING:root:VPI not available - using OpenCV fallback
+WARNING:root:jtop not available. Install with: sudo pip3 install jetson-stats
+INFO:root:[OK] Debug logging: thermal_inspection_debug.log
+2025-11-21 14:13:19,147 - root - INFO - [OK] Debug logging: thermal_inspection_debug.log
+2025-11-21 14:13:19,153 - __main__ - INFO - ================================================================================
+INFO:__main__:================================================================================
+INFO:__main__:Thermal Inspection Fusion Tool
+2025-11-21 14:13:19,154 - __main__ - INFO - Thermal Inspection Fusion Tool
+INFO:__main__:Transformed from ThermalFusionDrivingAssist
+2025-11-21 14:13:19,155 - __main__ - INFO - Transformed from ThermalFusionDrivingAssist
+2025-11-21 14:13:19,155 - __main__ - INFO - ================================================================================
+INFO:__main__:================================================================================
+INFO:__main__:Qt GUI enabled
+2025-11-21 14:13:19,194 - __main__ - INFO - Qt GUI enabled
+INFO:__main__:Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-21 14:13:19,233 - __main__ - INFO - Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+INFO:__main__:================================================================================
+2025-11-21 14:13:19,233 - __main__ - INFO - ================================================================================
+2025-11-21 14:13:19,233 - __main__ - INFO - Initializing Thermal Inspection Fusion Tool
+INFO:__main__:Initializing Thermal Inspection Fusion Tool
+INFO:__main__:================================================================================
+2025-11-21 14:13:19,234 - __main__ - INFO - ================================================================================
+INFO:__main__:Platform: x86-64 (AMD64)
+2025-11-21 14:13:19,234 - __main__ - INFO - Platform: x86-64 (AMD64)
+INFO:__main__:Mode: realtime
+2025-11-21 14:13:19,234 - __main__ - INFO - Mode: realtime
+INFO:__main__:Device: cuda
+2025-11-21 14:13:19,234 - __main__ - INFO - Device: cuda
+2025-11-21 14:13:19,234 - __main__ - INFO - Scanning for FLIR Boson thermal camera...
+INFO:__main__:Scanning for FLIR Boson thermal camera...
+INFO:flir_camera:Windows detected - trying DirectShow backend
+2025-11-21 14:13:19,234 - flir_camera - INFO - Windows detected - trying DirectShow backend
+INFO:flir_camera:FLIR Boson camera opened successfully on device 0
+2025-11-21 14:13:20,370 - flir_camera - INFO - FLIR Boson camera opened successfully on device 0
+INFO:flir_camera:Resolution: (640, 512)
+2025-11-21 14:13:20,370 - flir_camera - INFO - Resolution: (640, 512)
+INFO:flir_camera:FPS: 60.000240000960005
+2025-11-21 14:13:20,370 - flir_camera - INFO - FPS: 60.000240000960005
+2025-11-21 14:13:20,371 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+INFO:__main__:[OK] Thermal camera connected: 640x512
+INFO:__main__:Detecting camera mode...
+2025-11-21 14:13:20,371 - __main__ - INFO - Detecting camera mode...
+2025-11-21 14:13:20,396 - flir_camera - INFO - Thermal camera mode detection:
+INFO:flir_camera:Thermal camera mode detection:
+INFO:flir_camera:  Frame dtype: uint8
+2025-11-21 14:13:20,397 - flir_camera - INFO -   Frame dtype: uint8
+2025-11-21 14:13:20,397 - flir_camera - INFO -   Frame shape: (512, 640, 3)
+INFO:flir_camera:  Frame shape: (512, 640, 3)
+INFO:flir_camera:  \u2192 UVC MODE (8-bit YUV/RGB converted)
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\logging\__init__.py", line 1103, in emit
+    stream.write(msg + self.terminator)
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 49: character maps to <undefined>
+Call stack:
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 1066, in <module>
+    sys.exit(main())
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 1056, in main
+    if not app.initialize():
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 373, in initialize
+    thermal_connected = self._try_connect_thermal()
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 266, in _try_connect_thermal
+    is_radiometric = self._detect_radiometric_mode()
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 295, in _detect_radiometric_mode
+    self.thermal_camera.read_thermal()
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\flir_camera.py", line 187, in read_thermal
+    logger.info(f"  \u2192 UVC MODE (8-bit YUV/RGB converted)")
+Message: '  \u2192 UVC MODE (8-bit YUV/RGB converted)'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\logging\__init__.py", line 1103, in emit
+    stream.write(msg + self.terminator)
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 72: character maps to <undefined>
+Call stack:
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 1066, in <module>
+    sys.exit(main())
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 1056, in main
+    if not app.initialize():
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 373, in initialize
+    thermal_connected = self._try_connect_thermal()
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 266, in _try_connect_thermal
+    is_radiometric = self._detect_radiometric_mode()
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 295, in _detect_radiometric_mode
+    self.thermal_camera.read_thermal()
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\flir_camera.py", line 187, in read_thermal
+    logger.info(f"  \u2192 UVC MODE (8-bit YUV/RGB converted)")
+Message: '  \u2192 UVC MODE (8-bit YUV/RGB converted)'
+Arguments: ()
+INFO:__main__:Median pixel value: 92.0
+2025-11-21 14:13:20,480 - __main__ - INFO - Median pixel value: 92.0
+INFO:__main__:\u2713 Detected Non-Radiometric Mode (Raw/AGC)
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\logging\__init__.py", line 1103, in emit
+    stream.write(msg + self.terminator)
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 44: character maps to <undefined>
+Call stack:
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 1066, in <module>
+    sys.exit(main())
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 1056, in main
+    if not app.initialize():
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 373, in initialize
+    thermal_connected = self._try_connect_thermal()
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 266, in _try_connect_thermal
+    is_radiometric = self._detect_radiometric_mode()
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 312, in _detect_radiometric_mode
+    logger.info("\u2713 Detected Non-Radiometric Mode (Raw/AGC)")
+Message: '\u2713 Detected Non-Radiometric Mode (Raw/AGC)'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\logging\__init__.py", line 1103, in emit
+    stream.write(msg + self.terminator)
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 71: character maps to <undefined>
+Call stack:
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 1066, in <module>
+    sys.exit(main())
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 1056, in main
+    if not app.initialize():
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 373, in initialize
+    thermal_connected = self._try_connect_thermal()
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 266, in _try_connect_thermal
+    is_radiometric = self._detect_radiometric_mode()
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 312, in _detect_radiometric_mode
+    logger.info("\u2713 Detected Non-Radiometric Mode (Raw/AGC)")
+Message: '\u2713 Detected Non-Radiometric Mode (Raw/AGC)'
+Arguments: ()
+INFO:__main__:Fusion processor deferred (no RGB camera)
+2025-11-21 14:13:20,481 - __main__ - INFO - Fusion processor deferred (no RGB camera)
+INFO:__main__:------------------------------------------------------------
+2025-11-21 14:13:20,481 - __main__ - INFO - ------------------------------------------------------------
+INFO:__main__:Initializing inspection modules...
+2025-11-21 14:13:20,481 - __main__ - INFO - Initializing inspection modules...
+INFO:thermal_processor:VPI not available - using OpenCV fallback
+2025-11-21 14:13:20,482 - thermal_processor - INFO - VPI not available - using OpenCV fallback
+INFO:thermal_processor:VPI not available - using OpenCV fallback
+2025-11-21 14:13:20,484 - thermal_processor - INFO - VPI not available - using OpenCV fallback
+INFO:__main__:[OK] Thermal processor initialized
+2025-11-21 14:13:20,484 - __main__ - INFO - [OK] Thermal processor initialized
+INFO:__main__:[OK] Thermal analyzer initialized
+2025-11-21 14:13:20,484 - __main__ - INFO - [OK] Thermal analyzer initialized
+INFO:__main__:[OK] ROI manager initialized
+2025-11-21 14:13:20,485 - __main__ - INFO - [OK] ROI manager initialized
+INFO:__main__:[OK] Palette manager initialized
+2025-11-21 14:13:20,517 - __main__ - INFO - [OK] Palette manager initialized
+INFO:__main__:     45 palettes available
+2025-11-21 14:13:20,517 - __main__ - INFO -      45 palettes available
+INFO:__main__:[OK] Video recorder initialized
+2025-11-21 14:13:20,519 - __main__ - INFO - [OK] Video recorder initialized
+INFO:__main__:[OK] Snapshot manager initialized
+2025-11-21 14:13:20,519 - __main__ - INFO - [OK] Snapshot manager initialized
+INFO:__main__:------------------------------------------------------------
+2025-11-21 14:13:20,519 - __main__ - INFO - ------------------------------------------------------------
+WARNING:performance_monitor:jtop not available, using basic metrics only
+2025-11-21 14:13:20,520 - performance_monitor - WARNING - jtop not available, using basic metrics only
+INFO:__main__:Qt GUI selected
+2025-11-21 14:13:20,522 - __main__ - INFO - Qt GUI selected
+INFO:__main__:================================================================================
+2025-11-21 14:13:20,915 - __main__ - INFO - ================================================================================
+INFO:__main__:Initialization complete!
+2025-11-21 14:13:20,915 - __main__ - INFO - Initialization complete!
+INFO:__main__:================================================================================
+2025-11-21 14:13:20,916 - __main__ - INFO - ================================================================================
+2025-11-21 14:13:20,916 - __main__ - INFO - Starting inspection loop...
+INFO:__main__:Starting inspection loop...
+INFO:__main__:Qt GUI window shown
+2025-11-21 14:13:20,991 - __main__ - INFO - Qt GUI window shown
+2025-11-21 14:13:23,609 - __main__ - INFO - Frame 100: 42.9 FPS, 0 ROIs, 0 motion, 9 hot spots
+INFO:__main__:Frame 100: 42.9 FPS, 0 ROIs, 0 motion, 9 hot spots
+INFO:inspection_gui_qt:Developer mode: ON
+2025-11-21 14:13:24,694 - inspection_gui_qt - INFO - Developer mode: ON
+INFO:__main__:Frame 200: 35.4 FPS, 0 ROIs, 0 motion, 7 hot spots
+2025-11-21 14:13:26,262 - __main__ - INFO - Frame 200: 35.4 FPS, 0 ROIs, 0 motion, 7 hot spots
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_gui_qt.py", line 1102, in _on_palette_cycle
+    self.app.cycle_palette()
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 840, in cycle_palette
+    current = self.palette_manager.current_palette
+AttributeError: 'PaletteManager' object has no attribute 'current_palette'

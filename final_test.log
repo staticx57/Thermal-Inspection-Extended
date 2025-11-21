@@ -1,0 +1,456 @@
+WARNING:rgb_camera_firefly:PySpin not available. FLIR Firefly support disabled.
+WARNING:rgb_camera_firefly:Install Spinnaker SDK from: https://www.flir.com/products/spinnaker-sdk/
+WARNING:root:VPI not available - using OpenCV fallback
+WARNING:root:jtop not available. Install with: sudo pip3 install jetson-stats
+2025-11-21 14:21:35,119 - root - INFO - [OK] Debug logging: thermal_inspection_debug.log
+INFO:root:[OK] Debug logging: thermal_inspection_debug.log
+2025-11-21 14:21:35,128 - __main__ - INFO - ================================================================================
+INFO:__main__:================================================================================
+INFO:__main__:Thermal Inspection Fusion Tool
+2025-11-21 14:21:35,128 - __main__ - INFO - Thermal Inspection Fusion Tool
+INFO:__main__:Transformed from ThermalFusionDrivingAssist
+2025-11-21 14:21:35,128 - __main__ - INFO - Transformed from ThermalFusionDrivingAssist
+2025-11-21 14:21:35,129 - __main__ - INFO - ================================================================================
+INFO:__main__:================================================================================
+2025-11-21 14:21:35,167 - __main__ - INFO - Qt GUI enabled
+INFO:__main__:Qt GUI enabled
+2025-11-21 14:21:35,212 - __main__ - INFO - Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+INFO:__main__:Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-21 14:21:35,212 - __main__ - INFO - ================================================================================
+INFO:__main__:================================================================================
+2025-11-21 14:21:35,212 - __main__ - INFO - Initializing Thermal Inspection Fusion Tool
+INFO:__main__:Initializing Thermal Inspection Fusion Tool
+INFO:__main__:================================================================================
+2025-11-21 14:21:35,212 - __main__ - INFO - ================================================================================
+2025-11-21 14:21:35,212 - __main__ - INFO - Platform: x86-64 (AMD64)
+INFO:__main__:Platform: x86-64 (AMD64)
+2025-11-21 14:21:35,212 - __main__ - INFO - Mode: realtime
+INFO:__main__:Mode: realtime
+2025-11-21 14:21:35,212 - __main__ - INFO - Device: cuda
+INFO:__main__:Device: cuda
+INFO:__main__:Scanning for FLIR Boson thermal camera...
+2025-11-21 14:21:35,212 - __main__ - INFO - Scanning for FLIR Boson thermal camera...
+INFO:flir_camera:Windows detected - trying DirectShow backend
+2025-11-21 14:21:35,212 - flir_camera - INFO - Windows detected - trying DirectShow backend
+INFO:flir_camera:FLIR Boson camera opened successfully on device 0
+2025-11-21 14:21:36,489 - flir_camera - INFO - FLIR Boson camera opened successfully on device 0
+INFO:flir_camera:Resolution: (640, 512)
+2025-11-21 14:21:36,489 - flir_camera - INFO - Resolution: (640, 512)
+INFO:flir_camera:FPS: 60.000240000960005
+2025-11-21 14:21:36,489 - flir_camera - INFO - FPS: 60.000240000960005
+INFO:__main__:[OK] Thermal camera connected: 640x512
+2025-11-21 14:21:36,490 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+2025-11-21 14:21:36,490 - __main__ - INFO - Detecting camera mode...
+INFO:__main__:Detecting camera mode...
+INFO:flir_camera:Thermal camera mode detection:
+2025-11-21 14:21:36,525 - flir_camera - INFO - Thermal camera mode detection:
+INFO:flir_camera:  Frame dtype: uint8
+2025-11-21 14:21:36,526 - flir_camera - INFO -   Frame dtype: uint8
+INFO:flir_camera:  Frame shape: (512, 640, 3)
+2025-11-21 14:21:36,526 - flir_camera - INFO -   Frame shape: (512, 640, 3)
+INFO:flir_camera:  -> UVC MODE (8-bit YUV/RGB converted)
+2025-11-21 14:21:36,526 - flir_camera - INFO -   -> UVC MODE (8-bit YUV/RGB converted)
+2025-11-21 14:21:36,610 - __main__ - INFO - Median pixel value: 91.0
+INFO:__main__:Median pixel value: 91.0
+INFO:__main__:[DETECTED] Non-Radiometric Mode (Raw/AGC)
+2025-11-21 14:21:36,610 - __main__ - INFO - [DETECTED] Non-Radiometric Mode (Raw/AGC)
+INFO:__main__:Fusion processor deferred (no RGB camera)
+2025-11-21 14:21:36,610 - __main__ - INFO - Fusion processor deferred (no RGB camera)
+INFO:__main__:------------------------------------------------------------
+2025-11-21 14:21:36,610 - __main__ - INFO - ------------------------------------------------------------
+INFO:__main__:Initializing inspection modules...
+2025-11-21 14:21:36,611 - __main__ - INFO - Initializing inspection modules...
+2025-11-21 14:21:36,611 - thermal_processor - INFO - VPI not available - using OpenCV fallback
+INFO:thermal_processor:VPI not available - using OpenCV fallback
+INFO:thermal_processor:VPI not available - using OpenCV fallback
+2025-11-21 14:21:36,614 - thermal_processor - INFO - VPI not available - using OpenCV fallback
+INFO:__main__:[OK] Thermal processor initialized
+2025-11-21 14:21:36,614 - __main__ - INFO - [OK] Thermal processor initialized
+INFO:__main__:[OK] Thermal analyzer initialized
+2025-11-21 14:21:36,614 - __main__ - INFO - [OK] Thermal analyzer initialized
+2025-11-21 14:21:36,615 - __main__ - INFO - [OK] ROI manager initialized
+INFO:__main__:[OK] ROI manager initialized
+INFO:__main__:[OK] Palette manager initialized
+2025-11-21 14:21:36,644 - __main__ - INFO - [OK] Palette manager initialized
+INFO:__main__:     45 palettes available
+2025-11-21 14:21:36,644 - __main__ - INFO -      45 palettes available
+INFO:__main__:[OK] Video recorder initialized
+2025-11-21 14:21:36,645 - __main__ - INFO - [OK] Video recorder initialized
+2025-11-21 14:21:36,646 - __main__ - INFO - [OK] Snapshot manager initialized
+INFO:__main__:[OK] Snapshot manager initialized
+INFO:__main__:------------------------------------------------------------
+2025-11-21 14:21:36,646 - __main__ - INFO - ------------------------------------------------------------
+WARNING:performance_monitor:jtop not available, using basic metrics only
+2025-11-21 14:21:36,646 - performance_monitor - WARNING - jtop not available, using basic metrics only
+2025-11-21 14:21:36,647 - __main__ - INFO - Qt GUI selected
+INFO:__main__:Qt GUI selected
+INFO:__main__:================================================================================
+2025-11-21 14:21:37,126 - __main__ - INFO - ================================================================================
+2025-11-21 14:21:37,126 - __main__ - INFO - Initialization complete!
+INFO:__main__:Initialization complete!
+INFO:__main__:================================================================================
+2025-11-21 14:21:37,126 - __main__ - INFO - ================================================================================
+INFO:__main__:Starting inspection loop...
+2025-11-21 14:21:37,126 - __main__ - INFO - Starting inspection loop...
+INFO:__main__:Qt GUI window shown
+2025-11-21 14:21:37,241 - __main__ - INFO - Qt GUI window shown
+INFO:__main__:Frame 100: 37.0 FPS, 0 ROIs, 0 motion, 5 hot spots
+2025-11-21 14:21:40,979 - __main__ - INFO - Frame 100: 37.0 FPS, 0 ROIs, 0 motion, 5 hot spots
+2025-11-21 14:21:41,625 - inspection_gui_qt - INFO - Developer mode: ON
+INFO:inspection_gui_qt:Developer mode: ON
+INFO:inspection_gui_qt:Draw ROI mode activated
+2025-11-21 14:21:43,684 - inspection_gui_qt - INFO - Draw ROI mode activated
+2025-11-21 14:21:43,805 - __main__ - INFO - Frame 200: 35.5 FPS, 0 ROIs, 0 motion, 5 hot spots
+INFO:__main__:Frame 200: 35.5 FPS, 0 ROIs, 0 motion, 5 hot spots
+INFO:inspection_gui_qt:Draw ROI mode activated
+2025-11-21 14:21:45,264 - inspection_gui_qt - INFO - Draw ROI mode activated
+2025-11-21 14:21:45,497 - inspection_gui_qt - INFO - Draw ROI mode activated
+INFO:inspection_gui_qt:Draw ROI mode activated
+2025-11-21 14:21:49,392 - __main__ - INFO - Frame 300: 13.6 FPS, 0 ROIs, 0 motion, 5 hot spots
+INFO:__main__:Frame 300: 13.6 FPS, 0 ROIs, 0 motion, 5 hot spots
+INFO:inspection_gui_qt:ROIs cleared
+2025-11-21 14:21:49,507 - inspection_gui_qt - INFO - ROIs cleared
+INFO:__main__:Freeze not fully implemented yet: True
+2025-11-21 14:21:50,177 - __main__ - INFO - Freeze not fully implemented yet: True
+INFO:inspection_gui_qt:Frame freeze: ON
+2025-11-21 14:21:50,177 - inspection_gui_qt - INFO - Frame freeze: ON
+INFO:__main__:Freeze not fully implemented yet: False
+2025-11-21 14:21:51,569 - __main__ - INFO - Freeze not fully implemented yet: False
+INFO:inspection_gui_qt:Frame freeze: OFF
+2025-11-21 14:21:51,569 - inspection_gui_qt - INFO - Frame freeze: OFF
+INFO:__main__:Frame 400: 39.0 FPS, 0 ROIs, 0 motion, 5 hot spots
+2025-11-21 14:21:51,951 - __main__ - INFO - Frame 400: 39.0 FPS, 0 ROIs, 0 motion, 5 hot spots
+ERROR:media_recorder:Failed to capture snapshot: 'HotSpot' object has no attribute 'temperature'
+2025-11-21 14:21:53,008 - media_recorder - ERROR - Failed to capture snapshot: 'HotSpot' object has no attribute 'temperature'
+INFO:__main__:Snapshot saved: None
+2025-11-21 14:21:53,008 - __main__ - INFO - Snapshot saved: None
+2025-11-21 14:21:53,009 - inspection_gui_qt - INFO - Snapshot captured
+INFO:inspection_gui_qt:Snapshot captured
+INFO:__main__:Freeze not fully implemented yet: True
+2025-11-21 14:21:54,205 - __main__ - INFO - Freeze not fully implemented yet: True
+INFO:inspection_gui_qt:Frame freeze: ON
+2025-11-21 14:21:54,205 - inspection_gui_qt - INFO - Frame freeze: ON
+INFO:__main__:Freeze not fully implemented yet: False
+2025-11-21 14:21:55,102 - __main__ - INFO - Freeze not fully implemented yet: False
+INFO:inspection_gui_qt:Frame freeze: OFF
+2025-11-21 14:21:55,102 - inspection_gui_qt - INFO - Frame freeze: OFF
+INFO:__main__:Frame 500: 37.2 FPS, 0 ROIs, 0 motion, 5 hot spots
+2025-11-21 14:21:55,325 - __main__ - INFO - Frame 500: 37.2 FPS, 0 ROIs, 0 motion, 5 hot spots
+INFO:inspection_gui_qt:Theme: auto
+2025-11-21 14:21:55,635 - inspection_gui_qt - INFO - Theme: auto
+INFO:inspection_gui_qt:Theme: light
+2025-11-21 14:21:56,397 - inspection_gui_qt - INFO - Theme: light
+INFO:__main__:Frame 600: 38.2 FPS, 0 ROIs, 0 motion, 3 hot spots
+2025-11-21 14:21:57,971 - __main__ - INFO - Frame 600: 38.2 FPS, 0 ROIs, 0 motion, 3 hot spots
+2025-11-21 14:22:00,678 - __main__ - INFO - Frame 700: 36.1 FPS, 0 ROIs, 0 motion, 5 hot spots
+INFO:__main__:Frame 700: 36.1 FPS, 0 ROIs, 0 motion, 5 hot spots
+INFO:__main__:Frame 800: 31.7 FPS, 0 ROIs, 0 motion, 5 hot spots
+2025-11-21 14:22:03,615 - __main__ - INFO - Frame 800: 31.7 FPS, 0 ROIs, 0 motion, 5 hot spots
+INFO:__main__:Frame 900: 28.0 FPS, 0 ROIs, 0 motion, 7 hot spots
+2025-11-21 14:22:07,316 - __main__ - INFO - Frame 900: 28.0 FPS, 0 ROIs, 0 motion, 7 hot spots
+INFO:__main__:Frame 1000: 26.7 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 14:22:11,105 - __main__ - INFO - Frame 1000: 26.7 FPS, 0 ROIs, 0 motion, 6 hot spots
+INFO:__main__:Switched to palette: lava
+2025-11-21 14:22:13,683 - __main__ - INFO - Switched to palette: lava
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:13,683 - inspection_gui_qt - INFO - Palette cycle
+2025-11-21 14:22:13,838 - __main__ - INFO - Switched to palette: gradedfire
+INFO:__main__:Switched to palette: gradedfire
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:13,839 - inspection_gui_qt - INFO - Palette cycle
+2025-11-21 14:22:13,987 - __main__ - INFO - Switched to palette: hottest
+INFO:__main__:Switched to palette: hottest
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:13,987 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: amber
+2025-11-21 14:22:14,137 - __main__ - INFO - Switched to palette: amber
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:14,137 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: inferno
+2025-11-21 14:22:14,283 - __main__ - INFO - Switched to palette: inferno
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:14,283 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: rainbow
+2025-11-21 14:22:14,429 - __main__ - INFO - Switched to palette: rainbow
+2025-11-21 14:22:14,429 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+INFO:__main__:Switched to palette: rainbow_hc
+2025-11-21 14:22:14,593 - __main__ - INFO - Switched to palette: rainbow_hc
+2025-11-21 14:22:14,593 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+INFO:__main__:Switched to palette: rainbow_rev
+2025-11-21 14:22:14,769 - __main__ - INFO - Switched to palette: rainbow_rev
+2025-11-21 14:22:14,769 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+INFO:__main__:Switched to palette: spectral
+2025-11-21 14:22:14,919 - __main__ - INFO - Switched to palette: spectral
+2025-11-21 14:22:14,920 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:14,920 - __main__ - INFO - Frame 1100: 26.4 FPS, 0 ROIs, 0 motion, 5 hot spots
+INFO:__main__:Frame 1100: 26.4 FPS, 0 ROIs, 0 motion, 5 hot spots
+INFO:__main__:Switched to palette: cool_hot
+2025-11-21 14:22:15,069 - __main__ - INFO - Switched to palette: cool_hot
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:15,070 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: arctic
+2025-11-21 14:22:15,242 - __main__ - INFO - Switched to palette: arctic
+2025-11-21 14:22:15,243 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+INFO:__main__:Switched to palette: ice
+2025-11-21 14:22:15,381 - __main__ - INFO - Switched to palette: ice
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:15,382 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: winter
+2025-11-21 14:22:15,541 - __main__ - INFO - Switched to palette: winter
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:15,541 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: ocean
+2025-11-21 14:22:15,736 - __main__ - INFO - Switched to palette: ocean
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:15,736 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: viridis
+2025-11-21 14:22:15,884 - __main__ - INFO - Switched to palette: viridis
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:15,885 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: plasma
+2025-11-21 14:22:16,074 - __main__ - INFO - Switched to palette: plasma
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:16,074 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: magma
+2025-11-21 14:22:16,232 - __main__ - INFO - Switched to palette: magma
+2025-11-21 14:22:16,232 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+INFO:__main__:Switched to palette: cividis
+2025-11-21 14:22:16,421 - __main__ - INFO - Switched to palette: cividis
+2025-11-21 14:22:16,421 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+INFO:__main__:Switched to palette: turbo
+2025-11-21 14:22:16,582 - __main__ - INFO - Switched to palette: turbo
+2025-11-21 14:22:16,583 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+INFO:__main__:Switched to palette: blue_red
+2025-11-21 14:22:16,767 - __main__ - INFO - Switched to palette: blue_red
+2025-11-21 14:22:16,767 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:16,944 - __main__ - INFO - Switched to palette: cool_warm
+INFO:__main__:Switched to palette: cool_warm
+2025-11-21 14:22:16,944 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:17,140 - __main__ - INFO - Switched to palette: purple_orange
+INFO:__main__:Switched to palette: purple_orange
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:17,141 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: green_red
+2025-11-21 14:22:17,339 - __main__ - INFO - Switched to palette: green_red
+2025-11-21 14:22:17,339 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+INFO:__main__:Switched to palette: blue_yellow
+2025-11-21 14:22:17,540 - __main__ - INFO - Switched to palette: blue_yellow
+2025-11-21 14:22:17,540 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:17,730 - __main__ - INFO - Switched to palette: pink_green
+INFO:__main__:Switched to palette: pink_green
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:17,730 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: globow
+2025-11-21 14:22:17,953 - __main__ - INFO - Switched to palette: globow
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:17,953 - inspection_gui_qt - INFO - Palette cycle
+2025-11-21 14:22:18,221 - __main__ - INFO - Switched to palette: medical
+INFO:__main__:Switched to palette: medical
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:18,221 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Frame 1200: 26.2 FPS, 0 ROIs, 0 motion, 5 hot spots
+2025-11-21 14:22:18,746 - __main__ - INFO - Frame 1200: 26.2 FPS, 0 ROIs, 0 motion, 5 hot spots
+INFO:__main__:Switched to palette: thermal
+2025-11-21 14:22:18,917 - __main__ - INFO - Switched to palette: thermal
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:18,917 - inspection_gui_qt - INFO - Palette cycle
+2025-11-21 14:22:19,859 - __main__ - INFO - Switched to palette: helix
+INFO:__main__:Switched to palette: helix
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:19,860 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: cubehelix
+2025-11-21 14:22:20,638 - __main__ - INFO - Switched to palette: cubehelix
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:20,639 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: twilight
+2025-11-21 14:22:21,390 - __main__ - INFO - Switched to palette: twilight
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:21,390 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: dusk
+2025-11-21 14:22:21,858 - __main__ - INFO - Switched to palette: dusk
+2025-11-21 14:22:21,858 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+INFO:__main__:Switched to palette: fusion
+2025-11-21 14:22:22,016 - __main__ - INFO - Switched to palette: fusion
+2025-11-21 14:22:22,016 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:22,192 - __main__ - INFO - Switched to palette: prism
+INFO:__main__:Switched to palette: prism
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:22,193 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: alarm
+2025-11-21 14:22:22,409 - __main__ - INFO - Switched to palette: alarm
+2025-11-21 14:22:22,409 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:22,703 - __main__ - INFO - Switched to palette: laplacian
+INFO:__main__:Switched to palette: laplacian
+2025-11-21 14:22:22,703 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+INFO:__main__:Frame 1300: 24.8 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 14:22:22,749 - __main__ - INFO - Frame 1300: 24.8 FPS, 0 ROIs, 0 motion, 6 hot spots
+INFO:__main__:Switched to palette: isotherm
+2025-11-21 14:22:22,906 - __main__ - INFO - Switched to palette: isotherm
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:22,906 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: velocity
+2025-11-21 14:22:23,074 - __main__ - INFO - Switched to palette: velocity
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:23,074 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: terrain
+2025-11-21 14:22:23,236 - __main__ - INFO - Switched to palette: terrain
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:23,236 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: depth
+2025-11-21 14:22:23,429 - __main__ - INFO - Switched to palette: depth
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:23,429 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: white_hot
+2025-11-21 14:22:23,626 - __main__ - INFO - Switched to palette: white_hot
+2025-11-21 14:22:23,626 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+INFO:__main__:Switched to palette: black_hot
+2025-11-21 14:22:23,831 - __main__ - INFO - Switched to palette: black_hot
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:23,831 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: gray
+2025-11-21 14:22:23,987 - __main__ - INFO - Switched to palette: gray
+2025-11-21 14:22:23,987 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+INFO:__main__:Switched to palette: sepia
+2025-11-21 14:22:24,181 - __main__ - INFO - Switched to palette: sepia
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:24,182 - inspection_gui_qt - INFO - Palette cycle
+2025-11-21 14:22:24,376 - __main__ - INFO - Switched to palette: ironbow
+INFO:__main__:Switched to palette: ironbow
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:24,376 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: lava
+2025-11-21 14:22:24,701 - __main__ - INFO - Switched to palette: lava
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:24,703 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: gradedfire
+2025-11-21 14:22:25,042 - __main__ - INFO - Switched to palette: gradedfire
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:25,043 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: hottest
+2025-11-21 14:22:25,270 - __main__ - INFO - Switched to palette: hottest
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:25,270 - inspection_gui_qt - INFO - Palette cycle
+2025-11-21 14:22:25,462 - __main__ - INFO - Switched to palette: amber
+INFO:__main__:Switched to palette: amber
+2025-11-21 14:22:25,462 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+INFO:__main__:Switched to palette: inferno
+2025-11-21 14:22:25,633 - __main__ - INFO - Switched to palette: inferno
+2025-11-21 14:22:25,633 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+INFO:__main__:Switched to palette: rainbow
+2025-11-21 14:22:25,789 - __main__ - INFO - Switched to palette: rainbow
+2025-11-21 14:22:25,789 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:25,985 - __main__ - INFO - Switched to palette: rainbow_hc
+INFO:__main__:Switched to palette: rainbow_hc
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:25,985 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: rainbow_rev
+2025-11-21 14:22:26,188 - __main__ - INFO - Switched to palette: rainbow_rev
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:26,189 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: spectral
+2025-11-21 14:22:26,373 - __main__ - INFO - Switched to palette: spectral
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:26,374 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: cool_hot
+2025-11-21 14:22:26,567 - __main__ - INFO - Switched to palette: cool_hot
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:26,568 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Frame 1400: 25.7 FPS, 0 ROIs, 0 motion, 5 hot spots
+2025-11-21 14:22:26,713 - __main__ - INFO - Frame 1400: 25.7 FPS, 0 ROIs, 0 motion, 5 hot spots
+INFO:__main__:Switched to palette: arctic
+2025-11-21 14:22:26,785 - __main__ - INFO - Switched to palette: arctic
+2025-11-21 14:22:26,786 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:27,424 - __main__ - INFO - Switched to palette: ice
+INFO:__main__:Switched to palette: ice
+2025-11-21 14:22:27,424 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+INFO:__main__:Switched to palette: winter
+2025-11-21 14:22:27,624 - __main__ - INFO - Switched to palette: winter
+2025-11-21 14:22:27,624 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+INFO:__main__:Switched to palette: ocean
+2025-11-21 14:22:28,000 - __main__ - INFO - Switched to palette: ocean
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:28,000 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: viridis
+2025-11-21 14:22:28,142 - __main__ - INFO - Switched to palette: viridis
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:28,142 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: plasma
+2025-11-21 14:22:28,820 - __main__ - INFO - Switched to palette: plasma
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:28,820 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: magma
+2025-11-21 14:22:29,437 - __main__ - INFO - Switched to palette: magma
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:29,437 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Switched to palette: cividis
+2025-11-21 14:22:29,905 - __main__ - INFO - Switched to palette: cividis
+2025-11-21 14:22:29,906 - inspection_gui_qt - INFO - Palette cycle
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:30,426 - __main__ - INFO - Switched to palette: turbo
+INFO:__main__:Switched to palette: turbo
+INFO:inspection_gui_qt:Palette cycle
+2025-11-21 14:22:30,426 - inspection_gui_qt - INFO - Palette cycle
+INFO:__main__:Frame 1500: 26.6 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 14:22:30,466 - __main__ - INFO - Frame 1500: 26.6 FPS, 0 ROIs, 0 motion, 6 hot spots
+INFO:inspection_gui_qt:Device cycle
+2025-11-21 14:22:31,890 - inspection_gui_qt - INFO - Device cycle
+INFO:__main__:Fusion mode: side_by_side
+2025-11-21 14:22:32,702 - __main__ - INFO - Fusion mode: side_by_side
+INFO:inspection_gui_qt:Fusion mode cycle
+2025-11-21 14:22:32,703 - inspection_gui_qt - INFO - Fusion mode cycle
+INFO:__main__:Fusion mode: picture_in_picture
+2025-11-21 14:22:33,135 - __main__ - INFO - Fusion mode: picture_in_picture
+INFO:inspection_gui_qt:Fusion mode cycle
+2025-11-21 14:22:33,135 - inspection_gui_qt - INFO - Fusion mode cycle
+2025-11-21 14:22:33,324 - __main__ - INFO - Fusion mode: max_intensity
+INFO:__main__:Fusion mode: max_intensity
+INFO:inspection_gui_qt:Fusion mode cycle
+2025-11-21 14:22:33,325 - inspection_gui_qt - INFO - Fusion mode cycle
+INFO:__main__:Frame 1600: 26.1 FPS, 0 ROIs, 0 motion, 7 hot spots
+2025-11-21 14:22:34,309 - __main__ - INFO - Frame 1600: 26.1 FPS, 0 ROIs, 0 motion, 7 hot spots
+2025-11-21 14:22:34,584 - __main__ - INFO - Fusion alpha: 0.6
+INFO:__main__:Fusion alpha: 0.6
+INFO:inspection_gui_qt:Fusion alpha cycle
+2025-11-21 14:22:34,584 - inspection_gui_qt - INFO - Fusion alpha cycle
+INFO:__main__:Fusion alpha: 0.7
+2025-11-21 14:22:34,585 - __main__ - INFO - Fusion alpha: 0.7
+INFO:inspection_gui_qt:Fusion alpha cycle
+2025-11-21 14:22:34,585 - inspection_gui_qt - INFO - Fusion alpha cycle
+INFO:__main__:Fusion alpha: 0.8
+2025-11-21 14:22:34,736 - __main__ - INFO - Fusion alpha: 0.8
+INFO:inspection_gui_qt:Fusion alpha cycle
+2025-11-21 14:22:34,736 - inspection_gui_qt - INFO - Fusion alpha cycle
+INFO:__main__:Fusion alpha: 0.9
+2025-11-21 14:22:34,736 - __main__ - INFO - Fusion alpha: 0.9
+2025-11-21 14:22:34,737 - inspection_gui_qt - INFO - Fusion alpha cycle
+INFO:inspection_gui_qt:Fusion alpha cycle
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_gui_qt.py", line 1187, in _on_motion_toggle
+    self.app.toggle_motion(enabled)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 908, in toggle_motion
+    self.thermal_processor.set_motion_detection(enabled)
+AttributeError: 'ThermalProcessor' object has no attribute 'set_motion_detection'

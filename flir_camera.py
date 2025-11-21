@@ -147,9 +147,19 @@ class FLIRBosonCamera:
             ret, frame = self.cap.read()
 
         if ret and frame is not None:
-            # FLIR Boson outputs grayscale, convert to BGR for compatibility
-            if len(frame.shape) == 2:
-                frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+            # Keep as grayscale for thermal processing pipeline
+            if len(frame.shape) == 3:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            
+            # Ensure 8-bit depth (convert 16-bit to 8-bit if needed)
+            if frame.dtype == np.uint16:
+                # Normalize to 0-255 range and convert to uint8
+                frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
+                frame = frame.astype(np.uint8)
+            elif frame.dtype != np.uint8:
+                # Handle other types (float, etc) by just casting or normalizing
+                frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
+                frame = frame.astype(np.uint8)
 
         return ret, frame
 
@@ -172,9 +182,9 @@ class FLIRBosonCamera:
                 logger.info(f"  Frame dtype: {frame.dtype}")
                 logger.info(f"  Frame shape: {frame.shape}")
                 if frame.dtype == np.uint16:
-                    logger.info(f"  → RAW THERMAL MODE (16-bit radiometric data)")
+                    logger.info(f"  -> RAW THERMAL MODE (16-bit radiometric data)")
                 elif frame.dtype == np.uint8:
-                    logger.info(f"  → UVC MODE (8-bit YUV/RGB converted)")
+                    logger.info(f"  -> UVC MODE (8-bit YUV/RGB converted)")
                 self._mode_logged = True
             
             if len(frame.shape) == 3:
