@@ -1,0 +1,486 @@
+WARNING:rgb_camera_firefly:PySpin not available. FLIR Firefly support disabled.
+WARNING:rgb_camera_firefly:Install Spinnaker SDK from: https://www.flir.com/products/spinnaker-sdk/
+WARNING:root:VPI not available
+WARNING:road_analyzer:audio_alert_system not available - audio alerts disabled
+pygame 2.6.1 (SDL 2.28.4, Python 3.12.8)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+WARNING:root:jtop not available. Install with: sudo pip3 install jetson-stats
+INFO:root:[OK] Debug logging enabled: thermal_fusion_debug.log (10MB x5 files)
+2025-11-19 18:29:39,227 - root - INFO - [OK] Debug logging enabled: thermal_fusion_debug.log (10MB x5 files)
+
+ΓòöΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòù
+Γòæ   FLIR Thermal + RGB Fusion Road Monitor v3.5              Γòæ
+Γòæ   Qt Professional GUI | Jetson Orin & x86-64               Γòæ
+ΓòáΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòú
+Γòæ  Keyboard Controls:                                          Γòæ
+Γòæ    Q/ESC - Quit          F - Fullscreen      D - Detections  Γòæ
+Γòæ    Y - Toggle YOLO       V - Cycle Views     S - Screenshot  Γòæ
+Γòæ    C - Cycle Palettes    G - Device Toggle   P - Stats       Γòæ
+Γòæ    A - Toggle Audio      (v3.0 Audio Alerts)                Γòæ
+Γòæ                                                               Γòæ
+Γòæ  GUI Buttons (click):                                        Γòæ
+Γòæ    Row 1: PAL, YOLO, BOX, DEV, MODEL                        Γòæ
+Γòæ    Row 2: FLUSH, AUDIO, SKIP, VIEW, FUS, ╬▒                  Γòæ
+Γòæ                                                               Γòæ
+Γòæ  View Modes: Thermal, RGB, Fusion, Side-by-Side, PIP       Γòæ
+Γòæ  Fusion Modes: Alpha Blend, Edge Enhanced, Thermal Overlay  Γòæ
+Γòæ                Side-by-Side, PIP, Max Intensity, Weighted   Γòæ
+Γòæ                                                               Γòæ
+Γòæ  v3.0 Smart Features:                                        Γòæ
+Γòæ    ΓÇó Distance estimation with TTC warnings                   Γòæ
+Γòæ    ΓÇó ISO 26262 compliant audio alerts (1.5-2 kHz)          Γòæ
+Γòæ    ΓÇó RED PULSE alerts on sides for pedestrians/animals      Γòæ
+Γòæ    ΓÇó Directional proximity warnings (left/right/center)     Γòæ
+Γòæ    ΓÇó Multi-view support for optimal situational awareness   Γòæ
+ΓòÜΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò¥
+    
+INFO:__main__:QApplication initialized (Qt GUI)
+2025-11-19 18:29:39,289 - __main__ - INFO - QApplication initialized (Qt GUI)
+INFO:__main__:Platform detection: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-11-10.0.26200-SP0'}
+2025-11-19 18:29:39,348 - __main__ - INFO - Platform detection: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-11-10.0.26200-SP0'}
+INFO:__main__:Initializing Thermal + RGB Fusion Road Monitor...
+INFO:__main__:Platform: x86-64 (AMD64)
+2025-11-19 18:29:39,350 - __main__ - INFO - Initializing Thermal + RGB Fusion Road Monitor...
+2025-11-19 18:29:39,350 - __main__ - INFO - Platform: x86-64 (AMD64)
+2025-11-19 18:29:39,350 - __main__ - INFO - Auto-detecting thermal cameras...
+INFO:__main__:Auto-detecting thermal cameras...
+INFO:camera_detector:Detected: Camera 0 (DSHOW) at index 0
+2025-11-19 18:29:41,043 - camera_detector - INFO - Detected: Camera 0 (DSHOW) at index 0
+INFO:camera_detector:Windows camera probe complete: 1 camera(s) found
+2025-11-19 18:29:41,043 - camera_detector - INFO - Windows camera probe complete: 1 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  [0] Camera 0 (DSHOW) (640x480) [RGB]
+============================================================
+
+WARNING:__main__:============================================================
+2025-11-19 18:29:41,043 - __main__ - WARNING - ============================================================
+WARNING:__main__:NO THERMAL CAMERA DETECTED
+2025-11-19 18:29:41,043 - __main__ - WARNING - NO THERMAL CAMERA DETECTED
+WARNING:__main__:System will wait for thermal camera connection...
+2025-11-19 18:29:41,043 - __main__ - WARNING - System will wait for thermal camera connection...
+WARNING:__main__:Connect thermal camera and it will auto-detect
+2025-11-19 18:29:41,043 - __main__ - WARNING - Connect thermal camera and it will auto-detect
+WARNING:__main__:============================================================
+2025-11-19 18:29:41,043 - __main__ - WARNING - ============================================================
+INFO:__main__:Using default resolution: 640x512
+2025-11-19 18:29:41,043 - __main__ - INFO - Using default resolution: 640x512
+INFO:__main__:Detecting RGB cameras (FLIR Firefly or UVC)...
+2025-11-19 18:29:41,043 - __main__ - INFO - Detecting RGB cameras (FLIR Firefly or UVC)...
+INFO:camera_factory:============================================================
+2025-11-19 18:29:41,043 - camera_factory - INFO - ============================================================
+INFO:camera_factory:RGB Camera Factory - Auto-detection
+INFO:camera_factory:============================================================
+2025-11-19 18:29:41,044 - camera_factory - INFO - RGB Camera Factory - Auto-detection
+2025-11-19 18:29:41,044 - camera_factory - INFO - ============================================================
+INFO:camera_factory:Auto-detecting RGB cameras...
+2025-11-19 18:29:41,044 - camera_factory - INFO - Auto-detecting RGB cameras...
+INFO:camera_factory:\u2717 No UVC cameras detected
+2025-11-19 18:29:41,046 - camera_factory - INFO - Γ£ù No UVC cameras detected
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\stati\AppData\Local\Programs\Python\Python312\Lib\logging\__init__.py", line 1163, in emit
+    stream.write(msg + self.terminator)
+  File "C:\Users\stati\AppData\Local\Programs\Python\Python312\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 76: character maps to <undefined>
+Call stack:
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\main.py", line 1389, in <module>
+    main()
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\main.py", line 1380, in main
+    if not app.initialize():
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\main.py", line 417, in initialize
+    self.rgb_camera = create_rgb_camera(
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_factory.py", line 193, in create_rgb_camera
+    logger.info("\u2717 No UVC cameras detected")
+Message: '\u2717 No UVC cameras detected'
+Arguments: ()
+WARNING:camera_factory:Falling back to legacy RGBCamera class
+2025-11-19 18:29:41,086 - camera_factory - WARNING - Falling back to legacy RGBCamera class
+INFO:rgb_camera:Windows detected - opening camera 0 with DirectShow
+2025-11-19 18:29:41,087 - rgb_camera - INFO - Windows detected - opening camera 0 with DirectShow
+2025-11-19 18:29:45,127 - rgb_camera - INFO - RGB camera opened successfully
+INFO:rgb_camera:RGB camera opened successfully
+INFO:rgb_camera:Resolution: 640x480 @ 30 FPS
+2025-11-19 18:29:45,127 - rgb_camera - INFO - Resolution: 640x480 @ 30 FPS
+2025-11-19 18:29:45,929 - __main__ - INFO - [OK] RGB camera opened: USB/CSI (Legacy)
+2025-11-19 18:29:45,929 - __main__ - INFO -   Resolution: 640x480
+INFO:__main__:[OK] RGB camera opened: USB/CSI (Legacy)
+INFO:__main__:  Resolution: 640x480
+INFO:config:Configuration loaded from config.json
+2025-11-19 18:29:45,930 - config - INFO - Configuration loaded from config.json
+WARNING:fusion_processor:No calibration file provided - using identity transform
+2025-11-19 18:29:45,930 - fusion_processor - WARNING - No calibration file provided - using identity transform
+INFO:__main__:Fusion processor initialized (mode: alpha_blend)
+2025-11-19 18:29:45,930 - __main__ - INFO - Fusion processor initialized (mode: alpha_blend)
+INFO:__main__:Detector initialization deferred until thermal camera connects
+2025-11-19 18:29:45,930 - __main__ - INFO - Detector initialization deferred until thermal camera connects
+INFO:distance_estimator:DistanceEstimator initialized: focal_length=640.0px, camera_height=1.2m, thermal_mode=False, LiDAR=DISABLED
+2025-11-19 18:29:45,930 - distance_estimator - INFO - DistanceEstimator initialized: focal_length=640.0px, camera_height=1.2m, thermal_mode=False, LiDAR=DISABLED
+INFO:road_analyzer:Distance estimation enabled (camera only)
+2025-11-19 18:29:45,930 - road_analyzer - INFO - Distance estimation enabled (camera only)
+INFO:__main__:GUI Selection: use_opencv=False, qt_app=present, use_qt=True
+2025-11-19 18:29:45,930 - __main__ - INFO - GUI Selection: use_opencv=False, qt_app=present, use_qt=True
+2025-11-19 18:29:46,032 - __main__ - INFO - [OK] Using Qt GUI (professional mode)
+INFO:__main__:[OK] Using Qt GUI (professional mode)
+INFO:auto_daynight:AutoDayNightDetector initialized: lat=37.7749, lon=-122.4194, ambient_threshold=80, time=7-19
+2025-11-19 18:29:46,041 - auto_daynight - INFO - AutoDayNightDetector initialized: lat=37.7749, lon=-122.4194, ambient_threshold=80, time=7-19
+2025-11-19 18:29:46,041 - auto_daynight - INFO - Created global AutoDayNightDetector instance
+INFO:auto_daynight:Created global AutoDayNightDetector instance
+INFO:alert_overlay:AlertOverlayWidget initialized (ADAS-compliant)
+2025-11-19 18:29:46,056 - alert_overlay - INFO - AlertOverlayWidget initialized (ADAS-compliant)
+INFO:developer_panel:Developer panel connected to main app
+2025-11-19 18:29:46,524 - developer_panel - INFO - Developer panel connected to main app
+INFO:driver_gui_qt:Control panel signals connected (all 22 controls)
+2025-11-19 18:29:46,540 - driver_gui_qt - INFO - Control panel signals connected (all 22 controls)
+INFO:driver_gui_qt:Applied 'dark' theme (Day=bright, Night=dark, Auto=intelligent)
+2025-11-19 18:29:46,553 - driver_gui_qt - INFO - Applied 'dark' theme (Day=bright, Night=dark, Auto=intelligent)
+INFO:driver_gui_qt:Qt GUI initialized successfully
+2025-11-19 18:29:46,553 - driver_gui_qt - INFO - Qt GUI initialized successfully
+INFO:__main__:[OK] Qt GUI window created successfully with app reference
+2025-11-19 18:29:46,553 - __main__ - INFO - [OK] Qt GUI window created successfully with app reference
+WARNING:performance_monitor:jtop not available, using basic metrics only
+2025-11-19 18:29:46,554 - performance_monitor - WARNING - jtop not available, using basic metrics only
+INFO:__main__:Initialization complete!
+2025-11-19 18:29:46,554 - __main__ - INFO - Initialization complete!
+INFO:__main__:RGB camera: ENABLED
+2025-11-19 18:29:46,554 - __main__ - INFO - RGB camera: ENABLED
+INFO:__main__:View mode: fusion
+INFO:__main__:Starting main loop...
+2025-11-19 18:29:46,554 - __main__ - INFO - View mode: fusion
+2025-11-19 18:29:46,554 - __main__ - INFO - Starting main loop...
+INFO:__main__:Qt GUI window shown
+2025-11-19 18:29:47,314 - __main__ - INFO - Qt GUI window shown
+INFO:__main__:Detection worker thread started
+2025-11-19 18:29:47,315 - __main__ - INFO - Detection worker thread started
+INFO:__main__:Async detection thread started
+2025-11-19 18:29:47,315 - __main__ - INFO - Async detection thread started
+2025-11-19 18:29:47,316 - __main__ - INFO - Phase 3: Starting VideoProcessorWorker thread...
+INFO:__main__:Phase 3: Starting VideoProcessorWorker thread...
+2025-11-19 18:29:47,316 - driver_gui_qt - INFO - Worker signals connected to GUI
+INFO:driver_gui_qt:Worker signals connected to GUI
+INFO:__main__:VideoProcessorWorker started - entering Qt event loop
+2025-11-19 18:29:47,317 - __main__ - INFO - VideoProcessorWorker started - entering Qt event loop
+INFO:video_worker:VideoProcessorWorker thread started
+2025-11-19 18:29:47,317 - video_worker - INFO - VideoProcessorWorker thread started
+INFO:video_worker:Platform: x86-64, Target FPS: 30 (adaptive throttling)
+2025-11-19 18:29:47,317 - video_worker - INFO - Platform: x86-64, Target FPS: 30 (adaptive throttling)
+INFO:video_worker:Scanning for thermal camera...
+2025-11-19 18:29:47,317 - video_worker - INFO - Scanning for thermal camera...
+2025-11-19 18:29:47,317 - __main__ - INFO - Auto-detecting thermal cameras...
+INFO:__main__:Auto-detecting thermal cameras...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+2025-11-19 18:29:47,317 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+2025-11-19 18:29:50,344 - video_worker - INFO - Scanning for thermal camera...
+INFO:video_worker:Scanning for thermal camera...
+2025-11-19 18:29:50,344 - __main__ - INFO - Auto-detecting thermal cameras...
+2025-11-19 18:29:50,344 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+INFO:__main__:Auto-detecting thermal cameras...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+2025-11-19 18:29:51,036 - video_worker - INFO - Frame 100 | FPS: 60.0/30 | Loop: 2.7ms | Throttle: [OK] | Detections: 0 | View: fusion
+INFO:video_worker:Frame 100 | FPS: 60.0/30 | Loop: 2.7ms | Throttle: [OK] | Detections: 0 | View: fusion
+2025-11-19 18:29:53,377 - video_worker - INFO - Scanning for thermal camera...
+INFO:video_worker:Scanning for thermal camera...
+2025-11-19 18:29:53,377 - __main__ - INFO - Auto-detecting thermal cameras...
+2025-11-19 18:29:53,377 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+INFO:__main__:Auto-detecting thermal cameras...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+INFO:video_worker:Frame 200 | FPS: 60.0/30 | Loop: 10.6ms | Throttle: [OK] | Detections: 0 | View: fusion
+2025-11-19 18:29:54,683 - video_worker - INFO - Frame 200 | FPS: 60.0/30 | Loop: 10.6ms | Throttle: [OK] | Detections: 0 | View: fusion
+2025-11-19 18:29:56,402 - video_worker - INFO - Scanning for thermal camera...
+INFO:video_worker:Scanning for thermal camera...
+2025-11-19 18:29:56,402 - __main__ - INFO - Auto-detecting thermal cameras...
+2025-11-19 18:29:56,402 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+INFO:__main__:Auto-detecting thermal cameras...
+  No cameras detected
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+============================================================
+
+2025-11-19 18:29:58,324 - video_worker - INFO - Frame 300 | FPS: 60.0/30 | Loop: 2.2ms | Throttle: [OK] | Detections: 0 | View: fusion
+INFO:video_worker:Frame 300 | FPS: 60.0/30 | Loop: 2.2ms | Throttle: [OK] | Detections: 0 | View: fusion
+INFO:video_worker:Scanning for thermal camera...
+2025-11-19 18:29:59,426 - video_worker - INFO - Scanning for thermal camera...
+2025-11-19 18:29:59,426 - __main__ - INFO - Auto-detecting thermal cameras...
+INFO:__main__:Auto-detecting thermal cameras...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+2025-11-19 18:29:59,426 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+INFO:video_worker:Frame 400 | FPS: 60.0/30 | Loop: 1.6ms | Throttle: [OK] | Detections: 0 | View: fusion
+2025-11-19 18:30:02,046 - video_worker - INFO - Frame 400 | FPS: 60.0/30 | Loop: 1.6ms | Throttle: [OK] | Detections: 0 | View: fusion
+INFO:video_worker:Scanning for thermal camera...
+2025-11-19 18:30:02,459 - video_worker - INFO - Scanning for thermal camera...
+2025-11-19 18:30:02,459 - __main__ - INFO - Auto-detecting thermal cameras...
+2025-11-19 18:30:02,459 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+INFO:__main__:Auto-detecting thermal cameras...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+2025-11-19 18:30:05,478 - video_worker - INFO - Scanning for thermal camera...
+INFO:video_worker:Scanning for thermal camera...
+INFO:__main__:Auto-detecting thermal cameras...
+2025-11-19 18:30:05,478 - __main__ - INFO - Auto-detecting thermal cameras...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+2025-11-19 18:30:05,478 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+INFO:video_worker:Frame 500 | FPS: 60.0/30 | Loop: 2.0ms | Throttle: [OK] | Detections: 0 | View: fusion
+2025-11-19 18:30:05,685 - video_worker - INFO - Frame 500 | FPS: 60.0/30 | Loop: 2.0ms | Throttle: [OK] | Detections: 0 | View: fusion
+INFO:video_worker:Scanning for thermal camera...
+2025-11-19 18:30:08,503 - video_worker - INFO - Scanning for thermal camera...
+INFO:__main__:Auto-detecting thermal cameras...
+2025-11-19 18:30:08,503 - __main__ - INFO - Auto-detecting thermal cameras...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+2025-11-19 18:30:08,503 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+INFO:video_worker:Frame 600 | FPS: 60.0/30 | Loop: 1.6ms | Throttle: [OK] | Detections: 0 | View: fusion
+2025-11-19 18:30:09,330 - video_worker - INFO - Frame 600 | FPS: 60.0/30 | Loop: 1.6ms | Throttle: [OK] | Detections: 0 | View: fusion
+2025-11-19 18:30:11,527 - video_worker - INFO - Scanning for thermal camera...
+INFO:video_worker:Scanning for thermal camera...
+INFO:__main__:Auto-detecting thermal cameras...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+2025-11-19 18:30:11,527 - __main__ - INFO - Auto-detecting thermal cameras...
+2025-11-19 18:30:11,527 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+INFO:video_worker:Frame 700 | FPS: 60.0/30 | Loop: 1.0ms | Throttle: [OK] | Detections: 0 | View: fusion
+2025-11-19 18:30:13,042 - video_worker - INFO - Frame 700 | FPS: 60.0/30 | Loop: 1.0ms | Throttle: [OK] | Detections: 0 | View: fusion
+INFO:video_worker:Scanning for thermal camera...
+2025-11-19 18:30:14,556 - video_worker - INFO - Scanning for thermal camera...
+INFO:__main__:Auto-detecting thermal cameras...
+2025-11-19 18:30:14,556 - __main__ - INFO - Auto-detecting thermal cameras...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+2025-11-19 18:30:14,556 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+INFO:video_worker:Frame 800 | FPS: 60.0/30 | Loop: 9.2ms | Throttle: [OK] | Detections: 0 | View: fusion
+2025-11-19 18:30:16,685 - video_worker - INFO - Frame 800 | FPS: 60.0/30 | Loop: 9.2ms | Throttle: [OK] | Detections: 0 | View: fusion
+INFO:video_worker:Scanning for thermal camera...
+2025-11-19 18:30:17,576 - video_worker - INFO - Scanning for thermal camera...
+INFO:__main__:Auto-detecting thermal cameras...
+2025-11-19 18:30:17,576 - __main__ - INFO - Auto-detecting thermal cameras...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+2025-11-19 18:30:17,576 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+INFO:video_worker:Frame 900 | FPS: 60.0/30 | Loop: 1.5ms | Throttle: [OK] | Detections: 0 | View: fusion
+2025-11-19 18:30:20,324 - video_worker - INFO - Frame 900 | FPS: 60.0/30 | Loop: 1.5ms | Throttle: [OK] | Detections: 0 | View: fusion
+INFO:video_worker:Scanning for thermal camera...
+2025-11-19 18:30:20,600 - video_worker - INFO - Scanning for thermal camera...
+INFO:__main__:Auto-detecting thermal cameras...
+2025-11-19 18:30:20,600 - __main__ - INFO - Auto-detecting thermal cameras...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+2025-11-19 18:30:20,600 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+INFO:video_worker:Scanning for thermal camera...
+2025-11-19 18:30:23,627 - video_worker - INFO - Scanning for thermal camera...
+INFO:__main__:Auto-detecting thermal cameras...
+2025-11-19 18:30:23,628 - __main__ - INFO - Auto-detecting thermal cameras...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+2025-11-19 18:30:23,628 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+2025-11-19 18:30:24,042 - video_worker - INFO - Frame 1000 | FPS: 60.0/30 | Loop: 1.8ms | Throttle: [OK] | Detections: 0 | View: fusion
+INFO:video_worker:Frame 1000 | FPS: 60.0/30 | Loop: 1.8ms | Throttle: [OK] | Detections: 0 | View: fusion
+INFO:video_worker:Scanning for thermal camera...
+2025-11-19 18:30:26,653 - video_worker - INFO - Scanning for thermal camera...
+INFO:__main__:Auto-detecting thermal cameras...
+2025-11-19 18:30:26,653 - __main__ - INFO - Auto-detecting thermal cameras...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+2025-11-19 18:30:26,653 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+INFO:video_worker:Frame 1100 | FPS: 60.0/30 | Loop: 1.6ms | Throttle: [OK] | Detections: 0 | View: fusion
+2025-11-19 18:30:27,687 - video_worker - INFO - Frame 1100 | FPS: 60.0/30 | Loop: 1.6ms | Throttle: [OK] | Detections: 0 | View: fusion
+INFO:video_worker:Scanning for thermal camera...
+INFO:__main__:Auto-detecting thermal cameras...
+2025-11-19 18:30:29,677 - video_worker - INFO - Scanning for thermal camera...
+2025-11-19 18:30:29,677 - __main__ - INFO - Auto-detecting thermal cameras...
+2025-11-19 18:30:29,677 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+INFO:video_worker:Frame 1200 | FPS: 60.0/30 | Loop: 2.8ms | Throttle: [OK] | Detections: 0 | View: fusion
+2025-11-19 18:30:31,323 - video_worker - INFO - Frame 1200 | FPS: 60.0/30 | Loop: 2.8ms | Throttle: [OK] | Detections: 0 | View: fusion
+INFO:video_worker:Scanning for thermal camera...
+INFO:__main__:Auto-detecting thermal cameras...
+2025-11-19 18:30:32,699 - video_worker - INFO - Scanning for thermal camera...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+2025-11-19 18:30:32,699 - __main__ - INFO - Auto-detecting thermal cameras...
+2025-11-19 18:30:32,699 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+INFO:video_worker:Frame 1300 | FPS: 60.0/30 | Loop: 2.5ms | Throttle: [OK] | Detections: 0 | View: fusion
+2025-11-19 18:30:35,042 - video_worker - INFO - Frame 1300 | FPS: 60.0/30 | Loop: 2.5ms | Throttle: [OK] | Detections: 0 | View: fusion
+INFO:video_worker:Scanning for thermal camera...
+INFO:__main__:Auto-detecting thermal cameras...
+2025-11-19 18:30:35,726 - video_worker - INFO - Scanning for thermal camera...
+2025-11-19 18:30:35,726 - __main__ - INFO - Auto-detecting thermal cameras...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+2025-11-19 18:30:35,726 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+INFO:video_worker:Frame 1400 | FPS: 60.0/30 | Loop: 11.4ms | Throttle: [OK] | Detections: 0 | View: fusion
+2025-11-19 18:30:38,683 - video_worker - INFO - Frame 1400 | FPS: 60.0/30 | Loop: 11.4ms | Throttle: [OK] | Detections: 0 | View: fusion
+2025-11-19 18:30:38,751 - video_worker - INFO - Scanning for thermal camera...
+2025-11-19 18:30:38,751 - __main__ - INFO - Auto-detecting thermal cameras...
+2025-11-19 18:30:38,751 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+INFO:video_worker:Scanning for thermal camera...
+INFO:__main__:Auto-detecting thermal cameras...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+INFO:video_worker:Scanning for thermal camera...
+2025-11-19 18:30:41,767 - video_worker - INFO - Scanning for thermal camera...
+INFO:__main__:Auto-detecting thermal cameras...
+2025-11-19 18:30:41,767 - __main__ - INFO - Auto-detecting thermal cameras...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+2025-11-19 18:30:41,767 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+2025-11-19 18:30:42,315 - video_worker - INFO - Frame 1500 | FPS: 60.0/30 | Loop: 11.0ms | Throttle: [OK] | Detections: 0 | View: fusion
+INFO:video_worker:Frame 1500 | FPS: 60.0/30 | Loop: 11.0ms | Throttle: [OK] | Detections: 0 | View: fusion
+2025-11-19 18:30:44,776 - video_worker - INFO - Scanning for thermal camera...
+INFO:video_worker:Scanning for thermal camera...
+2025-11-19 18:30:44,776 - __main__ - INFO - Auto-detecting thermal cameras...
+INFO:__main__:Auto-detecting thermal cameras...
+INFO:camera_detector:Windows camera probe complete: 0 camera(s) found
+2025-11-19 18:30:44,776 - camera_detector - INFO - Windows camera probe complete: 0 camera(s) found
+
+============================================================
+DETECTED CAMERAS:
+============================================================
+  No cameras detected
+============================================================
+
+INFO:driver_gui_qt:Qt GUI closing...
+2025-11-19 18:30:45,848 - driver_gui_qt - INFO - Qt GUI closing...
+INFO:__main__:Qt event loop exited
+2025-11-19 18:30:45,879 - __main__ - INFO - Qt event loop exited
+INFO:video_worker:Stopping VideoProcessorWorker...
+2025-11-19 18:30:45,879 - video_worker - INFO - Stopping VideoProcessorWorker...
+2025-11-19 18:30:45,909 - video_worker - INFO - VideoProcessorWorker stopped
+INFO:video_worker:VideoProcessorWorker stopped
+INFO:__main__:Shutting down...
+INFO:__main__:Waiting for detection thread...
+2025-11-19 18:30:45,909 - __main__ - INFO - Shutting down...
+2025-11-19 18:30:45,909 - __main__ - INFO - Waiting for detection thread...
+INFO:__main__:Detection worker thread stopped
+2025-11-19 18:30:45,910 - __main__ - INFO - Detection worker thread stopped
+INFO:rgb_camera:RGB camera released
+2025-11-19 18:30:46,260 - rgb_camera - INFO - RGB camera released
+2025-11-19 18:30:46,260 - driver_gui_qt - INFO - Qt GUI closing...
+INFO:driver_gui_qt:Qt GUI closing...
+INFO:performance_monitor:Performance monitor released
+INFO:__main__:Shutdown complete
+2025-11-19 18:30:46,261 - performance_monitor - INFO - Performance monitor released
+2025-11-19 18:30:46,261 - __main__ - INFO - Shutdown complete
+INFO:rgb_camera:RGB camera released
+2025-11-19 18:30:46,518 - rgb_camera - INFO - RGB camera released
+INFO:performance_monitor:Performance monitor released
+2025-11-19 18:30:46,519 - performance_monitor - INFO - Performance monitor released

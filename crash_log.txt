@@ -1,0 +1,456 @@
+WARNING:rgb_camera_firefly:PySpin not available. FLIR Firefly support disabled.
+WARNING:rgb_camera_firefly:Install Spinnaker SDK from: https://www.flir.com/products/spinnaker-sdk/
+WARNING:root:VPI not available
+WARNING:root:pygame not available - audio alerts disabled. Install: pip install pygame
+WARNING:road_analyzer:audio_alert_system not available - audio alerts disabled
+WARNING:root:jtop not available. Install with: sudo pip3 install jetson-stats
+INFO:root:[OK] Debug logging enabled: thermal_fusion_debug.log (10MB x5 files)
+2025-11-20 13:28:27,120 - root - INFO - [OK] Debug logging enabled: thermal_fusion_debug.log (10MB x5 files)
+INFO:__main__:QApplication initialized (Qt GUI)
+
+ΓòöΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòù
+Γòæ   FLIR Thermal + RGB Fusion Road Monitor v3.5              Γòæ
+Γòæ   Qt Professional GUI | Jetson Orin & x86-64               Γòæ
+ΓòáΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòú
+Γòæ  Keyboard Controls:                                          Γòæ
+Γòæ    Q/ESC - Quit          F - Fullscreen      D - Detections  Γòæ
+Γòæ    Y - Toggle YOLO       V - Cycle Views     S - Screenshot  Γòæ
+Γòæ    C - Cycle Palettes    G - Device Toggle   P - Stats       Γòæ
+Γòæ    A - Toggle Audio      (v3.0 Audio Alerts)                Γòæ
+Γòæ                                                               Γòæ
+Γòæ  GUI Buttons (click):                                        Γòæ
+Γòæ    Row 1: PAL, YOLO, BOX, DEV, MODEL                        Γòæ
+Γòæ    Row 2: FLUSH, AUDIO, SKIP, VIEW, FUS, ╬▒                  Γòæ
+Γòæ                                                               Γòæ
+Γòæ  View Modes: Thermal, RGB, Fusion, Side-by-Side, PIP       Γòæ
+Γòæ  Fusion Modes: Alpha Blend, Edge Enhanced, Thermal Overlay  Γòæ
+Γòæ                Side-by-Side, PIP, Max Intensity, Weighted   Γòæ
+Γòæ                                                               Γòæ
+Γòæ  v3.0 Smart Features:                                        Γòæ
+Γòæ    ΓÇó Distance estimation with TTC warnings                   Γòæ
+Γòæ    ΓÇó ISO 26262 compliant audio alerts (1.5-2 kHz)          Γòæ
+Γòæ    ΓÇó RED PULSE alerts on sides for pedestrians/animals      Γòæ
+Γòæ    ΓÇó Directional proximity warnings (left/right/center)     Γòæ
+Γòæ    ΓÇó Multi-view support for optimal situational awareness   Γòæ
+ΓòÜΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò¥
+    
+2025-11-20 13:28:27,148 - __main__ - INFO - QApplication initialized (Qt GUI)
+INFO:__main__:Platform detection: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-20 13:28:27,173 - __main__ - INFO - Platform detection: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+INFO:camera_registry:Loaded camera assignment: Camera 0 (DSHOW) -> rgb
+2025-11-20 13:28:27,175 - camera_registry - INFO - Loaded camera assignment: Camera 0 (DSHOW) -> rgb
+INFO:camera_registry:Loaded camera assignment: FLIR Boson 640x512 (Camera 1) -> thermal
+2025-11-20 13:28:27,175 - camera_registry - INFO - Loaded camera assignment: FLIR Boson 640x512 (Camera 1) -> thermal
+INFO:camera_registry:Loaded camera assignment: Camera 2 (DSHOW) -> rgb
+2025-11-20 13:28:27,175 - camera_registry - INFO - Loaded camera assignment: Camera 2 (DSHOW) -> rgb
+INFO:camera_monitor:Camera monitor initialized (scan interval: 3.0s)
+2025-11-20 13:28:27,175 - camera_monitor - INFO - Camera monitor initialized (scan interval: 3.0s)
+INFO:__main__:Initializing Thermal + RGB Fusion Road Monitor...
+2025-11-20 13:28:27,175 - __main__ - INFO - Initializing Thermal + RGB Fusion Road Monitor...
+INFO:__main__:Platform: x86-64 (AMD64)
+2025-11-20 13:28:27,175 - __main__ - INFO - Platform: x86-64 (AMD64)
+2025-11-20 13:28:27,176 - __main__ - INFO - Camera monitor callbacks registered
+INFO:__main__:Camera monitor callbacks registered
+2025-11-20 13:28:27,176 - __main__ - INFO - Using manually assigned thermal camera: device 1
+INFO:__main__:Using manually assigned thermal camera: device 1
+INFO:__main__:Opening thermal camera device 1...
+2025-11-20 13:28:27,176 - __main__ - INFO - Opening thermal camera device 1...
+2025-11-20 13:28:27,176 - flir_camera - INFO - Windows detected - trying DirectShow backend
+INFO:flir_camera:Windows detected - trying DirectShow backend
+INFO:flir_camera:FLIR Boson camera opened successfully on device 1
+2025-11-20 13:28:28,513 - flir_camera - INFO - FLIR Boson camera opened successfully on device 1
+INFO:flir_camera:Resolution: (640, 512)
+2025-11-20 13:28:28,513 - flir_camera - INFO - Resolution: (640, 512)
+2025-11-20 13:28:28,513 - flir_camera - INFO - FPS: 60.000240000960005
+INFO:flir_camera:FPS: 60.000240000960005
+INFO:__main__:[OK] Thermal camera connected: 640x512
+2025-11-20 13:28:28,514 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+INFO:__main__:Detecting RGB cameras (FLIR Firefly or UVC)...
+2025-11-20 13:28:28,515 - __main__ - INFO - Detecting RGB cameras (FLIR Firefly or UVC)...
+INFO:__main__:Skipping thermal camera device 1 during RGB detection
+2025-11-20 13:28:28,515 - __main__ - INFO - Skipping thermal camera device 1 during RGB detection
+INFO:camera_factory:============================================================
+2025-11-20 13:28:28,515 - camera_factory - INFO - ============================================================
+INFO:camera_factory:RGB Camera Factory - Auto-detection
+2025-11-20 13:28:28,515 - camera_factory - INFO - RGB Camera Factory - Auto-detection
+INFO:camera_factory:============================================================
+2025-11-20 13:28:28,516 - camera_factory - INFO - ============================================================
+INFO:camera_factory:Auto-detecting RGB cameras...
+2025-11-20 13:28:28,516 - camera_factory - INFO - Auto-detecting RGB cameras...
+INFO:camera_factory:[X] No UVC cameras detected
+2025-11-20 13:28:28,525 - camera_factory - INFO - [X] No UVC cameras detected
+2025-11-20 13:28:28,526 - camera_factory - WARNING - Falling back to legacy RGBCamera class
+WARNING:camera_factory:Falling back to legacy RGBCamera class
+INFO:rgb_camera:Windows detected - opening camera 0 with DirectShow
+2025-11-20 13:28:28,526 - rgb_camera - INFO - Windows detected - opening camera 0 with DirectShow
+INFO:rgb_camera:RGB camera opened successfully
+2025-11-20 13:28:32,450 - rgb_camera - INFO - RGB camera opened successfully
+INFO:rgb_camera:Resolution: 640x480 @ 30 FPS
+2025-11-20 13:28:32,451 - rgb_camera - INFO - Resolution: 640x480 @ 30 FPS
+INFO:__main__:[OK] RGB camera opened: USB/CSI (Legacy)
+2025-11-20 13:28:33,253 - __main__ - INFO - [OK] RGB camera opened: USB/CSI (Legacy)
+INFO:__main__:  Resolution: 640x480
+2025-11-20 13:28:33,253 - __main__ - INFO -   Resolution: 640x480
+INFO:config:Configuration loaded from config.json
+2025-11-20 13:28:33,254 - config - INFO - Configuration loaded from config.json
+2025-11-20 13:28:33,254 - fusion_processor - WARNING - No calibration file provided - using identity transform
+WARNING:fusion_processor:No calibration file provided - using identity transform
+2025-11-20 13:28:33,254 - __main__ - INFO - Fusion processor initialized (mode: alpha_blend)
+INFO:__main__:Fusion processor initialized (mode: alpha_blend)
+INFO:__main__:Initializing VPI detector (mode: model, device: cuda)...
+2025-11-20 13:28:33,254 - __main__ - INFO - Initializing VPI detector (mode: model, device: cuda)...
+WARNING:__main__:VPI not available on this platform - using CPU-only processing
+2025-11-20 13:28:33,255 - __main__ - WARNING - VPI not available on this platform - using CPU-only processing
+INFO:__main__:Forcing device to CPU (VPI not available)
+2025-11-20 13:28:33,255 - __main__ - INFO - Forcing device to CPU (VPI not available)
+INFO:vpi_detector:VPI not available - using OpenCV fallback for image processing
+2025-11-20 13:28:33,255 - vpi_detector - INFO - VPI not available - using OpenCV fallback for image processing
+WARNING:vpi_detector:VPI not available - using OpenCV fallback mode
+2025-11-20 13:28:33,257 - vpi_detector - WARNING - VPI not available - using OpenCV fallback mode
+2025-11-20 13:28:33,257 - vpi_detector - INFO - Cross-platform mode: Windows/macOS/Linux (non-Jetson)
+INFO:vpi_detector:Cross-platform mode: Windows/macOS/Linux (non-Jetson)
+2025-11-20 13:28:33,258 - vpi_detector - INFO - Initializing VPI-accelerated detector (mode: model)...
+INFO:vpi_detector:Initializing VPI-accelerated detector (mode: model)...
+INFO:vpi_detector:Loading YOLO model: yolov8n.pt
+2025-11-20 13:28:33,258 - vpi_detector - INFO - Loading YOLO model: yolov8n.pt
+2025-11-20 13:28:33,258 - vpi_detector - INFO - CUDA available: False
+INFO:vpi_detector:CUDA available: False
+INFO:vpi_detector:YOLO model moved to device: cpu
+2025-11-20 13:28:33,305 - vpi_detector - INFO - YOLO model moved to device: cpu
+INFO:vpi_detector:YOLO model loaded successfully
+2025-11-20 13:28:33,305 - vpi_detector - INFO - YOLO model loaded successfully
+INFO:vpi_detector:VPI not available - using OpenCV fallback (full functionality)
+2025-11-20 13:28:33,305 - vpi_detector - INFO - VPI not available - using OpenCV fallback (full functionality)
+INFO:distance_estimator:DistanceEstimator initialized: focal_length=640.0px, camera_height=1.2m, thermal_mode=False, LiDAR=DISABLED
+2025-11-20 13:28:33,306 - distance_estimator - INFO - DistanceEstimator initialized: focal_length=640.0px, camera_height=1.2m, thermal_mode=False, LiDAR=DISABLED
+INFO:road_analyzer:Distance estimation enabled (camera only)
+2025-11-20 13:28:33,306 - road_analyzer - INFO - Distance estimation enabled (camera only)
+INFO:__main__:GUI Selection: use_opencv=False, qt_app=present, use_qt=True
+2025-11-20 13:28:33,306 - __main__ - INFO - GUI Selection: use_opencv=False, qt_app=present, use_qt=True
+INFO:__main__:[OK] Using Qt GUI (professional mode)
+2025-11-20 13:28:33,310 - __main__ - INFO - [OK] Using Qt GUI (professional mode)
+INFO:auto_daynight:AutoDayNightDetector initialized: lat=37.7749, lon=-122.4194, ambient_threshold=80, time=7-19
+2025-11-20 13:28:33,311 - auto_daynight - INFO - AutoDayNightDetector initialized: lat=37.7749, lon=-122.4194, ambient_threshold=80, time=7-19
+INFO:auto_daynight:Created global AutoDayNightDetector instance
+2025-11-20 13:28:33,311 - auto_daynight - INFO - Created global AutoDayNightDetector instance
+INFO:alert_overlay:AlertOverlayWidget initialized (ADAS-compliant)
+2025-11-20 13:28:33,312 - alert_overlay - INFO - AlertOverlayWidget initialized (ADAS-compliant)
+INFO:developer_panel:Developer panel connected to main app
+2025-11-20 13:28:33,641 - developer_panel - INFO - Developer panel connected to main app
+INFO:driver_gui_qt:Control panel signals connected (all 22 controls)
+2025-11-20 13:28:33,652 - driver_gui_qt - INFO - Control panel signals connected (all 22 controls)
+INFO:driver_gui_qt:Applied 'dark' theme (Day=bright, Night=dark, Auto=intelligent)
+2025-11-20 13:28:33,664 - driver_gui_qt - INFO - Applied 'dark' theme (Day=bright, Night=dark, Auto=intelligent)
+2025-11-20 13:28:33,665 - driver_gui_qt - INFO - Qt GUI initialized successfully
+INFO:driver_gui_qt:Qt GUI initialized successfully
+INFO:__main__:[OK] Qt GUI window created successfully with app reference
+2025-11-20 13:28:33,665 - __main__ - INFO - [OK] Qt GUI window created successfully with app reference
+WARNING:performance_monitor:jtop not available, using basic metrics only
+2025-11-20 13:28:33,665 - performance_monitor - WARNING - jtop not available, using basic metrics only
+INFO:__main__:Initialization complete!
+2025-11-20 13:28:33,665 - __main__ - INFO - Initialization complete!
+INFO:__main__:RGB camera: ENABLED
+2025-11-20 13:28:33,666 - __main__ - INFO - RGB camera: ENABLED
+INFO:__main__:View mode: fusion
+2025-11-20 13:28:33,666 - __main__ - INFO - View mode: fusion
+2025-11-20 13:28:33,666 - __main__ - INFO - Starting main loop...
+INFO:__main__:Starting main loop...
+INFO:__main__:Qt GUI window shown
+2025-11-20 13:28:33,855 - __main__ - INFO - Qt GUI window shown
+INFO:camera_monitor:Camera monitoring loop started
+INFO:camera_monitor:Camera monitor started
+2025-11-20 13:28:33,856 - camera_monitor - INFO - Camera monitoring loop started
+2025-11-20 13:28:33,856 - camera_monitor - INFO - Camera monitor started
+INFO:__main__:Camera monitor service started
+2025-11-20 13:28:33,857 - __main__ - INFO - Camera monitor service started
+INFO:__main__:Detection worker thread started
+2025-11-20 13:28:33,857 - __main__ - INFO - Detection worker thread started
+INFO:__main__:Async detection thread started
+2025-11-20 13:28:33,857 - __main__ - INFO - Async detection thread started
+INFO:__main__:Phase 3: Starting VideoProcessorWorker thread...
+2025-11-20 13:28:33,858 - __main__ - INFO - Phase 3: Starting VideoProcessorWorker thread...
+INFO:driver_gui_qt:Worker signals connected to GUI
+2025-11-20 13:28:33,858 - driver_gui_qt - INFO - Worker signals connected to GUI
+INFO:__main__:VideoProcessorWorker started - entering Qt event loop
+2025-11-20 13:28:33,858 - __main__ - INFO - VideoProcessorWorker started - entering Qt event loop
+INFO:video_worker:VideoProcessorWorker thread started
+2025-11-20 13:28:33,859 - video_worker - INFO - VideoProcessorWorker thread started
+INFO:video_worker:Platform: x86-64, Target FPS: 30 (adaptive throttling)
+2025-11-20 13:28:33,859 - video_worker - INFO - Platform: x86-64, Target FPS: 30 (adaptive throttling)
+2025-11-20 13:28:34,208 - camera_detector - INFO - Detected: Camera 0 (DSHOW) at index 0
+INFO:camera_detector:Detected: Camera 0 (DSHOW) at index 0
+INFO:camera_detector:\u2713 Device 1: Identified as THERMAL (score=120): thermal resolution (640, 512), thermal aspect ratio (1.25)
+2025-11-20 13:28:34,210 - camera_detector - INFO - Γ£ô Device 1: Identified as THERMAL (score=120): thermal resolution (640, 512), thermal aspect ratio (1.25)
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\logging\__init__.py", line 1103, in emit
+    stream.write(msg + self.terminator)
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 78: character maps to <undefined>
+Call stack:
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 973, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 1016, in _bootstrap_inner
+    self.run()
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 953, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_monitor.py", line 120, in _scan_loop
+    self._perform_scan()
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_monitor.py", line 136, in _perform_scan
+    cameras = CameraDetector.detect_all_cameras(
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_detector.py", line 132, in detect_all_cameras
+    cameras = CameraDetector._probe_windows_cameras(skip_device_ids=skip_device_ids)
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_detector.py", line 398, in _probe_windows_cameras
+    is_thermal, resolution = CameraDetector._identify_camera_by_frames(cap, device_id)
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_detector.py", line 569, in _identify_camera_by_frames
+    logger.info(f"\u2713 Device {device_id}: Identified as THERMAL (score={thermal_score}): {', '.join(reasons)}")
+Message: '\u2713 Device 1: Identified as THERMAL (score=120): thermal resolution (640, 512), thermal aspect ratio (1.25)'
+Arguments: ()
+INFO:camera_detector:\u2713 Thermal camera identified via frame analysis: FLIR Boson 640x512 (Camera 1)
+2025-11-20 13:28:34,212 - camera_detector - INFO - Γ£ô Thermal camera identified via frame analysis: FLIR Boson 640x512 (Camera 1)
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\logging\__init__.py", line 1103, in emit
+    stream.write(msg + self.terminator)
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 78: character maps to <undefined>
+Call stack:
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 973, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 1016, in _bootstrap_inner
+    self.run()
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 953, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_monitor.py", line 120, in _scan_loop
+    self._perform_scan()
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_monitor.py", line 136, in _perform_scan
+    cameras = CameraDetector.detect_all_cameras(
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_detector.py", line 132, in detect_all_cameras
+    cameras = CameraDetector._probe_windows_cameras(skip_device_ids=skip_device_ids)
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_detector.py", line 411, in _probe_windows_cameras
+    logger.info(f"\u2713 Thermal camera identified via frame analysis: {name}")
+Message: '\u2713 Thermal camera identified via frame analysis: FLIR Boson 640x512 (Camera 1)'
+Arguments: ()
+INFO:camera_detector:Detected: FLIR Boson 640x512 (Camera 1) at index 1
+2025-11-20 13:28:34,488 - camera_detector - INFO - Detected: FLIR Boson 640x512 (Camera 1) at index 1
+2025-11-20 13:28:34,971 - video_worker - WARNING - Thermal camera read failed - camera may have disconnected
+WARNING:video_worker:Thermal camera read failed - camera may have disconnected
+INFO:flir_camera:FLIR Boson camera released
+2025-11-20 13:28:34,971 - flir_camera - INFO - FLIR Boson camera released
+INFO:vpi_detector:Detection mode changed: model -> model
+2025-11-20 13:28:34,971 - vpi_detector - INFO - Detection mode changed: model -> model
+2025-11-20 13:28:34,971 - driver_gui_qt - INFO - YOLO detection enabled (model mode with yolov8n.pt)
+INFO:driver_gui_qt:YOLO detection enabled (model mode with yolov8n.pt)
+2025-11-20 13:28:34,978 - rgb_camera - WARNING - Failed to read RGB frame
+WARNING:rgb_camera:Failed to read RGB frame
+2025-11-20 13:28:34,978 - video_worker - WARNING - RGB camera read failed - will attempt reconnection
+WARNING:video_worker:RGB camera read failed - will attempt reconnection
+2025-11-20 13:28:34,978 - rgb_camera - INFO - RGB camera released
+INFO:rgb_camera:RGB camera released
+INFO:rgb_camera:RGB camera released
+2025-11-20 13:28:34,978 - rgb_camera - INFO - RGB camera released
+INFO:video_worker:Scanning for thermal camera...
+2025-11-20 13:28:35,007 - video_worker - INFO - Scanning for thermal camera...
+INFO:__main__:Using manually assigned thermal camera: device 1
+2025-11-20 13:28:35,007 - __main__ - INFO - Using manually assigned thermal camera: device 1
+INFO:__main__:Opening thermal camera device 1...
+2025-11-20 13:28:35,008 - __main__ - INFO - Opening thermal camera device 1...
+2025-11-20 13:28:35,008 - flir_camera - INFO - Windows detected - trying DirectShow backend
+INFO:flir_camera:Windows detected - trying DirectShow backend
+INFO:camera_detector:Detected: Camera 2 (DSHOW) at index 2
+2025-11-20 13:28:35,824 - camera_detector - INFO - Detected: Camera 2 (DSHOW) at index 2
+Windows fatal exception: code 0xc06d007e
+
+Thread 0x00008ca0 (most recent call first):
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\flir_camera.py", line 66 in open
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\main.py", line 308 in _try_connect_thermal
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\video_worker.py", line 64 in run
+
+Thread 0x0000b10c (most recent call first):
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\main.py", line 757 in _detection_worker
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 953 in run
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 1016 in _bootstrap_inner
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 973 in _bootstrap
+
+Current thread 0x0000a6b4 (most recent call first):
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_detector.py", line 381 in _probe_windows_cameras
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_detector.py", line 132 in detect_all_cameras
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_monitor.py", line 136 in _perform_scan
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_monitor.py", line 120 in _scan_loop
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 953 in run
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 1016 in _bootstrap_inner
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 973 in _bootstrap
+
+Thread 0x00009d08 (most recent call first):
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\main.py", line 956 in run
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\main.py", line 1538 in main
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\main.py", line 1543 in <module>
+[ WARN:0@10.086] global cap.cpp:459 cv::VideoCapture::open VIDEOIO(DSHOW): raised unknown C++ exception!
+
+
+[ WARN:0@10.086] global cap.cpp:480 cv::VideoCapture::open VIDEOIO(DSHOW): backend is generally available but can't be used to capture by index
+[ WARN:0@10.214] global cap.cpp:480 cv::VideoCapture::open VIDEOIO(MSMF): backend is generally available but can't be used to capture by index
+[ WARN:0@10.240] global cap.cpp:480 cv::VideoCapture::open VIDEOIO(DSHOW): backend is generally available but can't be used to capture by index
+[ WARN:0@10.347] global cap.cpp:480 cv::VideoCapture::open VIDEOIO(MSMF): backend is generally available but can't be used to capture by index
+INFO:camera_detector:Windows camera probe complete: 3 camera(s) found
+2025-11-20 13:28:36,104 - camera_detector - INFO - Windows camera probe complete: 3 camera(s) found
+INFO:camera_registry:Known camera reconnected: Camera 0 (DSHOW) (was device 0, now device 0)
+2025-11-20 13:28:36,104 - camera_registry - INFO - Known camera reconnected: Camera 0 (DSHOW) (was device 0, now device 0)
+2025-11-20 13:28:36,104 - camera_registry - INFO - Known camera reconnected: FLIR Boson 640x512 (Camera 1) (was device 1, now device 1)
+INFO:camera_registry:Known camera reconnected: FLIR Boson 640x512 (Camera 1) (was device 1, now device 1)
+INFO:camera_registry:Known camera reconnected: Camera 2 (DSHOW) (was device 2, now device 2)
+2025-11-20 13:28:36,104 - camera_registry - INFO - Known camera reconnected: Camera 2 (DSHOW) (was device 2, now device 2)
+INFO:camera_monitor:\U0001f50c New camera connected: Device 0 - Camera 0 (DSHOW)
+2025-11-20 13:28:36,104 - camera_monitor - INFO - ≡ƒöî New camera connected: Device 0 - Camera 0 (DSHOW)
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\logging\__init__.py", line 1103, in emit
+    stream.write(msg + self.terminator)
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f50c' in position 76: character maps to <undefined>
+Call stack:
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 973, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 1016, in _bootstrap_inner
+    self.run()
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 953, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_monitor.py", line 120, in _scan_loop
+    self._perform_scan()
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_monitor.py", line 149, in _perform_scan
+    logger.info(f"\U0001f50c New camera connected: Device {device_id} - {camera.name}")
+2025-11-20 13:28:36,104 - camera_monitor - INFO - ≡ƒöî New camera connected: Device 1 - FLIR Boson 640x512 (Camera 1)
+Message: '\U0001f50c New camera connected: Device 0 - Camera 0 (DSHOW)'
+Arguments: ()
+INFO:camera_monitor:\U0001f50c New camera connected: Device 1 - FLIR Boson 640x512 (Camera 1)
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\logging\__init__.py", line 1103, in emit
+    stream.write(msg + self.terminator)
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f50c' in position 76: character maps to <undefined>
+Call stack:
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 973, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 1016, in _bootstrap_inner
+    self.run()
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 953, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_monitor.py", line 120, in _scan_loop
+    self._perform_scan()
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_monitor.py", line 149, in _perform_scan
+    logger.info(f"\U0001f50c New camera connected: Device {device_id} - {camera.name}")
+Message: '\U0001f50c New camera connected: Device 1 - FLIR Boson 640x512 (Camera 1)'
+Arguments: ()
+INFO:camera_monitor:\U0001f50c New camera connected: Device 2 - Camera 2 (DSHOW)
+2025-11-20 13:28:36,104 - camera_monitor - INFO - ≡ƒöî New camera connected: Device 2 - Camera 2 (DSHOW)
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\logging\__init__.py", line 1103, in emit
+    stream.write(msg + self.terminator)
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f50c' in position 76: character maps to <undefined>
+Call stack:
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 973, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 1016, in _bootstrap_inner
+    self.run()
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\threading.py", line 953, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_monitor.py", line 120, in _scan_loop
+    self._perform_scan()
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\camera_monitor.py", line 149, in _perform_scan
+    logger.info(f"\U0001f50c New camera connected: Device {device_id} - {camera.name}")
+Message: '\U0001f50c New camera connected: Device 2 - Camera 2 (DSHOW)'
+Arguments: ()
+INFO:flir_camera:FLIR Boson camera opened successfully on device 1
+2025-11-20 13:28:36,257 - flir_camera - INFO - FLIR Boson camera opened successfully on device 1
+2025-11-20 13:28:36,258 - flir_camera - INFO - Resolution: (640, 512)
+INFO:flir_camera:Resolution: (640, 512)
+INFO:flir_camera:FPS: 60.000240000960005
+2025-11-20 13:28:36,258 - flir_camera - INFO - FPS: 60.000240000960005
+INFO:__main__:[OK] Thermal camera connected: 640x512
+2025-11-20 13:28:36,258 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+2025-11-20 13:28:36,259 - video_worker - INFO - [OK] Thermal camera connected! Initializing detector...
+INFO:video_worker:[OK] Thermal camera connected! Initializing detector...
+INFO:vpi_detector:VPI not available - using OpenCV fallback for image processing
+2025-11-20 13:28:36,259 - vpi_detector - INFO - VPI not available - using OpenCV fallback for image processing
+WARNING:vpi_detector:VPI not available - using OpenCV fallback mode
+2025-11-20 13:28:36,261 - vpi_detector - WARNING - VPI not available - using OpenCV fallback mode
+INFO:vpi_detector:Cross-platform mode: Windows/macOS/Linux (non-Jetson)
+2025-11-20 13:28:36,261 - vpi_detector - INFO - Cross-platform mode: Windows/macOS/Linux (non-Jetson)
+INFO:vpi_detector:Initializing VPI-accelerated detector (mode: model)...
+2025-11-20 13:28:36,261 - vpi_detector - INFO - Initializing VPI-accelerated detector (mode: model)...
+INFO:vpi_detector:Loading YOLO model: yolov8n.pt
+2025-11-20 13:28:36,261 - vpi_detector - INFO - Loading YOLO model: yolov8n.pt
+INFO:vpi_detector:CUDA available: False
+2025-11-20 13:28:36,262 - vpi_detector - INFO - CUDA available: False
+INFO:vpi_detector:YOLO model moved to device: cpu
+2025-11-20 13:28:36,295 - vpi_detector - INFO - YOLO model moved to device: cpu
+INFO:vpi_detector:YOLO model loaded successfully
+2025-11-20 13:28:36,295 - vpi_detector - INFO - YOLO model loaded successfully
+INFO:vpi_detector:VPI not available - using OpenCV fallback (full functionality)
+2025-11-20 13:28:36,295 - vpi_detector - INFO - VPI not available - using OpenCV fallback (full functionality)
+INFO:__main__:[OK] Detector initialized successfully
+2025-11-20 13:28:36,295 - __main__ - INFO - [OK] Detector initialized successfully
+INFO:alert_overlay:Proximity zones: LEFT=0, CENTER=1, RIGHT=0
+2025-11-20 13:28:36,477 - alert_overlay - INFO - Proximity zones: LEFT=0, CENTER=1, RIGHT=0
+2025-11-20 13:28:36,508 - alert_overlay - INFO - Proximity zones: LEFT=0, CENTER=1, RIGHT=0
+INFO:alert_overlay:Proximity zones: LEFT=0, CENTER=1, RIGHT=0
+INFO:alert_overlay:Proximity zones: LEFT=0, CENTER=1, RIGHT=0
+2025-11-20 13:28:36,544 - alert_overlay - INFO - Proximity zones: LEFT=0, CENTER=1, RIGHT=0
+INFO:alert_overlay:Proximity zones: LEFT=0, CENTER=1, RIGHT=0
+2025-11-20 13:28:36,579 - alert_overlay - INFO - Proximity zones: LEFT=0, CENTER=1, RIGHT=0
+2025-11-20 13:28:36,617 - alert_overlay - INFO - Proximity zones: LEFT=0, CENTER=1, RIGHT=0
+INFO:alert_overlay:Proximity zones: LEFT=0, CENTER=1, RIGHT=0
+INFO:alert_overlay:Proximity zones: LEFT=0, CENTER=2, RIGHT=1
+2025-11-20 13:28:36,650 - alert_overlay - INFO - Proximity zones: LEFT=0, CENTER=2, RIGHT=1
+INFO:alert_overlay:Proximity zones: LEFT=0, CENTER=2, RIGHT=1
+2025-11-20 13:28:36,684 - alert_overlay - INFO - Proximity zones: LEFT=0, CENTER=2, RIGHT=1
+INFO:alert_overlay:Proximity zones: LEFT=0, CENTER=0, RIGHT=2
+2025-11-20 13:28:36,719 - alert_overlay - INFO - Proximity zones: LEFT=0, CENTER=0, RIGHT=2
+INFO:alert_overlay:Proximity zones: LEFT=0, CENTER=0, RIGHT=2
+2025-11-20 13:28:36,756 - alert_overlay - INFO - Proximity zones: LEFT=0, CENTER=0, RIGHT=2
+INFO:alert_overlay:Proximity zones: LEFT=0, CENTER=0, RIGHT=3
+2025-11-20 13:28:36,789 - alert_overlay - INFO - Proximity zones: LEFT=0, CENTER=0, RIGHT=3
+INFO:alert_overlay:Proximity zones: LEFT=0, CENTER=0, RIGHT=3
+2025-11-20 13:28:36,826 - alert_overlay - INFO - Proximity zones: LEFT=0, CENTER=0, RIGHT=3
+INFO:driver_gui_qt:Developer controls shown (18 controls in 6x3 grid)
+2025-11-20 13:28:36,870 - driver_gui_qt - INFO - Developer controls shown (18 controls in 6x3 grid)
+INFO:driver_gui_qt:[OK] Developer mode ENABLED | Window: 1280x960 \u2192 1580x960 (LOCKED)
+2025-11-20 13:28:36,871 - driver_gui_qt - INFO - [OK] Developer mode ENABLED | Window: 1280x960 ΓåÆ 1580x960 (LOCKED)
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\logging\__init__.py", line 1103, in emit
+    stream.write(msg + self.terminator)
+  File "C:\Users\stati\AppData\Local\Python\pythoncore-3.10-64\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 122: character maps to <undefined>
+Call stack:
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\main.py", line 1543, in <module>
+    main()
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\main.py", line 1538, in main
+    app.run()
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\main.py", line 956, in run
+    self.qt_app.exec_()
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\driver_gui_qt.py", line 1287, in keyPressEvent
+    self.toggle_developer_mode()
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\driver_gui_qt.py", line 1264, in toggle_developer_mode
+    logger.info(f"[OK] Developer mode ENABLED | Window: {current_width}x{current_height} \u2192 {target_width}x{target_height} (LOCKED)")
+Message: '[OK] Developer mode ENABLED | Window: 1280x960 \u2192 1580x960 (LOCKED)'
+Arguments: ()
+INFO:vpi_detector:YOLO inference: 53.8ms (18.6 FPS), 0 detections
+2025-11-20 13:28:36,926 - vpi_detector - INFO - YOLO inference: 53.8ms (18.6 FPS), 0 detections
+INFO:alert_overlay:Proximity zones: LEFT=0, CENTER=1, RIGHT=4
+2025-11-20 13:28:36,935 - alert_overlay - INFO - Proximity zones: LEFT=0, CENTER=1, RIGHT=4
+INFO:alert_overlay:Proximity zones: LEFT=0, CENTER=1, RIGHT=4
+2025-11-20 13:28:36,937 - alert_overlay - INFO - Proximity zones: LEFT=0, CENTER=1, RIGHT=4
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\driver_gui_qt.py", line 1331, in keyPressEvent
+    self.toggle_fullscreen()
+AttributeError: 'DriverAppWindow' object has no attribute 'toggle_fullscreen'

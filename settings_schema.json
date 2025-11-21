@@ -1,0 +1,961 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ThermalFusionDrivingAssist Configuration Schema",
+  "description": "Comprehensive configuration schema for ThermalFusionDrivingAssist application",
+  "type": "object",
+  "properties": {
+    "camera": {
+      "type": "object",
+      "description": "Camera settings for thermal and RGB sensors",
+      "properties": {
+        "thermal": {
+          "type": "object",
+          "properties": {
+            "device_id": {
+              "type": ["integer", "null"],
+              "default": null,
+              "minimum": 0,
+              "maximum": 10,
+              "description": "Thermal camera device ID (null = auto-detect)"
+            },
+            "width": {
+              "type": "integer",
+              "default": 640,
+              "enum": [320, 640],
+              "description": "Thermal camera frame width"
+            },
+            "height": {
+              "type": "integer",
+              "default": 512,
+              "enum": [256, 512],
+              "description": "Thermal camera frame height"
+            },
+            "fps": {
+              "type": "integer",
+              "default": 60,
+              "minimum": 1,
+              "maximum": 60,
+              "description": "Target frame rate"
+            },
+            "buffer_flush_enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable buffer flushing for reduced latency"
+            },
+            "retry_interval": {
+              "type": "number",
+              "default": 3.0,
+              "minimum": 1.0,
+              "maximum": 30.0,
+              "description": "Hot-plug reconnection interval (seconds)"
+            },
+            "backend": {
+              "type": "string",
+              "default": "auto",
+              "enum": ["auto", "v4l2", "dshow", "msmf"],
+              "description": "Camera backend (auto = platform-specific)"
+            }
+          }
+        },
+        "rgb": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable RGB camera"
+            },
+            "camera_type": {
+              "type": "string",
+              "default": "auto",
+              "enum": ["auto", "usb", "csi", "firefly"],
+              "description": "RGB camera type"
+            },
+            "width": {
+              "type": "integer",
+              "default": 640,
+              "minimum": 320,
+              "maximum": 1920,
+              "description": "RGB camera frame width"
+            },
+            "height": {
+              "type": "integer",
+              "default": 480,
+              "minimum": 240,
+              "maximum": 1080,
+              "description": "RGB camera frame height"
+            },
+            "fps": {
+              "type": "integer",
+              "default": 30,
+              "minimum": 1,
+              "maximum": 60,
+              "description": "Target frame rate"
+            },
+            "retry_interval": {
+              "type": "integer",
+              "default": 100,
+              "minimum": 10,
+              "maximum": 1000,
+              "description": "Reconnection retry interval (frames)"
+            },
+            "auto_retry": {
+              "type": "boolean",
+              "default": true,
+              "description": "Auto-retry connection on failure"
+            }
+          }
+        },
+        "calibration_file": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Camera calibration file path (JSON)"
+        }
+      }
+    },
+    "detection": {
+      "type": "object",
+      "description": "Object detection and analysis settings",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "default": "model",
+          "enum": ["edge", "model"],
+          "description": "Detection algorithm (edge detection or YOLO)"
+        },
+        "yolo": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable YOLO detection"
+            },
+            "model": {
+              "type": "string",
+              "default": "yolov8n.pt",
+              "enum": ["yolov8n.pt", "yolov8s.pt", "yolov8m.pt", "yolov8l.pt"],
+              "description": "YOLO model file"
+            },
+            "confidence_threshold": {
+              "type": "number",
+              "default": 0.25,
+              "minimum": 0.1,
+              "maximum": 0.95,
+              "description": "Detection confidence threshold"
+            },
+            "thermal_confidence_adjustment": {
+              "type": "number",
+              "default": 0.6,
+              "minimum": 0.3,
+              "maximum": 1.0,
+              "description": "Confidence multiplier for thermal camera"
+            },
+            "device": {
+              "type": "string",
+              "default": "cuda",
+              "enum": ["cuda", "cpu"],
+              "description": "Processing device (GPU or CPU)"
+            },
+            "input_size": {
+              "type": "integer",
+              "default": 416,
+              "enum": [320, 416, 640],
+              "description": "YOLO input size (pixels)"
+            },
+            "custom_model_path": {
+              "type": ["string", "null"],
+              "default": null,
+              "description": "Custom YOLO model path"
+            },
+            "rgb_model": {
+              "type": ["string", "null"],
+              "default": null,
+              "description": "RGB camera-specific YOLO model (relative path)"
+            },
+            "thermal_model": {
+              "type": ["string", "null"],
+              "default": null,
+              "description": "Thermal camera-specific YOLO model (relative path)"
+            }
+          }
+        },
+        "edge_detection": {
+          "type": "object",
+          "properties": {
+            "canny_threshold_low": {
+              "type": "integer",
+              "default": 50,
+              "minimum": 10,
+              "maximum": 200,
+              "description": "Canny edge detection low threshold"
+            },
+            "canny_threshold_high": {
+              "type": "integer",
+              "default": 150,
+              "minimum": 50,
+              "maximum": 300,
+              "description": "Canny edge detection high threshold"
+            },
+            "gaussian_blur_kernel": {
+              "type": "integer",
+              "default": 7,
+              "enum": [3, 5, 7, 9, 11],
+              "description": "Gaussian blur kernel size (odd numbers)"
+            },
+            "gaussian_blur_sigma": {
+              "type": "number",
+              "default": 1.5,
+              "minimum": 0.5,
+              "maximum": 5.0,
+              "description": "Gaussian blur sigma"
+            },
+            "min_area_percent": {
+              "type": "number",
+              "default": 0.1,
+              "minimum": 0.01,
+              "maximum": 5.0,
+              "description": "Minimum detection area (% of frame)"
+            },
+            "max_area_percent": {
+              "type": "number",
+              "default": 30.0,
+              "minimum": 5.0,
+              "maximum": 80.0,
+              "description": "Maximum detection area (% of frame)"
+            }
+          }
+        },
+        "motion_detection": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable motion detection"
+            },
+            "threshold": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 5,
+              "maximum": 100,
+              "description": "Pixel difference threshold"
+            },
+            "min_area": {
+              "type": "integer",
+              "default": 400,
+              "minimum": 100,
+              "maximum": 5000,
+              "description": "Minimum motion area (pixels)"
+            },
+            "max_area_ratio": {
+              "type": "number",
+              "default": 0.6,
+              "minimum": 0.1,
+              "maximum": 0.9,
+              "description": "Maximum motion area (ratio of frame)"
+            },
+            "persistence_frames": {
+              "type": "integer",
+              "default": 2,
+              "minimum": 1,
+              "maximum": 10,
+              "description": "Motion persistence (frames)"
+            }
+          }
+        },
+        "show_boxes": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show detection bounding boxes"
+        },
+        "frame_skip": {
+          "type": "integer",
+          "default": 1,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Process every Nth frame (1 = no skip)"
+        }
+      }
+    },
+    "gui": {
+      "type": "object",
+      "description": "GUI appearance and behavior settings",
+      "properties": {
+        "theme": {
+          "type": "string",
+          "default": "dark",
+          "enum": ["dark", "light", "auto"],
+          "description": "GUI theme"
+        },
+        "window": {
+          "type": "object",
+          "properties": {
+            "width": {
+              "type": "integer",
+              "default": 1280,
+              "minimum": 800,
+              "maximum": 3840,
+              "description": "Window width (pixels)"
+            },
+            "height": {
+              "type": "integer",
+              "default": 960,
+              "minimum": 600,
+              "maximum": 2160,
+              "description": "Window height (pixels)"
+            },
+            "fullscreen": {
+              "type": "boolean",
+              "default": false,
+              "description": "Start in fullscreen mode"
+            },
+            "developer_panel_width": {
+              "type": "integer",
+              "default": 300,
+              "minimum": 200,
+              "maximum": 500,
+              "description": "Developer panel width (pixels)"
+            }
+          }
+        },
+        "developer_mode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show developer controls and metrics"
+        },
+        "show_info_panel": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show basic info panel in simple mode"
+        },
+        "use_opencv_gui": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use legacy OpenCV GUI instead of Qt"
+        },
+        "display_scale": {
+          "type": "number",
+          "default": 2.0,
+          "minimum": 0.5,
+          "maximum": 4.0,
+          "description": "Display scale factor (OpenCV GUI only)"
+        }
+      }
+    },
+    "theme_auto": {
+      "type": "object",
+      "description": "Auto day/night theme switching settings",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable automatic theme switching"
+        },
+        "method_priority": {
+          "type": "array",
+          "default": ["ambient", "astronomical", "time"],
+          "items": {
+            "type": "string",
+            "enum": ["ambient", "astronomical", "time"]
+          },
+          "description": "Theme detection method priority order"
+        },
+        "ambient": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Use ambient light from RGB camera"
+            },
+            "threshold": {
+              "type": "integer",
+              "default": 80,
+              "minimum": 0,
+              "maximum": 255,
+              "description": "Brightness threshold (0-255)"
+            },
+            "hysteresis": {
+              "type": "integer",
+              "default": 15,
+              "minimum": 0,
+              "maximum": 50,
+              "description": "Brightness dead zone to prevent thrashing"
+            }
+          }
+        },
+        "astronomical": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Use sunrise/sunset calculations"
+            },
+            "latitude": {
+              "type": "number",
+              "default": 37.7749,
+              "minimum": -90.0,
+              "maximum": 90.0,
+              "description": "Location latitude (degrees)"
+            },
+            "longitude": {
+              "type": "number",
+              "default": -122.4194,
+              "minimum": -180.0,
+              "maximum": 180.0,
+              "description": "Location longitude (degrees)"
+            }
+          }
+        },
+        "time_based": {
+          "type": "object",
+          "properties": {
+            "day_start_hour": {
+              "type": "integer",
+              "default": 7,
+              "minimum": 0,
+              "maximum": 23,
+              "description": "Day start hour (24h format)"
+            },
+            "night_start_hour": {
+              "type": "integer",
+              "default": 19,
+              "minimum": 0,
+              "maximum": 23,
+              "description": "Night start hour (24h format)"
+            }
+          }
+        },
+        "check_interval": {
+          "type": "number",
+          "default": 10.0,
+          "minimum": 1.0,
+          "maximum": 300.0,
+          "description": "Theme check interval (seconds)"
+        }
+      }
+    },
+    "display": {
+      "type": "object",
+      "description": "Video display and visualization settings",
+      "properties": {
+        "view_mode": {
+          "type": "string",
+          "default": "thermal",
+          "enum": ["thermal", "rgb", "fusion", "side_by_side", "picture_in_picture"],
+          "description": "Display view mode"
+        },
+        "thermal_palette": {
+          "type": "string",
+          "default": "ironbow",
+          "enum": ["white_hot", "black_hot", "ironbow", "rainbow", "arctic", "lava", "medical", "plasma"],
+          "description": "Thermal color palette"
+        }
+      }
+    },
+    "fusion": {
+      "type": "object",
+      "description": "Thermal-RGB fusion settings",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "default": "alpha_blend",
+          "enum": ["alpha_blend", "edge_enhanced", "thermal_overlay", "side_by_side", "picture_in_picture", "max_intensity", "feature_weighted"],
+          "description": "Fusion algorithm"
+        },
+        "alpha": {
+          "type": "number",
+          "default": 0.5,
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Blend ratio (0.0=RGB, 1.0=Thermal)"
+        },
+        "intensity": {
+          "type": "number",
+          "default": 0.5,
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Fusion effect intensity (0.0=minimal, 1.0=maximum) - affects edge_enhanced, thermal_overlay, feature_weighted modes"
+        },
+        "edge_detection": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable edge detection in fusion"
+            },
+            "color": {
+              "type": "array",
+              "default": [0, 0, 255],
+              "items": {"type": "integer", "minimum": 0, "maximum": 255},
+              "minItems": 3,
+              "maxItems": 3,
+              "description": "Edge color (BGR)"
+            },
+            "weight": {
+              "type": "number",
+              "default": 0.5,
+              "minimum": 0.0,
+              "maximum": 1.0,
+              "description": "Edge blend weight"
+            }
+          }
+        },
+        "thermal_overlay": {
+          "type": "object",
+          "properties": {
+            "hot_threshold_percentile": {
+              "type": "integer",
+              "default": 70,
+              "minimum": 50,
+              "maximum": 95,
+              "description": "Hotspot threshold percentile"
+            },
+            "thermal_weight": {
+              "type": "number",
+              "default": 0.7,
+              "minimum": 0.0,
+              "maximum": 1.0,
+              "description": "Thermal overlay weight"
+            }
+          }
+        },
+        "picture_in_picture": {
+          "type": "object",
+          "properties": {
+            "size": {
+              "type": "number",
+              "default": 0.25,
+              "minimum": 0.1,
+              "maximum": 0.5,
+              "description": "PiP size (ratio of main frame)"
+            },
+            "position": {
+              "type": "string",
+              "default": "top-right",
+              "enum": ["top-left", "top-right", "bottom-left", "bottom-right"],
+              "description": "PiP position"
+            },
+            "margin": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 0,
+              "maximum": 50,
+              "description": "PiP margin (pixels)"
+            },
+            "border_width": {
+              "type": "integer",
+              "default": 2,
+              "minimum": 0,
+              "maximum": 10,
+              "description": "PiP border width (pixels)"
+            }
+          }
+        }
+      }
+    },
+    "adas": {
+      "type": "object",
+      "description": "ADAS (Advanced Driver Assistance) settings",
+      "properties": {
+        "distance_estimation": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable distance estimation"
+            },
+            "camera_focal_length": {
+              "type": "number",
+              "default": 640.0,
+              "minimum": 100.0,
+              "maximum": 2000.0,
+              "description": "Camera focal length (pixels)"
+            },
+            "camera_height": {
+              "type": "number",
+              "default": 1.2,
+              "minimum": 0.5,
+              "maximum": 3.0,
+              "description": "Camera height from ground (meters)"
+            },
+            "camera_fov_horizontal": {
+              "type": "number",
+              "default": 60.0,
+              "minimum": 30.0,
+              "maximum": 120.0,
+              "description": "Horizontal field of view (degrees)"
+            },
+            "camera_fov_vertical": {
+              "type": "number",
+              "default": 45.0,
+              "minimum": 20.0,
+              "maximum": 90.0,
+              "description": "Vertical field of view (degrees)"
+            },
+            "thermal_correction_factor": {
+              "type": "number",
+              "default": 0.95,
+              "minimum": 0.5,
+              "maximum": 1.5,
+              "description": "Thermal distance correction factor"
+            },
+            "history_length": {
+              "type": "integer",
+              "default": 5,
+              "minimum": 1,
+              "maximum": 30,
+              "description": "Distance smoothing history (frames)"
+            }
+          }
+        },
+        "alerts": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable ADAS alerts"
+            },
+            "cooldown": {
+              "type": "number",
+              "default": 1.0,
+              "minimum": 0.1,
+              "maximum": 10.0,
+              "description": "Alert cooldown period (seconds)"
+            },
+            "distance_zones": {
+              "type": "object",
+              "properties": {
+                "immediate": {
+                  "type": "number",
+                  "default": 5.0,
+                  "minimum": 1.0,
+                  "maximum": 10.0,
+                  "description": "Immediate danger distance (meters)"
+                },
+                "very_close": {
+                  "type": "number",
+                  "default": 10.0,
+                  "minimum": 5.0,
+                  "maximum": 20.0,
+                  "description": "Very close distance (meters)"
+                },
+                "close": {
+                  "type": "number",
+                  "default": 20.0,
+                  "minimum": 10.0,
+                  "maximum": 40.0,
+                  "description": "Close distance (meters)"
+                },
+                "medium": {
+                  "type": "number",
+                  "default": 40.0,
+                  "minimum": 20.0,
+                  "maximum": 80.0,
+                  "description": "Medium distance (meters)"
+                }
+              }
+            },
+            "ttc_urgent_threshold": {
+              "type": "number",
+              "default": 3.0,
+              "minimum": 1.0,
+              "maximum": 10.0,
+              "description": "Urgent time-to-collision threshold (seconds)"
+            }
+          }
+        },
+        "vehicle_speed": {
+          "type": "number",
+          "default": 0.0,
+          "minimum": 0.0,
+          "maximum": 200.0,
+          "description": "Vehicle speed for TTC calculation (km/h)"
+        }
+      }
+    },
+    "audio": {
+      "type": "object",
+      "description": "Audio alert settings",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable audio alerts"
+        },
+        "volume": {
+          "type": "number",
+          "default": 0.7,
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Audio volume (0.0-1.0)"
+        },
+        "frequency_hz": {
+          "type": "integer",
+          "default": 1800,
+          "minimum": 500,
+          "maximum": 3000,
+          "description": "Alert frequency (Hz, 1.5-2 kHz recommended)"
+        },
+        "sample_rate": {
+          "type": "integer",
+          "default": 22050,
+          "enum": [11025, 22050, 44100],
+          "description": "Audio sample rate"
+        },
+        "stereo": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable stereo panning"
+        },
+        "cooldown": {
+          "type": "number",
+          "default": 2.0,
+          "minimum": 0.5,
+          "maximum": 10.0,
+          "description": "Alert cooldown period (seconds)"
+        }
+      }
+    },
+    "performance": {
+      "type": "object",
+      "description": "Performance and resource management settings",
+      "properties": {
+        "target_fps": {
+          "type": "object",
+          "properties": {
+            "jetson": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 5,
+              "maximum": 60,
+              "description": "Target FPS on Jetson platforms"
+            },
+            "x86": {
+              "type": "integer",
+              "default": 30,
+              "minimum": 5,
+              "maximum": 60,
+              "description": "Target FPS on x86 platforms"
+            }
+          }
+        },
+        "fps_smoothing_window": {
+          "type": "integer",
+          "default": 60,
+          "minimum": 10,
+          "maximum": 300,
+          "description": "FPS calculation smoothing window (frames)"
+        },
+        "detection_queue_size": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Detection queue size (frames)"
+        },
+        "stats_print_interval": {
+          "type": "integer",
+          "default": 100,
+          "minimum": 10,
+          "maximum": 1000,
+          "description": "Stats print interval (frames)"
+        },
+        "monitor_update_interval": {
+          "type": "number",
+          "default": 1.0,
+          "minimum": 0.1,
+          "maximum": 10.0,
+          "description": "Performance monitor update interval (seconds)"
+        }
+      }
+    },
+    "logging": {
+      "type": "object",
+      "description": "Logging and debug settings",
+      "properties": {
+        "level": {
+          "type": "string",
+          "default": "INFO",
+          "enum": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+          "description": "Logging level"
+        },
+        "file": {
+          "type": "string",
+          "default": "thermal_fusion_debug.log",
+          "description": "Log file path"
+        },
+        "max_file_size_mb": {
+          "type": "integer",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Max log file size (MB)"
+        },
+        "backup_count": {
+          "type": "integer",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 20,
+          "description": "Number of backup log files"
+        },
+        "enable_console": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable console logging"
+        },
+        "enable_file": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable file logging"
+        }
+      }
+    },
+    "object_importance": {
+      "type": "object",
+      "description": "Object detection importance/priority levels for driving assistance alerts and visualization",
+      "properties": {
+        "person": {
+          "type": "string",
+          "default": "critical",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Pedestrian importance level (critical = highest alert priority)"
+        },
+        "bicycle": {
+          "type": "string",
+          "default": "critical",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Bicycle/cyclist importance level"
+        },
+        "motorcycle": {
+          "type": "string",
+          "default": "critical",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Motorcycle importance level"
+        },
+        "dog": {
+          "type": "string",
+          "default": "critical",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Dog importance level (vulnerable road user)"
+        },
+        "cat": {
+          "type": "string",
+          "default": "critical",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Cat importance level (vulnerable road user)"
+        },
+        "car": {
+          "type": "string",
+          "default": "high",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Car/vehicle importance level"
+        },
+        "truck": {
+          "type": "string",
+          "default": "high",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Truck importance level"
+        },
+        "bus": {
+          "type": "string",
+          "default": "high",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Bus importance level"
+        },
+        "traffic light": {
+          "type": "string",
+          "default": "medium",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Traffic light importance level"
+        },
+        "stop sign": {
+          "type": "string",
+          "default": "medium",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Stop sign importance level"
+        },
+        "bird": {
+          "type": "string",
+          "default": "low",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Bird importance level"
+        },
+        "horse": {
+          "type": "string",
+          "default": "critical",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Horse importance level (vulnerable road user)"
+        },
+        "cow": {
+          "type": "string",
+          "default": "critical",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Cow importance level (vulnerable road user)"
+        },
+        "sheep": {
+          "type": "string",
+          "default": "critical",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Sheep importance level (vulnerable road user)"
+        },
+        "elephant": {
+          "type": "string",
+          "default": "critical",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Elephant importance level (vulnerable road user)"
+        },
+        "bear": {
+          "type": "string",
+          "default": "critical",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Bear importance level (vulnerable road user)"
+        },
+        "zebra": {
+          "type": "string",
+          "default": "critical",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Zebra importance level (vulnerable road user)"
+        },
+        "giraffe": {
+          "type": "string",
+          "default": "critical",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Giraffe importance level (vulnerable road user)"
+        },
+        "motion": {
+          "type": "string",
+          "default": "high",
+          "enum": ["critical", "high", "medium", "low", "info", "ignore"],
+          "description": "Motion detection importance level (unidentified moving objects)"
+        }
+      }
+    },
+    "platform": {
+      "type": "object",
+      "description": "Platform-specific settings (auto-detected but can override)",
+      "properties": {
+        "force_platform": {
+          "type": ["string", "null"],
+          "default": null,
+          "enum": [null, "jetson", "x86", "arm"],
+          "description": "Force platform type (null = auto-detect)"
+        },
+        "vpi_backend_priority": {
+          "type": "array",
+          "default": ["CUDA", "PVA", "VIC", "CPU"],
+          "items": {
+            "type": "string",
+            "enum": ["CUDA", "PVA", "VIC", "CPU"]
+          },
+          "description": "VPI backend priority order (Jetson only)"
+        }
+      }
+    }
+  }
+}

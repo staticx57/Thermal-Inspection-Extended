@@ -1,0 +1,120 @@
+# Thermal Fusion Driving Assist v3.5 - Python Dependencies
+# Cross-platform: Windows 10/11, Linux (x86-64), Jetson (ARM64)
+#
+# Python Version: 3.8, 3.9, 3.10, 3.11
+# Recommended: Python 3.10 (best compatibility with PySpin)
+#
+# Installation:
+#   pip install -r requirements.txt
+#
+# For FLIR Firefly camera support:
+#   See: docs/install/install_pyspin.md
+
+# ============================================================================
+# Core Computer Vision
+# ============================================================================
+opencv-python>=4.8.0        # Computer vision library
+opencv-contrib-python>=4.8.0  # Extra OpenCV modules
+numpy>=1.24.0,<2.0.0        # Numerical computing (avoid 2.x for now)
+Pillow>=10.0.0              # Image processing
+
+# ============================================================================
+# GUI Framework (v3.x Professional GUI)
+# ============================================================================
+PyQt5>=5.15.0               # Qt5 bindings for Python
+PyQt5-Qt5>=5.15.0           # Qt5 runtime libraries
+PyQt5-sip>=12.11.0          # SIP module for PyQt5
+
+# ============================================================================
+# AI/ML Object Detection
+# ============================================================================
+ultralytics>=8.0.0          # YOLOv8 with ONNX/TensorRT support
+torch>=2.0.0                # PyTorch (CPU or CUDA)
+torchvision>=0.15.0         # PyTorch vision utilities
+
+# Note: For CUDA support, install PyTorch with CUDA:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+
+# ============================================================================
+# System Monitoring & Performance
+# ============================================================================
+psutil>=5.9.0               # System and process utilities
+
+# ============================================================================
+# FLIR Boson Serial Communication (Phase 7)
+# ============================================================================
+pyserial>=3.5               # Serial port communication for Boson CCI protocol
+
+# ============================================================================
+# Audio Alerts (ISO 26262 Compliance)
+# ============================================================================
+numpy>=1.24.0               # Already listed above, used for audio generation
+# Note: Audio output uses system audio (Windows: winsound, Linux: ossaudiodev/alsa)
+
+# ============================================================================
+# Optional: Jetson-Specific (Install separately on Jetson)
+# ============================================================================
+# jetson-stats>=4.2.0       # Jetson system monitoring (jtop)
+#   Install with: sudo pip3 install jetson-stats
+#   Requires sudo for hardware access
+
+# ============================================================================
+# Optional: FLIR Firefly Camera Support (PySpin)
+# ============================================================================
+# PySpin is NOT available on PyPI - must be installed manually
+#
+# Installation steps:
+#   1. Install Spinnaker SDK: https://www.flir.com/products/spinnaker-sdk/
+#   2. Install PySpin wheel from SDK:
+#      - Windows: C:\Program Files\FLIR Systems\Spinnaker\bin64\vs2015\
+#      - Linux: /opt/spinnaker/lib/ or SDK download folder
+#   3. pip install spinnaker_python-X.X.X-cpXX-cpXX-[platform].whl
+#
+# See detailed guide: docs/install/install_pyspin.md
+# Run diagnostic: python diagnose_spinnaker.py
+
+# ============================================================================
+# Development & Testing (Optional)
+# ============================================================================
+# pytest>=7.0.0             # Testing framework
+# black>=23.0.0             # Code formatter
+# flake8>=6.0.0             # Code linter
+
+# ============================================================================
+# Platform-Specific Notes
+# ============================================================================
+#
+# Windows:
+#   - PyQt5 works out of the box
+#   - For GPU: Install CUDA Toolkit 11.8+ separately
+#   - UVC cameras work automatically (DirectShow/MSMF)
+#
+# Linux (x86-64):
+#   - May need: sudo apt install python3-pyqt5
+#   - For GPU: Install CUDA Toolkit 11.8+ separately
+#   - UVC cameras use V4L2
+#
+# Jetson (ARM64):
+#   - OpenCV comes pre-installed with CUDA support
+#   - PyTorch included with JetPack
+#   - Use system packages: sudo apt install python3-pyqt5
+#   - VPI (Vision Programming Interface) available
+#
+# ============================================================================
+# Troubleshooting
+# ============================================================================
+#
+# Import errors after install:
+#   - Restart terminal/IDE
+#   - Check Python version: python --version
+#   - Verify installation: pip list | grep [package]
+#
+# PyQt5 issues:
+#   - Windows: pip install --upgrade PyQt5
+#   - Linux: sudo apt install python3-pyqt5
+#
+# CUDA not detected:
+#   - Verify: python -c "import torch; print(torch.cuda.is_available())"
+#   - Install PyTorch with CUDA support (see note above)
+#
+# For detailed help: See docs/DEBUGGING_GUIDELINES.md

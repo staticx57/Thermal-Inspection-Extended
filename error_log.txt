@@ -1,0 +1,159 @@
+WARNING:rgb_camera_firefly:PySpin not available. FLIR Firefly support disabled.
+WARNING:rgb_camera_firefly:Install Spinnaker SDK from: https://www.flir.com/products/spinnaker-sdk/
+WARNING:root:VPI not available
+WARNING:root:pygame not available - audio alerts disabled. Install: pip install pygame
+WARNING:road_analyzer:audio_alert_system not available - audio alerts disabled
+WARNING:root:jtop not available. Install with: sudo pip3 install jetson-stats
+INFO:root:[OK] Debug logging enabled: thermal_fusion_debug.log (10MB x5 files)
+2025-11-20 18:45:43,249 - root - INFO - [OK] Debug logging enabled: thermal_fusion_debug.log (10MB x5 files)
+INFO:__main__:QApplication initialized (Qt GUI)
+
+ΓòöΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòù
+Γòæ   FLIR Thermal + RGB Fusion Road Monitor v3.5              Γòæ
+Γòæ   Qt Professional GUI | Jetson Orin & x86-64               Γòæ
+ΓòáΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòú
+Γòæ  Keyboard Controls:                                          Γòæ
+Γòæ    Q/ESC - Quit          F - Fullscreen      D - Detections  Γòæ
+Γòæ    Y - Toggle YOLO       V - Cycle Views     S - Screenshot  Γòæ
+Γòæ    C - Cycle Palettes    G - Device Toggle   P - Stats       Γòæ
+Γòæ    A - Toggle Audio      (v3.0 Audio Alerts)                Γòæ
+Γòæ                                                               Γòæ
+Γòæ  GUI Buttons (click):                                        Γòæ
+Γòæ    Row 1: PAL, YOLO, BOX, DEV, MODEL                        Γòæ
+Γòæ    Row 2: FLUSH, AUDIO, SKIP, VIEW, FUS, ╬▒                  Γòæ
+Γòæ                                                               Γòæ
+Γòæ  View Modes: Thermal, RGB, Fusion, Side-by-Side, PIP       Γòæ
+Γòæ  Fusion Modes: Alpha Blend, Edge Enhanced, Thermal Overlay  Γòæ
+Γòæ                Side-by-Side, PIP, Max Intensity, Weighted   Γòæ
+Γòæ                                                               Γòæ
+Γòæ  v3.0 Smart Features:                                        Γòæ
+Γòæ    ΓÇó Distance estimation with TTC warnings                   Γòæ
+Γòæ    ΓÇó ISO 26262 compliant audio alerts (1.5-2 kHz)          Γòæ
+Γòæ    ΓÇó RED PULSE alerts on sides for pedestrians/animals      Γòæ
+Γòæ    ΓÇó Directional proximity warnings (left/right/center)     Γòæ
+Γòæ    ΓÇó Multi-view support for optimal situational awareness   Γòæ
+ΓòÜΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò¥
+    
+2025-11-20 18:45:43,279 - __main__ - INFO - QApplication initialized (Qt GUI)
+INFO:__main__:Platform detection: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-20 18:45:43,294 - __main__ - INFO - Platform detection: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+INFO:camera_registry:Loaded camera assignment: FLIR Boson 640x512 (Camera 1) -> thermal
+2025-11-20 18:45:43,294 - camera_registry - INFO - Loaded camera assignment: FLIR Boson 640x512 (Camera 1) -> thermal
+INFO:camera_registry:Loaded camera assignment: Camera 0 (MSMF) -> rgb
+2025-11-20 18:45:43,294 - camera_registry - INFO - Loaded camera assignment: Camera 0 (MSMF) -> rgb
+INFO:camera_registry:Loaded camera assignment: Camera 2 (DSHOW) -> rgb
+2025-11-20 18:45:43,295 - camera_registry - INFO - Loaded camera assignment: Camera 2 (DSHOW) -> rgb
+INFO:__main__:Initializing Thermal + RGB Fusion Road Monitor...
+2025-11-20 18:45:43,295 - __main__ - INFO - Initializing Thermal + RGB Fusion Road Monitor...
+INFO:__main__:Platform: x86-64 (AMD64)
+2025-11-20 18:45:43,295 - __main__ - INFO - Platform: x86-64 (AMD64)
+INFO:__main__:Using manually assigned thermal camera: device 1
+2025-11-20 18:45:43,295 - __main__ - INFO - Using manually assigned thermal camera: device 1
+INFO:__main__:Opening thermal camera device 1...
+2025-11-20 18:45:43,295 - __main__ - INFO - Opening thermal camera device 1...
+INFO:flir_camera:Windows detected - trying DirectShow backend
+2025-11-20 18:45:43,295 - flir_camera - INFO - Windows detected - trying DirectShow backend
+INFO:flir_camera:FLIR Boson camera opened successfully on device 1
+2025-11-20 18:45:44,685 - flir_camera - INFO - FLIR Boson camera opened successfully on device 1
+INFO:flir_camera:Resolution: (640, 512)
+2025-11-20 18:45:44,685 - flir_camera - INFO - Resolution: (640, 512)
+INFO:flir_camera:FPS: 60.000240000960005
+2025-11-20 18:45:44,685 - flir_camera - INFO - FPS: 60.000240000960005
+INFO:__main__:[OK] Thermal camera connected: 640x512
+2025-11-20 18:45:44,685 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+INFO:__main__:Detecting RGB cameras (FLIR Firefly or UVC)...
+2025-11-20 18:45:44,686 - __main__ - INFO - Detecting RGB cameras (FLIR Firefly or UVC)...
+INFO:__main__:Skipping thermal camera device 1 during RGB detection
+2025-11-20 18:45:44,686 - __main__ - INFO - Skipping thermal camera device 1 during RGB detection
+INFO:camera_factory:============================================================
+2025-11-20 18:45:44,686 - camera_factory - INFO - ============================================================
+INFO:camera_factory:RGB Camera Factory - Auto-detection
+2025-11-20 18:45:44,686 - camera_factory - INFO - RGB Camera Factory - Auto-detection
+INFO:camera_factory:============================================================
+2025-11-20 18:45:44,686 - camera_factory - INFO - ============================================================
+INFO:camera_factory:Auto-detecting RGB cameras...
+2025-11-20 18:45:44,688 - camera_factory - INFO - Auto-detecting RGB cameras...
+INFO:camera_factory:[X] No UVC cameras detected
+2025-11-20 18:45:44,689 - camera_factory - INFO - [X] No UVC cameras detected
+WARNING:camera_factory:Falling back to legacy RGBCamera class
+2025-11-20 18:45:44,689 - camera_factory - WARNING - Falling back to legacy RGBCamera class
+INFO:rgb_camera:Windows detected - opening camera 0 with DirectShow
+2025-11-20 18:45:44,689 - rgb_camera - INFO - Windows detected - opening camera 0 with DirectShow
+INFO:rgb_camera:RGB camera opened successfully
+2025-11-20 18:45:48,618 - rgb_camera - INFO - RGB camera opened successfully
+INFO:rgb_camera:Resolution: 640x480 @ 30 FPS
+2025-11-20 18:45:48,618 - rgb_camera - INFO - Resolution: 640x480 @ 30 FPS
+INFO:__main__:[OK] RGB camera opened: USB/CSI (Legacy)
+2025-11-20 18:45:49,419 - __main__ - INFO - [OK] RGB camera opened: USB/CSI (Legacy)
+2025-11-20 18:45:49,420 - __main__ - INFO -   Resolution: 640x480
+INFO:__main__:  Resolution: 640x480
+INFO:config:Configuration loaded from config.json
+2025-11-20 18:45:49,420 - config - INFO - Configuration loaded from config.json
+WARNING:fusion_processor:No calibration file provided - using identity transform
+2025-11-20 18:45:49,420 - fusion_processor - WARNING - No calibration file provided - using identity transform
+INFO:__main__:Fusion processor initialized (mode: alpha_blend)
+2025-11-20 18:45:49,420 - __main__ - INFO - Fusion processor initialized (mode: alpha_blend)
+2025-11-20 18:45:49,422 - __main__ - INFO - Initializing VPI detector (mode: model, device: cuda)...
+INFO:__main__:Initializing VPI detector (mode: model, device: cuda)...
+WARNING:__main__:VPI not available on this platform - using CPU-only processing
+2025-11-20 18:45:49,422 - __main__ - WARNING - VPI not available on this platform - using CPU-only processing
+INFO:__main__:Forcing device to CPU (VPI not available)
+2025-11-20 18:45:49,423 - __main__ - INFO - Forcing device to CPU (VPI not available)
+INFO:vpi_detector:VPI not available - using OpenCV fallback for image processing
+2025-11-20 18:45:49,423 - vpi_detector - INFO - VPI not available - using OpenCV fallback for image processing
+WARNING:vpi_detector:VPI not available - using OpenCV fallback mode
+2025-11-20 18:45:49,425 - vpi_detector - WARNING - VPI not available - using OpenCV fallback mode
+INFO:vpi_detector:Cross-platform mode: Windows/macOS/Linux (non-Jetson)
+2025-11-20 18:45:49,425 - vpi_detector - INFO - Cross-platform mode: Windows/macOS/Linux (non-Jetson)
+INFO:vpi_detector:Initializing VPI-accelerated detector (mode: model)...
+2025-11-20 18:45:49,425 - vpi_detector - INFO - Initializing VPI-accelerated detector (mode: model)...
+INFO:vpi_detector:Loading YOLO model: yolov8n.pt
+2025-11-20 18:45:49,426 - vpi_detector - INFO - Loading YOLO model: yolov8n.pt
+2025-11-20 18:45:49,426 - vpi_detector - INFO - CUDA available: False
+INFO:vpi_detector:CUDA available: False
+INFO:vpi_detector:YOLO model moved to device: cpu
+2025-11-20 18:45:49,459 - vpi_detector - INFO - YOLO model moved to device: cpu
+INFO:vpi_detector:YOLO model loaded successfully
+2025-11-20 18:45:49,461 - vpi_detector - INFO - YOLO model loaded successfully
+INFO:vpi_detector:VPI not available - using OpenCV fallback (full functionality)
+2025-11-20 18:45:49,461 - vpi_detector - INFO - VPI not available - using OpenCV fallback (full functionality)
+INFO:distance_estimator:DistanceEstimator initialized: focal_length=640.0px, camera_height=1.2m, thermal_mode=False, LiDAR=DISABLED
+2025-11-20 18:45:49,461 - distance_estimator - INFO - DistanceEstimator initialized: focal_length=640.0px, camera_height=1.2m, thermal_mode=False, LiDAR=DISABLED
+2025-11-20 18:45:49,461 - road_analyzer - INFO - Distance estimation enabled (camera only)
+INFO:road_analyzer:Distance estimation enabled (camera only)
+INFO:__main__:GUI Selection: use_opencv=False, qt_app=present, use_qt=True
+2025-11-20 18:45:49,461 - __main__ - INFO - GUI Selection: use_opencv=False, qt_app=present, use_qt=True
+INFO:__main__:[OK] Using Qt GUI (professional mode)
+2025-11-20 18:45:49,465 - __main__ - INFO - [OK] Using Qt GUI (professional mode)
+INFO:auto_daynight:AutoDayNightDetector initialized: lat=37.7749, lon=-122.4194, ambient_threshold=80, time=7-19
+2025-11-20 18:45:49,466 - auto_daynight - INFO - AutoDayNightDetector initialized: lat=37.7749, lon=-122.4194, ambient_threshold=80, time=7-19
+INFO:auto_daynight:Created global AutoDayNightDetector instance
+2025-11-20 18:45:49,466 - auto_daynight - INFO - Created global AutoDayNightDetector instance
+INFO:alert_overlay:AlertOverlayWidget initialized (ADAS-compliant)
+2025-11-20 18:45:49,468 - alert_overlay - INFO - AlertOverlayWidget initialized (ADAS-compliant)
+ERROR:__main__:Initialization failed: local variable 'QLabel' referenced before assignment
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\main.py", line 606, in initialize
+    self.gui = DriverAppWindow(app=self)  # Pass self reference for button callbacks
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\driver_gui_qt.py", line 745, in __init__
+    self.developer_panel = DeveloperPanel()
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\developer_panel.py", line 127, in __init__
+    self._build_ui()
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\developer_panel.py", line 238, in _build_ui
+    name_label = QLabel(self.preset_manager.get_preset_name(i))
+UnboundLocalError: local variable 'QLabel' referenced before assignment
+2025-11-20 18:45:49,474 - __main__ - ERROR - Initialization failed: local variable 'QLabel' referenced before assignment
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\main.py", line 606, in initialize
+    self.gui = DriverAppWindow(app=self)  # Pass self reference for button callbacks
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\driver_gui_qt.py", line 745, in __init__
+    self.developer_panel = DeveloperPanel()
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\developer_panel.py", line 127, in __init__
+    self._build_ui()
+  File "C:\Users\stati\Desktop\Projects\ThermalFusionDrivingAssist\developer_panel.py", line 238, in _build_ui
+    name_label = QLabel(self.preset_manager.get_preset_name(i))
+UnboundLocalError: local variable 'QLabel' referenced before assignment
+ERROR:__main__:Failed to initialize application
+2025-11-20 18:45:49,475 - __main__ - ERROR - Failed to initialize application
+INFO:rgb_camera:RGB camera released
+2025-11-20 18:45:50,093 - rgb_camera - INFO - RGB camera released
