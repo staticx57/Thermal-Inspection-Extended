@@ -1,0 +1,16 @@
+13:                                   QFrame, QScrollArea, QGridLayout, QPushButton,
+225:         # Import preset manager
+226:         from preset_manager import get_preset_manager
+325:         from PyQt5.QtWidgets import QComboBox, QLabel
+582:         from camera_registry import get_camera_registry, CameraRole
+605:                 from PyQt5.QtWidgets import QListWidgetItem
+606:                 from PyQt5.QtGui import QColor
+619:         from camera_registry import get_camera_registry, CameraRole
+635:         from camera_registry import get_camera_registry, CameraRole
+651:         from PyQt5.QtCore import QTimer
+655:             from camera_monitor import get_camera_monitor
+667:         from camera_registry import get_camera_registry
+747:             from view_mode import ViewMode
+793:         import subprocess
+794:         import sys
+795:         from pathlib import Path

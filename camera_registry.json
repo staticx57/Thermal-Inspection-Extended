@@ -1,0 +1,41 @@
+{
+  "cameras": [
+    {
+      "device_id": 0,
+      "name": "FLIR Boson 640x512 (Camera 1)",
+      "resolution": [
+        640,
+        512
+      ],
+      "driver": "DSHOW/MSMF",
+      "role": "thermal",
+      "is_connected": true,
+      "manual_override": false
+    },
+    {
+      "device_id": 2,
+      "name": "Camera 2 (DSHOW)",
+      "resolution": [
+        640,
+        480
+      ],
+      "driver": "DSHOW/MSMF",
+      "role": "rgb",
+      "is_connected": true,
+      "manual_override": true
+    },
+    {
+      "device_id": 1,
+      "name": "Camera 1 (DSHOW)",
+      "resolution": [
+        640,
+        480
+      ],
+      "driver": "DSHOW/MSMF",
+      "role": "rgb",
+      "is_connected": true,
+      "manual_override": true
+    }
+  ],
+  "version": "1.0"
+}

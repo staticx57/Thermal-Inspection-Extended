@@ -1,0 +1,1621 @@
+2025-11-21 09:48:53,910 - root - INFO - [inspection_main.py:88] - [OK] Debug logging: thermal_inspection_debug.log
+2025-11-21 09:48:53,914 - __main__ - INFO - [inspection_main.py:845] - ================================================================================
+2025-11-21 09:48:53,915 - __main__ - INFO - [inspection_main.py:846] - Thermal Inspection Fusion Tool
+2025-11-21 09:48:53,915 - __main__ - INFO - [inspection_main.py:847] - Transformed from ThermalFusionDrivingAssist
+2025-11-21 09:48:53,915 - __main__ - INFO - [inspection_main.py:848] - ================================================================================
+2025-11-21 09:48:53,954 - __main__ - INFO - [inspection_main.py:856] - Qt GUI enabled
+2025-11-21 09:48:53,993 - __main__ - INFO - [inspection_main.py:112] - Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-21 09:48:53,993 - __main__ - INFO - [inspection_main.py:318] - ================================================================================
+2025-11-21 09:48:53,993 - __main__ - INFO - [inspection_main.py:319] - Initializing Thermal Inspection Fusion Tool
+2025-11-21 09:48:53,993 - __main__ - INFO - [inspection_main.py:320] - ================================================================================
+2025-11-21 09:48:53,995 - __main__ - INFO - [inspection_main.py:321] - Platform: x86-64 (AMD64)
+2025-11-21 09:48:53,995 - __main__ - INFO - [inspection_main.py:323] - Mode: realtime
+2025-11-21 09:48:53,996 - __main__ - INFO - [inspection_main.py:324] - Device: cuda
+2025-11-21 09:48:53,996 - __main__ - INFO - [inspection_main.py:224] - Scanning for FLIR Boson thermal camera...
+2025-11-21 09:48:53,996 - flir_camera - INFO - [flir_camera.py:70] - Windows detected - trying DirectShow backend
+2025-11-21 09:48:56,580 - flir_camera - INFO - [flir_camera.py:96] - FLIR Boson camera opened successfully on device 0
+2025-11-21 09:48:56,581 - flir_camera - INFO - [flir_camera.py:97] - Resolution: (640, 480)
+2025-11-21 09:48:56,581 - flir_camera - INFO - [flir_camera.py:98] - FPS: 60.000240000960005
+2025-11-21 09:48:56,581 - __main__ - INFO - [inspection_main.py:239] - [OK] Thermal camera connected: 640x480
+2025-11-21 09:48:56,581 - __main__ - INFO - [inspection_main.py:284] - Scanning for RGB camera...
+2025-11-21 09:48:56,582 - camera_factory - INFO - [camera_factory.py:119] - Skipping thermal camera device 0, using next available device
+2025-11-21 09:48:56,582 - camera_factory - INFO - [camera_factory.py:122] - ============================================================
+2025-11-21 09:48:56,582 - camera_factory - INFO - [camera_factory.py:123] - RGB Camera Factory - Auto-detection
+2025-11-21 09:48:56,582 - camera_factory - INFO - [camera_factory.py:124] - ============================================================
+2025-11-21 09:48:56,582 - camera_factory - INFO - [camera_factory.py:154] - Auto-detecting RGB cameras...
+2025-11-21 09:48:56,583 - camera_factory - INFO - [camera_factory.py:193] - [X] No UVC cameras detected
+2025-11-21 09:48:56,584 - camera_factory - WARNING - [camera_factory.py:199] - Falling back to legacy RGBCamera class
+2025-11-21 09:48:56,584 - rgb_camera - INFO - [rgb_camera.py:90] - Windows detected - opening camera 1 with DirectShow
+2025-11-21 09:48:56,605 - rgb_camera - WARNING - [rgb_camera.py:102] - Platform-specific backend failed, trying default
+2025-11-21 09:48:56,639 - rgb_camera - ERROR - [rgb_camera.py:106] - Failed to open camera 1
+2025-11-21 09:48:56,639 - rgb_camera - INFO - [rgb_camera.py:244] - RGB camera released
+2025-11-21 09:48:56,639 - __main__ - INFO - [inspection_main.py:359] - Fusion processor deferred (no RGB camera)
+2025-11-21 09:48:56,639 - __main__ - INFO - [inspection_main.py:363] - ------------------------------------------------------------
+2025-11-21 09:48:56,640 - __main__ - INFO - [inspection_main.py:364] - Initializing inspection modules...
+2025-11-21 09:48:56,640 - thermal_processor - INFO - [thermal_processor.py:76] - VPI not available - using OpenCV fallback
+2025-11-21 09:48:56,649 - thermal_processor - INFO - [thermal_processor.py:156] - VPI not available - using OpenCV fallback
+2025-11-21 09:48:56,650 - __main__ - INFO - [inspection_main.py:377] - [OK] Thermal processor initialized
+2025-11-21 09:48:56,650 - __main__ - INFO - [inspection_main.py:387] - [OK] Thermal analyzer initialized
+2025-11-21 09:48:56,650 - __main__ - INFO - [inspection_main.py:397] - [OK] ROI manager initialized
+2025-11-21 09:48:56,674 - __main__ - INFO - [inspection_main.py:405] - [OK] Palette manager initialized
+2025-11-21 09:48:56,674 - __main__ - INFO - [inspection_main.py:406] -      45 palettes available
+2025-11-21 09:48:56,675 - __main__ - INFO - [inspection_main.py:420] - [OK] Video recorder initialized
+2025-11-21 09:48:56,675 - __main__ - INFO - [inspection_main.py:430] - [OK] Snapshot manager initialized
+2025-11-21 09:48:56,675 - __main__ - INFO - [inspection_main.py:442] - ------------------------------------------------------------
+2025-11-21 09:48:56,675 - performance_monitor - WARNING - [performance_monitor.py:59] - jtop not available, using basic metrics only
+2025-11-21 09:48:56,676 - __main__ - INFO - [inspection_main.py:453] - Qt GUI selected (inspection_gui_qt.py - TO BE IMPLEMENTED)
+2025-11-21 09:48:56,676 - __main__ - INFO - [inspection_main.py:466] - ================================================================================
+2025-11-21 09:48:56,676 - __main__ - INFO - [inspection_main.py:467] - Initialization complete!
+2025-11-21 09:48:56,676 - __main__ - INFO - [inspection_main.py:468] - ================================================================================
+2025-11-21 09:48:56,677 - __main__ - INFO - [inspection_main.py:599] - Starting inspection loop...
+2025-11-21 09:48:56,810 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:56,816 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:56,840 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:56,871 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:56,904 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:56,936 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:56,967 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:56,999 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,031 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,064 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,095 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,144 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,175 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,210 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,240 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,272 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,303 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,338 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,369 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,401 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,432 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,480 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,512 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,543 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,575 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,608 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,639 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,671 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,703 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,736 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,768 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,815 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,847 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,880 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,913 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,944 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:57,978 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,009 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,040 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,071 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,103 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,151 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,184 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,216 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,247 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,279 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,311 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,344 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,376 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,410 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,439 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,491 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,521 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,551 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,584 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,632 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,663 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,696 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,728 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,760 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,807 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,839 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,871 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,904 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,951 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:58,983 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,015 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,048 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,097 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,128 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,160 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,191 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,224 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,272 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,305 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,336 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,368 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,399 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,432 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,463 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,496 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,528 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,559 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,608 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,639 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,670 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,703 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,736 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,768 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,799 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,832 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,863 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,895 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,943 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:48:59,976 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,007 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,039 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,073 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,103 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,135 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,136 - __main__ - INFO - [inspection_main.py:744] - Frame 100: 29.1 FPS, 0 ROIs, 0 motion, 0 hot spots
+2025-11-21 09:49:00,166 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,199 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,230 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,280 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,310 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,344 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,376 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,407 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,438 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,472 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,503 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,535 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,568 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,615 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,649 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,680 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,712 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,744 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,778 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,807 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,841 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,871 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,902 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,951 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:00,983 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,016 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,047 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,080 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,112 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,144 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,176 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,210 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,238 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,287 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,320 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,351 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,383 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,415 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,448 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,479 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,511 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,544 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,575 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,623 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,658 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,687 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,720 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,752 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,783 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,814 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,847 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,880 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,912 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,960 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:01,994 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:02,025 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+
+2025-11-21 09:49:02,066 - __main__ - ERROR - [inspection_main.py:593] - Frame processing error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py", line 511, in process_frame
+    thermal_colorized = self.palette_manager.apply_composite_palette(
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 732, in apply_composite_palette
+    output = self.apply_palette(thermal_frame, self.global_palette)
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\palette_manager.py", line 709, in apply_palette
+    colorized = cv2.LUT(thermal_adjusted, lut)
+cv2.error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\lut.cpp:373: error: (-215:Assertion failed) (lutcn == cn || lutcn == 1) && _lut.total() == 256 && _lut.isContinuous() && (depth == CV_8U || depth == CV_8S) in function 'cv::LUT'
+

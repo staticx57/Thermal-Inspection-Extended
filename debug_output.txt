@@ -1,0 +1,200 @@
+2025-11-20 13:26:19,897 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:19,933 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:19,968 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,002 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,037 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,073 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,107 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,142 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,189 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,215 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,256 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,295 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,325 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,354 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,401 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,438 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,461 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,506 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,525 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,567 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,595 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,731 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,736 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,769 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,806 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=1, RIGHT=1
+2025-11-20 13:26:20,838 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=1, RIGHT=1
+2025-11-20 13:26:20,873 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,909 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:20,943 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=1, RIGHT=1
+2025-11-20 13:26:20,978 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=1, RIGHT=1
+2025-11-20 13:26:21,012 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=2, RIGHT=2
+2025-11-20 13:26:21,048 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=2, RIGHT=2
+2025-11-20 13:26:21,083 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=4, RIGHT=5
+2025-11-20 13:26:21,118 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=4, RIGHT=5
+2025-11-20 13:26:21,153 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=5, RIGHT=3
+2025-11-20 13:26:21,187 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=5, RIGHT=3
+2025-11-20 13:26:21,222 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:21,257 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:21,292 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:21,327 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:21,362 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:21,398 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:21,431 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:21,469 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:21,501 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:21,536 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:21,562 - driver_gui_qt - INFO - [driver_gui_qt.py:579] - Developer controls shown (18 controls in 6x3 grid)
+2025-11-20 13:26:21,632 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:21,636 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=3
+2025-11-20 13:26:21,655 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=1, RIGHT=4
+2025-11-20 13:26:21,676 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=1, RIGHT=4
+2025-11-20 13:26:21,710 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=1, RIGHT=4
+2025-11-20 13:26:21,848 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=1, RIGHT=4
+2025-11-20 13:26:21,852 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=1, RIGHT=4
+2025-11-20 13:26:21,884 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=1, RIGHT=4
+2025-11-20 13:26:21,897 - vpi_detector - INFO - [vpi_detector.py:532] - YOLO inference: 47.3ms (21.2 FPS), 0 detections
+2025-11-20 13:26:21,919 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:21,953 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:22,476 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=1, RIGHT=2
+2025-11-20 13:26:22,510 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=1, RIGHT=2
+2025-11-20 13:26:22,548 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=1, RIGHT=2
+2025-11-20 13:26:22,581 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=1, RIGHT=2
+2025-11-20 13:26:22,615 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=1, RIGHT=3
+2025-11-20 13:26:22,651 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=1, RIGHT=3
+2025-11-20 13:26:22,687 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:22,721 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=1
+2025-11-20 13:26:22,757 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=4
+2025-11-20 13:26:22,792 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=4
+2025-11-20 13:26:22,828 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=3, RIGHT=5
+2025-11-20 13:26:22,964 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=3, RIGHT=5
+2025-11-20 13:26:22,972 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=2, RIGHT=5
+2025-11-20 13:26:23,001 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=2, RIGHT=5
+2025-11-20 13:26:23,036 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=3
+2025-11-20 13:26:23,071 - alert_overlay - INFO - [alert_overlay.py:200] - Proximity zones: LEFT=0, CENTER=0, RIGHT=3
+2025-11-20 13:26:23,103 - video_worker - INFO - [video_worker.py:406] - Frame 100 | FPS: 60.0/30 | Loop: 1.0ms | Throttle: [OK] | Detections: 3 | View: fusion
+2025-11-20 13:26:23,103 - video_worker - INFO - [video_worker.py:133] - Attempting to reconnect RGB camera...
+2025-11-20 13:26:23,104 - camera_factory - INFO - [camera_factory.py:122] - ============================================================
+2025-11-20 13:26:23,104 - camera_factory - INFO - [camera_factory.py:123] - RGB Camera Factory - Auto-detection
+2025-11-20 13:26:23,105 - camera_factory - INFO - [camera_factory.py:124] - ============================================================
+2025-11-20 13:26:23,105 - camera_factory - INFO - [camera_factory.py:154] - Auto-detecting RGB cameras...
+2025-11-20 13:26:23,105 - camera_factory - INFO - [camera_factory.py:193] - [X] No UVC cameras detected
+2025-11-20 13:26:23,106 - camera_factory - WARNING - [camera_factory.py:199] - Falling back to legacy RGBCamera class
+2025-11-20 13:26:23,106 - rgb_camera - INFO - [rgb_camera.py:90] - Windows detected - opening camera 0 with DirectShow
+2025-11-20 13:26:40,899 - root - INFO - [main.py:82] - [OK] Debug logging enabled: thermal_fusion_debug.log (10MB x5 files)
+2025-11-20 13:26:40,972 - __main__ - INFO - [main.py:1523] - QApplication initialized (Qt GUI)
+2025-11-20 13:26:40,992 - __main__ - INFO - [main.py:112] - Platform detection: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-20 13:26:41,002 - camera_registry - INFO - [camera_registry.py:90] - Loaded camera assignment: Camera 0 (DSHOW) -> rgb
+2025-11-20 13:26:41,002 - camera_registry - INFO - [camera_registry.py:90] - Loaded camera assignment: FLIR Boson 640x512 (Camera 1) -> thermal
+2025-11-20 13:26:41,003 - camera_registry - INFO - [camera_registry.py:90] - Loaded camera assignment: Camera 2 (DSHOW) -> rgb
+2025-11-20 13:26:41,003 - camera_monitor - INFO - [camera_monitor.py:64] - Camera monitor initialized (scan interval: 3.0s)
+2025-11-20 13:26:41,003 - __main__ - INFO - [main.py:520] - Initializing Thermal + RGB Fusion Road Monitor...
+2025-11-20 13:26:41,003 - __main__ - INFO - [main.py:521] - Platform: x86-64 (AMD64)
+2025-11-20 13:26:41,003 - __main__ - INFO - [main.py:528] - Camera monitor callbacks registered
+2025-11-20 13:26:41,003 - __main__ - INFO - [main.py:266] - Using manually assigned thermal camera: device 1
+2025-11-20 13:26:41,005 - __main__ - INFO - [main.py:302] - Opening thermal camera device 1...
+2025-11-20 13:26:41,006 - flir_camera - INFO - [flir_camera.py:43] - Windows detected - trying DirectShow backend
+2025-11-20 13:26:42,423 - flir_camera - INFO - [flir_camera.py:69] - FLIR Boson camera opened successfully on device 1
+2025-11-20 13:26:42,424 - flir_camera - INFO - [flir_camera.py:70] - Resolution: (640, 512)
+2025-11-20 13:26:42,425 - flir_camera - INFO - [flir_camera.py:71] - FPS: 60.000240000960005
+2025-11-20 13:26:42,425 - __main__ - INFO - [main.py:317] - [OK] Thermal camera connected: 640x512
+2025-11-20 13:26:42,426 - __main__ - INFO - [main.py:554] - Detecting RGB cameras (FLIR Firefly or UVC)...
+2025-11-20 13:26:42,426 - __main__ - INFO - [main.py:563] - Skipping thermal camera device 1 during RGB detection
+2025-11-20 13:26:42,426 - camera_factory - INFO - [camera_factory.py:122] - ============================================================
+2025-11-20 13:26:42,426 - camera_factory - INFO - [camera_factory.py:123] - RGB Camera Factory - Auto-detection
+2025-11-20 13:26:42,426 - camera_factory - INFO - [camera_factory.py:124] - ============================================================
+2025-11-20 13:26:42,427 - camera_factory - INFO - [camera_factory.py:154] - Auto-detecting RGB cameras...
+2025-11-20 13:26:42,428 - camera_factory - INFO - [camera_factory.py:193] - [X] No UVC cameras detected
+2025-11-20 13:26:42,428 - camera_factory - WARNING - [camera_factory.py:199] - Falling back to legacy RGBCamera class
+2025-11-20 13:26:42,430 - rgb_camera - INFO - [rgb_camera.py:90] - Windows detected - opening camera 0 with DirectShow
+2025-11-20 13:26:46,291 - rgb_camera - INFO - [rgb_camera.py:125] - RGB camera opened successfully
+2025-11-20 13:26:46,291 - rgb_camera - INFO - [rgb_camera.py:126] - Resolution: 640x480 @ 30 FPS
+2025-11-20 13:26:47,093 - __main__ - INFO - [main.py:575] - [OK] RGB camera opened: USB/CSI (Legacy)
+2025-11-20 13:26:47,093 - __main__ - INFO - [main.py:576] -   Resolution: 640x480
+2025-11-20 13:26:47,094 - config - INFO - [config.py:114] - Configuration loaded from config.json
+2025-11-20 13:26:47,094 - fusion_processor - WARNING - [fusion_processor.py:63] - No calibration file provided - using identity transform
+2025-11-20 13:26:47,094 - __main__ - INFO - [main.py:595] - Fusion processor initialized (mode: alpha_blend)
+2025-11-20 13:26:47,095 - __main__ - INFO - [main.py:607] - Initializing VPI detector (mode: model, device: cuda)...
+2025-11-20 13:26:47,095 - __main__ - WARNING - [main.py:616] - VPI not available on this platform - using CPU-only processing
+2025-11-20 13:26:47,096 - __main__ - INFO - [main.py:618] - Forcing device to CPU (VPI not available)
+2025-11-20 13:26:47,096 - vpi_detector - INFO - [vpi_detector.py:60] - VPI not available - using OpenCV fallback for image processing
+2025-11-20 13:26:47,099 - vpi_detector - WARNING - [vpi_detector.py:346] - VPI not available - using OpenCV fallback mode
+2025-11-20 13:26:47,099 - vpi_detector - INFO - [vpi_detector.py:347] - Cross-platform mode: Windows/macOS/Linux (non-Jetson)
+2025-11-20 13:26:47,099 - vpi_detector - INFO - [vpi_detector.py:352] - Initializing VPI-accelerated detector (mode: model)...
+2025-11-20 13:26:47,100 - vpi_detector - INFO - [vpi_detector.py:363] - Loading YOLO model: yolov8n.pt
+2025-11-20 13:26:47,100 - vpi_detector - INFO - [vpi_detector.py:364] - CUDA available: False
+2025-11-20 13:26:47,126 - vpi_detector - INFO - [vpi_detector.py:373] - YOLO model moved to device: cpu
+2025-11-20 13:26:47,126 - vpi_detector - INFO - [vpi_detector.py:375] - YOLO model loaded successfully
+2025-11-20 13:26:47,127 - vpi_detector - INFO - [vpi_detector.py:434] - VPI not available - using OpenCV fallback (full functionality)
+2025-11-20 13:26:47,127 - distance_estimator - INFO - [distance_estimator.py:140] - DistanceEstimator initialized: focal_length=640.0px, camera_height=1.2m, thermal_mode=False, LiDAR=DISABLED
+2025-11-20 13:26:47,127 - road_analyzer - INFO - [road_analyzer.py:127] - Distance estimation enabled (camera only)
+2025-11-20 13:26:47,128 - __main__ - INFO - [main.py:664] - GUI Selection: use_opencv=False, qt_app=present, use_qt=True
+2025-11-20 13:26:47,130 - __main__ - INFO - [main.py:669] - [OK] Using Qt GUI (professional mode)
+2025-11-20 13:26:47,131 - auto_daynight - INFO - [auto_daynight.py:54] - AutoDayNightDetector initialized: lat=37.7749, lon=-122.4194, ambient_threshold=80, time=7-19
+2025-11-20 13:26:47,132 - auto_daynight - INFO - [auto_daynight.py:332] - Created global AutoDayNightDetector instance
+2025-11-20 13:26:47,133 - alert_overlay - INFO - [alert_overlay.py:96] - AlertOverlayWidget initialized (ADAS-compliant)
+2025-11-20 13:26:47,527 - developer_panel - INFO - [developer_panel.py:407] - Developer panel connected to main app
+2025-11-20 13:26:47,538 - driver_gui_qt - INFO - [driver_gui_qt.py:847] - Control panel signals connected (all 22 controls)
+2025-11-20 13:26:47,548 - driver_gui_qt - INFO - [driver_gui_qt.py:1369] - Applied 'dark' theme (Day=bright, Night=dark, Auto=intelligent)
+2025-11-20 13:26:47,548 - driver_gui_qt - INFO - [driver_gui_qt.py:764] - Qt GUI initialized successfully
+2025-11-20 13:26:47,548 - __main__ - INFO - [main.py:673] - [OK] Qt GUI window created successfully with app reference
+2025-11-20 13:26:47,549 - performance_monitor - WARNING - [performance_monitor.py:59] - jtop not available, using basic metrics only
+2025-11-20 13:26:47,549 - __main__ - INFO - [main.py:708] - Initialization complete!
+2025-11-20 13:26:47,549 - __main__ - INFO - [main.py:709] - RGB camera: ENABLED
+2025-11-20 13:26:47,549 - __main__ - INFO - [main.py:710] - View mode: fusion
+2025-11-20 13:26:47,550 - __main__ - INFO - [main.py:924] - Starting main loop...
+2025-11-20 13:26:47,673 - __main__ - INFO - [main.py:930] - Qt GUI window shown
+2025-11-20 13:26:47,674 - camera_monitor - INFO - [camera_monitor.py:116] - Camera monitoring loop started
+2025-11-20 13:26:47,674 - camera_monitor - INFO - [camera_monitor.py:75] - Camera monitor started
+2025-11-20 13:26:47,675 - __main__ - INFO - [main.py:935] - Camera monitor service started
+2025-11-20 13:26:47,676 - __main__ - INFO - [main.py:719] - Detection worker thread started
+2025-11-20 13:26:47,676 - __main__ - INFO - [main.py:940] - Async detection thread started
+2025-11-20 13:26:47,677 - __main__ - INFO - [main.py:945] - Phase 3: Starting VideoProcessorWorker thread...
+2025-11-20 13:26:47,677 - driver_gui_qt - INFO - [driver_gui_qt.py:1378] - Worker signals connected to GUI
+2025-11-20 13:26:47,678 - __main__ - INFO - [main.py:953] - VideoProcessorWorker started - entering Qt event loop
+2025-11-20 13:26:47,678 - video_worker - INFO - [video_worker.py:46] - VideoProcessorWorker thread started
+2025-11-20 13:26:47,679 - video_worker - INFO - [video_worker.py:53] - Platform: x86-64, Target FPS: 30 (adaptive throttling)
+2025-11-20 13:26:47,993 - camera_detector - INFO - [camera_detector.py:423] - Detected: Camera 0 (DSHOW) at index 0
+2025-11-20 13:26:48,267 - camera_detector - INFO - [camera_detector.py:423] - Detected: FLIR Boson 640x512 (Camera 1) at index 1
+2025-11-20 13:26:48,783 - video_worker - WARNING - [video_worker.py:76] - Thermal camera read failed - camera may have disconnected
+2025-11-20 13:26:48,787 - vpi_detector - INFO - [vpi_detector.py:217] - Detection mode changed: model -> model
+2025-11-20 13:26:48,787 - flir_camera - INFO - [flir_camera.py:158] - FLIR Boson camera released
+2025-11-20 13:26:48,787 - driver_gui_qt - INFO - [driver_gui_qt.py:875] - YOLO detection enabled (model mode with yolov8n.pt)
+2025-11-20 13:26:48,790 - rgb_camera - WARNING - [rgb_camera.py:176] - Failed to read RGB frame
+2025-11-20 13:26:48,790 - video_worker - WARNING - [video_worker.py:107] - RGB camera read failed - will attempt reconnection
+2025-11-20 13:26:48,790 - rgb_camera - INFO - [rgb_camera.py:244] - RGB camera released
+2025-11-20 13:26:48,791 - rgb_camera - INFO - [rgb_camera.py:244] - RGB camera released
+2025-11-20 13:26:48,822 - video_worker - INFO - [video_worker.py:63] - Scanning for thermal camera...
+2025-11-20 13:26:48,823 - __main__ - INFO - [main.py:266] - Using manually assigned thermal camera: device 1
+2025-11-20 13:26:48,823 - __main__ - INFO - [main.py:302] - Opening thermal camera device 1...
+2025-11-20 13:26:48,823 - flir_camera - INFO - [flir_camera.py:43] - Windows detected - trying DirectShow backend
+2025-11-20 13:26:49,619 - camera_detector - INFO - [camera_detector.py:423] - Detected: Camera 2 (DSHOW) at index 2
+2025-11-20 13:26:49,919 - camera_detector - INFO - [camera_detector.py:444] - Windows camera probe complete: 3 camera(s) found
+2025-11-20 13:26:49,919 - camera_registry - INFO - [camera_registry.py:137] - Known camera reconnected: Camera 0 (DSHOW) (was device 0, now device 0)
+2025-11-20 13:26:49,921 - camera_registry - INFO - [camera_registry.py:137] - Known camera reconnected: FLIR Boson 640x512 (Camera 1) (was device 1, now device 1)
+2025-11-20 13:26:49,921 - camera_registry - INFO - [camera_registry.py:137] - Known camera reconnected: Camera 2 (DSHOW) (was device 2, now device 2)
+2025-11-20 13:26:50,090 - flir_camera - INFO - [flir_camera.py:69] - FLIR Boson camera opened successfully on device 1
+2025-11-20 13:26:50,091 - flir_camera - INFO - [flir_camera.py:70] - Resolution: (640, 512)
+2025-11-20 13:26:50,091 - flir_camera - INFO - [flir_camera.py:71] - FPS: 60.000240000960005
+2025-11-20 13:26:50,092 - __main__ - INFO - [main.py:317] - [OK] Thermal camera connected: 640x512
+2025-11-20 13:26:50,092 - video_worker - INFO - [video_worker.py:65] - [OK] Thermal camera connected! Initializing detector...
+2025-11-20 13:26:50,093 - vpi_detector - INFO - [vpi_detector.py:60] - VPI not available - using OpenCV fallback for image processing
+2025-11-20 13:26:50,095 - vpi_detector - WARNING - [vpi_detector.py:346] - VPI not available - using OpenCV fallback mode
+2025-11-20 13:26:50,095 - vpi_detector - INFO - [vpi_detector.py:347] - Cross-platform mode: Windows/macOS/Linux (non-Jetson)
+2025-11-20 13:26:50,096 - vpi_detector - INFO - [vpi_detector.py:352] - Initializing VPI-accelerated detector (mode: model)...
+2025-11-20 13:26:50,096 - vpi_detector - INFO - [vpi_detector.py:363] - Loading YOLO model: yolov8n.pt
+2025-11-20 13:26:50,097 - vpi_detector - INFO - [vpi_detector.py:364] - CUDA available: False
+2025-11-20 13:26:50,133 - vpi_detector - INFO - [vpi_detector.py:373] - YOLO model moved to device: cpu
+2025-11-20 13:26:50,135 - vpi_detector - INFO - [vpi_detector.py:375] - YOLO model loaded successfully
+2025-11-20 13:26:50,135 - vpi_detector - INFO - [vpi_detector.py:434] - VPI not available - using OpenCV fallback (full functionality)
+2025-11-20 13:26:50,137 - __main__ - INFO - [main.py:412] - [OK] Detector initialized successfully
+2025-11-20 13:26:53,465 - vpi_detector - INFO - [vpi_detector.py:532] - YOLO inference: 44.6ms (22.4 FPS), 0 detections
+2025-11-20 13:26:53,799 - video_worker - INFO - [video_worker.py:406] - Frame 100 | FPS: 60.0/30 | Loop: 1.0ms | Throttle: [OK] | Detections: 0 | View: fusion
+2025-11-20 13:26:53,800 - video_worker - INFO - [video_worker.py:133] - Attempting to reconnect RGB camera...
+2025-11-20 13:26:53,800 - camera_factory - INFO - [camera_factory.py:122] - ============================================================
+2025-11-20 13:26:53,801 - camera_factory - INFO - [camera_factory.py:123] - RGB Camera Factory - Auto-detection
+2025-11-20 13:26:53,801 - camera_factory - INFO - [camera_factory.py:124] - ============================================================
+2025-11-20 13:26:53,802 - camera_factory - INFO - [camera_factory.py:154] - Auto-detecting RGB cameras...
+2025-11-20 13:26:53,802 - camera_factory - INFO - [camera_factory.py:193] - [X] No UVC cameras detected
+2025-11-20 13:26:53,802 - camera_factory - WARNING - [camera_factory.py:199] - Falling back to legacy RGBCamera class
+2025-11-20 13:26:53,803 - rgb_camera - INFO - [rgb_camera.py:90] - Windows detected - opening camera 0 with DirectShow
