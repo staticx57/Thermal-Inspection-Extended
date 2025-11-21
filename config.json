@@ -61,7 +61,7 @@
 
   "display": {
     "view_mode": "fusion",
-    "thermal_palette": "ironbow"
+    "thermal_palette": "viridis"
   },
 
   "fusion": {
@@ -166,7 +166,7 @@
   },
 
   "palette": {
-    "default_global": "ironbow",
+    "default_global": "viridis",
     "auto_contrast": true,
     "contrast_min": 0.0,
     "contrast_max": 1.0,

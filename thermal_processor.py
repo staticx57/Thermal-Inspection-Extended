@@ -272,6 +272,10 @@ class ThermalProcessor:
             else:
                 gray = frame  # Already grayscale
             
+            # Ensure uint8 dtype for OpenCV operations
+            if gray.dtype != np.uint8:
+                gray = gray.astype(np.uint8)
+            
             gray = cv2.GaussianBlur(gray, (21, 21), 0)
 
             # Initialize previous frame

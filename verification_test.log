@@ -1,0 +1,790 @@
+WARNING:rgb_camera_firefly:PySpin not available. FLIR Firefly support disabled.
+WARNING:rgb_camera_firefly:Install Spinnaker SDK from: https://www.flir.com/products/spinnaker-sdk/
+WARNING:root:VPI not available - using OpenCV fallback
+WARNING:root:jtop not available. Install with: sudo pip3 install jetson-stats
+INFO:root:[OK] Debug logging: thermal_inspection_debug.log
+2025-11-21 14:35:38,840 - root - INFO - [OK] Debug logging: thermal_inspection_debug.log
+2025-11-21 14:35:38,856 - __main__ - INFO - ================================================================================
+INFO:__main__:================================================================================
+2025-11-21 14:35:38,857 - __main__ - INFO - Thermal Inspection Fusion Tool
+INFO:__main__:Thermal Inspection Fusion Tool
+INFO:__main__:Transformed from ThermalFusionDrivingAssist
+2025-11-21 14:35:38,858 - __main__ - INFO - Transformed from ThermalFusionDrivingAssist
+INFO:__main__:================================================================================
+2025-11-21 14:35:38,858 - __main__ - INFO - ================================================================================
+INFO:__main__:Qt GUI enabled
+2025-11-21 14:35:38,924 - __main__ - INFO - Qt GUI enabled
+INFO:__main__:Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-21 14:35:38,970 - __main__ - INFO - Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+INFO:__main__:================================================================================
+2025-11-21 14:35:38,971 - __main__ - INFO - ================================================================================
+INFO:__main__:Initializing Thermal Inspection Fusion Tool
+2025-11-21 14:35:38,971 - __main__ - INFO - Initializing Thermal Inspection Fusion Tool
+INFO:__main__:================================================================================
+2025-11-21 14:35:38,972 - __main__ - INFO - ================================================================================
+INFO:__main__:Platform: x86-64 (AMD64)
+2025-11-21 14:35:38,973 - __main__ - INFO - Platform: x86-64 (AMD64)
+INFO:__main__:Mode: realtime
+2025-11-21 14:35:38,973 - __main__ - INFO - Mode: realtime
+INFO:__main__:Device: cuda
+2025-11-21 14:35:38,974 - __main__ - INFO - Device: cuda
+INFO:__main__:Scanning for FLIR Boson thermal camera...
+2025-11-21 14:35:38,974 - __main__ - INFO - Scanning for FLIR Boson thermal camera...
+INFO:flir_camera:Windows detected - trying DirectShow backend
+2025-11-21 14:35:38,974 - flir_camera - INFO - Windows detected - trying DirectShow backend
+[ WARN:0@0.512] global cap.cpp:480 cv::VideoCapture::open VIDEOIO(DSHOW): backend is generally available but can't be used to capture by index
+WARNING:flir_camera:Platform-specific backend failed, trying default backend
+2025-11-21 14:35:39,254 - flir_camera - WARNING - Platform-specific backend failed, trying default backend
+INFO:flir_camera:FLIR Boson camera opened successfully on device 0
+2025-11-21 14:35:39,525 - flir_camera - INFO - FLIR Boson camera opened successfully on device 0
+INFO:flir_camera:Resolution: (640, 512)
+2025-11-21 14:35:39,525 - flir_camera - INFO - Resolution: (640, 512)
+INFO:flir_camera:FPS: 60.0
+2025-11-21 14:35:39,526 - flir_camera - INFO - FPS: 60.0
+2025-11-21 14:35:39,526 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+INFO:__main__:[OK] Thermal camera connected: 640x512
+INFO:__main__:Detecting camera mode...
+2025-11-21 14:35:39,527 - __main__ - INFO - Detecting camera mode...
+[ WARN:1@0.798] global cap_msmf.cpp:476 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): OnReadSample() is called with error status: -1072875772
+[ WARN:1@0.798] global cap_msmf.cpp:488 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): async ReadSample() call is failed with error status: -1072875772
+[ WARN:0@0.798] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@0.799] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@0.799] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@0.799] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@0.799] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@0.799] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Could not grab frame for mode detection
+2025-11-21 14:35:39,540 - __main__ - WARNING - Could not grab frame for mode detection
+INFO:__main__:Scanning for RGB camera...
+2025-11-21 14:35:39,540 - __main__ - INFO - Scanning for RGB camera...
+2025-11-21 14:35:39,540 - camera_factory - INFO - Skipping thermal camera device 0, using next available device
+INFO:camera_factory:Skipping thermal camera device 0, using next available device
+INFO:camera_factory:============================================================
+2025-11-21 14:35:39,540 - camera_factory - INFO - ============================================================
+INFO:camera_factory:RGB Camera Factory - Auto-detection
+2025-11-21 14:35:39,542 - camera_factory - INFO - RGB Camera Factory - Auto-detection
+INFO:camera_factory:============================================================
+2025-11-21 14:35:39,542 - camera_factory - INFO - ============================================================
+INFO:camera_factory:Auto-detecting RGB cameras...
+2025-11-21 14:35:39,542 - camera_factory - INFO - Auto-detecting RGB cameras...
+INFO:camera_factory:[X] No UVC cameras detected
+2025-11-21 14:35:39,542 - camera_factory - INFO - [X] No UVC cameras detected
+WARNING:camera_factory:Falling back to legacy RGBCamera class
+2025-11-21 14:35:39,542 - camera_factory - WARNING - Falling back to legacy RGBCamera class
+INFO:rgb_camera:Windows detected - opening camera 1 with DirectShow
+2025-11-21 14:35:39,542 - rgb_camera - INFO - Windows detected - opening camera 1 with DirectShow
+INFO:rgb_camera:RGB camera opened successfully
+2025-11-21 14:35:40,086 - rgb_camera - INFO - RGB camera opened successfully
+INFO:rgb_camera:Resolution: 640x480 @ 30 FPS
+2025-11-21 14:35:40,086 - rgb_camera - INFO - Resolution: 640x480 @ 30 FPS
+INFO:__main__:[OK] RGB camera connected: 640x480
+2025-11-21 14:35:41,889 - __main__ - INFO - [OK] RGB camera connected: 640x480
+INFO:config:Configuration loaded from config.json
+2025-11-21 14:35:41,890 - config - INFO - Configuration loaded from config.json
+WARNING:fusion_processor:No calibration file provided - using identity transform
+2025-11-21 14:35:41,890 - fusion_processor - WARNING - No calibration file provided - using identity transform
+INFO:__main__:[OK] Fusion processor initialized (mode: thermal_overlay)
+2025-11-21 14:35:41,890 - __main__ - INFO - [OK] Fusion processor initialized (mode: thermal_overlay)
+INFO:__main__:     7 fusion algorithms available!
+2025-11-21 14:35:41,890 - __main__ - INFO -      7 fusion algorithms available!
+INFO:__main__:------------------------------------------------------------
+2025-11-21 14:35:41,891 - __main__ - INFO - ------------------------------------------------------------
+INFO:__main__:Initializing inspection modules...
+2025-11-21 14:35:41,891 - __main__ - INFO - Initializing inspection modules...
+INFO:thermal_processor:VPI not available - using OpenCV fallback
+2025-11-21 14:35:41,891 - thermal_processor - INFO - VPI not available - using OpenCV fallback
+INFO:thermal_processor:VPI not available - using OpenCV fallback
+2025-11-21 14:35:41,892 - thermal_processor - INFO - VPI not available - using OpenCV fallback
+INFO:__main__:[OK] Thermal processor initialized
+2025-11-21 14:35:41,892 - __main__ - INFO - [OK] Thermal processor initialized
+INFO:__main__:[OK] Thermal analyzer initialized
+2025-11-21 14:35:41,892 - __main__ - INFO - [OK] Thermal analyzer initialized
+INFO:__main__:[OK] ROI manager initialized
+2025-11-21 14:35:41,892 - __main__ - INFO - [OK] ROI manager initialized
+INFO:__main__:[OK] Palette manager initialized
+2025-11-21 14:35:41,939 - __main__ - INFO - [OK] Palette manager initialized
+INFO:__main__:     45 palettes available
+2025-11-21 14:35:41,940 - __main__ - INFO -      45 palettes available
+2025-11-21 14:35:41,940 - __main__ - INFO - [OK] Video recorder initialized
+INFO:__main__:[OK] Video recorder initialized
+INFO:__main__:[OK] Snapshot manager initialized
+2025-11-21 14:35:41,941 - __main__ - INFO - [OK] Snapshot manager initialized
+INFO:__main__:------------------------------------------------------------
+2025-11-21 14:35:41,941 - __main__ - INFO - ------------------------------------------------------------
+2025-11-21 14:35:41,941 - performance_monitor - WARNING - jtop not available, using basic metrics only
+WARNING:performance_monitor:jtop not available, using basic metrics only
+INFO:__main__:Qt GUI selected
+2025-11-21 14:35:41,948 - __main__ - INFO - Qt GUI selected
+INFO:__main__:================================================================================
+2025-11-21 14:35:42,332 - __main__ - INFO - ================================================================================
+INFO:__main__:Initialization complete!
+2025-11-21 14:35:42,332 - __main__ - INFO - Initialization complete!
+INFO:__main__:================================================================================
+2025-11-21 14:35:42,332 - __main__ - INFO - ================================================================================
+INFO:__main__:Starting inspection loop...
+2025-11-21 14:35:42,332 - __main__ - INFO - Starting inspection loop...
+INFO:__main__:Qt GUI window shown
+2025-11-21 14:35:42,381 - __main__ - INFO - Qt GUI window shown
+[ WARN:0@3.640] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Thermal camera disconnected
+2025-11-21 14:35:42,381 - __main__ - WARNING - Thermal camera disconnected
+INFO:flir_camera:FLIR Boson camera released
+2025-11-21 14:35:42,385 - flir_camera - INFO - FLIR Boson camera released
+INFO:__main__:Scanning for FLIR Boson thermal camera...
+2025-11-21 14:35:43,965 - __main__ - INFO - Scanning for FLIR Boson thermal camera...
+INFO:flir_camera:Windows detected - trying DirectShow backend
+2025-11-21 14:35:43,969 - flir_camera - INFO - Windows detected - trying DirectShow backend
+[ WARN:0@5.499] global cap.cpp:480 cv::VideoCapture::open VIDEOIO(DSHOW): backend is generally available but can't be used to capture by index
+WARNING:flir_camera:Platform-specific backend failed, trying default backend
+2025-11-21 14:35:44,240 - flir_camera - WARNING - Platform-specific backend failed, trying default backend
+INFO:flir_camera:FLIR Boson camera opened successfully on device 0
+2025-11-21 14:35:44,322 - flir_camera - INFO - FLIR Boson camera opened successfully on device 0
+INFO:flir_camera:Resolution: (640, 512)
+2025-11-21 14:35:44,324 - flir_camera - INFO - Resolution: (640, 512)
+INFO:flir_camera:FPS: 60.0
+2025-11-21 14:35:44,324 - flir_camera - INFO - FPS: 60.0
+INFO:__main__:[OK] Thermal camera connected: 640x512
+2025-11-21 14:35:44,325 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+INFO:__main__:Detecting camera mode...
+2025-11-21 14:35:44,325 - __main__ - INFO - Detecting camera mode...
+[ WARN:2@5.597] global cap_msmf.cpp:476 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): OnReadSample() is called with error status: -1072875772
+[ WARN:2@5.597] global cap_msmf.cpp:488 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): async ReadSample() call is failed with error status: -1072875772
+[ WARN:0@5.597] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@5.597] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@5.597] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@5.597] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@5.597] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@5.597] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Could not grab frame for mode detection
+2025-11-21 14:35:44,336 - __main__ - WARNING - Could not grab frame for mode detection
+INFO:__main__:[OK] Thermal camera connected!
+2025-11-21 14:35:44,339 - __main__ - INFO - [OK] Thermal camera connected!
+[ WARN:0@5.599] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Thermal camera disconnected
+2025-11-21 14:35:44,341 - __main__ - WARNING - Thermal camera disconnected
+INFO:flir_camera:FLIR Boson camera released
+2025-11-21 14:35:44,347 - flir_camera - INFO - FLIR Boson camera released
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:35:45,369 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:35:46,419 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:35:47,472 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+INFO:__main__:Scanning for FLIR Boson thermal camera...
+2025-11-21 14:35:47,506 - __main__ - INFO - Scanning for FLIR Boson thermal camera...
+INFO:flir_camera:Windows detected - trying DirectShow backend
+2025-11-21 14:35:47,506 - flir_camera - INFO - Windows detected - trying DirectShow backend
+[ WARN:0@9.038] global cap.cpp:480 cv::VideoCapture::open VIDEOIO(DSHOW): backend is generally available but can't be used to capture by index
+WARNING:flir_camera:Platform-specific backend failed, trying default backend
+2025-11-21 14:35:47,779 - flir_camera - WARNING - Platform-specific backend failed, trying default backend
+INFO:flir_camera:FLIR Boson camera opened successfully on device 0
+2025-11-21 14:35:47,850 - flir_camera - INFO - FLIR Boson camera opened successfully on device 0
+INFO:flir_camera:Resolution: (640, 512)
+INFO:flir_camera:FPS: 60.0
+2025-11-21 14:35:47,850 - flir_camera - INFO - Resolution: (640, 512)
+2025-11-21 14:35:47,851 - flir_camera - INFO - FPS: 60.0
+INFO:__main__:[OK] Thermal camera connected: 640x512
+2025-11-21 14:35:47,851 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+INFO:__main__:Detecting camera mode...
+2025-11-21 14:35:47,851 - __main__ - INFO - Detecting camera mode...
+[ WARN:2@9.121] global cap_msmf.cpp:476 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): OnReadSample() is called with error status: -1072875772
+[ WARN:2@9.121] global cap_msmf.cpp:488 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): async ReadSample() call is failed with error status: -1072875772
+[ WARN:0@9.121] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@9.122] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@9.122] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@9.122] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@9.122] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@9.122] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Could not grab frame for mode detection
+2025-11-21 14:35:47,863 - __main__ - WARNING - Could not grab frame for mode detection
+INFO:__main__:[OK] Thermal camera connected!
+2025-11-21 14:35:47,864 - __main__ - INFO - [OK] Thermal camera connected!
+[ WARN:0@9.123] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Thermal camera disconnected
+2025-11-21 14:35:47,864 - __main__ - WARNING - Thermal camera disconnected
+INFO:flir_camera:FLIR Boson camera released
+2025-11-21 14:35:47,869 - flir_camera - INFO - FLIR Boson camera released
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:35:48,884 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:35:49,939 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:35:50,989 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+INFO:__main__:Scanning for FLIR Boson thermal camera...
+2025-11-21 14:35:51,034 - __main__ - INFO - Scanning for FLIR Boson thermal camera...
+INFO:flir_camera:Windows detected - trying DirectShow backend
+2025-11-21 14:35:51,036 - flir_camera - INFO - Windows detected - trying DirectShow backend
+[ WARN:0@12.580] global cap.cpp:480 cv::VideoCapture::open VIDEOIO(DSHOW): backend is generally available but can't be used to capture by index
+WARNING:flir_camera:Platform-specific backend failed, trying default backend
+2025-11-21 14:35:51,322 - flir_camera - WARNING - Platform-specific backend failed, trying default backend
+INFO:flir_camera:FLIR Boson camera opened successfully on device 0
+2025-11-21 14:35:51,404 - flir_camera - INFO - FLIR Boson camera opened successfully on device 0
+INFO:flir_camera:Resolution: (640, 512)
+2025-11-21 14:35:51,404 - flir_camera - INFO - Resolution: (640, 512)
+INFO:flir_camera:FPS: 60.0
+2025-11-21 14:35:51,405 - flir_camera - INFO - FPS: 60.0
+2025-11-21 14:35:51,406 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+INFO:__main__:[OK] Thermal camera connected: 640x512
+INFO:__main__:Detecting camera mode...
+2025-11-21 14:35:51,406 - __main__ - INFO - Detecting camera mode...
+[ WARN:2@12.677] global cap_msmf.cpp:476 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): OnReadSample() is called with error status: -1072875772
+[ WARN:2@12.677] global cap_msmf.cpp:488 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): async ReadSample() call is failed with error status: -1072875772
+[ WARN:0@12.677] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@12.677] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@12.677] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@12.677] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@12.677] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@12.677] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Could not grab frame for mode detection
+2025-11-21 14:35:51,419 - __main__ - WARNING - Could not grab frame for mode detection
+INFO:__main__:[OK] Thermal camera connected!
+2025-11-21 14:35:51,419 - __main__ - INFO - [OK] Thermal camera connected!
+[ WARN:0@12.678] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Thermal camera disconnected
+2025-11-21 14:35:51,420 - __main__ - WARNING - Thermal camera disconnected
+INFO:flir_camera:FLIR Boson camera released
+2025-11-21 14:35:51,425 - flir_camera - INFO - FLIR Boson camera released
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:35:52,440 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:35:53,490 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:35:54,550 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:35:54,585 - __main__ - INFO - Scanning for FLIR Boson thermal camera...
+INFO:__main__:Scanning for FLIR Boson thermal camera...
+2025-11-21 14:35:54,585 - flir_camera - INFO - Windows detected - trying DirectShow backend
+INFO:flir_camera:Windows detected - trying DirectShow backend
+[ WARN:0@16.122] global cap.cpp:480 cv::VideoCapture::open VIDEOIO(DSHOW): backend is generally available but can't be used to capture by index
+2025-11-21 14:35:54,864 - flir_camera - WARNING - Platform-specific backend failed, trying default backend
+WARNING:flir_camera:Platform-specific backend failed, trying default backend
+2025-11-21 14:35:54,935 - flir_camera - INFO - FLIR Boson camera opened successfully on device 0
+INFO:flir_camera:FLIR Boson camera opened successfully on device 0
+INFO:flir_camera:Resolution: (640, 512)
+2025-11-21 14:35:54,935 - flir_camera - INFO - Resolution: (640, 512)
+INFO:flir_camera:FPS: 60.0
+2025-11-21 14:35:54,935 - flir_camera - INFO - FPS: 60.0
+INFO:__main__:[OK] Thermal camera connected: 640x512
+2025-11-21 14:35:54,939 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+INFO:__main__:Detecting camera mode...
+2025-11-21 14:35:54,939 - __main__ - INFO - Detecting camera mode...
+[ WARN:2@16.210] global cap_msmf.cpp:476 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): OnReadSample() is called with error status: -1072875772
+[ WARN:2@16.210] global cap_msmf.cpp:488 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): async ReadSample() call is failed with error status: -1072875772
+[ WARN:0@16.210] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@16.210] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@16.210] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@16.210] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@16.210] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@16.210] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Could not grab frame for mode detection
+2025-11-21 14:35:54,950 - __main__ - WARNING - Could not grab frame for mode detection
+INFO:__main__:[OK] Thermal camera connected!
+2025-11-21 14:35:54,950 - __main__ - INFO - [OK] Thermal camera connected!
+[ WARN:0@16.211] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Thermal camera disconnected
+2025-11-21 14:35:54,950 - __main__ - WARNING - Thermal camera disconnected
+INFO:flir_camera:FLIR Boson camera released
+2025-11-21 14:35:54,958 - flir_camera - INFO - FLIR Boson camera released
+2025-11-21 14:35:55,971 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:35:57,025 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:35:58,072 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+INFO:__main__:Scanning for FLIR Boson thermal camera...
+2025-11-21 14:35:58,114 - __main__ - INFO - Scanning for FLIR Boson thermal camera...
+INFO:flir_camera:Windows detected - trying DirectShow backend
+2025-11-21 14:35:58,116 - flir_camera - INFO - Windows detected - trying DirectShow backend
+[ WARN:0@19.640] global cap.cpp:480 cv::VideoCapture::open VIDEOIO(DSHOW): backend is generally available but can't be used to capture by index
+WARNING:flir_camera:Platform-specific backend failed, trying default backend
+2025-11-21 14:35:58,382 - flir_camera - WARNING - Platform-specific backend failed, trying default backend
+INFO:flir_camera:FLIR Boson camera opened successfully on device 0
+2025-11-21 14:35:58,466 - flir_camera - INFO - FLIR Boson camera opened successfully on device 0
+INFO:flir_camera:Resolution: (640, 512)
+2025-11-21 14:35:58,466 - flir_camera - INFO - Resolution: (640, 512)
+INFO:flir_camera:FPS: 60.0
+2025-11-21 14:35:58,466 - flir_camera - INFO - FPS: 60.0
+INFO:__main__:[OK] Thermal camera connected: 640x512
+2025-11-21 14:35:58,467 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+INFO:__main__:Detecting camera mode...
+2025-11-21 14:35:58,467 - __main__ - INFO - Detecting camera mode...
+[ WARN:1@19.739] global cap_msmf.cpp:476 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): OnReadSample() is called with error status: -1072875772
+[ WARN:1@19.739] global cap_msmf.cpp:488 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): async ReadSample() call is failed with error status: -1072875772
+[ WARN:0@19.739] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@19.739] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@19.739] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@19.739] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@19.739] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@19.739] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Could not grab frame for mode detection
+2025-11-21 14:35:58,481 - __main__ - WARNING - Could not grab frame for mode detection
+INFO:__main__:[OK] Thermal camera connected!
+2025-11-21 14:35:58,481 - __main__ - INFO - [OK] Thermal camera connected!
+[ WARN:0@19.740] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Thermal camera disconnected
+2025-11-21 14:35:58,482 - __main__ - WARNING - Thermal camera disconnected
+INFO:flir_camera:FLIR Boson camera released
+2025-11-21 14:35:58,501 - flir_camera - INFO - FLIR Boson camera released
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:35:59,512 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:36:00,575 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:36:01,618 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+INFO:__main__:Scanning for FLIR Boson thermal camera...
+2025-11-21 14:36:01,654 - __main__ - INFO - Scanning for FLIR Boson thermal camera...
+INFO:flir_camera:Windows detected - trying DirectShow backend
+2025-11-21 14:36:01,654 - flir_camera - INFO - Windows detected - trying DirectShow backend
+[ WARN:0@23.202] global cap.cpp:480 cv::VideoCapture::open VIDEOIO(DSHOW): backend is generally available but can't be used to capture by index
+WARNING:flir_camera:Platform-specific backend failed, trying default backend
+2025-11-21 14:36:01,943 - flir_camera - WARNING - Platform-specific backend failed, trying default backend
+INFO:flir_camera:FLIR Boson camera opened successfully on device 0
+2025-11-21 14:36:02,020 - flir_camera - INFO - FLIR Boson camera opened successfully on device 0
+INFO:flir_camera:Resolution: (640, 512)
+2025-11-21 14:36:02,020 - flir_camera - INFO - Resolution: (640, 512)
+INFO:flir_camera:FPS: 60.0
+2025-11-21 14:36:02,021 - flir_camera - INFO - FPS: 60.0
+INFO:__main__:[OK] Thermal camera connected: 640x512
+2025-11-21 14:36:02,021 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+INFO:__main__:Detecting camera mode...
+2025-11-21 14:36:02,021 - __main__ - INFO - Detecting camera mode...
+[ WARN:1@23.293] global cap_msmf.cpp:476 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): OnReadSample() is called with error status: -1072875772
+[ WARN:1@23.293] global cap_msmf.cpp:488 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): async ReadSample() call is failed with error status: -1072875772
+[ WARN:0@23.294] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@23.294] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@23.294] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@23.294] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@23.294] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@23.294] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Could not grab frame for mode detection
+2025-11-21 14:36:02,035 - __main__ - WARNING - Could not grab frame for mode detection
+INFO:__main__:[OK] Thermal camera connected!
+2025-11-21 14:36:02,035 - __main__ - INFO - [OK] Thermal camera connected!
+[ WARN:0@23.295] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Thermal camera disconnected
+2025-11-21 14:36:02,037 - __main__ - WARNING - Thermal camera disconnected
+INFO:flir_camera:FLIR Boson camera released
+2025-11-21 14:36:02,055 - flir_camera - INFO - FLIR Boson camera released
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:36:03,074 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:36:04,124 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:36:05,176 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+INFO:__main__:Scanning for FLIR Boson thermal camera...
+2025-11-21 14:36:05,205 - __main__ - INFO - Scanning for FLIR Boson thermal camera...
+INFO:flir_camera:Windows detected - trying DirectShow backend
+2025-11-21 14:36:05,206 - flir_camera - INFO - Windows detected - trying DirectShow backend
+[ WARN:0@26.719] global cap.cpp:480 cv::VideoCapture::open VIDEOIO(DSHOW): backend is generally available but can't be used to capture by index
+WARNING:flir_camera:Platform-specific backend failed, trying default backend
+2025-11-21 14:36:05,460 - flir_camera - WARNING - Platform-specific backend failed, trying default backend
+INFO:flir_camera:FLIR Boson camera opened successfully on device 0
+2025-11-21 14:36:05,537 - flir_camera - INFO - FLIR Boson camera opened successfully on device 0
+INFO:flir_camera:Resolution: (640, 512)
+2025-11-21 14:36:05,537 - flir_camera - INFO - Resolution: (640, 512)
+INFO:flir_camera:FPS: 60.0
+2025-11-21 14:36:05,537 - flir_camera - INFO - FPS: 60.0
+INFO:__main__:[OK] Thermal camera connected: 640x512
+2025-11-21 14:36:05,537 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+INFO:__main__:Detecting camera mode...
+2025-11-21 14:36:05,537 - __main__ - INFO - Detecting camera mode...
+[ WARN:1@26.808] global cap_msmf.cpp:476 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): OnReadSample() is called with error status: -1072875772
+[ WARN:1@26.808] global cap_msmf.cpp:488 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): async ReadSample() call is failed with error status: -1072875772
+[ WARN:0@26.808] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@26.808] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@26.808] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@26.808] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@26.808] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@26.808] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Could not grab frame for mode detection
+2025-11-21 14:36:05,549 - __main__ - WARNING - Could not grab frame for mode detection
+INFO:__main__:[OK] Thermal camera connected!
+2025-11-21 14:36:05,549 - __main__ - INFO - [OK] Thermal camera connected!
+[ WARN:0@26.809] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Thermal camera disconnected
+2025-11-21 14:36:05,550 - __main__ - WARNING - Thermal camera disconnected
+INFO:flir_camera:FLIR Boson camera released
+2025-11-21 14:36:05,555 - flir_camera - INFO - FLIR Boson camera released
+2025-11-21 14:36:06,562 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:36:07,620 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:36:08,671 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+INFO:__main__:Scanning for FLIR Boson thermal camera...
+2025-11-21 14:36:08,716 - __main__ - INFO - Scanning for FLIR Boson thermal camera...
+INFO:flir_camera:Windows detected - trying DirectShow backend
+2025-11-21 14:36:08,717 - flir_camera - INFO - Windows detected - trying DirectShow backend
+[ WARN:0@30.243] global cap.cpp:480 cv::VideoCapture::open VIDEOIO(DSHOW): backend is generally available but can't be used to capture by index
+WARNING:flir_camera:Platform-specific backend failed, trying default backend
+2025-11-21 14:36:08,984 - flir_camera - WARNING - Platform-specific backend failed, trying default backend
+INFO:flir_camera:FLIR Boson camera opened successfully on device 0
+2025-11-21 14:36:09,058 - flir_camera - INFO - FLIR Boson camera opened successfully on device 0
+2025-11-21 14:36:09,058 - flir_camera - INFO - Resolution: (640, 512)
+INFO:flir_camera:Resolution: (640, 512)
+INFO:flir_camera:FPS: 60.0
+2025-11-21 14:36:09,058 - flir_camera - INFO - FPS: 60.0
+INFO:__main__:[OK] Thermal camera connected: 640x512
+2025-11-21 14:36:09,059 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+INFO:__main__:Detecting camera mode...
+2025-11-21 14:36:09,059 - __main__ - INFO - Detecting camera mode...
+[ WARN:1@30.330] global cap_msmf.cpp:476 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): OnReadSample() is called with error status: -1072875772
+[ WARN:1@30.330] global cap_msmf.cpp:488 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): async ReadSample() call is failed with error status: -1072875772
+[ WARN:0@30.330] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@30.330] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@30.330] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@30.330] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@30.330] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@30.330] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Could not grab frame for mode detection
+2025-11-21 14:36:09,072 - __main__ - WARNING - Could not grab frame for mode detection
+INFO:__main__:[OK] Thermal camera connected!
+2025-11-21 14:36:09,072 - __main__ - INFO - [OK] Thermal camera connected!
+[ WARN:0@30.331] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Thermal camera disconnected
+2025-11-21 14:36:09,072 - __main__ - WARNING - Thermal camera disconnected
+INFO:flir_camera:FLIR Boson camera released
+2025-11-21 14:36:09,089 - flir_camera - INFO - FLIR Boson camera released
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:36:10,106 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:36:11,152 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:36:12,205 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:36:12,244 - __main__ - INFO - Scanning for FLIR Boson thermal camera...
+INFO:__main__:Scanning for FLIR Boson thermal camera...
+2025-11-21 14:36:12,245 - flir_camera - INFO - Windows detected - trying DirectShow backend
+INFO:flir_camera:Windows detected - trying DirectShow backend
+[ WARN:0@33.755] global cap.cpp:480 cv::VideoCapture::open VIDEOIO(DSHOW): backend is generally available but can't be used to capture by index
+WARNING:flir_camera:Platform-specific backend failed, trying default backend
+2025-11-21 14:36:12,497 - flir_camera - WARNING - Platform-specific backend failed, trying default backend
+INFO:flir_camera:FLIR Boson camera opened successfully on device 0
+2025-11-21 14:36:12,575 - flir_camera - INFO - FLIR Boson camera opened successfully on device 0
+INFO:flir_camera:Resolution: (640, 512)
+2025-11-21 14:36:12,575 - flir_camera - INFO - Resolution: (640, 512)
+INFO:flir_camera:FPS: 60.0
+2025-11-21 14:36:12,575 - flir_camera - INFO - FPS: 60.0
+INFO:__main__:[OK] Thermal camera connected: 640x512
+2025-11-21 14:36:12,575 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+INFO:__main__:Detecting camera mode...
+2025-11-21 14:36:12,575 - __main__ - INFO - Detecting camera mode...
+[ WARN:2@33.847] global cap_msmf.cpp:476 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): OnReadSample() is called with error status: -1072875772
+[ WARN:2@33.847] global cap_msmf.cpp:488 `anonymous-namespace'::SourceReaderCB::OnReadSample videoio(MSMF): async ReadSample() call is failed with error status: -1072875772
+[ WARN:0@33.847] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@33.848] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@33.848] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@33.848] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@33.848] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+[ WARN:0@33.848] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Could not grab frame for mode detection
+2025-11-21 14:36:12,589 - __main__ - WARNING - Could not grab frame for mode detection
+INFO:__main__:[OK] Thermal camera connected!
+2025-11-21 14:36:12,589 - __main__ - INFO - [OK] Thermal camera connected!
+[ WARN:0@33.849] global cap_msmf.cpp:1795 CvCapture_MSMF::grabFrame videoio(MSMF): can't grab frame. Error: -1072875772
+WARNING:__main__:Thermal camera disconnected
+2025-11-21 14:36:12,590 - __main__ - WARNING - Thermal camera disconnected
+INFO:flir_camera:FLIR Boson camera released
+2025-11-21 14:36:12,595 - flir_camera - INFO - FLIR Boson camera released
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:36:13,604 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:36:14,657 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+2025-11-21 14:36:15,704 - thermal_processor - ERROR - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+ERROR:thermal_processor:Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\imgproc\src\contours_new.cpp:330: error: (-2:Unspecified error) in function 'class std::shared_ptr<struct ContourScanner_> __cdecl ContourScanner_::create(class cv::Mat,int,int,class cv::Point_<int>)'
+> Modes other than RETR_FLOODFILL and RETR_CCOMP support only CV_8UC1 images (expected: 'img.type() == CV_8UC1'), where
+>     'img.type()' is 2 (CV_16UC1)
+> must be equal to
+>     'CV_8UC1' is 0 (CV_8UC1)
+
+INFO:__main__:Scanning for FLIR Boson thermal camera...
+2025-11-21 14:36:15,735 - __main__ - INFO - Scanning for FLIR Boson thermal camera...
+INFO:flir_camera:Windows detected - trying DirectShow backend
+2025-11-21 14:36:15,736 - flir_camera - INFO - Windows detected - trying DirectShow backend
+INFO:flir_camera:FLIR Boson camera opened successfully on device 0
+2025-11-21 14:36:16,868 - flir_camera - INFO - FLIR Boson camera opened successfully on device 0
+2025-11-21 14:36:16,869 - flir_camera - INFO - Resolution: (640, 512)
+INFO:flir_camera:Resolution: (640, 512)
+INFO:flir_camera:FPS: 60.000240000960005
+2025-11-21 14:36:16,869 - flir_camera - INFO - FPS: 60.000240000960005
+INFO:__main__:[OK] Thermal camera connected: 640x512
+2025-11-21 14:36:16,870 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+INFO:__main__:Detecting camera mode...
+2025-11-21 14:36:16,870 - __main__ - INFO - Detecting camera mode...
+INFO:flir_camera:Thermal camera mode detection:
+2025-11-21 14:36:16,901 - flir_camera - INFO - Thermal camera mode detection:
+INFO:flir_camera:  Frame dtype: uint8
+2025-11-21 14:36:16,901 - flir_camera - INFO -   Frame dtype: uint8
+INFO:flir_camera:  Frame shape: (512, 640, 3)
+2025-11-21 14:36:16,902 - flir_camera - INFO -   Frame shape: (512, 640, 3)
+INFO:flir_camera:  -> UVC MODE (8-bit YUV/RGB converted)
+2025-11-21 14:36:16,902 - flir_camera - INFO -   -> UVC MODE (8-bit YUV/RGB converted)
+INFO:__main__:Median pixel value: 89.0
+2025-11-21 14:36:16,985 - __main__ - INFO - Median pixel value: 89.0
+INFO:__main__:[DETECTED] Non-Radiometric Mode (Raw/AGC)
+2025-11-21 14:36:16,986 - __main__ - INFO - [DETECTED] Non-Radiometric Mode (Raw/AGC)
+INFO:__main__:[OK] Thermal camera connected!
+2025-11-21 14:36:16,986 - __main__ - INFO - [OK] Thermal camera connected!

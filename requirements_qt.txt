@@ -1,11 +1,11 @@
-# Qt GUI Requirements for Thermal Fusion Driving Assist
+# Qt GUI Requirements for Thermal Inspection Fusion Tool
 # Install with: pip3 install -r requirements_qt.txt
 
-# PyQt5 - Qt bindings for Python (more compatible with Jetson)
-PyQt5>=5.15.0
+# PyQt6 - Qt6 bindings for Python (modern, actively developed)
+PyQt6>=6.0.0
 
-# Alternative: PySide6 (official Qt bindings, better licensing)
-# Uncomment to use PySide6 instead of PyQt5:
-# PySide6>=6.0.0
+# Backup: PyQt5 (fallback for older systems)
+# Uncomment to use PyQt5 instead of PyQt6:
+# PyQt5>=5.15.0
 
-# Note: Choose ONE of PyQt5 or PySide6, not both
+# Note: Choose ONE of PyQt5 or PyQt6, not both

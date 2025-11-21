@@ -162,6 +162,7 @@ class ThermalInspectionFusion:
         # Inspection mode settings
         self.inspection_mode = getattr(args, 'mode', 'realtime')  # realtime or playback
         self.recording_enabled = False
+        self.frame_frozen = False
         self.video_writer = None
 
         # Media recorder (NEW - Phase 6)
@@ -500,8 +501,13 @@ class ThermalInspectionFusion:
                     logger.info("Qt GUI selected")
                     self.gui_type = 'qt'
                     self.gui = InspectionAppWindow(self)
+                    logger.info("Qt GUI created successfully")
                 except ImportError as e:
                     logger.error(f"Failed to import Qt GUI: {e}")
+                    self.gui_type = 'opencv'
+                    self.gui = None
+                except Exception as e:
+                    logger.error(f"Failed to create Qt GUI: {e}", exc_info=True)
                     self.gui_type = 'opencv'
                     self.gui = None
             elif use_opencv:
@@ -616,17 +622,62 @@ class ThermalInspectionFusion:
             # Anomaly detection
             result['anomalies'] = self.thermal_analyzer.detect_anomalies(thermal_frame, 'global')
 
-            # 6. Fusion (if RGB available) - PARAMOUNT!
+            # 6. Create fused frame if RGB available
             if rgb_frame is not None and self.fusion_processor:
-                fused = self.fusion_processor.fuse_frames(
-                    thermal_colorized, rgb_frame
-                )
-                result['fused_frame'] = fused
-            else:
-                result['fused_frame'] = thermal_colorized
+                try:
+                    fused_frame = self.fusion_processor.fuse_frames(thermal_colorized, rgb_frame)
+                    result['fused_frame'] = fused_frame
+                except Exception as e:
+                    logger.debug(f"Fusion processing error: {e}")
+                    result['fused_frame'] = None
 
-            # 7. Draw ROIs on display frame
-            display_frame = result['fused_frame'].copy()
+            # 7. Select display frame based on view mode
+            if self.view_mode == ViewMode.THERMAL_ONLY:
+                # Show only thermal colorized
+                display_frame = thermal_colorized.copy()
+            elif self.view_mode == ViewMode.RGB_ONLY:
+                # Show only RGB
+                if rgb_frame is not None:
+                    display_frame = rgb_frame.copy()
+                else:
+                    # Fallback to thermal if no RGB
+                    display_frame = thermal_colorized.copy()
+            elif self.view_mode == ViewMode.FUSION:
+                # Show fusion overlay
+                if result.get('fused_frame') is not None:
+                    display_frame = result['fused_frame'].copy()
+                else:
+                    # Fallback to thermal if no fusion available
+                    display_frame = thermal_colorized.copy()
+            elif self.view_mode == ViewMode.SIDE_BY_SIDE:
+                # Show thermal and RGB side-by-side
+                if rgb_frame is not None:
+                    # Resize both to same height
+                    h = min(thermal_colorized.shape[0], rgb_frame.shape[0])
+                    thermal_resized = cv2.resize(thermal_colorized, (int(thermal_colorized.shape[1] * h / thermal_colorized.shape[0]), h))
+                    rgb_resized = cv2.resize(rgb_frame, (int(rgb_frame.shape[1] * h / rgb_frame.shape[0]), h))
+                    display_frame = np.hstack([thermal_resized, rgb_resized])
+                else:
+                    display_frame = thermal_colorized.copy()
+            elif self.view_mode == ViewMode.PICTURE_IN_PICTURE:
+                # Show RGB with thermal PiP in corner
+                if rgb_frame is not None:
+                    display_frame = rgb_frame.copy()
+                    # Create small thermal PiP (20% of width)
+                    pip_width = rgb_frame.shape[1] // 5
+                    pip_height = int(pip_width * thermal_colorized.shape[0] / thermal_colorized.shape[1])
+                    thermal_pip = cv2.resize(thermal_colorized, (pip_width, pip_height))
+                    # Place in top-right corner with 10px margin
+                    y_offset = 10
+                    x_offset = rgb_frame.shape[1] - pip_width - 10
+                    display_frame[y_offset:y_offset+pip_height, x_offset:x_offset+pip_width] = thermal_pip
+                else:
+                    display_frame = thermal_colorized.copy()
+            else:
+                # Default: fusion
+                display_frame = result['fused_frame'].copy()
+
+            # 8. Draw ROIs on display frame
             display_frame = self.roi_manager.draw_rois(display_frame, active_only=True)
 
             result['display_frame'] = display_frame
@@ -897,10 +948,8 @@ class ThermalInspectionFusion:
 
     def toggle_freeze(self, enabled: bool):
         """Toggle frame freeze."""
-        # Logic to pause processing loop or just display
-        # For now, we don't have a pause mechanism in run(), but we can implement it later.
-        # Just log for now.
-        logger.info(f"Freeze not fully implemented yet: {enabled}")
+        self.frame_frozen = enabled
+        logger.info(f"Frame freeze: {'ON' if enabled else 'OFF'}")
 
     def toggle_motion(self, enabled: bool):
         """Toggle motion detection."""
@@ -918,6 +967,14 @@ class ThermalInspectionFusion:
         """Cycle fusion mode."""
         self.current_fusion_mode_index = (self.current_fusion_mode_index + 1) % len(self.available_fusion_modes)
         self.fusion_mode = self.available_fusion_modes[self.current_fusion_mode_index]
+
+        # Actually apply the new fusion mode to the processor
+        if self.fusion_processor:
+            self.fusion_processor.set_mode(self.fusion_mode)
+
+        # Update GUI button
+        if self.gui and hasattr(self.gui, 'control_panel'):
+            self.gui.control_panel.update_fusion_mode_button(self.fusion_mode)
         logger.info(f"Fusion mode: {self.fusion_mode}")
 
     def cycle_fusion_alpha(self):
@@ -925,11 +982,30 @@ class ThermalInspectionFusion:
         self.fusion_alpha += 0.1
         if self.fusion_alpha > 1.0:
             self.fusion_alpha = 0.0
+
+        # Actually apply the new alpha to the processor
+        if self.fusion_processor:
+            self.fusion_processor.set_alpha(self.fusion_alpha)
+
+        # Update GUI button
+        if self.gui and hasattr(self.gui, 'control_panel'):
+            self.gui.control_panel.update_fusion_alpha_button(self.fusion_alpha)
         logger.info(f"Fusion alpha: {self.fusion_alpha:.1f}")
 
     def cycle_fusion_priority(self):
-        """Cycle fusion priority."""
-        logger.info("Fusion priority cycling not implemented yet")
+        """Cycle fusion priority (thermal vs RGB base)."""
+        if self.fusion_processor:
+            # Toggle between 'thermal' and 'rgb' priority
+            current_priority = self.fusion_processor.fusion_priority
+            new_priority = 'rgb' if current_priority == 'thermal' else 'thermal'
+
+            # Actually apply the new priority using set_priority method
+            self.fusion_processor.set_priority(new_priority)
+
+            # Update GUI button
+            if self.gui and hasattr(self.gui, 'control_panel'):
+                self.gui.control_panel.update_fusion_priority_button(new_priority)
+            logger.info(f"Fusion priority: {new_priority}")
 
     def draw_roi(self):
         """Enable ROI drawing mode in GUI."""
@@ -956,7 +1032,7 @@ class ThermalInspectionFusion:
     def clear_rois(self):
         """Clear all ROIs."""
         if self.roi_manager:
-            self.roi_manager.clear_all()
+            self.roi_manager.clear_all_rois()
             logger.info("All ROIs cleared")
     
     def save_rois(self, filename: str):
@@ -1095,11 +1171,11 @@ def main():
     qt_app = None
     if not args.use_opencv_gui and not args.headless:
         try:
-            from PyQt5.QtWidgets import QApplication
+            from PyQt6.QtWidgets import QApplication
             qt_app = QApplication(sys.argv)
             logger.info("Qt GUI enabled")
         except ImportError:
-            logger.warning("PyQt5 not available, falling back to OpenCV GUI")
+            logger.warning("PyQt6 not available, falling back to OpenCV GUI")
             args.use_opencv_gui = True
 
     # Create and run application

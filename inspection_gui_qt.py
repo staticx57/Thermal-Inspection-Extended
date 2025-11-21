@@ -11,13 +11,13 @@ import logging
 from pathlib import Path
 
 try:
-    from PyQt5.QtWidgets import (QMainWindow, QWidget, QLabel, QPushButton,
+    from PyQt6.QtWidgets import (QMainWindow, QWidget, QLabel, QPushButton,
                                   QVBoxLayout, QHBoxLayout, QGridLayout, QApplication,
                                   QSizePolicy, QFileDialog, QListWidget, QListWidgetItem,
                                   QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox,
-                                  QGroupBox, QScrollArea, QTabWidget)
-    from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QThread, QSize
-    from PyQt5.QtGui import QImage, QPixmap, QFont, QPainter, QPen, QColor
+                                  QGroupBox, QScrollArea, QTabWidget, QFrame, QMessageBox)
+    from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QSize
+    from PyQt6.QtGui import QImage, QPixmap, QFont, QPainter, QPen, QColor, QPalette
     PYQT_AVAILABLE = True
 except ImportError:
     PYQT_AVAILABLE = False
@@ -332,6 +332,152 @@ QTabBar::tab:hover {
 }
 """
 
+SOLARIZED_THEME = """
+QMainWindow {
+    background-color: #fdf6e3;
+}
+
+QPushButton {
+    background-color: #eee8d5;
+    color: #657b83;
+    border: 2px solid #93a1a1;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: bold;
+    min-width: 120px;
+}
+
+QPushButton:hover {
+    background-color: #e8e2cf;
+    border: 2px solid: #268bd2;
+}
+
+QPushButton:pressed {
+    background-color: #dfd9c6;
+}
+
+QPushButton:checked {
+    background-color: #268bd2;
+    color: #fdf6e3;
+    border: 2px solid #2aa198;
+}
+
+QPushButton:disabled {
+    background-color: #fdf6e3;
+    color: #93a1a1;
+    border: 2px solid #eee8d5;
+}
+
+QGroupBox {
+    background-color: #eee8d5;
+    border: 2px solid #93a1a1;
+    border-radius: 5px;
+    margin-top: 10px;
+    padding: 10px;
+    color: #657b83;
+    font-weight: bold;
+}
+
+QListWidget {
+    background-color: #fdf6e3;
+    color: #657b83;
+    border: 1px solid #93a1a1;
+    border-radius: 3px;
+}
+
+QListWidget::item:selected {
+    background-color: #268bd2;
+    color: #fdf6e3;
+}
+
+QLabel#info_panel {
+    background-color: rgba(238, 232, 213, 200);
+    color: #2aa198;
+    border: 1px solid #93a1a1;
+    border-radius: 5px;
+    padding: 10px;
+    font-size: 12px;
+    font-family: monospace;
+}
+"""
+
+COLORFUL_THEME = """
+QMainWindow {
+    background-color: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                      stop:0 #1a3a52, stop:1 #0f1e2e);
+}
+
+QPushButton {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                       stop:0 #2c5f7e, stop:1 #1c4a6e);
+    color: #d4e8ff;
+    border: 2px solid #4a7c9e;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: bold;
+    min-width: 120px;
+}
+
+QPushButton:hover {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                       stop:0 #3c8fae, stop:1 #2c7f9e);
+    border: 2px solid #6bcf9d;
+}
+
+QPushButton:pressed {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                       stop:0 #1c4a6e, stop:1 #0c3a5e);
+}
+
+QPushButton:checked {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                       stop:0 #6bcf9d, stop:1 #44a569);
+    color: #ffffff;
+    border: 2px solid #57cafe;
+}
+
+QPushButton:disabled {
+    background-color: #1a3a52;
+    color: #4a7c9e;
+    border: 2px solid #1c4a6e;
+}
+
+QGroupBox {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                       stop:0 #1c4a6e, stop:1 #0c3a5e);
+    border: 2px solid #4a7c9e;
+    border-radius: 5px;
+    margin-top: 10px;
+    padding: 10px;
+    color: #d4e8ff;
+    font-weight: bold;
+}
+
+QListWidget {
+    background-color: #0f1e2e;
+    color: #d4e8ff;
+    border: 1px solid #4a7c9e;
+    border-radius: 3px;
+}
+
+QListWidget::item:selected {
+    background-color: #6bcf9d;
+    color: #ffffff;
+}
+
+QLabel#info_panel {
+    background-color: rgba(12, 58, 94, 200);
+    color: #57cafe;
+    border: 1px solid #4a7c9e;
+    border-radius: 5px;
+    padding: 10px;
+    font-size: 12px;
+    font-family: monospace;
+}
+"""
+
 
 # ============================================================================
 # Inspection Overlay Widget
@@ -343,9 +489,14 @@ class InspectionOverlayWidget(QWidget):
     Replaces AlertOverlayWidget from ADAS system.
     """
 
+    # Signals for ROI drawing
+    from PyQt6.QtCore import pyqtSignal
+    roi_created = pyqtSignal(object)  # Emits newly created ROI
+    roi_selected = pyqtSignal(str)    # Emits selected ROI ID
+
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setAttribute(Qt.WA_TransparentForMouseEvents, False)  # Enable mouse interaction
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)  # Enable mouse interaction
         self.setStyleSheet("background: transparent;")
 
         self.rois: List[ROI] = []
@@ -353,6 +504,19 @@ class InspectionOverlayWidget(QWidget):
         self.cold_spots: List[ColdSpot] = []
         self.anomalies: List[ThermalAnomaly] = []
         self.selected_roi_id: Optional[str] = None
+
+        # ROI drawing state
+        self.drawing_mode = False
+        self.drawing_type = ROIType.RECTANGLE  # Default
+        self.draw_start_pos = None
+        self.draw_current_pos = None
+        self.temp_polygon_points = []
+
+        # Coordinate transformation for scaled video
+        self.frame_size = (640, 512)  # Original frame size (width, height)
+        self.scale = 1.0
+        self.offset_x = 0
+        self.offset_y = 0
 
     def update_rois(self, rois: List[ROI]):
         """Update ROI list for visualization."""
@@ -366,6 +530,36 @@ class InspectionOverlayWidget(QWidget):
         self.anomalies = anomalies
         self.update()
 
+    def set_frame_transform(self, frame_width: int, frame_height: int, pixmap_width: int, pixmap_height: int, widget_width: int, widget_height: int):
+        """
+        Update coordinate transformation parameters.
+
+        Args:
+            frame_width: Original frame width
+            frame_height: Original frame height
+            pixmap_width: Scaled pixmap width
+            pixmap_height: Scaled pixmap height
+            widget_width: Widget width
+            widget_height: Widget height
+        """
+        self.frame_size = (frame_width, frame_height)
+        self.scale = pixmap_width / frame_width  # Assuming uniform scaling
+        # Calculate offset for centered image
+        self.offset_x = (widget_width - pixmap_width) // 2
+        self.offset_y = (widget_height - pixmap_height) // 2
+
+    def frame_to_widget(self, x: float, y: float) -> tuple:
+        """Convert frame coordinates to widget coordinates."""
+        widget_x = int(x * self.scale + self.offset_x)
+        widget_y = int(y * self.scale + self.offset_y)
+        return (widget_x, widget_y)
+
+    def widget_to_frame(self, x: float, y: float) -> tuple:
+        """Convert widget coordinates to frame coordinates."""
+        frame_x = int((x - self.offset_x) / self.scale)
+        frame_y = int((y - self.offset_y) / self.scale)
+        return (frame_x, frame_y)
+
     def set_selected_roi(self, roi_id: Optional[str]):
         """Highlight a specific ROI."""
         self.selected_roi_id = roi_id
@@ -374,7 +568,7 @@ class InspectionOverlayWidget(QWidget):
     def paintEvent(self, event):
         """Draw ROIs and thermal detections."""
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         # Draw ROIs
         for roi in self.rois:
@@ -403,18 +597,18 @@ class InspectionOverlayWidget(QWidget):
 
             # Draw based on ROI type
             if roi.roi_type == ROIType.RECTANGLE:
-                x, y, w, h = roi.bounds
+                x, y, w, h = roi.get_bbox()
                 painter.drawRect(int(x), int(y), int(w), int(h))
-            elif roi.roi_type == ROIType.POLYGON and roi.polygon_points:
-                from PyQt5.QtCore import QPoint
-                points = [QPoint(int(p[0]), int(p[1])) for p in roi.polygon_points]
-                from PyQt5.QtGui import QPolygon
+            elif roi.roi_type == ROIType.POLYGON:
+                from PyQt6.QtCore import QPoint
+                points = [QPoint(int(p[0]), int(p[1])) for p in roi.points]
+                from PyQt6.QtGui import QPolygon
                 painter.drawPolygon(QPolygon(points))
             elif roi.roi_type == ROIType.ELLIPSE:
-                x, y, w, h = roi.bounds
+                x, y, w, h = roi.get_bbox()
                 painter.drawEllipse(int(x), int(y), int(w), int(h))
             elif roi.roi_type == ROIType.CIRCLE:
-                x, y, w, h = roi.bounds
+                x, y, w, h = roi.get_bbox()
                 radius = int(w / 2)
                 center_x = int(x + radius)
                 center_y = int(y + radius)
@@ -422,7 +616,7 @@ class InspectionOverlayWidget(QWidget):
 
             # Draw label
             if roi.label:
-                x, y, _, _ = roi.bounds
+                x, y, _, _ = roi.get_bbox()
                 painter.setPen(QPen(color, 1))
                 painter.drawText(int(x), int(y) - 5, roi.label)
 
@@ -431,14 +625,14 @@ class InspectionOverlayWidget(QWidget):
             painter.setPen(QPen(QColor(255, 0, 0), 2))  # Red
             x, y = hot_spot.centroid
             painter.drawEllipse(int(x) - 5, int(y) - 5, 10, 10)
-            painter.drawText(int(x) + 10, int(y), f"{hot_spot.max_temp:.1f}°C")
+            painter.drawText(int(x) + 10, int(y), f"{hot_spot.max_temp:.1f}{hot_spot.unit}")
 
         # Draw cold spots
         for cold_spot in self.cold_spots:
             painter.setPen(QPen(QColor(0, 128, 255), 2))  # Light blue
             x, y = cold_spot.centroid
             painter.drawEllipse(int(x) - 5, int(y) - 5, 10, 10)
-            painter.drawText(int(x) + 10, int(y), f"{cold_spot.min_temp:.1f}°C")
+            painter.drawText(int(x) + 10, int(y), f"{cold_spot.min_temp:.1f}{cold_spot.unit}")
 
         # Draw anomalies
         for anomaly in self.anomalies:
@@ -449,6 +643,199 @@ class InspectionOverlayWidget(QWidget):
             painter.drawLine(int(x) - 8, int(y) + 6, int(x) + 8, int(y) + 6)
             painter.drawLine(int(x) + 8, int(y) + 6, int(x), int(y) - 10)
             painter.drawText(int(x) + 15, int(y), f"⚠ {anomaly.anomaly_type}")
+
+        # Draw temporary ROI being created
+        if self.drawing_mode and self.draw_start_pos and self.draw_current_pos:
+            painter.setPen(QPen(QColor(255, 255, 0), 2, Qt.PenStyle.DashLine))  # Yellow dashed line
+
+            if self.drawing_type == ROIType.RECTANGLE:
+                x = min(self.draw_start_pos.x(), self.draw_current_pos.x())
+                y = min(self.draw_start_pos.y(), self.draw_current_pos.y())
+                w = abs(self.draw_current_pos.x() - self.draw_start_pos.x())
+                h = abs(self.draw_current_pos.y() - self.draw_start_pos.y())
+                painter.drawRect(x, y, w, h)
+
+            elif self.drawing_type == ROIType.ELLIPSE:
+                x = min(self.draw_start_pos.x(), self.draw_current_pos.x())
+                y = min(self.draw_start_pos.y(), self.draw_current_pos.y())
+                w = abs(self.draw_current_pos.x() - self.draw_start_pos.x())
+                h = abs(self.draw_current_pos.y() - self.draw_start_pos.y())
+                painter.drawEllipse(x, y, w, h)
+
+            elif self.drawing_type == ROIType.CIRCLE:
+                center_x = self.draw_start_pos.x()
+                center_y = self.draw_start_pos.y()
+                radius = int(((self.draw_current_pos.x() - center_x) ** 2 +
+                             (self.draw_current_pos.y() - center_y) ** 2) ** 0.5)
+                painter.drawEllipse(center_x - radius, center_y - radius, radius * 2, radius * 2)
+
+            elif self.drawing_type == ROIType.POLYGON and self.temp_polygon_points:
+                from PyQt6.QtCore import QPoint
+                from PyQt6.QtGui import QPolygon
+                # Draw lines between polygon points
+                points = self.temp_polygon_points + [self.draw_current_pos]
+                for i in range(len(points) - 1):
+                    painter.drawLine(points[i], points[i + 1])
+
+    def enable_drawing_mode(self, roi_type: ROIType = ROIType.RECTANGLE):
+        """Enable ROI drawing mode."""
+        self.drawing_mode = True
+        self.drawing_type = roi_type
+        self.draw_start_pos = None
+        self.draw_current_pos = None
+        self.temp_polygon_points = []
+        self.setCursor(Qt.CursorShape.CrossCursor)
+        logger.info(f"Drawing mode enabled: {roi_type}")
+
+    def disable_drawing_mode(self):
+        """Disable ROI drawing mode."""
+        self.drawing_mode = False
+        self.draw_start_pos = None
+        self.draw_current_pos = None
+        self.temp_polygon_points = []
+        self.setCursor(Qt.CursorShape.ArrowCursor)
+        logger.info("Drawing mode disabled")
+
+    def mousePressEvent(self, event):
+        """Handle mouse press for ROI drawing."""
+        if not self.drawing_mode:
+            # Check if clicking on existing ROI for selection
+            for roi in self.rois:
+                if roi.roi_type == ROIType.RECTANGLE:
+                    x, y, w, h = roi.get_bbox()
+                    if (x <= event.pos().x() <= x + w and
+                        y <= event.pos().y() <= y + h):
+                        self.set_selected_roi(roi.roi_id)
+                        self.roi_selected.emit(roi.roi_id)
+                        break
+            return
+
+        if self.drawing_type == ROIType.POLYGON:
+            # For polygon, collect multiple points
+            self.temp_polygon_points.append(event.pos())
+            self.update()
+        else:
+            # For rectangle, ellipse, circle - start drawing
+            self.draw_start_pos = event.pos()
+            self.draw_current_pos = event.pos()
+            self.update()
+
+    def mouseMoveEvent(self, event):
+        """Handle mouse move for ROI drawing."""
+        if self.drawing_mode and self.draw_start_pos:
+            self.draw_current_pos = event.pos()
+            self.update()
+
+    def mouseReleaseEvent(self, event):
+        """Handle mouse release to finalize ROI."""
+        if not self.drawing_mode or not self.draw_start_pos:
+            return
+
+        if self.drawing_type == ROIType.POLYGON:
+            # Polygon requires double-click or Enter key to finish
+            return
+
+        try:
+            # Create ROI from drawn shape
+            from roi_manager import ROI, ROISource
+            import uuid
+
+            if self.drawing_type == ROIType.RECTANGLE:
+                x = min(self.draw_start_pos.x(), event.pos().x())
+                y = min(self.draw_start_pos.y(), event.pos().y())
+                w = abs(event.pos().x() - self.draw_start_pos.x())
+                h = abs(event.pos().y() - self.draw_start_pos.y())
+
+                if w > 10 and h > 10:  # Minimum size
+                    # Convert bounds to points (4 corners)
+                    points = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+                    roi = ROI(
+                        roi_id=str(uuid.uuid4()),
+                        roi_type=ROIType.RECTANGLE,
+                        roi_source=ROISource.MANUAL,
+                        points=points,
+                        label=f"ROI-{len(self.rois) + 1}"
+                    )
+                    self.roi_created.emit(roi)
+
+            elif self.drawing_type == ROIType.ELLIPSE:
+                x = min(self.draw_start_pos.x(), event.pos().x())
+                y = min(self.draw_start_pos.y(), event.pos().y())
+                w = abs(event.pos().x() - self.draw_start_pos.x())
+                h = abs(event.pos().y() - self.draw_start_pos.y())
+
+                if w > 10 and h > 10:
+                    # Convert ellipse bounds to points (4 corners of bounding box)
+                    points = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+                    roi = ROI(
+                        roi_id=str(uuid.uuid4()),
+                        roi_type=ROIType.ELLIPSE,
+                        roi_source=ROISource.MANUAL,
+                        points=points,
+                        label=f"ROI-{len(self.rois) + 1}"
+                    )
+                    self.roi_created.emit(roi)
+
+            elif self.drawing_type == ROIType.CIRCLE:
+                center_x = self.draw_start_pos.x()
+                center_y = self.draw_start_pos.y()
+                radius = int(((event.pos().x() - center_x) ** 2 +
+                             (event.pos().y() - center_y) ** 2) ** 0.5)
+
+                if radius > 5:
+                    # Convert circle to points (bounding box corners)
+                    x = center_x - radius
+                    y = center_y - radius
+                    w = radius * 2
+                    h = radius * 2
+                    points = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+                    roi = ROI(
+                        roi_id=str(uuid.uuid4()),
+                        roi_type=ROIType.CIRCLE,
+                        roi_source=ROISource.MANUAL,
+                        points=points,
+                        label=f"ROI-{len(self.rois) + 1}"
+                    )
+                    self.roi_created.emit(roi)
+
+        except Exception as e:
+            logger.error(f"Error creating ROI: {e}", exc_info=True)
+
+        # Reset drawing state
+        self.draw_start_pos = None
+        self.draw_current_pos = None
+        self.update()
+
+    def mouseDoubleClickEvent(self, event):
+        """Handle double-click to finish polygon drawing."""
+        if self.drawing_mode and self.drawing_type == ROIType.POLYGON and len(self.temp_polygon_points) >= 3:
+            from roi_manager import ROI, ROISource
+            import uuid
+
+            # Convert QPoint to tuples
+            points = [(p.x(), p.y()) for p in self.temp_polygon_points]
+
+            # Calculate bounding box
+            xs = [p[0] for p in points]
+            ys = [p[1] for p in points]
+            x, y = min(xs), min(ys)
+            w, h = max(xs) - x, max(ys) - y
+
+            roi = ROI(
+                roi_id=str(uuid.uuid4()),
+                roi_type=ROIType.POLYGON,
+                bounds=(x, y, w, h),
+                polygon_points=points,
+                label=f"ROI-{len(self.rois) + 1}",
+                source=ROISource.MANUAL
+            )
+            self.roi_created.emit(roi)
+
+            # Reset polygon drawing
+            self.temp_polygon_points = []
+            self.draw_start_pos = None
+            self.draw_current_pos = None
+            self.update()
 
 
 # ============================================================================
@@ -463,9 +850,9 @@ class VideoWidget(QLabel):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setAlignment(Qt.AlignCenter)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setMinimumSize(640, 480)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setStyleSheet("background-color: #000000; border: 2px solid #404040;")
 
         # Frame buffer reuse (performance optimization for Jetson)
@@ -490,14 +877,14 @@ class VideoWidget(QLabel):
 
         # Create QImage (reuse buffer if possible)
         bytes_per_line = 3 * width
-        qimage = QImage(rgb_frame.data, width, height, bytes_per_line, QImage.Format_RGB888)
+        qimage = QImage(rgb_frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
 
         # Deep copy to take ownership (crucial for thread safety)
         self._last_qimage = qimage.copy()
 
         # Scale to widget size and display
         self._last_qpixmap = QPixmap.fromImage(self._last_qimage).scaled(
-            self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
+            self.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
         )
         self.setPixmap(self._last_qpixmap)
 
@@ -554,7 +941,7 @@ class ControlPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
         # Main layout
         self.main_layout = QVBoxLayout(self)
@@ -676,14 +1063,33 @@ class ControlPanel(QWidget):
         """Update view mode button text."""
         self.view_btn.setText(f"👁 {view.replace('_', ' ').title()}")
 
-    def update_day_night_button(self, theme: str):
-        """Update day/night button text."""
-        if theme == "light":
-            self.day_night_btn.setText("☀ Day")
-        elif theme == "dark":
-            self.day_night_btn.setText("🌙 Night")
+    def update_theme_button(self, theme: str):
+        """Update theme button text."""
+        theme_icons = {
+            "light": "☀ Light",
+            "dark": "🌙 Dark",
+            "solarized": "🌊 Solarized",
+            "colorful": "🎨 Colorful"
+        }
+        # Handle auto mode with actual theme
+        if "(" in theme and theme.startswith("auto"):
+            self.day_night_btn.setText(f"🔄 {theme}")
         else:
-            self.day_night_btn.setText("🌓 Auto")
+            display_text = theme_icons.get(theme, f"🔄 Auto")
+            self.day_night_btn.setText(display_text)
+
+    def update_fusion_mode_button(self, mode: str):
+        """Update fusion mode button text."""
+        mode_display = mode.replace('_', ' ').title()
+        self.fusion_mode_btn.setText(f"🔀 Fusion: {mode_display}")
+
+    def update_fusion_alpha_button(self, alpha: float):
+        """Update fusion alpha button text."""
+        self.fusion_alpha_btn.setText(f"⚖ Alpha: {alpha:.1f}")
+
+    def update_fusion_priority_button(self, priority: str):
+        """Update fusion priority button text."""
+        self.fusion_priority_btn.setText(f"🎯 Priority: {priority.title()}")
 
     def update_record_button(self, recording: bool):
         """Update record button text."""
@@ -713,6 +1119,27 @@ class ControlPanel(QWidget):
         else:
             self.edge_btn.setText("📐 Edges: OFF")
 
+    def update_view_button(self, view_mode: str):
+        """Update view mode button text."""
+        # Handle ViewMode object or string
+        if hasattr(view_mode, 'lower'):
+            mode_str = view_mode.lower()
+        else:
+            mode_str = str(view_mode).lower()
+        
+        mode_names = {
+            "thermal": "🌡 Thermal",
+            "thermal_only": "🌡 Thermal",
+            "rgb": "📷 RGB",
+            "rgb_only": "📷 RGB",
+            "fusion": "🔥 Fusion",
+            "side_by_side": "⬌ Side-by-Side",
+            "picture_in_picture": "📺 PiP",
+            "pip": "📺 PiP"
+        }
+        mode_text = mode_names.get(mode_str, "👁 View")
+        self.view_btn.setText(mode_text)
+
 
 # ============================================================================
 # Info Panel (Minimal Status Overlay)
@@ -728,7 +1155,7 @@ class InfoPanel(QLabel):
         super().__init__(parent)
         self.setObjectName("info_panel")
         self.setFixedSize(280, 70)
-        self.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        self.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         self.setWordWrap(True)
 
     def update_info(self, fps: float, roi_count: int, thermal_connected: bool, rgb_connected: bool, recording: bool = False):
@@ -771,97 +1198,138 @@ class ThermalAnalysisPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedWidth(350)
+        self.setFixedWidth(380)  # Increased from 350 for better readability
 
         # Main layout with scroll area
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(5, 5, 5, 5)
+        main_layout.setContentsMargins(8, 8, 8, 8)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)  # Remove frame for cleaner look
 
         content = QWidget()
         self.content_layout = QVBoxLayout(content)
-        self.content_layout.setSpacing(10)
+        self.content_layout.setSpacing(15)  # Increased spacing
+        self.content_layout.setContentsMargins(5, 5, 5, 5)
 
-        # === ROI List ===
-        roi_group = QGroupBox("Regions of Interest")
-        roi_layout = QVBoxLayout(roi_group)
+        # Helper function to create section headers
+        def create_section_header(text):
+            header = QLabel(text)
+            font = QFont()
+            font.setPointSize(11)
+            font.setBold(True)
+            header.setFont(font)
+            return header
 
-        self.roi_list = QListWidget()
-        self.roi_list.setMaximumHeight(150)
-        roi_layout.addWidget(self.roi_list)
-
-        # ROI palette selector
-        roi_palette_layout = QHBoxLayout()
-        roi_palette_layout.addWidget(QLabel("ROI Palette:"))
-        self.roi_palette_combo = QComboBox()
-        # Populate with all 45 palettes
-        for palette in PaletteType:
-            self.roi_palette_combo.addItem(palette.value.replace('_', ' ').title(), palette.value)
-        roi_palette_layout.addWidget(self.roi_palette_combo)
-        roi_layout.addLayout(roi_palette_layout)
-
-        self.content_layout.addWidget(roi_group)
+        # Helper function to create separators
+        def create_separator():
+            line = QFrame()
+            line.setFrameShape(QFrame.Shape.HLine)
+            line.setFrameShadow(QFrame.Shadow.Sunken)
+            palette = line.palette()
+            palette.setColor(QPalette.ColorRole.WindowText, palette.color(QPalette.ColorRole.Mid))
+            line.setPalette(palette)
+            return line
 
         # === Temperature Statistics ===
-        stats_group = QGroupBox("Temperature Statistics")
-        stats_layout = QVBoxLayout(stats_group)
-
+        self.content_layout.addWidget(create_section_header("📊 Temperature Statistics"))
+        
         self.stats_label = QLabel("No data")
         self.stats_label.setWordWrap(True)
-        self.stats_label.setFont(QFont("Courier", 9))
-        stats_layout.addWidget(self.stats_label)
+        font = QFont("Consolas", 10)  # Larger, more readable font
+        self.stats_label.setFont(font)
+        self.stats_label.setStyleSheet("padding: 5px;")
+        self.content_layout.addWidget(self.stats_label)
         
         # Baseline control
         self.baseline_btn = QPushButton("🔒 Lock Baseline")
         self.baseline_btn.setCheckable(True)
         self.baseline_btn.setToolTip("Lock current mean temperature as baseline for relative measurements")
-        stats_layout.addWidget(self.baseline_btn)
-
-        self.content_layout.addWidget(stats_group)
+        self.baseline_btn.setMinimumHeight(32)
+        self.content_layout.addWidget(self.baseline_btn)
+        
+        self.content_layout.addWidget(create_separator())
 
         # === Hot Spots ===
-        hotspot_group = QGroupBox("Hot Spots")
-        hotspot_layout = QVBoxLayout(hotspot_group)
-
+        self.content_layout.addWidget(create_section_header("🔥 Hot Spots"))
+        
         self.hotspot_list = QListWidget()
-        self.hotspot_list.setMaximumHeight(100)
-        hotspot_layout.addWidget(self.hotspot_list)
-
-        self.content_layout.addWidget(hotspot_group)
+        self.hotspot_list.setMaximumHeight(70)
+        self.hotspot_list.setStyleSheet("QListWidget { border: 1px solid palette(mid); border-radius: 3px; padding: 3  px; }")
+        font = QFont()
+        font.setPointSize(10)
+        self.hotspot_list.setFont(font)
+        self.content_layout.addWidget(self.hotspot_list)
+        
+        self.content_layout.addWidget(create_separator())
 
         # === Cold Spots ===
-        coldspot_group = QGroupBox("Cold Spots")
-        coldspot_layout = QVBoxLayout(coldspot_group)
-
+        self.content_layout.addWidget(create_section_header("❄️ Cold Spots"))
+        
         self.coldspot_list = QListWidget()
-        self.coldspot_list.setMaximumHeight(100)
-        coldspot_layout.addWidget(self.coldspot_list)
+        self.coldspot_list.setMaximumHeight(70)
+        self.coldspot_list.setStyleSheet("QListWidget { border: 1px solid palette(mid); border-radius: 3px; padding: 3px; }")
+        font = QFont()
+        font.setPointSize(10)
+        self.coldspot_list.setFont(font)
+        self.content_layout.addWidget(self.coldspot_list)
+        
+        self.content_layout.addWidget(create_separator())
 
-        self.content_layout.addWidget(coldspot_group)
-
-        # === Anomalies ===
-        anomaly_group = QGroupBox("Thermal Anomalies")
-        anomaly_layout = QVBoxLayout(anomaly_group)
-
+        # === Thermal Anomalies ===
+        self.content_layout.addWidget(create_section_header("⚠️ Thermal Anomalies"))
+        
         self.anomaly_list = QListWidget()
-        self.anomaly_list.setMaximumHeight(120)
-        anomaly_layout.addWidget(self.anomaly_list)
+        self.anomaly_list.setMaximumHeight(70)
+        self.anomaly_list.setStyleSheet("QListWidget { border: 1px solid palette(mid); border-radius: 3px; padding: 3px; }")
+        font = QFont()
+        font.setPointSize(10)
+        self.anomaly_list.setFont(font)
+        self.content_layout.addWidget(self.anomaly_list)
+        
+        self.content_layout.addWidget(create_separator())
 
-        self.content_layout.addWidget(anomaly_group)
+        # === Regions of Interest ===
+        self.content_layout.addWidget(create_section_header("📍 Regions of Interest"))
+        
+        self.roi_list = QListWidget()
+        self.roi_list.setMaximumHeight(80)
+        self.roi_list.setStyleSheet("QListWidget { border: 1px solid palette(mid); border-radius: 3px; padding: 3px; }")
+        font = QFont()
+        font.setPointSize(10)
+        self.roi_list.setFont(font)
+        self.content_layout.addWidget(self.roi_list)
+
+        # ROI palette selector (compact horizontal layout)
+        roi_palette_layout = QHBoxLayout()
+        roi_palette_layout.setSpacing(8)
+        roi_label = QLabel("Palette:")
+        font = QFont()
+        font.setPointSize(10)
+        roi_label.setFont(font)
+        roi_palette_layout.addWidget(roi_label)
+        
+        self.roi_palette_combo = QComboBox()
+        self.roi_palette_combo.setMinimumHeight(28)
+        # Populate with all 45 palettes
+        for palette in PaletteType:
+            self.roi_palette_combo.addItem(palette.value.replace('_', ' ').title(), palette.value)
+        roi_palette_layout.addWidget(self.roi_palette_combo, 1)
+        self.content_layout.addLayout(roi_palette_layout)
+        
+        self.content_layout.addWidget(create_separator())
 
         # === Temperature Trend ===
-        trend_group = QGroupBox("Temperature Trend")
-        trend_layout = QVBoxLayout(trend_group)
-
+        self.content_layout.addWidget(create_section_header("📈 Temperature Trend"))
+        
         self.trend_label = QLabel("No trend data")
         self.trend_label.setWordWrap(True)
-        self.trend_label.setFont(QFont("Courier", 9))
-        trend_layout.addWidget(self.trend_label)
-
-        self.content_layout.addWidget(trend_group)
+        font = QFont("Consolas", 10)
+        self.trend_label.setFont(font)
+        self.trend_label.setStyleSheet("padding: 5px;")
+        self.content_layout.addWidget(self.trend_label)
 
         self.content_layout.addStretch()
 
@@ -1030,37 +1498,42 @@ class InspectionAppWindow(QMainWindow):
         # Analysis
         self.analysis_panel.baseline_toggled.connect(self._on_baseline_toggle)
 
+        # ROI Overlay signals
+        if hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.roi_created.connect(self._on_roi_created)
+            self.video_widget.overlay.roi_selected.connect(self._on_roi_selected)
+
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""
         key = event.key()
         modifiers = event.modifiers()
 
         # Ctrl+D: Toggle developer mode
-        if key == Qt.Key_D and modifiers == Qt.ControlModifier:
+        if key == Qt.Key.Key_D and modifiers == Qt.KeyboardModifier.ControlModifier:
             self._toggle_developer_mode()
         # Q/Esc: Quit
-        elif key in (Qt.Key_Q, Qt.Key_Escape):
+        elif key in (Qt.Key.Key_Q, Qt.Key.Key_Escape):
             self.close()
         # V: Cycle view mode
-        elif key == Qt.Key_V:
+        elif key == Qt.Key.Key_V:
             self._on_view_mode_cycle()
         # C: Cycle palette
-        elif key == Qt.Key_C:
+        elif key == Qt.Key.Key_C:
             self._on_palette_cycle()
         # T: Cycle theme
-        elif key == Qt.Key_T:
+        elif key == Qt.Key.Key_T:
             self._on_theme_cycle()
         # R: Record toggle
-        elif key == Qt.Key_R:
+        elif key == Qt.Key.Key_R:
             self.control_panel.record_btn.setChecked(not self.recording)
         # S: Snapshot
-        elif key == Qt.Key_S:
+        elif key == Qt.Key.Key_S:
             self._on_snapshot()
         # Space: Freeze toggle
-        elif key == Qt.Key_Space:
+        elif key == Qt.Key.Key_Space:
             self.control_panel.freeze_btn.setChecked(not self.frozen)
         # A: Auto ROI
-        elif key == Qt.Key_A:
+        elif key == Qt.Key.Key_A:
             self._on_auto_roi()
         else:
             super().keyPressEvent(event)
@@ -1082,15 +1555,34 @@ class InspectionAppWindow(QMainWindow):
     def _apply_theme(self, theme: str):
         """Apply color theme."""
         self.current_theme = theme
-        if theme == "dark":
+
+        # Determine actual theme to apply
+        actual_theme = theme
+        if theme == "auto":
+            # Auto mode: Use system time or config settings
+            import datetime
+            hour = datetime.datetime.now().hour
+            # Day mode: 7 AM - 7 PM, Night mode: 7 PM - 7 AM
+            actual_theme = "light" if 7 <= hour < 19 else "dark"
+
+        if actual_theme == "dark":
             self.setStyleSheet(DARK_THEME)
-        elif theme == "light":
+        elif actual_theme == "light":
             self.setStyleSheet(LIGHT_THEME)
-        self.control_panel.update_day_night_button(theme)
+        elif actual_theme == "solarized":
+            self.setStyleSheet(SOLARIZED_THEME)
+        elif actual_theme == "colorful":
+            self.setStyleSheet(COLORFUL_THEME)
+
+        # Update button to show current mode
+        if theme == "auto":
+            self.control_panel.update_theme_button(f"auto ({actual_theme})")
+        else:
+            self.control_panel.update_theme_button(theme)
 
     def _on_theme_cycle(self):
         """Cycle through themes."""
-        themes = ["light", "dark", "auto"]
+        themes = ["light", "dark", "solarized", "colorful", "auto"]
         current_idx = themes.index(self.current_theme) if self.current_theme in themes else 0
         next_theme = themes[(current_idx + 1) % len(themes)]
         self._apply_theme(next_theme)
@@ -1132,16 +1624,22 @@ class InspectionAppWindow(QMainWindow):
 
     def _on_auto_roi(self):
         """Trigger automatic ROI detection."""
-        if self.app:
-            # Call app's auto ROI method
-            pass
-        logger.info("Auto ROI detection triggered")
+        if self.app and hasattr(self.app, 'auto_roi_detect'):
+            self.app.auto_roi_detect()
+            logger.info("Auto ROI detection triggered")
+        else:
+            logger.warning("Auto ROI detection not available")
 
     def _on_draw_roi(self):
         """Enter ROI drawing mode."""
-        if self.app:
-            self.app.draw_roi()
-        logger.info("Draw ROI mode activated")
+        if self.video_widget and hasattr(self.video_widget, 'overlay'):
+            # Enable drawing mode on the overlay (default: rectangle)
+            self.video_widget.overlay.enable_drawing_mode(ROIType.RECTANGLE)
+            logger.info("Draw ROI mode activated (rectangle)")
+            # Update button state
+            self.control_panel.draw_roi_btn.setChecked(True)
+        else:
+            logger.warning("Video widget overlay not available")
 
     def _on_clear_rois(self):
         """Clear all ROIs."""
@@ -1216,6 +1714,37 @@ class InspectionAppWindow(QMainWindow):
             if hasattr(self.app, 'lock_baseline'):
                 self.app.lock_baseline(enabled)
         logger.info(f"Baseline lock: {'ON' if enabled else 'OFF'}")
+
+    def _on_roi_created(self, roi):
+        """Handle new ROI created from overlay."""
+        try:
+            # Add to app's ROI manager if available
+            if self.app and hasattr(self.app, 'roi_manager'):
+                self.app.roi_manager.add_roi(roi)
+                logger.info(f"ROI created: {roi.label} ({roi.roi_type})")
+            else:
+                logger.warning("ROI manager not available")
+
+            # Disable drawing mode after creating one ROI
+            if hasattr(self.video_widget, 'overlay'):
+                self.video_widget.overlay.disable_drawing_mode()
+
+            # Uncheck the draw button
+            if hasattr(self, 'control_panel') and hasattr(self.control_panel, 'draw_roi_btn'):
+                self.control_panel.draw_roi_btn.setChecked(False)
+
+        except Exception as e:
+            logger.error(f"Error in _on_roi_created: {e}", exc_info=True)
+
+    def _on_roi_selected(self, roi_id: str):
+        """Handle ROI selection from overlay."""
+        logger.info(f"ROI selected: {roi_id}")
+        # Update analysis panel to show selected ROI stats
+        if self.app and hasattr(self.app, 'roi_manager'):
+            roi = self.app.roi_manager.get_roi_by_id(roi_id)
+            if roi:
+                # Could update a detail panel here
+                pass
 
     def update_frame(self, frame: np.ndarray):
         """Update video display."""

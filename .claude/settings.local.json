@@ -30,7 +30,12 @@
       "Bash(findstr:*)",
       "Bash(ls:*)",
       "Bash(robocopy:*)",
-      "Bash(xcopy:*)"
+      "Bash(xcopy:*)",
+      "Bash(timeout 30 python:*)",
+      "Bash(timeout 5 echo:*)",
+      "Bash(timeout 10 echo:*)",
+      "Bash(timeout 15 echo:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []

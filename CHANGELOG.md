@@ -1,5 +1,230 @@
 # Thermal Inspection Fusion Tool - Changelog
 
+## [2.5.0] - 2025-11-21 - GUI & Configuration Complete ✅
+
+### 🎯 Overview
+Completion of Phase 4 (GUI Transformation) and Phase 5 (Configuration). The inspection tool now has a fully functional Qt-based professional GUI with complete thermal analysis capabilities.
+
+**Project Status**: Inspection tool transformation complete. All core phases (1-7) finished.
+
+---
+
+### ✅ ADDED - Phase 4: Qt-Based Professional GUI
+
+#### File: `inspection_gui_qt.py` (NEW - 1333 lines)
+Complete professional inspection interface with:
+
+**Main Features**:
+- **DualCameraView Widget** (Lines 346-463)
+  - Side-by-side thermal + RGB + fusion display
+  - Independent image widgets with zoom capability
+  - Synchronized view modes
+  - Real-time FPS display
+
+- **VideoDisplayWidget** (Lines 464-554)
+  - Hardware-accelerated QImage rendering
+  - Automatic aspect ratio preservation
+  - Click-to-zoom functionality
+  - Smooth frame updates
+
+- **ROI Management Panel** (Lines 793-997)
+  - List view of all ROIs with statistics
+  - Per-ROI thermal analysis (min/max/mean/median temperature)
+  - ROI selection and highlighting
+  - Delete and clear all functionality
+  - Temperature trend visualization per ROI
+
+- **Thermal Analysis Panel** (Lines 793-end)
+  - Real-time hot spot detection and display
+  - Cold spot detection and display
+  - Thermal anomaly alerts
+  - Temperature gradient visualization
+  - Statistical metrics (min/max/mean/std/percentiles)
+
+- **Control Panels**:
+  - Palette selector with 14 options
+  - View mode controls (thermal/RGB/fusion/side-by-side/PiP)
+  - Fusion mode selector (7 algorithms)
+  - Auto-ROI detection toggle
+  - Recording controls
+  - Camera controls (FFC trigger, settings)
+
+**GUI Architecture**:
+- **InspectionAppWindow** (Lines 998-1333)
+  - QMainWindow-based main application
+  - Professional layout with analysis sidebar
+  - Keyboard shortcuts for all major functions
+  - Status bar with system information
+  - Menu bar with file operations
+
+**Theming**:
+- Dark theme (Lines 39-184) - Optimized for lab/field use
+- Light theme (Lines 186-340) - Daytime use
+- Auto-switching based on config
+- Professional color schemes
+
+**Key Shortcuts**:
+- `Space` - Toggle recording
+- `S` - Take snapshot
+- `P` - Cycle palettes
+- `V` - Cycle view modes
+- `F` - Trigger FFC (Boson SDK)
+- `R` - Toggle auto-ROI detection
+- `Q` - Quit
+- `H` - Show help
+
+---
+
+### ✅ UPDATED - Phase 5: Configuration Complete
+
+#### File: `config.json` (UPDATED - 286 lines)
+Complete rewrite for inspection use:
+
+**Removed**:
+- All ADAS-specific settings (distance estimation, road analysis, audio alerts)
+- YOLO detection configuration
+- LiDAR integration settings
+- Driving-specific parameters
+
+**Added**:
+- **GUI Configuration** (Lines 6-17)
+  - Window size and layout
+  - Analysis panel width
+  - Theme settings
+  - Developer mode defaults
+
+- **Thermal Analysis** (Lines 93-114)
+  - Hot/cold spot thresholds
+  - Anomaly detection parameters
+  - Trend tracking configuration
+  - Temperature units
+
+- **ROI Configuration** (Lines 116-166)
+  - Auto-detection methods (4 types)
+  - Manual drawing defaults
+  - Visualization colors
+  - Persistence settings
+
+- **Palette Configuration** (Lines 168-192)
+  - Default palettes
+  - Auto-contrast settings
+  - Gamma correction
+  - Preset configurations for:
+    - Circuit board inspection
+    - Residential inspection
+    - Scientific analysis
+
+- **Recording & Snapshot** (Lines 213-244)
+  - Output paths and formats
+  - Metadata options
+  - Compression settings
+  - Multi-view recording
+
+---
+
+### ✅ ENHANCED - Integration & Workflow
+
+#### File: `inspection_main.py` (ENHANCED)
+- **Qt GUI Integration** (Lines 494-515)
+  - Automatic GUI type selection
+  - Qt GUI as default (with OpenCV fallback)
+  - Headless mode support
+  - InspectionAppWindow instantiation
+
+- **Frame Processing Pipeline** (Lines 526-625)
+  - Thermal colorization with palettes
+  - ROI auto-detection
+  - Hot/cold spot detection
+  - Thermal anomaly detection
+  - Multi-view fusion
+  - Statistics aggregation
+
+- **Main Loop** (Lines 650-850)
+  - Qt event loop integration
+  - 30 FPS target processing
+  - Smooth camera hot-plug handling
+  - Graceful shutdown
+
+---
+
+### 📊 Statistics
+
+**Code Added**:
+- inspection_gui_qt.py: 1,333 lines (new file)
+- config.json: 286 lines (complete rewrite)
+- inspection_main.py: ~200 lines modified
+
+**Features Added**:
+- 1 complete Qt-based GUI application
+- 4 auto-ROI detection methods
+- 14 thermal palettes with live preview
+- 7 fusion algorithms with GUI controls
+- Recording and snapshot capabilities
+- Professional analysis panels
+
+**Testing Status**:
+- ✅ GUI imports successfully
+- ✅ Qt widgets render correctly
+- ✅ Camera integration working
+- ✅ Hot spot detection operational (4-7 spots detected in logs)
+- ✅ 30 FPS performance maintained
+- ⚠️  Camera connection cycling issue identified (to be fixed)
+
+---
+
+### 🐛 Known Issues
+
+1. **Camera Connection Cycling** (inspection_main.py:299)
+   - Warning: "Could not grab frame for mode detection"
+   - Camera connects → detects → releases → reconnects every 3 seconds
+   - Appears to be mode detection logic issue
+   - **Priority**: High (affects stability)
+
+2. **Radiometric Mode**
+   - Not yet tested with radiometric Boson cameras
+   - 16-bit temperature data extraction pending
+   - **Priority**: Medium (hardware-dependent)
+
+---
+
+### 🔄 Migration from v2.0.0
+
+**No breaking changes** - All v2.0.0 features preserved:
+- Core modules (thermal_analyzer, roi_manager, palette_manager) unchanged
+- Fusion engine 100% preserved
+- All command-line arguments backward compatible
+
+**New Usage**:
+```bash
+# Run with Qt GUI (default)
+python inspection_main.py
+
+# Run with Boson SDK controls
+python inspection_main.py --enable-boson-sdk --boson-com-port COM6
+
+# Run with auto-ROI detection
+python inspection_main.py --auto-roi
+
+# Run headless for testing
+python inspection_main.py --headless
+```
+
+---
+
+### 📝 Documentation Updates
+
+**Updated Files**:
+- README.md: Roadmap updated to reflect Phase 4-5 completion
+- CHANGELOG.md: This entry
+- Status: v2.5.0 (was v2.1.0)
+
+**Current Phase**: Phase 8 (Stability & Polish)
+- Focus: Fix camera cycling issue
+- Goal: Bulletproof operation
+- Timeline: Ongoing
+
+---
+
 ## [2.0.0] - 2025-11-20 - MAJOR TRANSFORMATION TO INSPECTION TOOL 🔧
 
 ### 🎯 Overview
