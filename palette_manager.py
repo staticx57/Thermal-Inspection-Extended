@@ -133,15 +133,20 @@ class PaletteManager:
     def _init_custom_palettes(self):
         """Initialize custom palette lookup tables."""
 
-        # BLACK_HOT - inverted grayscale
-        self.palette_cache[PaletteType.BLACK_HOT] = self._create_gradient_palette(
+        # WHITE_HOT - standard grayscale (cold=black, hot=white)
+        self.palette_cache[PaletteType.WHITE_HOT] = self._create_gradient_palette(
             [(0, 0, 0), (255, 255, 255)]
+        )
+
+        # BLACK_HOT - inverted grayscale (cold=white, hot=black)
+        self.palette_cache[PaletteType.BLACK_HOT] = self._create_gradient_palette(
+            [(255, 255, 255), (0, 0, 0)]
         )
 
         # IRONBOW - iron color scheme (black -> purple -> red -> orange -> yellow -> white)
         self.palette_cache[PaletteType.IRONBOW] = self._create_gradient_palette([
             (0, 0, 0),      # Black (BGR)
-            (128, 0, 0),    # Dark blue (BGR)
+            (64, 0, 64),    # Dark purple (BGR)
             (128, 0, 128),  # Purple (BGR)
             (0, 0, 255),    # Red (BGR)
             (0, 128, 255),  # Orange (BGR)
@@ -177,14 +182,14 @@ class PaletteManager:
             (255, 255, 255) # White (BGR)
         ])
 
-        # ARCTIC - white -> cyan -> blue -> dark blue
+        # ARCTIC - dark blue -> blue -> cyan -> white (cold to hot)
         self.palette_cache[PaletteType.ARCTIC] = self._create_gradient_palette([
-            (255, 255, 255), # White (BGR)
-            (255, 255, 128), # Light cyan (BGR)
-            (255, 255, 0),   # Cyan (BGR)
-            (255, 128, 0),   # Light blue (BGR)
+            (128, 0, 0),     # Dark blue (BGR)
             (255, 0, 0),     # Blue (BGR)
-            (128, 0, 0)      # Dark blue (BGR)
+            (255, 128, 0),   # Light blue (BGR)
+            (255, 255, 0),   # Cyan (BGR)
+            (255, 255, 128), # Light cyan (BGR)
+            (255, 255, 255)  # White (BGR)
         ])
 
         # GLOBOW - green -> yellow -> orange -> red
@@ -210,10 +215,11 @@ class PaletteManager:
             (255, 255, 255) # White (BGR)
         ])
 
-        # HOTTEST - extreme hot palette (purple -> red -> yellow -> white)
+        # HOTTEST - extreme hot palette (cold=black, hot=white through purple/red/yellow)
         self.palette_cache[PaletteType.HOTTEST] = self._create_gradient_palette([
+            (0, 0, 0),      # Black (BGR)
+            (64, 0, 64),    # Dark purple (BGR)
             (128, 0, 128),  # Purple (BGR)
-            (128, 0, 255),  # Magenta (BGR)
             (0, 0, 255),    # Red (BGR)
             (0, 128, 255),  # Orange (BGR)
             (0, 255, 255),  # Yellow (BGR)
@@ -236,26 +242,26 @@ class PaletteManager:
             (255, 255, 255) # White (BGR)
         ])
 
-        # SEPIA - warm sepia tones
+        # SEPIA - warm sepia tones (cold=dark brown, hot=light beige)
         self.palette_cache[PaletteType.SEPIA] = self._create_gradient_palette([
-            (10, 15, 20),    # Very dark brown (BGR)
-            (40, 50, 60),    # Dark brown (BGR)
-            (20, 66, 112),   # Sepia brown (BGR)
-            (50, 102, 156),  # Light sepia (BGR)
-            (116, 160, 204), # Beige (BGR)
-            (195, 220, 240)  # Light beige (BGR)
+            (20, 15, 10),    # Very dark brown (BGR)
+            (60, 50, 40),    # Dark brown (BGR)
+            (112, 66, 20),   # Sepia brown (BGR)
+            (156, 102, 50),  # Light sepia (BGR)
+            (204, 160, 116), # Beige (BGR)
+            (240, 220, 195)  # Light beige (BGR)
         ])
 
         # ===== NEW FIRE/HEAT PALETTES =====
-        # AMBER - firefighting visualization
+        # AMBER - firefighting visualization (cold=black, hot=bright amber)
         self.palette_cache[PaletteType.AMBER] = self._create_gradient_palette([
-            (0, 0, 0),       # Black (BGR)
-            (64, 32, 0),     # Very dark amber (BGR)
-            (128, 64, 0),    # Dark amber (BGR)
-            (192, 128, 0),   # Amber (BGR)
-            (255, 192, 0),   # Light amber (BGR)
-            (255, 224, 128), # Very light amber (BGR)
-            (255, 255, 255)  # White (BGR)
+            (0, 0, 0),        # Black (BGR)
+            (0, 32, 64),      # Very dark amber (BGR) - low B, low-med G, med R
+            (0, 64, 128),     # Dark amber (BGR)
+            (0, 128, 192),    # Amber (BGR) - orange tone
+            (0, 192, 255),    # Light amber (BGR)
+            (128, 224, 255),  # Very light amber (BGR)
+            (255, 255, 255)   # White (BGR)
         ])
 
         # INFERNO - perceptually uniform fire (matplotlib)
@@ -271,14 +277,14 @@ class PaletteManager:
         ])
 
         # ===== NEW RAINBOW PALETTES =====
-        # RAINBOW_REVERSED - cold to hot
+        # RAINBOW_REVERSED - hot to cold (red to blue)
         self.palette_cache[PaletteType.RAINBOW_REVERSED] = self._create_gradient_palette([
-            (0, 0, 255),     # Red (BGR)
-            (0, 128, 255),   # Orange (BGR)
-            (0, 255, 255),   # Yellow (BGR)
-            (0, 255, 0),     # Green (BGR)
+            (255, 0, 0),     # Blue (cold) (BGR)
             (255, 255, 0),   # Cyan (BGR)
-            (255, 0, 0)      # Blue (BGR)
+            (0, 255, 0),     # Green (BGR)
+            (0, 255, 255),   # Yellow (BGR)
+            (0, 128, 255),   # Orange (BGR)
+            (0, 0, 255)      # Red (hot) (BGR)
         ])
 
         # SPECTRAL - spectral colors
@@ -296,25 +302,26 @@ class PaletteManager:
         ])
 
         # ===== NEW COLD/ARCTIC PALETTES =====
-        # ICE - light to dark blue
+        # ICE - dark to light blue (cold=dark blue, hot=white)
         self.palette_cache[PaletteType.ICE] = self._create_gradient_palette([
-            (255, 255, 255), # White (BGR)
-            (255, 255, 224), # Very light blue (BGR)
-            (255, 240, 192), # Light blue (BGR)
-            (255, 200, 128), # Medium blue (BGR)
-            (192, 128, 64),  # Blue (BGR)
+            (64, 0, 0),      # Very dark blue (BGR)
             (128, 64, 0),    # Dark blue (BGR)
-            (64, 0, 0)       # Very dark blue (BGR)
+            (192, 128, 64),  # Blue (BGR)
+            (255, 200, 128), # Medium blue (BGR)
+            (255, 240, 192), # Light blue (BGR)
+            (255, 255, 224), # Very light blue (BGR)
+            (255, 255, 255)  # White (BGR)
         ])
 
-        # WINTER - blue-cyan-green cold
+        # WINTER - blue to cyan to green (cold=dark, hot=light)
         self.palette_cache[PaletteType.WINTER] = self._create_gradient_palette([
+            (128, 0, 0),     # Dark blue (BGR)
             (255, 0, 0),     # Blue (BGR)
             (255, 64, 0),    # Blue-cyan (BGR)
-            (255, 128, 0),   # Cyan-blue (BGR)
+            (255, 128, 0),   # Cyan (BGR)
             (255, 192, 0),   # Light cyan (BGR)
             (192, 255, 0),   # Cyan-green (BGR)
-            (128, 255, 0)    # Green-cyan (BGR)
+            (128, 255, 64)   # Green (BGR)
         ])
 
         # OCEAN - ocean depths

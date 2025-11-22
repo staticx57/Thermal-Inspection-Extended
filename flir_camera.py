@@ -161,11 +161,6 @@ class FLIRBosonCamera:
                 frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
                 frame = frame.astype(np.uint8)
 
-            # Invert thermal data to fix camera polarity
-            # Camera outputs: high values = cold, low values = hot
-            # We need: high values = hot, low values = cold
-            frame = 255 - frame
-
         return ret, frame
 
     def read_thermal(self) -> Tuple[bool, Optional[np.ndarray]]:

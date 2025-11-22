@@ -40017,3 +40017,1584 @@ TypeError: ROI.__init__() got an unexpected keyword argument 'bounds'
 2025-11-21 15:54:31,765 - __main__ - INFO - [inspection_main.py:872] - Frame 1900: 25.6 FPS, 0 ROIs, 0 motion, 4 hot spots
 2025-11-21 15:54:35,702 - __main__ - INFO - [inspection_main.py:872] - Frame 2000: 24.0 FPS, 0 ROIs, 0 motion, 4 hot spots
 2025-11-21 15:54:40,327 - __main__ - INFO - [inspection_main.py:872] - Frame 2100: 22.9 FPS, 0 ROIs, 3 motion, 4 hot spots
+2025-11-21 15:54:45,529 - __main__ - INFO - [inspection_main.py:872] - Frame 2200: 18.3 FPS, 0 ROIs, 0 motion, 4 hot spots
+2025-11-21 15:54:50,136 - __main__ - WARNING - [inspection_main.py:729] - Thermal camera disconnected
+2025-11-21 15:54:50,155 - flir_camera - INFO - [flir_camera.py:224] - FLIR Boson camera released
+2025-11-21 15:54:50,217 - __main__ - INFO - [inspection_main.py:228] - Scanning for FLIR Boson thermal camera...
+2025-11-21 15:54:50,218 - flir_camera - INFO - [flir_camera.py:70] - Windows detected - trying DirectShow backend
+2025-11-21 15:54:50,915 - flir_camera - INFO - [flir_camera.py:96] - FLIR Boson camera opened successfully on device 0
+2025-11-21 15:54:50,915 - flir_camera - INFO - [flir_camera.py:97] - Resolution: (640, 480)
+2025-11-21 15:54:50,916 - flir_camera - INFO - [flir_camera.py:98] - FPS: 60.000240000960005
+2025-11-21 15:54:50,916 - __main__ - INFO - [inspection_main.py:243] - [OK] Thermal camera connected: 640x480
+2025-11-21 15:54:50,916 - __main__ - INFO - [inspection_main.py:292] - Detecting camera mode...
+2025-11-21 15:54:50,939 - flir_camera - INFO - [flir_camera.py:186] - Thermal camera mode detection:
+2025-11-21 15:54:50,940 - flir_camera - INFO - [flir_camera.py:187] -   Frame dtype: uint8
+2025-11-21 15:54:50,941 - flir_camera - INFO - [flir_camera.py:188] -   Frame shape: (480, 640, 3)
+2025-11-21 15:54:50,941 - flir_camera - INFO - [flir_camera.py:192] -   -> UVC MODE (8-bit YUV/RGB converted)
+2025-11-21 15:54:51,100 - __main__ - INFO - [inspection_main.py:305] - Median pixel value: 138.0
+2025-11-21 15:54:51,101 - __main__ - INFO - [inspection_main.py:313] - [DETECTED] Non-Radiometric Mode (Raw/AGC)
+2025-11-21 15:54:51,102 - __main__ - INFO - [inspection_main.py:721] - [OK] Thermal camera connected!
+2025-11-21 15:54:51,141 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:54:52,179 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:54:53,518 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:54:54,575 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:54:55,616 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:54:56,657 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:54:58,190 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:54:59,254 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:00,569 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:01,624 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:02,671 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:03,717 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:04,770 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:05,824 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:06,885 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:07,939 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:09,004 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:10,055 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:11,100 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:12,156 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:13,203 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:14,256 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:15,324 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:16,363 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:17,640 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:18,687 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:19,739 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:20,807 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:21,871 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:22,941 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 15:55:24,289 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 16:01:14,413 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 16:01:16,346 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 16:01:18,424 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 17:50:43,994 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 17:50:46,164 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 17:50:48,276 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 17:50:50,396 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 17:50:52,457 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 17:50:54,538 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 17:50:54,563 - fusion_processor - ERROR - [fusion_processor.py:363] - Thermal overlay error: int() argument must be a string, a bytes-like object or a real number, not 'NoneType'
+2025-11-21 17:50:54,570 - __main__ - INFO - [inspection_main.py:872] - Frame 2300: 0.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 17:50:56,596 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 20:19:16,220 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 20:19:16,244 - fusion_processor - ERROR - [fusion_processor.py:363] - Thermal overlay error: int() argument must be a string, a bytes-like object or a real number, not 'NoneType'
+2025-11-21 20:19:19,986 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 20:19:22,139 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 20:19:22,164 - fusion_processor - ERROR - [fusion_processor.py:363] - Thermal overlay error: int() argument must be a string, a bytes-like object or a real number, not 'NoneType'
+2025-11-21 20:19:24,209 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 20:19:26,261 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 20:19:26,283 - fusion_processor - ERROR - [fusion_processor.py:363] - Thermal overlay error: int() argument must be a string, a bytes-like object or a real number, not 'NoneType'
+2025-11-21 20:19:28,313 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 20:19:30,361 - thermal_processor - ERROR - [thermal_processor.py:358] - Motion detection error: OpenCV(4.11.0) D:\a\opencv-python\opencv-python\opencv\modules\core\src\arithm.cpp:665: error: (-209:Sizes of input arguments do not match) The operation is neither 'array op array' (where arrays have the same size and the same number of channels), nor 'array op scalar', nor 'scalar op array' in function 'cv::arithm_op'
+
+2025-11-21 20:19:30,376 - fusion_processor - ERROR - [fusion_processor.py:363] - Thermal overlay error: int() argument must be a string, a bytes-like object or a real number, not 'NoneType'
+2025-11-21 20:31:50,751 - root - INFO - [inspection_main.py:88] - [OK] Debug logging: thermal_inspection_debug.log
+2025-11-21 20:31:50,762 - __main__ - INFO - [inspection_main.py:1165] - ================================================================================
+2025-11-21 20:31:50,763 - __main__ - INFO - [inspection_main.py:1166] - Thermal Inspection Fusion Tool
+2025-11-21 20:31:50,763 - __main__ - INFO - [inspection_main.py:1167] - Transformed from ThermalFusionDrivingAssist
+2025-11-21 20:31:50,763 - __main__ - INFO - [inspection_main.py:1168] - ================================================================================
+2025-11-21 20:31:50,811 - __main__ - INFO - [inspection_main.py:1176] - Qt GUI enabled
+2025-11-21 20:31:50,853 - __main__ - INFO - [inspection_main.py:112] - Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-21 20:31:50,854 - __main__ - INFO - [inspection_main.py:364] - ================================================================================
+2025-11-21 20:31:50,854 - __main__ - INFO - [inspection_main.py:365] - Initializing Thermal Inspection Fusion Tool
+2025-11-21 20:31:50,854 - __main__ - INFO - [inspection_main.py:366] - ================================================================================
+2025-11-21 20:31:50,854 - __main__ - INFO - [inspection_main.py:367] - Platform: x86-64 (AMD64)
+2025-11-21 20:31:50,854 - __main__ - INFO - [inspection_main.py:369] - Mode: realtime
+2025-11-21 20:31:50,855 - __main__ - INFO - [inspection_main.py:370] - Device: cuda
+2025-11-21 20:31:50,855 - __main__ - INFO - [inspection_main.py:228] - Scanning for FLIR Boson thermal camera...
+2025-11-21 20:31:50,855 - flir_camera - INFO - [flir_camera.py:70] - Windows detected - trying DirectShow backend
+2025-11-21 20:31:52,239 - flir_camera - INFO - [flir_camera.py:96] - FLIR Boson camera opened successfully on device 0
+2025-11-21 20:31:52,240 - flir_camera - INFO - [flir_camera.py:97] - Resolution: (640, 512)
+2025-11-21 20:31:52,240 - flir_camera - INFO - [flir_camera.py:98] - FPS: 60.000240000960005
+2025-11-21 20:31:52,241 - __main__ - INFO - [inspection_main.py:243] - [OK] Thermal camera connected: 640x512
+2025-11-21 20:31:52,241 - __main__ - INFO - [inspection_main.py:292] - Detecting camera mode...
+2025-11-21 20:31:52,277 - flir_camera - INFO - [flir_camera.py:186] - Thermal camera mode detection:
+2025-11-21 20:31:52,277 - flir_camera - INFO - [flir_camera.py:187] -   Frame dtype: uint8
+2025-11-21 20:31:52,277 - flir_camera - INFO - [flir_camera.py:188] -   Frame shape: (512, 640, 3)
+2025-11-21 20:31:52,278 - flir_camera - INFO - [flir_camera.py:192] -   -> UVC MODE (8-bit YUV/RGB converted)
+2025-11-21 20:31:52,361 - __main__ - INFO - [inspection_main.py:305] - Median pixel value: 60.0
+2025-11-21 20:31:52,362 - __main__ - INFO - [inspection_main.py:313] - [DETECTED] Non-Radiometric Mode (Raw/AGC)
+2025-11-21 20:31:52,363 - __main__ - INFO - [inspection_main.py:330] - Scanning for RGB camera...
+2025-11-21 20:31:52,363 - camera_factory - INFO - [camera_factory.py:119] - Skipping thermal camera device 0, using next available device
+2025-11-21 20:31:52,363 - camera_factory - INFO - [camera_factory.py:122] - ============================================================
+2025-11-21 20:31:52,363 - camera_factory - INFO - [camera_factory.py:123] - RGB Camera Factory - Auto-detection
+2025-11-21 20:31:52,364 - camera_factory - INFO - [camera_factory.py:124] - ============================================================
+2025-11-21 20:31:52,364 - camera_factory - INFO - [camera_factory.py:154] - Auto-detecting RGB cameras...
+2025-11-21 20:31:52,365 - camera_factory - INFO - [camera_factory.py:193] - [X] No UVC cameras detected
+2025-11-21 20:31:52,365 - camera_factory - WARNING - [camera_factory.py:199] - Falling back to legacy RGBCamera class
+2025-11-21 20:31:52,366 - rgb_camera - INFO - [rgb_camera.py:90] - Windows detected - opening camera 1 with DirectShow
+2025-11-21 20:31:54,615 - rgb_camera - INFO - [rgb_camera.py:125] - RGB camera opened successfully
+2025-11-21 20:31:54,616 - rgb_camera - INFO - [rgb_camera.py:126] - Resolution: 640x480 @ 30 FPS
+2025-11-21 20:31:55,417 - __main__ - INFO - [inspection_main.py:345] - [OK] RGB camera connected: 640x480
+2025-11-21 20:31:55,426 - config - INFO - [config.py:114] - Configuration loaded from config.json
+2025-11-21 20:31:55,426 - fusion_processor - WARNING - [fusion_processor.py:63] - No calibration file provided - using identity transform
+2025-11-21 20:31:55,427 - __main__ - INFO - [inspection_main.py:401] - [OK] Fusion processor initialized (mode: thermal_overlay)
+2025-11-21 20:31:55,427 - __main__ - INFO - [inspection_main.py:402] -      7 fusion algorithms available!
+2025-11-21 20:31:55,427 - __main__ - INFO - [inspection_main.py:409] - ------------------------------------------------------------
+2025-11-21 20:31:55,428 - __main__ - INFO - [inspection_main.py:410] - Initializing inspection modules...
+2025-11-21 20:31:55,428 - thermal_processor - INFO - [thermal_processor.py:76] - VPI not available - using OpenCV fallback
+2025-11-21 20:31:55,430 - thermal_processor - INFO - [thermal_processor.py:156] - VPI not available - using OpenCV fallback
+2025-11-21 20:31:55,431 - __main__ - INFO - [inspection_main.py:423] - [OK] Thermal processor initialized
+2025-11-21 20:31:55,431 - __main__ - INFO - [inspection_main.py:434] - [OK] Thermal analyzer initialized
+2025-11-21 20:31:55,431 - __main__ - INFO - [inspection_main.py:444] - [OK] ROI manager initialized
+2025-11-21 20:31:55,454 - __main__ - INFO - [inspection_main.py:452] - [OK] Palette manager initialized
+2025-11-21 20:31:55,455 - __main__ - INFO - [inspection_main.py:453] -      45 palettes available
+2025-11-21 20:31:55,455 - __main__ - INFO - [inspection_main.py:467] - [OK] Video recorder initialized
+2025-11-21 20:31:55,456 - __main__ - INFO - [inspection_main.py:477] - [OK] Snapshot manager initialized
+2025-11-21 20:31:55,456 - __main__ - INFO - [inspection_main.py:489] - ------------------------------------------------------------
+2025-11-21 20:31:55,456 - performance_monitor - WARNING - [performance_monitor.py:59] - jtop not available, using basic metrics only
+2025-11-21 20:31:55,465 - __main__ - INFO - [inspection_main.py:501] - Qt GUI selected
+2025-11-21 20:31:55,773 - __main__ - INFO - [inspection_main.py:504] - Qt GUI created successfully
+2025-11-21 20:31:55,774 - __main__ - INFO - [inspection_main.py:522] - ================================================================================
+2025-11-21 20:31:55,775 - __main__ - INFO - [inspection_main.py:523] - Initialization complete!
+2025-11-21 20:31:55,775 - __main__ - INFO - [inspection_main.py:524] - ================================================================================
+2025-11-21 20:31:55,775 - __main__ - INFO - [inspection_main.py:703] - Starting inspection loop...
+2025-11-21 20:31:55,866 - __main__ - INFO - [inspection_main.py:709] - Qt GUI window shown
+2025-11-21 20:31:59,677 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1606] - Developer mode: ON
+2025-11-21 20:32:00,875 - __main__ - INFO - [inspection_main.py:914] - Switched to view mode: side_by_side
+2025-11-21 20:32:00,875 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - View mode cycle
+2025-11-21 20:32:01,885 - __main__ - INFO - [inspection_main.py:914] - Switched to view mode: pip
+2025-11-21 20:32:01,886 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - View mode cycle
+2025-11-21 20:32:02,777 - __main__ - INFO - [inspection_main.py:914] - Switched to view mode: thermal
+2025-11-21 20:32:02,778 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - View mode cycle
+2025-11-21 20:32:06,193 - __main__ - INFO - [inspection_main.py:872] - Frame 100: 10.0 FPS, 0 ROIs, 2 motion, 17 hot spots
+2025-11-21 20:32:06,890 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: lava
+2025-11-21 20:32:06,891 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:08,587 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: gradedfire
+2025-11-21 20:32:08,588 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:09,390 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: hottest
+2025-11-21 20:32:09,391 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:10,300 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: amber
+2025-11-21 20:32:10,301 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:11,501 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: inferno
+2025-11-21 20:32:11,502 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:12,793 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow
+2025-11-21 20:32:12,794 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:13,696 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow_hc
+2025-11-21 20:32:13,696 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:14,202 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow_rev
+2025-11-21 20:32:14,203 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:14,601 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: spectral
+2025-11-21 20:32:14,602 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:15,195 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cool_hot
+2025-11-21 20:32:15,196 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:15,993 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: arctic
+2025-11-21 20:32:15,994 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:16,204 - __main__ - INFO - [inspection_main.py:872] - Frame 200: 10.0 FPS, 0 ROIs, 0 motion, 15 hot spots
+2025-11-21 20:32:16,697 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: ice
+2025-11-21 20:32:16,698 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:17,802 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: winter
+2025-11-21 20:32:17,803 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:18,602 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: ocean
+2025-11-21 20:32:18,603 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:19,609 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: viridis
+2025-11-21 20:32:19,610 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:21,402 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: plasma
+2025-11-21 20:32:21,402 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:22,911 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: magma
+2025-11-21 20:32:22,912 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:23,817 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cividis
+2025-11-21 20:32:23,818 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:25,019 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: turbo
+2025-11-21 20:32:25,019 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:25,912 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: blue_red
+2025-11-21 20:32:25,913 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:26,221 - __main__ - INFO - [inspection_main.py:872] - Frame 300: 10.0 FPS, 0 ROIs, 0 motion, 9 hot spots
+2025-11-21 20:32:26,314 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cool_warm
+2025-11-21 20:32:26,315 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:26,409 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: purple_orange
+2025-11-21 20:32:26,410 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:27,213 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: green_red
+2025-11-21 20:32:27,213 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:27,611 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: blue_yellow
+2025-11-21 20:32:27,611 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:28,521 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: pink_green
+2025-11-21 20:32:28,522 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:29,420 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: globow
+2025-11-21 20:32:29,421 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:30,218 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: medical
+2025-11-21 20:32:30,219 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:30,920 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: thermal
+2025-11-21 20:32:30,921 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:31,720 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: helix
+2025-11-21 20:32:31,721 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:32,437 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cubehelix
+2025-11-21 20:32:32,437 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:33,130 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: twilight
+2025-11-21 20:32:33,131 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:34,123 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: dusk
+2025-11-21 20:32:34,124 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:35,018 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: fusion
+2025-11-21 20:32:35,018 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:35,929 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: prism
+2025-11-21 20:32:35,929 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:36,233 - __main__ - INFO - [inspection_main.py:872] - Frame 400: 10.0 FPS, 0 ROIs, 0 motion, 11 hot spots
+2025-11-21 20:32:36,736 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: alarm
+2025-11-21 20:32:36,737 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:37,433 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: laplacian
+2025-11-21 20:32:37,433 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:38,234 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: isotherm
+2025-11-21 20:32:38,235 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:38,938 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: velocity
+2025-11-21 20:32:38,939 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:39,627 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: terrain
+2025-11-21 20:32:39,628 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:40,635 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: depth
+2025-11-21 20:32:40,635 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:41,832 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: white_hot
+2025-11-21 20:32:41,833 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:43,836 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: black_hot
+2025-11-21 20:32:43,837 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:46,234 - __main__ - INFO - [inspection_main.py:872] - Frame 500: 10.0 FPS, 0 ROIs, 0 motion, 9 hot spots
+2025-11-21 20:32:46,650 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: gray
+2025-11-21 20:32:46,651 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:48,140 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: sepia
+2025-11-21 20:32:48,141 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:49,339 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: ironbow
+2025-11-21 20:32:49,340 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:50,042 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: lava
+2025-11-21 20:32:50,042 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:51,049 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: gradedfire
+2025-11-21 20:32:51,051 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:51,641 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: hottest
+2025-11-21 20:32:51,642 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:52,252 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: amber
+2025-11-21 20:32:52,254 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:32:56,258 - __main__ - INFO - [inspection_main.py:872] - Frame 600: 10.0 FPS, 0 ROIs, 2 motion, 8 hot spots
+2025-11-21 20:33:06,273 - __main__ - INFO - [inspection_main.py:872] - Frame 700: 10.0 FPS, 0 ROIs, 0 motion, 8 hot spots
+2025-11-21 20:33:16,295 - __main__ - INFO - [inspection_main.py:872] - Frame 800: 10.0 FPS, 0 ROIs, 1 motion, 10 hot spots
+2025-11-21 20:33:26,303 - __main__ - INFO - [inspection_main.py:872] - Frame 900: 10.0 FPS, 0 ROIs, 0 motion, 10 hot spots
+2025-11-21 20:33:36,342 - __main__ - INFO - [inspection_main.py:872] - Frame 1000: 9.9 FPS, 0 ROIs, 0 motion, 10 hot spots
+2025-11-21 20:33:46,333 - __main__ - INFO - [inspection_main.py:872] - Frame 1100: 10.0 FPS, 0 ROIs, 0 motion, 8 hot spots
+2025-11-21 20:33:56,346 - __main__ - INFO - [inspection_main.py:872] - Frame 1200: 10.0 FPS, 0 ROIs, 3 motion, 9 hot spots
+2025-11-21 20:34:06,349 - __main__ - INFO - [inspection_main.py:872] - Frame 1300: 10.0 FPS, 0 ROIs, 0 motion, 7 hot spots
+2025-11-21 20:34:13,873 - inspection_gui_qt - INFO - [inspection_gui_qt.py:705] - Drawing mode enabled: ROIType.RECTANGLE
+2025-11-21 20:34:13,873 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1691] - Draw ROI mode activated (rectangle)
+2025-11-21 20:34:15,374 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1777] - ROI created: ROI-1 (ROIType.RECTANGLE)
+2025-11-21 20:34:15,375 - inspection_gui_qt - INFO - [inspection_gui_qt.py:714] - Drawing mode disabled
+2025-11-21 20:34:16,367 - __main__ - INFO - [inspection_main.py:872] - Frame 1400: 10.0 FPS, 1 ROIs, 0 motion, 5 hot spots
+2025-11-21 20:34:25,483 - __main__ - INFO - [inspection_main.py:1036] - All ROIs cleared
+2025-11-21 20:34:25,484 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1701] - ROIs cleared
+2025-11-21 20:34:26,381 - __main__ - INFO - [inspection_main.py:872] - Frame 1500: 10.0 FPS, 0 ROIs, 0 motion, 4 hot spots
+2025-11-21 20:34:36,389 - __main__ - INFO - [inspection_main.py:872] - Frame 1600: 10.0 FPS, 0 ROIs, 0 motion, 16 hot spots
+2025-11-21 20:34:46,405 - __main__ - INFO - [inspection_main.py:872] - Frame 1700: 10.0 FPS, 0 ROIs, 0 motion, 15 hot spots
+2025-11-21 20:34:56,419 - __main__ - INFO - [inspection_main.py:872] - Frame 1800: 10.0 FPS, 0 ROIs, 0 motion, 20 hot spots
+2025-11-21 20:35:06,443 - __main__ - INFO - [inspection_main.py:872] - Frame 1900: 10.0 FPS, 0 ROIs, 0 motion, 12 hot spots
+2025-11-21 20:35:16,450 - __main__ - INFO - [inspection_main.py:872] - Frame 2000: 10.0 FPS, 0 ROIs, 0 motion, 14 hot spots
+2025-11-21 20:35:26,452 - __main__ - INFO - [inspection_main.py:872] - Frame 2100: 10.0 FPS, 0 ROIs, 0 motion, 13 hot spots
+2025-11-21 20:35:36,470 - __main__ - INFO - [inspection_main.py:872] - Frame 2200: 10.0 FPS, 0 ROIs, 0 motion, 12 hot spots
+2025-11-21 20:35:46,485 - __main__ - INFO - [inspection_main.py:872] - Frame 2300: 10.0 FPS, 0 ROIs, 0 motion, 8 hot spots
+2025-11-21 20:35:56,506 - __main__ - INFO - [inspection_main.py:872] - Frame 2400: 10.0 FPS, 0 ROIs, 0 motion, 9 hot spots
+2025-11-21 20:36:06,514 - __main__ - INFO - [inspection_main.py:872] - Frame 2500: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 20:36:16,534 - __main__ - INFO - [inspection_main.py:872] - Frame 2600: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 20:38:18,891 - root - INFO - [inspection_main.py:88] - [OK] Debug logging: thermal_inspection_debug.log
+2025-11-21 20:38:18,897 - __main__ - INFO - [inspection_main.py:1165] - ================================================================================
+2025-11-21 20:38:18,897 - __main__ - INFO - [inspection_main.py:1166] - Thermal Inspection Fusion Tool
+2025-11-21 20:38:18,897 - __main__ - INFO - [inspection_main.py:1167] - Transformed from ThermalFusionDrivingAssist
+2025-11-21 20:38:18,898 - __main__ - INFO - [inspection_main.py:1168] - ================================================================================
+2025-11-21 20:38:18,932 - __main__ - INFO - [inspection_main.py:1176] - Qt GUI enabled
+2025-11-21 20:38:18,966 - __main__ - INFO - [inspection_main.py:112] - Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-21 20:38:18,966 - __main__ - INFO - [inspection_main.py:364] - ================================================================================
+2025-11-21 20:38:18,967 - __main__ - INFO - [inspection_main.py:365] - Initializing Thermal Inspection Fusion Tool
+2025-11-21 20:38:18,967 - __main__ - INFO - [inspection_main.py:366] - ================================================================================
+2025-11-21 20:38:18,967 - __main__ - INFO - [inspection_main.py:367] - Platform: x86-64 (AMD64)
+2025-11-21 20:38:18,968 - __main__ - INFO - [inspection_main.py:369] - Mode: realtime
+2025-11-21 20:38:18,968 - __main__ - INFO - [inspection_main.py:370] - Device: cuda
+2025-11-21 20:38:18,968 - __main__ - INFO - [inspection_main.py:228] - Scanning for FLIR Boson thermal camera...
+2025-11-21 20:38:18,968 - flir_camera - INFO - [flir_camera.py:70] - Windows detected - trying DirectShow backend
+2025-11-21 20:38:20,244 - flir_camera - INFO - [flir_camera.py:96] - FLIR Boson camera opened successfully on device 0
+2025-11-21 20:38:20,244 - flir_camera - INFO - [flir_camera.py:97] - Resolution: (640, 512)
+2025-11-21 20:38:20,245 - flir_camera - INFO - [flir_camera.py:98] - FPS: 60.000240000960005
+2025-11-21 20:38:20,245 - __main__ - INFO - [inspection_main.py:243] - [OK] Thermal camera connected: 640x512
+2025-11-21 20:38:20,245 - __main__ - INFO - [inspection_main.py:292] - Detecting camera mode...
+2025-11-21 20:38:20,273 - flir_camera - INFO - [flir_camera.py:186] - Thermal camera mode detection:
+2025-11-21 20:38:20,274 - flir_camera - INFO - [flir_camera.py:187] -   Frame dtype: uint8
+2025-11-21 20:38:20,274 - flir_camera - INFO - [flir_camera.py:188] -   Frame shape: (512, 640, 3)
+2025-11-21 20:38:20,274 - flir_camera - INFO - [flir_camera.py:192] -   -> UVC MODE (8-bit YUV/RGB converted)
+2025-11-21 20:38:20,357 - __main__ - INFO - [inspection_main.py:305] - Median pixel value: 47.0
+2025-11-21 20:38:20,358 - __main__ - INFO - [inspection_main.py:313] - [DETECTED] Non-Radiometric Mode (Raw/AGC)
+2025-11-21 20:38:20,358 - __main__ - INFO - [inspection_main.py:330] - Scanning for RGB camera...
+2025-11-21 20:38:20,359 - camera_factory - INFO - [camera_factory.py:119] - Skipping thermal camera device 0, using next available device
+2025-11-21 20:38:20,359 - camera_factory - INFO - [camera_factory.py:122] - ============================================================
+2025-11-21 20:38:20,360 - camera_factory - INFO - [camera_factory.py:123] - RGB Camera Factory - Auto-detection
+2025-11-21 20:38:20,360 - camera_factory - INFO - [camera_factory.py:124] - ============================================================
+2025-11-21 20:38:20,360 - camera_factory - INFO - [camera_factory.py:154] - Auto-detecting RGB cameras...
+2025-11-21 20:38:20,361 - camera_factory - INFO - [camera_factory.py:193] - [X] No UVC cameras detected
+2025-11-21 20:38:20,361 - camera_factory - WARNING - [camera_factory.py:199] - Falling back to legacy RGBCamera class
+2025-11-21 20:38:20,361 - rgb_camera - INFO - [rgb_camera.py:90] - Windows detected - opening camera 1 with DirectShow
+2025-11-21 20:38:22,690 - rgb_camera - INFO - [rgb_camera.py:125] - RGB camera opened successfully
+2025-11-21 20:38:22,690 - rgb_camera - INFO - [rgb_camera.py:126] - Resolution: 640x480 @ 30 FPS
+2025-11-21 20:38:23,524 - __main__ - INFO - [inspection_main.py:345] - [OK] RGB camera connected: 640x480
+2025-11-21 20:38:23,525 - config - INFO - [config.py:114] - Configuration loaded from config.json
+2025-11-21 20:38:23,526 - fusion_processor - WARNING - [fusion_processor.py:63] - No calibration file provided - using identity transform
+2025-11-21 20:38:23,526 - __main__ - INFO - [inspection_main.py:401] - [OK] Fusion processor initialized (mode: thermal_overlay)
+2025-11-21 20:38:23,526 - __main__ - INFO - [inspection_main.py:402] -      7 fusion algorithms available!
+2025-11-21 20:38:23,526 - __main__ - INFO - [inspection_main.py:409] - ------------------------------------------------------------
+2025-11-21 20:38:23,526 - __main__ - INFO - [inspection_main.py:410] - Initializing inspection modules...
+2025-11-21 20:38:23,528 - thermal_processor - INFO - [thermal_processor.py:76] - VPI not available - using OpenCV fallback
+2025-11-21 20:38:23,529 - thermal_processor - INFO - [thermal_processor.py:156] - VPI not available - using OpenCV fallback
+2025-11-21 20:38:23,529 - __main__ - INFO - [inspection_main.py:423] - [OK] Thermal processor initialized
+2025-11-21 20:38:23,530 - __main__ - INFO - [inspection_main.py:434] - [OK] Thermal analyzer initialized
+2025-11-21 20:38:23,530 - __main__ - INFO - [inspection_main.py:444] - [OK] ROI manager initialized
+2025-11-21 20:38:23,554 - __main__ - INFO - [inspection_main.py:452] - [OK] Palette manager initialized
+2025-11-21 20:38:23,554 - __main__ - INFO - [inspection_main.py:453] -      45 palettes available
+2025-11-21 20:38:23,555 - __main__ - INFO - [inspection_main.py:467] - [OK] Video recorder initialized
+2025-11-21 20:38:23,555 - __main__ - INFO - [inspection_main.py:477] - [OK] Snapshot manager initialized
+2025-11-21 20:38:23,555 - __main__ - INFO - [inspection_main.py:489] - ------------------------------------------------------------
+2025-11-21 20:38:23,556 - performance_monitor - WARNING - [performance_monitor.py:59] - jtop not available, using basic metrics only
+2025-11-21 20:38:23,557 - __main__ - INFO - [inspection_main.py:501] - Qt GUI selected
+2025-11-21 20:38:23,757 - __main__ - INFO - [inspection_main.py:504] - Qt GUI created successfully
+2025-11-21 20:38:23,757 - __main__ - INFO - [inspection_main.py:522] - ================================================================================
+2025-11-21 20:38:23,757 - __main__ - INFO - [inspection_main.py:523] - Initialization complete!
+2025-11-21 20:38:23,758 - __main__ - INFO - [inspection_main.py:524] - ================================================================================
+2025-11-21 20:38:23,758 - __main__ - INFO - [inspection_main.py:703] - Starting inspection loop...
+2025-11-21 20:38:23,829 - __main__ - INFO - [inspection_main.py:709] - Qt GUI window shown
+2025-11-21 20:38:27,477 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1606] - Developer mode: ON
+2025-11-21 20:38:28,677 - __main__ - INFO - [inspection_main.py:914] - Switched to view mode: side_by_side
+2025-11-21 20:38:28,678 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - View mode cycle
+2025-11-21 20:38:29,589 - __main__ - INFO - [inspection_main.py:914] - Switched to view mode: pip
+2025-11-21 20:38:29,590 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - View mode cycle
+2025-11-21 20:38:30,294 - __main__ - INFO - [inspection_main.py:914] - Switched to view mode: thermal
+2025-11-21 20:38:30,294 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - View mode cycle
+2025-11-21 20:38:31,792 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: lava
+2025-11-21 20:38:31,793 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:32,391 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: gradedfire
+2025-11-21 20:38:32,392 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:33,189 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: hottest
+2025-11-21 20:38:33,190 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:34,083 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: amber
+2025-11-21 20:38:34,084 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:34,197 - __main__ - INFO - [inspection_main.py:872] - Frame 100: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 20:38:36,999 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: inferno
+2025-11-21 20:38:37,000 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:38,102 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow
+2025-11-21 20:38:38,104 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:38,291 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow_hc
+2025-11-21 20:38:38,292 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:38,498 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow_rev
+2025-11-21 20:38:38,500 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:39,605 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: spectral
+2025-11-21 20:38:39,606 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:41,798 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cool_hot
+2025-11-21 20:38:41,799 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:42,712 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: arctic
+2025-11-21 20:38:42,713 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:42,898 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: ice
+2025-11-21 20:38:42,899 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:43,107 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: winter
+2025-11-21 20:38:43,108 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:43,210 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: ocean
+2025-11-21 20:38:43,211 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:44,219 - __main__ - INFO - [inspection_main.py:872] - Frame 200: 10.0 FPS, 0 ROIs, 0 motion, 5 hot spots
+2025-11-21 20:38:44,307 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: viridis
+2025-11-21 20:38:44,308 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:45,206 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: plasma
+2025-11-21 20:38:45,207 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:46,103 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: magma
+2025-11-21 20:38:46,104 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:46,919 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cividis
+2025-11-21 20:38:46,919 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:47,904 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: turbo
+2025-11-21 20:38:47,905 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:48,011 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: blue_red
+2025-11-21 20:38:48,012 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:48,218 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cool_warm
+2025-11-21 20:38:48,219 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:49,013 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: purple_orange
+2025-11-21 20:38:49,014 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:49,507 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: green_red
+2025-11-21 20:38:49,508 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:50,307 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: blue_yellow
+2025-11-21 20:38:50,308 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:50,817 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: pink_green
+2025-11-21 20:38:50,817 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:51,015 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: globow
+2025-11-21 20:38:51,015 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:51,108 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: medical
+2025-11-21 20:38:51,108 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:51,314 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: thermal
+2025-11-21 20:38:51,315 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:51,506 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: helix
+2025-11-21 20:38:51,507 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:51,623 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cubehelix
+2025-11-21 20:38:51,624 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:51,814 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: twilight
+2025-11-21 20:38:51,815 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:51,907 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: dusk
+2025-11-21 20:38:51,908 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:52,916 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: fusion
+2025-11-21 20:38:52,917 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:53,314 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: prism
+2025-11-21 20:38:53,315 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:54,214 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: alarm
+2025-11-21 20:38:54,215 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:54,215 - __main__ - INFO - [inspection_main.py:872] - Frame 300: 10.0 FPS, 0 ROIs, 0 motion, 4 hot spots
+2025-11-21 20:38:54,916 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: laplacian
+2025-11-21 20:38:54,916 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:56,626 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: isotherm
+2025-11-21 20:38:56,626 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:57,314 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: velocity
+2025-11-21 20:38:57,315 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:58,020 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: terrain
+2025-11-21 20:38:58,020 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:59,124 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: depth
+2025-11-21 20:38:59,125 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:38:59,828 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: white_hot
+2025-11-21 20:38:59,829 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:04,227 - __main__ - INFO - [inspection_main.py:872] - Frame 400: 10.0 FPS, 0 ROIs, 2 motion, 6 hot spots
+2025-11-21 20:39:04,837 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: black_hot
+2025-11-21 20:39:04,838 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:06,226 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: gray
+2025-11-21 20:39:06,226 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:07,540 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: sepia
+2025-11-21 20:39:07,540 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:14,249 - __main__ - INFO - [inspection_main.py:872] - Frame 500: 10.0 FPS, 0 ROIs, 0 motion, 5 hot spots
+2025-11-21 20:39:24,268 - __main__ - INFO - [inspection_main.py:872] - Frame 600: 10.0 FPS, 0 ROIs, 0 motion, 5 hot spots
+2025-11-21 20:39:29,877 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: ironbow
+2025-11-21 20:39:29,877 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:30,068 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: lava
+2025-11-21 20:39:30,069 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:30,675 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: gradedfire
+2025-11-21 20:39:30,676 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:31,076 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: hottest
+2025-11-21 20:39:31,077 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:31,172 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: amber
+2025-11-21 20:39:31,173 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:31,371 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: inferno
+2025-11-21 20:39:31,372 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:31,573 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow
+2025-11-21 20:39:31,574 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:31,666 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow_hc
+2025-11-21 20:39:31,667 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:32,374 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow_rev
+2025-11-21 20:39:32,375 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:32,578 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: spectral
+2025-11-21 20:39:32,579 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:32,678 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cool_hot
+2025-11-21 20:39:32,678 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:32,867 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: arctic
+2025-11-21 20:39:32,867 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:33,072 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: ice
+2025-11-21 20:39:33,073 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:33,267 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: winter
+2025-11-21 20:39:33,268 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:33,377 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: ocean
+2025-11-21 20:39:33,378 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:33,570 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: viridis
+2025-11-21 20:39:33,570 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:33,778 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: plasma
+2025-11-21 20:39:33,779 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:33,875 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: magma
+2025-11-21 20:39:33,876 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:34,067 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cividis
+2025-11-21 20:39:34,067 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:34,275 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: turbo
+2025-11-21 20:39:34,275 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:34,277 - __main__ - INFO - [inspection_main.py:872] - Frame 700: 10.0 FPS, 0 ROIs, 0 motion, 4 hot spots
+2025-11-21 20:39:34,465 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: blue_red
+2025-11-21 20:39:34,465 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:34,675 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cool_warm
+2025-11-21 20:39:34,677 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:43,588 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: purple_orange
+2025-11-21 20:39:43,589 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:43,895 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: green_red
+2025-11-21 20:39:43,896 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:44,089 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: blue_yellow
+2025-11-21 20:39:44,091 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:44,290 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: pink_green
+2025-11-21 20:39:44,290 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:44,294 - __main__ - INFO - [inspection_main.py:872] - Frame 800: 10.0 FPS, 0 ROIs, 0 motion, 5 hot spots
+2025-11-21 20:39:44,386 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: globow
+2025-11-21 20:39:44,386 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:44,697 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: medical
+2025-11-21 20:39:44,697 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:45,395 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: thermal
+2025-11-21 20:39:45,396 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:45,588 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: helix
+2025-11-21 20:39:45,589 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:45,796 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cubehelix
+2025-11-21 20:39:45,797 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:46,291 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: twilight
+2025-11-21 20:39:46,292 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:46,786 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: dusk
+2025-11-21 20:39:46,787 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:47,589 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: fusion
+2025-11-21 20:39:47,590 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:48,386 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: prism
+2025-11-21 20:39:48,387 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:49,090 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: alarm
+2025-11-21 20:39:49,091 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:49,698 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: laplacian
+2025-11-21 20:39:49,699 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:50,502 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: isotherm
+2025-11-21 20:39:50,503 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:51,301 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: velocity
+2025-11-21 20:39:51,302 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:52,001 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: terrain
+2025-11-21 20:39:52,002 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:52,801 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: depth
+2025-11-21 20:39:52,802 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:53,907 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: white_hot
+2025-11-21 20:39:53,908 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:39:54,307 - __main__ - INFO - [inspection_main.py:872] - Frame 900: 10.0 FPS, 0 ROIs, 0 motion, 4 hot spots
+2025-11-21 20:39:55,509 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: black_hot
+2025-11-21 20:39:55,510 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:40:04,330 - __main__ - INFO - [inspection_main.py:872] - Frame 1000: 10.0 FPS, 0 ROIs, 0 motion, 2 hot spots
+2025-11-21 20:40:14,323 - __main__ - INFO - [inspection_main.py:872] - Frame 1100: 10.0 FPS, 0 ROIs, 0 motion, 2 hot spots
+2025-11-21 20:40:21,234 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: gray
+2025-11-21 20:40:21,234 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:40:22,243 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: sepia
+2025-11-21 20:40:22,244 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:40:24,339 - __main__ - INFO - [inspection_main.py:872] - Frame 1200: 10.0 FPS, 0 ROIs, 1 motion, 6 hot spots
+2025-11-21 20:40:24,740 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: ironbow
+2025-11-21 20:40:24,740 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:40:25,746 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: lava
+2025-11-21 20:40:25,746 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:40:34,444 - __main__ - INFO - [inspection_main.py:872] - Frame 1300: 9.9 FPS, 0 ROIs, 3 motion, 6 hot spots
+2025-11-21 20:40:44,466 - __main__ - INFO - [inspection_main.py:872] - Frame 1400: 10.0 FPS, 0 ROIs, 1 motion, 6 hot spots
+2025-11-21 20:40:54,476 - __main__ - INFO - [inspection_main.py:872] - Frame 1500: 10.0 FPS, 0 ROIs, 0 motion, 7 hot spots
+2025-11-21 20:41:04,495 - __main__ - INFO - [inspection_main.py:872] - Frame 1600: 10.0 FPS, 0 ROIs, 0 motion, 3 hot spots
+2025-11-21 20:41:22,873 - root - INFO - [inspection_main.py:88] - [OK] Debug logging: thermal_inspection_debug.log
+2025-11-21 20:41:22,880 - __main__ - INFO - [inspection_main.py:1165] - ================================================================================
+2025-11-21 20:41:22,880 - __main__ - INFO - [inspection_main.py:1166] - Thermal Inspection Fusion Tool
+2025-11-21 20:41:22,880 - __main__ - INFO - [inspection_main.py:1167] - Transformed from ThermalFusionDrivingAssist
+2025-11-21 20:41:22,880 - __main__ - INFO - [inspection_main.py:1168] - ================================================================================
+2025-11-21 20:41:22,921 - __main__ - INFO - [inspection_main.py:1176] - Qt GUI enabled
+2025-11-21 20:41:22,942 - __main__ - INFO - [inspection_main.py:112] - Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-21 20:41:22,942 - __main__ - INFO - [inspection_main.py:364] - ================================================================================
+2025-11-21 20:41:22,942 - __main__ - INFO - [inspection_main.py:365] - Initializing Thermal Inspection Fusion Tool
+2025-11-21 20:41:22,942 - __main__ - INFO - [inspection_main.py:366] - ================================================================================
+2025-11-21 20:41:22,942 - __main__ - INFO - [inspection_main.py:367] - Platform: x86-64 (AMD64)
+2025-11-21 20:41:22,942 - __main__ - INFO - [inspection_main.py:369] - Mode: realtime
+2025-11-21 20:41:22,942 - __main__ - INFO - [inspection_main.py:370] - Device: cuda
+2025-11-21 20:41:22,943 - __main__ - INFO - [inspection_main.py:228] - Scanning for FLIR Boson thermal camera...
+2025-11-21 20:41:22,943 - flir_camera - INFO - [flir_camera.py:70] - Windows detected - trying DirectShow backend
+2025-11-21 20:41:24,383 - flir_camera - INFO - [flir_camera.py:96] - FLIR Boson camera opened successfully on device 0
+2025-11-21 20:41:24,383 - flir_camera - INFO - [flir_camera.py:97] - Resolution: (640, 512)
+2025-11-21 20:41:24,383 - flir_camera - INFO - [flir_camera.py:98] - FPS: 60.000240000960005
+2025-11-21 20:41:24,383 - __main__ - INFO - [inspection_main.py:243] - [OK] Thermal camera connected: 640x512
+2025-11-21 20:41:24,384 - __main__ - INFO - [inspection_main.py:292] - Detecting camera mode...
+2025-11-21 20:41:24,421 - flir_camera - INFO - [flir_camera.py:186] - Thermal camera mode detection:
+2025-11-21 20:41:24,421 - flir_camera - INFO - [flir_camera.py:187] -   Frame dtype: uint8
+2025-11-21 20:41:24,421 - flir_camera - INFO - [flir_camera.py:188] -   Frame shape: (512, 640, 3)
+2025-11-21 20:41:24,421 - flir_camera - INFO - [flir_camera.py:192] -   -> UVC MODE (8-bit YUV/RGB converted)
+2025-11-21 20:41:24,505 - __main__ - INFO - [inspection_main.py:305] - Median pixel value: 45.0
+2025-11-21 20:41:24,505 - __main__ - INFO - [inspection_main.py:313] - [DETECTED] Non-Radiometric Mode (Raw/AGC)
+2025-11-21 20:41:24,506 - __main__ - INFO - [inspection_main.py:330] - Scanning for RGB camera...
+2025-11-21 20:41:24,506 - camera_factory - INFO - [camera_factory.py:119] - Skipping thermal camera device 0, using next available device
+2025-11-21 20:41:24,506 - camera_factory - INFO - [camera_factory.py:122] - ============================================================
+2025-11-21 20:41:24,506 - camera_factory - INFO - [camera_factory.py:123] - RGB Camera Factory - Auto-detection
+2025-11-21 20:41:24,506 - camera_factory - INFO - [camera_factory.py:124] - ============================================================
+2025-11-21 20:41:24,506 - camera_factory - INFO - [camera_factory.py:154] - Auto-detecting RGB cameras...
+2025-11-21 20:41:24,507 - camera_factory - INFO - [camera_factory.py:193] - [X] No UVC cameras detected
+2025-11-21 20:41:24,507 - camera_factory - WARNING - [camera_factory.py:199] - Falling back to legacy RGBCamera class
+2025-11-21 20:41:24,507 - rgb_camera - INFO - [rgb_camera.py:90] - Windows detected - opening camera 1 with DirectShow
+2025-11-21 20:41:26,782 - rgb_camera - INFO - [rgb_camera.py:125] - RGB camera opened successfully
+2025-11-21 20:41:26,783 - rgb_camera - INFO - [rgb_camera.py:126] - Resolution: 640x480 @ 30 FPS
+2025-11-21 20:41:27,590 - __main__ - INFO - [inspection_main.py:345] - [OK] RGB camera connected: 640x480
+2025-11-21 20:41:27,591 - config - INFO - [config.py:114] - Configuration loaded from config.json
+2025-11-21 20:41:27,591 - fusion_processor - WARNING - [fusion_processor.py:63] - No calibration file provided - using identity transform
+2025-11-21 20:41:27,591 - __main__ - INFO - [inspection_main.py:401] - [OK] Fusion processor initialized (mode: thermal_overlay)
+2025-11-21 20:41:27,591 - __main__ - INFO - [inspection_main.py:402] -      7 fusion algorithms available!
+2025-11-21 20:41:27,591 - __main__ - INFO - [inspection_main.py:409] - ------------------------------------------------------------
+2025-11-21 20:41:27,592 - __main__ - INFO - [inspection_main.py:410] - Initializing inspection modules...
+2025-11-21 20:41:27,592 - thermal_processor - INFO - [thermal_processor.py:76] - VPI not available - using OpenCV fallback
+2025-11-21 20:41:27,594 - thermal_processor - INFO - [thermal_processor.py:156] - VPI not available - using OpenCV fallback
+2025-11-21 20:41:27,594 - __main__ - INFO - [inspection_main.py:423] - [OK] Thermal processor initialized
+2025-11-21 20:41:27,594 - __main__ - INFO - [inspection_main.py:434] - [OK] Thermal analyzer initialized
+2025-11-21 20:41:27,595 - __main__ - INFO - [inspection_main.py:444] - [OK] ROI manager initialized
+2025-11-21 20:41:27,626 - __main__ - INFO - [inspection_main.py:452] - [OK] Palette manager initialized
+2025-11-21 20:41:27,626 - __main__ - INFO - [inspection_main.py:453] -      45 palettes available
+2025-11-21 20:41:27,626 - __main__ - INFO - [inspection_main.py:467] - [OK] Video recorder initialized
+2025-11-21 20:41:27,627 - __main__ - INFO - [inspection_main.py:477] - [OK] Snapshot manager initialized
+2025-11-21 20:41:27,627 - __main__ - INFO - [inspection_main.py:489] - ------------------------------------------------------------
+2025-11-21 20:41:27,627 - performance_monitor - WARNING - [performance_monitor.py:59] - jtop not available, using basic metrics only
+2025-11-21 20:41:27,628 - __main__ - INFO - [inspection_main.py:501] - Qt GUI selected
+2025-11-21 20:41:27,913 - __main__ - INFO - [inspection_main.py:504] - Qt GUI created successfully
+2025-11-21 20:41:27,913 - __main__ - INFO - [inspection_main.py:522] - ================================================================================
+2025-11-21 20:41:27,913 - __main__ - INFO - [inspection_main.py:523] - Initialization complete!
+2025-11-21 20:41:27,913 - __main__ - INFO - [inspection_main.py:524] - ================================================================================
+2025-11-21 20:41:27,914 - __main__ - INFO - [inspection_main.py:703] - Starting inspection loop...
+2025-11-21 20:41:28,005 - __main__ - INFO - [inspection_main.py:709] - Qt GUI window shown
+2025-11-21 20:41:30,060 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: lava
+2025-11-21 20:41:30,061 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:30,573 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: gradedfire
+2025-11-21 20:41:30,573 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:31,964 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: hottest
+2025-11-21 20:41:31,965 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:32,974 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: amber
+2025-11-21 20:41:32,975 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:33,678 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: inferno
+2025-11-21 20:41:33,680 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:34,672 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow
+2025-11-21 20:41:34,673 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:35,469 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow_hc
+2025-11-21 20:41:35,469 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:35,980 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow_rev
+2025-11-21 20:41:35,980 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:36,574 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: spectral
+2025-11-21 20:41:36,574 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:36,786 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cool_hot
+2025-11-21 20:41:36,786 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:36,881 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: arctic
+2025-11-21 20:41:36,881 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:37,588 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: ice
+2025-11-21 20:41:37,589 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:37,884 - __main__ - INFO - [inspection_main.py:872] - Frame 100: 10.0 FPS, 0 ROIs, 0 motion, 17 hot spots
+2025-11-21 20:41:38,575 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: winter
+2025-11-21 20:41:38,575 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:38,778 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: ocean
+2025-11-21 20:41:38,778 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:38,977 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: viridis
+2025-11-21 20:41:38,977 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:39,182 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: plasma
+2025-11-21 20:41:39,182 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:39,275 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: magma
+2025-11-21 20:41:39,275 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:39,581 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cividis
+2025-11-21 20:41:39,581 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:39,787 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: turbo
+2025-11-21 20:41:39,788 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:40,078 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: blue_red
+2025-11-21 20:41:40,078 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:40,477 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cool_warm
+2025-11-21 20:41:40,477 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:40,877 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: purple_orange
+2025-11-21 20:41:40,877 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:41,086 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: green_red
+2025-11-21 20:41:41,086 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:41,792 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: blue_yellow
+2025-11-21 20:41:41,792 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:42,190 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: pink_green
+2025-11-21 20:41:42,190 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:42,777 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: globow
+2025-11-21 20:41:42,777 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:43,389 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: medical
+2025-11-21 20:41:43,390 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:43,984 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: thermal
+2025-11-21 20:41:43,984 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:44,594 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: helix
+2025-11-21 20:41:44,595 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:45,084 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cubehelix
+2025-11-21 20:41:45,085 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:45,595 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: twilight
+2025-11-21 20:41:45,595 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:45,707 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: dusk
+2025-11-21 20:41:45,707 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:45,885 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: fusion
+2025-11-21 20:41:45,886 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:46,096 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: prism
+2025-11-21 20:41:46,096 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:46,586 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: alarm
+2025-11-21 20:41:46,586 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:46,987 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: laplacian
+2025-11-21 20:41:46,988 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:47,595 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: isotherm
+2025-11-21 20:41:47,595 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:47,903 - __main__ - INFO - [inspection_main.py:872] - Frame 200: 10.0 FPS, 0 ROIs, 0 motion, 13 hot spots
+2025-11-21 20:41:48,302 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: velocity
+2025-11-21 20:41:48,303 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:48,990 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: terrain
+2025-11-21 20:41:48,990 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:49,596 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: depth
+2025-11-21 20:41:49,596 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:50,187 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: white_hot
+2025-11-21 20:41:50,187 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:51,505 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: black_hot
+2025-11-21 20:41:51,505 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:41:57,898 - __main__ - INFO - [inspection_main.py:872] - Frame 300: 10.0 FPS, 0 ROIs, 0 motion, 13 hot spots
+2025-11-21 20:42:07,914 - __main__ - INFO - [inspection_main.py:872] - Frame 400: 10.0 FPS, 0 ROIs, 3 motion, 8 hot spots
+2025-11-21 20:42:17,927 - __main__ - INFO - [inspection_main.py:872] - Frame 500: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 20:42:27,944 - __main__ - INFO - [inspection_main.py:872] - Frame 600: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 20:42:37,963 - __main__ - INFO - [inspection_main.py:872] - Frame 700: 10.0 FPS, 0 ROIs, 1 motion, 2 hot spots
+2025-11-21 20:42:47,975 - __main__ - INFO - [inspection_main.py:872] - Frame 800: 10.0 FPS, 0 ROIs, 0 motion, 8 hot spots
+2025-11-21 20:42:57,993 - __main__ - INFO - [inspection_main.py:872] - Frame 900: 10.0 FPS, 0 ROIs, 0 motion, 13 hot spots
+2025-11-21 20:43:08,008 - __main__ - INFO - [inspection_main.py:872] - Frame 1000: 10.0 FPS, 0 ROIs, 0 motion, 11 hot spots
+2025-11-21 20:43:18,010 - __main__ - INFO - [inspection_main.py:872] - Frame 1100: 10.0 FPS, 0 ROIs, 0 motion, 9 hot spots
+2025-11-21 20:43:28,025 - __main__ - INFO - [inspection_main.py:872] - Frame 1200: 10.0 FPS, 0 ROIs, 0 motion, 9 hot spots
+2025-11-21 20:43:38,044 - __main__ - INFO - [inspection_main.py:872] - Frame 1300: 10.0 FPS, 0 ROIs, 0 motion, 9 hot spots
+2025-11-21 20:43:48,058 - __main__ - INFO - [inspection_main.py:872] - Frame 1400: 10.0 FPS, 0 ROIs, 0 motion, 11 hot spots
+2025-11-21 20:43:58,071 - __main__ - INFO - [inspection_main.py:872] - Frame 1500: 10.0 FPS, 0 ROIs, 0 motion, 7 hot spots
+2025-11-21 20:44:08,090 - __main__ - INFO - [inspection_main.py:872] - Frame 1600: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 20:44:18,106 - __main__ - INFO - [inspection_main.py:872] - Frame 1700: 10.0 FPS, 0 ROIs, 0 motion, 5 hot spots
+2025-11-21 20:44:28,121 - __main__ - INFO - [inspection_main.py:872] - Frame 1800: 10.0 FPS, 0 ROIs, 0 motion, 10 hot spots
+2025-11-21 20:44:38,121 - __main__ - INFO - [inspection_main.py:872] - Frame 1900: 10.0 FPS, 0 ROIs, 0 motion, 9 hot spots
+2025-11-21 20:44:48,137 - __main__ - INFO - [inspection_main.py:872] - Frame 2000: 10.0 FPS, 0 ROIs, 0 motion, 11 hot spots
+2025-11-21 20:44:58,151 - __main__ - INFO - [inspection_main.py:872] - Frame 2100: 10.0 FPS, 0 ROIs, 0 motion, 8 hot spots
+2025-11-21 20:45:08,166 - __main__ - INFO - [inspection_main.py:872] - Frame 2200: 10.0 FPS, 0 ROIs, 0 motion, 10 hot spots
+2025-11-21 20:45:18,183 - __main__ - INFO - [inspection_main.py:872] - Frame 2300: 10.0 FPS, 0 ROIs, 0 motion, 9 hot spots
+2025-11-21 20:45:28,202 - __main__ - INFO - [inspection_main.py:872] - Frame 2400: 10.0 FPS, 0 ROIs, 0 motion, 7 hot spots
+2025-11-21 20:45:38,217 - __main__ - INFO - [inspection_main.py:872] - Frame 2500: 10.0 FPS, 0 ROIs, 0 motion, 9 hot spots
+2025-11-21 20:45:48,230 - __main__ - INFO - [inspection_main.py:872] - Frame 2600: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 20:45:53,271 - root - INFO - [inspection_main.py:88] - [OK] Debug logging: thermal_inspection_debug.log
+2025-11-21 20:45:53,277 - __main__ - INFO - [inspection_main.py:1165] - ================================================================================
+2025-11-21 20:45:53,277 - __main__ - INFO - [inspection_main.py:1166] - Thermal Inspection Fusion Tool
+2025-11-21 20:45:53,278 - __main__ - INFO - [inspection_main.py:1167] - Transformed from ThermalFusionDrivingAssist
+2025-11-21 20:45:53,278 - __main__ - INFO - [inspection_main.py:1168] - ================================================================================
+2025-11-21 20:45:53,308 - __main__ - INFO - [inspection_main.py:1176] - Qt GUI enabled
+2025-11-21 20:45:53,343 - __main__ - INFO - [inspection_main.py:112] - Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-21 20:45:53,343 - __main__ - INFO - [inspection_main.py:364] - ================================================================================
+2025-11-21 20:45:53,344 - __main__ - INFO - [inspection_main.py:365] - Initializing Thermal Inspection Fusion Tool
+2025-11-21 20:45:53,344 - __main__ - INFO - [inspection_main.py:366] - ================================================================================
+2025-11-21 20:45:53,344 - __main__ - INFO - [inspection_main.py:367] - Platform: x86-64 (AMD64)
+2025-11-21 20:45:53,344 - __main__ - INFO - [inspection_main.py:369] - Mode: realtime
+2025-11-21 20:45:53,344 - __main__ - INFO - [inspection_main.py:370] - Device: cuda
+2025-11-21 20:45:53,345 - __main__ - INFO - [inspection_main.py:228] - Scanning for FLIR Boson thermal camera...
+2025-11-21 20:45:53,345 - flir_camera - INFO - [flir_camera.py:70] - Windows detected - trying DirectShow backend
+2025-11-21 20:45:53,647 - flir_camera - WARNING - [flir_camera.py:83] - Platform-specific backend failed, trying default backend
+2025-11-21 20:45:53,929 - flir_camera - INFO - [flir_camera.py:96] - FLIR Boson camera opened successfully on device 0
+2025-11-21 20:45:53,929 - flir_camera - INFO - [flir_camera.py:97] - Resolution: (640, 512)
+2025-11-21 20:45:53,929 - flir_camera - INFO - [flir_camera.py:98] - FPS: 60.0
+2025-11-21 20:45:53,930 - __main__ - INFO - [inspection_main.py:243] - [OK] Thermal camera connected: 640x512
+2025-11-21 20:45:53,930 - __main__ - INFO - [inspection_main.py:292] - Detecting camera mode...
+2025-11-21 20:45:54,060 - __main__ - WARNING - [inspection_main.py:300] - Could not grab frame for mode detection
+2025-11-21 20:45:54,061 - __main__ - INFO - [inspection_main.py:330] - Scanning for RGB camera...
+2025-11-21 20:45:54,061 - camera_factory - INFO - [camera_factory.py:119] - Skipping thermal camera device 0, using next available device
+2025-11-21 20:45:54,061 - camera_factory - INFO - [camera_factory.py:122] - ============================================================
+2025-11-21 20:45:54,061 - camera_factory - INFO - [camera_factory.py:123] - RGB Camera Factory - Auto-detection
+2025-11-21 20:45:54,061 - camera_factory - INFO - [camera_factory.py:124] - ============================================================
+2025-11-21 20:45:54,062 - camera_factory - INFO - [camera_factory.py:154] - Auto-detecting RGB cameras...
+2025-11-21 20:45:54,062 - camera_factory - INFO - [camera_factory.py:193] - [X] No UVC cameras detected
+2025-11-21 20:45:54,062 - camera_factory - WARNING - [camera_factory.py:199] - Falling back to legacy RGBCamera class
+2025-11-21 20:45:54,062 - rgb_camera - INFO - [rgb_camera.py:90] - Windows detected - opening camera 1 with DirectShow
+2025-11-21 20:45:54,411 - rgb_camera - INFO - [rgb_camera.py:125] - RGB camera opened successfully
+2025-11-21 20:45:54,412 - rgb_camera - INFO - [rgb_camera.py:126] - Resolution: 640x480 @ 30 FPS
+2025-11-21 20:45:56,213 - __main__ - INFO - [inspection_main.py:345] - [OK] RGB camera connected: 640x480
+2025-11-21 20:45:56,214 - config - INFO - [config.py:114] - Configuration loaded from config.json
+2025-11-21 20:45:56,214 - fusion_processor - WARNING - [fusion_processor.py:63] - No calibration file provided - using identity transform
+2025-11-21 20:45:56,214 - __main__ - INFO - [inspection_main.py:401] - [OK] Fusion processor initialized (mode: thermal_overlay)
+2025-11-21 20:45:56,215 - __main__ - INFO - [inspection_main.py:402] -      7 fusion algorithms available!
+2025-11-21 20:45:56,215 - __main__ - INFO - [inspection_main.py:409] - ------------------------------------------------------------
+2025-11-21 20:45:56,216 - __main__ - INFO - [inspection_main.py:410] - Initializing inspection modules...
+2025-11-21 20:45:56,216 - thermal_processor - INFO - [thermal_processor.py:76] - VPI not available - using OpenCV fallback
+2025-11-21 20:45:56,218 - thermal_processor - INFO - [thermal_processor.py:156] - VPI not available - using OpenCV fallback
+2025-11-21 20:45:56,218 - __main__ - INFO - [inspection_main.py:423] - [OK] Thermal processor initialized
+2025-11-21 20:45:56,218 - __main__ - INFO - [inspection_main.py:434] - [OK] Thermal analyzer initialized
+2025-11-21 20:45:56,219 - __main__ - INFO - [inspection_main.py:444] - [OK] ROI manager initialized
+2025-11-21 20:45:56,242 - __main__ - INFO - [inspection_main.py:452] - [OK] Palette manager initialized
+2025-11-21 20:45:56,242 - __main__ - INFO - [inspection_main.py:453] -      45 palettes available
+2025-11-21 20:45:56,243 - __main__ - INFO - [inspection_main.py:467] - [OK] Video recorder initialized
+2025-11-21 20:45:56,243 - __main__ - INFO - [inspection_main.py:477] - [OK] Snapshot manager initialized
+2025-11-21 20:45:56,244 - __main__ - INFO - [inspection_main.py:489] - ------------------------------------------------------------
+2025-11-21 20:45:56,244 - performance_monitor - WARNING - [performance_monitor.py:59] - jtop not available, using basic metrics only
+2025-11-21 20:45:56,245 - __main__ - INFO - [inspection_main.py:501] - Qt GUI selected
+2025-11-21 20:45:56,461 - __main__ - INFO - [inspection_main.py:504] - Qt GUI created successfully
+2025-11-21 20:45:56,462 - __main__ - INFO - [inspection_main.py:522] - ================================================================================
+2025-11-21 20:45:56,462 - __main__ - INFO - [inspection_main.py:523] - Initialization complete!
+2025-11-21 20:45:56,462 - __main__ - INFO - [inspection_main.py:524] - ================================================================================
+2025-11-21 20:45:56,463 - __main__ - INFO - [inspection_main.py:703] - Starting inspection loop...
+2025-11-21 20:45:56,500 - __main__ - INFO - [inspection_main.py:709] - Qt GUI window shown
+2025-11-21 20:45:56,504 - __main__ - WARNING - [inspection_main.py:729] - Thermal camera disconnected
+2025-11-21 20:45:56,533 - flir_camera - INFO - [flir_camera.py:224] - FLIR Boson camera released
+2025-11-21 20:45:57,625 - __main__ - INFO - [inspection_main.py:228] - Scanning for FLIR Boson thermal camera...
+2025-11-21 20:45:57,626 - flir_camera - INFO - [flir_camera.py:70] - Windows detected - trying DirectShow backend
+2025-11-21 20:45:57,873 - flir_camera - WARNING - [flir_camera.py:83] - Platform-specific backend failed, trying default backend
+2025-11-21 20:45:57,996 - flir_camera - INFO - [flir_camera.py:96] - FLIR Boson camera opened successfully on device 0
+2025-11-21 20:45:57,996 - flir_camera - INFO - [flir_camera.py:97] - Resolution: (640, 512)
+2025-11-21 20:45:57,996 - flir_camera - INFO - [flir_camera.py:98] - FPS: 60.0
+2025-11-21 20:45:57,997 - __main__ - INFO - [inspection_main.py:243] - [OK] Thermal camera connected: 640x512
+2025-11-21 20:45:57,997 - __main__ - INFO - [inspection_main.py:292] - Detecting camera mode...
+2025-11-21 20:45:58,119 - __main__ - WARNING - [inspection_main.py:300] - Could not grab frame for mode detection
+2025-11-21 20:45:58,119 - __main__ - INFO - [inspection_main.py:721] - [OK] Thermal camera connected!
+2025-11-21 20:45:58,121 - __main__ - WARNING - [inspection_main.py:729] - Thermal camera disconnected
+2025-11-21 20:45:58,134 - flir_camera - INFO - [flir_camera.py:224] - FLIR Boson camera released
+2025-11-21 20:45:58,247 - __main__ - INFO - [inspection_main.py:872] - Frame 2700: 10.0 FPS, 0 ROIs, 0 motion, 10 hot spots
+2025-11-21 20:46:01,443 - __main__ - INFO - [inspection_main.py:228] - Scanning for FLIR Boson thermal camera...
+2025-11-21 20:46:01,444 - flir_camera - INFO - [flir_camera.py:70] - Windows detected - trying DirectShow backend
+2025-11-21 20:46:01,701 - flir_camera - WARNING - [flir_camera.py:83] - Platform-specific backend failed, trying default backend
+2025-11-21 20:46:01,814 - flir_camera - INFO - [flir_camera.py:96] - FLIR Boson camera opened successfully on device 0
+2025-11-21 20:46:01,815 - flir_camera - INFO - [flir_camera.py:97] - Resolution: (640, 512)
+2025-11-21 20:46:01,816 - flir_camera - INFO - [flir_camera.py:98] - FPS: 60.0
+2025-11-21 20:46:01,816 - __main__ - INFO - [inspection_main.py:243] - [OK] Thermal camera connected: 640x512
+2025-11-21 20:46:01,816 - __main__ - INFO - [inspection_main.py:292] - Detecting camera mode...
+2025-11-21 20:46:01,926 - __main__ - WARNING - [inspection_main.py:300] - Could not grab frame for mode detection
+2025-11-21 20:46:01,926 - __main__ - INFO - [inspection_main.py:721] - [OK] Thermal camera connected!
+2025-11-21 20:46:01,929 - __main__ - WARNING - [inspection_main.py:729] - Thermal camera disconnected
+2025-11-21 20:46:01,956 - flir_camera - INFO - [flir_camera.py:224] - FLIR Boson camera released
+2025-11-21 20:46:05,051 - __main__ - INFO - [inspection_main.py:228] - Scanning for FLIR Boson thermal camera...
+2025-11-21 20:46:05,052 - flir_camera - INFO - [flir_camera.py:70] - Windows detected - trying DirectShow backend
+2025-11-21 20:46:05,336 - flir_camera - WARNING - [flir_camera.py:83] - Platform-specific backend failed, trying default backend
+2025-11-21 20:46:05,451 - flir_camera - INFO - [flir_camera.py:96] - FLIR Boson camera opened successfully on device 0
+2025-11-21 20:46:05,451 - flir_camera - INFO - [flir_camera.py:97] - Resolution: (640, 512)
+2025-11-21 20:46:05,452 - flir_camera - INFO - [flir_camera.py:98] - FPS: 60.0
+2025-11-21 20:46:05,452 - __main__ - INFO - [inspection_main.py:243] - [OK] Thermal camera connected: 640x512
+2025-11-21 20:46:05,453 - __main__ - INFO - [inspection_main.py:292] - Detecting camera mode...
+2025-11-21 20:46:05,557 - __main__ - WARNING - [inspection_main.py:300] - Could not grab frame for mode detection
+2025-11-21 20:46:05,558 - __main__ - INFO - [inspection_main.py:721] - [OK] Thermal camera connected!
+2025-11-21 20:46:05,560 - __main__ - WARNING - [inspection_main.py:729] - Thermal camera disconnected
+2025-11-21 20:46:05,577 - flir_camera - INFO - [flir_camera.py:224] - FLIR Boson camera released
+2025-11-21 20:46:08,246 - __main__ - INFO - [inspection_main.py:872] - Frame 2800: 10.0 FPS, 0 ROIs, 0 motion, 10 hot spots
+2025-11-21 20:46:08,656 - __main__ - INFO - [inspection_main.py:228] - Scanning for FLIR Boson thermal camera...
+2025-11-21 20:46:08,657 - flir_camera - INFO - [flir_camera.py:70] - Windows detected - trying DirectShow backend
+2025-11-21 20:46:18,264 - __main__ - INFO - [inspection_main.py:872] - Frame 2900: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 20:46:36,648 - root - INFO - [inspection_main.py:88] - [OK] Debug logging: thermal_inspection_debug.log
+2025-11-21 20:46:36,659 - __main__ - INFO - [inspection_main.py:1165] - ================================================================================
+2025-11-21 20:46:36,659 - __main__ - INFO - [inspection_main.py:1166] - Thermal Inspection Fusion Tool
+2025-11-21 20:46:36,660 - __main__ - INFO - [inspection_main.py:1167] - Transformed from ThermalFusionDrivingAssist
+2025-11-21 20:46:36,660 - __main__ - INFO - [inspection_main.py:1168] - ================================================================================
+2025-11-21 20:46:36,714 - __main__ - INFO - [inspection_main.py:1176] - Qt GUI enabled
+2025-11-21 20:46:36,775 - __main__ - INFO - [inspection_main.py:112] - Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-21 20:46:36,776 - __main__ - INFO - [inspection_main.py:364] - ================================================================================
+2025-11-21 20:46:36,776 - __main__ - INFO - [inspection_main.py:365] - Initializing Thermal Inspection Fusion Tool
+2025-11-21 20:46:36,776 - __main__ - INFO - [inspection_main.py:366] - ================================================================================
+2025-11-21 20:46:36,777 - __main__ - INFO - [inspection_main.py:367] - Platform: x86-64 (AMD64)
+2025-11-21 20:46:36,777 - __main__ - INFO - [inspection_main.py:369] - Mode: realtime
+2025-11-21 20:46:36,777 - __main__ - INFO - [inspection_main.py:370] - Device: cuda
+2025-11-21 20:46:36,778 - __main__ - INFO - [inspection_main.py:228] - Scanning for FLIR Boson thermal camera...
+2025-11-21 20:46:36,778 - flir_camera - INFO - [flir_camera.py:70] - Windows detected - trying DirectShow backend
+2025-11-21 20:46:38,475 - flir_camera - INFO - [flir_camera.py:96] - FLIR Boson camera opened successfully on device 0
+2025-11-21 20:46:38,475 - flir_camera - INFO - [flir_camera.py:97] - Resolution: (640, 512)
+2025-11-21 20:46:38,475 - flir_camera - INFO - [flir_camera.py:98] - FPS: 60.000240000960005
+2025-11-21 20:46:38,475 - __main__ - INFO - [inspection_main.py:243] - [OK] Thermal camera connected: 640x512
+2025-11-21 20:46:38,475 - __main__ - INFO - [inspection_main.py:292] - Detecting camera mode...
+2025-11-21 20:46:38,493 - flir_camera - INFO - [flir_camera.py:186] - Thermal camera mode detection:
+2025-11-21 20:46:38,503 - flir_camera - INFO - [flir_camera.py:187] -   Frame dtype: uint8
+2025-11-21 20:46:38,503 - flir_camera - INFO - [flir_camera.py:188] -   Frame shape: (512, 640, 3)
+2025-11-21 20:46:38,503 - flir_camera - INFO - [flir_camera.py:192] -   -> UVC MODE (8-bit YUV/RGB converted)
+2025-11-21 20:46:38,584 - __main__ - INFO - [inspection_main.py:305] - Median pixel value: 41.0
+2025-11-21 20:46:38,584 - __main__ - INFO - [inspection_main.py:313] - [DETECTED] Non-Radiometric Mode (Raw/AGC)
+2025-11-21 20:46:38,584 - __main__ - INFO - [inspection_main.py:330] - Scanning for RGB camera...
+2025-11-21 20:46:38,584 - camera_factory - INFO - [camera_factory.py:119] - Skipping thermal camera device 0, using next available device
+2025-11-21 20:46:38,584 - camera_factory - INFO - [camera_factory.py:122] - ============================================================
+2025-11-21 20:46:38,584 - camera_factory - INFO - [camera_factory.py:123] - RGB Camera Factory - Auto-detection
+2025-11-21 20:46:38,584 - camera_factory - INFO - [camera_factory.py:124] - ============================================================
+2025-11-21 20:46:38,584 - camera_factory - INFO - [camera_factory.py:154] - Auto-detecting RGB cameras...
+2025-11-21 20:46:38,584 - camera_factory - INFO - [camera_factory.py:193] - [X] No UVC cameras detected
+2025-11-21 20:46:38,584 - camera_factory - WARNING - [camera_factory.py:199] - Falling back to legacy RGBCamera class
+2025-11-21 20:46:38,584 - rgb_camera - INFO - [rgb_camera.py:90] - Windows detected - opening camera 1 with DirectShow
+2025-11-21 20:46:40,957 - rgb_camera - INFO - [rgb_camera.py:125] - RGB camera opened successfully
+2025-11-21 20:46:40,957 - rgb_camera - INFO - [rgb_camera.py:126] - Resolution: 640x480 @ 30 FPS
+2025-11-21 20:46:41,768 - __main__ - INFO - [inspection_main.py:345] - [OK] RGB camera connected: 640x480
+2025-11-21 20:46:41,769 - config - INFO - [config.py:114] - Configuration loaded from config.json
+2025-11-21 20:46:41,769 - fusion_processor - WARNING - [fusion_processor.py:63] - No calibration file provided - using identity transform
+2025-11-21 20:46:41,769 - __main__ - INFO - [inspection_main.py:401] - [OK] Fusion processor initialized (mode: thermal_overlay)
+2025-11-21 20:46:41,769 - __main__ - INFO - [inspection_main.py:402] -      7 fusion algorithms available!
+2025-11-21 20:46:41,769 - __main__ - INFO - [inspection_main.py:409] - ------------------------------------------------------------
+2025-11-21 20:46:41,769 - __main__ - INFO - [inspection_main.py:410] - Initializing inspection modules...
+2025-11-21 20:46:41,769 - thermal_processor - INFO - [thermal_processor.py:76] - VPI not available - using OpenCV fallback
+2025-11-21 20:46:41,771 - thermal_processor - INFO - [thermal_processor.py:156] - VPI not available - using OpenCV fallback
+2025-11-21 20:46:41,771 - __main__ - INFO - [inspection_main.py:423] - [OK] Thermal processor initialized
+2025-11-21 20:46:41,771 - __main__ - INFO - [inspection_main.py:434] - [OK] Thermal analyzer initialized
+2025-11-21 20:46:41,771 - __main__ - INFO - [inspection_main.py:444] - [OK] ROI manager initialized
+2025-11-21 20:46:41,802 - __main__ - INFO - [inspection_main.py:452] - [OK] Palette manager initialized
+2025-11-21 20:46:41,802 - __main__ - INFO - [inspection_main.py:453] -      45 palettes available
+2025-11-21 20:46:41,803 - __main__ - INFO - [inspection_main.py:467] - [OK] Video recorder initialized
+2025-11-21 20:46:41,803 - __main__ - INFO - [inspection_main.py:477] - [OK] Snapshot manager initialized
+2025-11-21 20:46:41,803 - __main__ - INFO - [inspection_main.py:489] - ------------------------------------------------------------
+2025-11-21 20:46:41,803 - performance_monitor - WARNING - [performance_monitor.py:59] - jtop not available, using basic metrics only
+2025-11-21 20:46:41,805 - __main__ - INFO - [inspection_main.py:501] - Qt GUI selected
+2025-11-21 20:46:42,086 - __main__ - INFO - [inspection_main.py:504] - Qt GUI created successfully
+2025-11-21 20:46:42,086 - __main__ - INFO - [inspection_main.py:522] - ================================================================================
+2025-11-21 20:46:42,087 - __main__ - INFO - [inspection_main.py:523] - Initialization complete!
+2025-11-21 20:46:42,087 - __main__ - INFO - [inspection_main.py:524] - ================================================================================
+2025-11-21 20:46:42,087 - __main__ - INFO - [inspection_main.py:703] - Starting inspection loop...
+2025-11-21 20:46:42,179 - __main__ - INFO - [inspection_main.py:709] - Qt GUI window shown
+2025-11-21 20:46:46,048 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: lava
+2025-11-21 20:46:46,049 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:46,352 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: gradedfire
+2025-11-21 20:46:46,353 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:46,851 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: hottest
+2025-11-21 20:46:46,851 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:47,555 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: amber
+2025-11-21 20:46:47,556 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:48,162 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: inferno
+2025-11-21 20:46:48,163 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:49,057 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow
+2025-11-21 20:46:49,057 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:49,156 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow_hc
+2025-11-21 20:46:49,156 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:49,373 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow_rev
+2025-11-21 20:46:49,374 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:49,463 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: spectral
+2025-11-21 20:46:49,463 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:49,858 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cool_hot
+2025-11-21 20:46:49,858 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:49,957 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: arctic
+2025-11-21 20:46:49,957 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:50,159 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: ice
+2025-11-21 20:46:50,159 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:50,353 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: winter
+2025-11-21 20:46:50,354 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:50,465 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: ocean
+2025-11-21 20:46:50,465 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:50,655 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: viridis
+2025-11-21 20:46:50,655 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:50,863 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: plasma
+2025-11-21 20:46:50,864 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:51,152 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: magma
+2025-11-21 20:46:51,153 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:51,273 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cividis
+2025-11-21 20:46:51,273 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:51,457 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: turbo
+2025-11-21 20:46:51,457 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:51,676 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: blue_red
+2025-11-21 20:46:51,676 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:51,764 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cool_warm
+2025-11-21 20:46:51,764 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:51,955 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: purple_orange
+2025-11-21 20:46:51,955 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:52,068 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: green_red
+2025-11-21 20:46:52,069 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:52,069 - __main__ - INFO - [inspection_main.py:872] - Frame 100: 10.0 FPS, 0 ROIs, 0 motion, 16 hot spots
+2025-11-21 20:46:52,659 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: blue_yellow
+2025-11-21 20:46:52,659 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:52,868 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: pink_green
+2025-11-21 20:46:52,868 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:53,054 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: globow
+2025-11-21 20:46:53,055 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:53,568 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: medical
+2025-11-21 20:46:53,568 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:54,370 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: thermal
+2025-11-21 20:46:54,370 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:54,654 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: helix
+2025-11-21 20:46:54,654 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:54,864 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cubehelix
+2025-11-21 20:46:54,864 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:55,360 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: twilight
+2025-11-21 20:46:55,360 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:55,457 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: dusk
+2025-11-21 20:46:55,457 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:55,665 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: fusion
+2025-11-21 20:46:55,666 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:56,161 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: prism
+2025-11-21 20:46:56,161 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:56,561 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: alarm
+2025-11-21 20:46:56,562 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:56,961 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: laplacian
+2025-11-21 20:46:56,962 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:57,664 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: isotherm
+2025-11-21 20:46:57,665 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:58,368 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: velocity
+2025-11-21 20:46:58,368 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:58,766 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: terrain
+2025-11-21 20:46:58,767 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:58,960 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: depth
+2025-11-21 20:46:58,961 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:46:59,471 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: white_hot
+2025-11-21 20:46:59,471 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:47:00,975 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: black_hot
+2025-11-21 20:47:00,976 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:47:02,098 - __main__ - INFO - [inspection_main.py:872] - Frame 200: 10.0 FPS, 0 ROIs, 6 motion, 20 hot spots
+2025-11-21 20:47:12,086 - __main__ - INFO - [inspection_main.py:872] - Frame 300: 10.0 FPS, 0 ROIs, 3 motion, 17 hot spots
+2025-11-21 20:47:22,606 - __main__ - INFO - [inspection_main.py:872] - Frame 400: 10.0 FPS, 0 ROIs, 0 motion, 21 hot spots
+2025-11-21 20:47:32,606 - __main__ - INFO - [inspection_main.py:872] - Frame 500: 10.0 FPS, 0 ROIs, 0 motion, 16 hot spots
+2025-11-21 20:47:42,625 - __main__ - INFO - [inspection_main.py:872] - Frame 600: 10.0 FPS, 0 ROIs, 0 motion, 13 hot spots
+2025-11-21 20:48:50,789 - root - INFO - [inspection_main.py:88] - [OK] Debug logging: thermal_inspection_debug.log
+2025-11-21 20:48:50,789 - __main__ - INFO - [inspection_main.py:1165] - ================================================================================
+2025-11-21 20:48:50,789 - __main__ - INFO - [inspection_main.py:1166] - Thermal Inspection Fusion Tool
+2025-11-21 20:48:50,789 - __main__ - INFO - [inspection_main.py:1167] - Transformed from ThermalFusionDrivingAssist
+2025-11-21 20:48:50,789 - __main__ - INFO - [inspection_main.py:1168] - ================================================================================
+2025-11-21 20:48:50,854 - __main__ - INFO - [inspection_main.py:1176] - Qt GUI enabled
+2025-11-21 20:48:50,872 - __main__ - INFO - [inspection_main.py:112] - Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-21 20:48:50,872 - __main__ - INFO - [inspection_main.py:364] - ================================================================================
+2025-11-21 20:48:50,872 - __main__ - INFO - [inspection_main.py:365] - Initializing Thermal Inspection Fusion Tool
+2025-11-21 20:48:50,872 - __main__ - INFO - [inspection_main.py:366] - ================================================================================
+2025-11-21 20:48:50,872 - __main__ - INFO - [inspection_main.py:367] - Platform: x86-64 (AMD64)
+2025-11-21 20:48:50,872 - __main__ - INFO - [inspection_main.py:369] - Mode: realtime
+2025-11-21 20:48:50,872 - __main__ - INFO - [inspection_main.py:370] - Device: cuda
+2025-11-21 20:48:50,872 - __main__ - INFO - [inspection_main.py:228] - Scanning for FLIR Boson thermal camera...
+2025-11-21 20:48:50,873 - flir_camera - INFO - [flir_camera.py:70] - Windows detected - trying DirectShow backend
+2025-11-21 20:48:52,299 - flir_camera - INFO - [flir_camera.py:96] - FLIR Boson camera opened successfully on device 0
+2025-11-21 20:48:52,300 - flir_camera - INFO - [flir_camera.py:97] - Resolution: (640, 512)
+2025-11-21 20:48:52,300 - flir_camera - INFO - [flir_camera.py:98] - FPS: 60.000240000960005
+2025-11-21 20:48:52,300 - __main__ - INFO - [inspection_main.py:243] - [OK] Thermal camera connected: 640x512
+2025-11-21 20:48:52,300 - __main__ - INFO - [inspection_main.py:292] - Detecting camera mode...
+2025-11-21 20:48:52,334 - flir_camera - INFO - [flir_camera.py:181] - Thermal camera mode detection:
+2025-11-21 20:48:52,334 - flir_camera - INFO - [flir_camera.py:182] -   Frame dtype: uint8
+2025-11-21 20:48:52,334 - flir_camera - INFO - [flir_camera.py:183] -   Frame shape: (512, 640, 3)
+2025-11-21 20:48:52,334 - flir_camera - INFO - [flir_camera.py:187] -   -> UVC MODE (8-bit YUV/RGB converted)
+2025-11-21 20:48:52,417 - __main__ - INFO - [inspection_main.py:305] - Median pixel value: 106.0
+2025-11-21 20:48:52,418 - __main__ - INFO - [inspection_main.py:313] - [DETECTED] Non-Radiometric Mode (Raw/AGC)
+2025-11-21 20:48:52,418 - __main__ - INFO - [inspection_main.py:330] - Scanning for RGB camera...
+2025-11-21 20:48:52,418 - camera_factory - INFO - [camera_factory.py:119] - Skipping thermal camera device 0, using next available device
+2025-11-21 20:48:52,418 - camera_factory - INFO - [camera_factory.py:122] - ============================================================
+2025-11-21 20:48:52,418 - camera_factory - INFO - [camera_factory.py:123] - RGB Camera Factory - Auto-detection
+2025-11-21 20:48:52,418 - camera_factory - INFO - [camera_factory.py:124] - ============================================================
+2025-11-21 20:48:52,418 - camera_factory - INFO - [camera_factory.py:154] - Auto-detecting RGB cameras...
+2025-11-21 20:48:52,419 - camera_factory - INFO - [camera_factory.py:193] - [X] No UVC cameras detected
+2025-11-21 20:48:52,419 - camera_factory - WARNING - [camera_factory.py:199] - Falling back to legacy RGBCamera class
+2025-11-21 20:48:52,419 - rgb_camera - INFO - [rgb_camera.py:90] - Windows detected - opening camera 1 with DirectShow
+2025-11-21 20:48:54,626 - rgb_camera - INFO - [rgb_camera.py:125] - RGB camera opened successfully
+2025-11-21 20:48:54,626 - rgb_camera - INFO - [rgb_camera.py:126] - Resolution: 640x480 @ 30 FPS
+2025-11-21 20:48:55,456 - __main__ - INFO - [inspection_main.py:345] - [OK] RGB camera connected: 640x480
+2025-11-21 20:48:55,457 - config - INFO - [config.py:114] - Configuration loaded from config.json
+2025-11-21 20:48:55,457 - fusion_processor - WARNING - [fusion_processor.py:63] - No calibration file provided - using identity transform
+2025-11-21 20:48:55,457 - __main__ - INFO - [inspection_main.py:401] - [OK] Fusion processor initialized (mode: thermal_overlay)
+2025-11-21 20:48:55,457 - __main__ - INFO - [inspection_main.py:402] -      7 fusion algorithms available!
+2025-11-21 20:48:55,457 - __main__ - INFO - [inspection_main.py:409] - ------------------------------------------------------------
+2025-11-21 20:48:55,457 - __main__ - INFO - [inspection_main.py:410] - Initializing inspection modules...
+2025-11-21 20:48:55,457 - thermal_processor - INFO - [thermal_processor.py:76] - VPI not available - using OpenCV fallback
+2025-11-21 20:48:55,459 - thermal_processor - INFO - [thermal_processor.py:156] - VPI not available - using OpenCV fallback
+2025-11-21 20:48:55,459 - __main__ - INFO - [inspection_main.py:423] - [OK] Thermal processor initialized
+2025-11-21 20:48:55,460 - __main__ - INFO - [inspection_main.py:434] - [OK] Thermal analyzer initialized
+2025-11-21 20:48:55,460 - __main__ - INFO - [inspection_main.py:444] - [OK] ROI manager initialized
+2025-11-21 20:48:55,484 - __main__ - INFO - [inspection_main.py:452] - [OK] Palette manager initialized
+2025-11-21 20:48:55,484 - __main__ - INFO - [inspection_main.py:453] -      45 palettes available
+2025-11-21 20:48:55,484 - __main__ - INFO - [inspection_main.py:467] - [OK] Video recorder initialized
+2025-11-21 20:48:55,485 - __main__ - INFO - [inspection_main.py:477] - [OK] Snapshot manager initialized
+2025-11-21 20:48:55,485 - __main__ - INFO - [inspection_main.py:489] - ------------------------------------------------------------
+2025-11-21 20:48:55,485 - performance_monitor - WARNING - [performance_monitor.py:59] - jtop not available, using basic metrics only
+2025-11-21 20:48:55,486 - __main__ - INFO - [inspection_main.py:501] - Qt GUI selected
+2025-11-21 20:48:55,712 - __main__ - INFO - [inspection_main.py:504] - Qt GUI created successfully
+2025-11-21 20:48:55,712 - __main__ - INFO - [inspection_main.py:522] - ================================================================================
+2025-11-21 20:48:55,712 - __main__ - INFO - [inspection_main.py:523] - Initialization complete!
+2025-11-21 20:48:55,713 - __main__ - INFO - [inspection_main.py:524] - ================================================================================
+2025-11-21 20:48:55,713 - __main__ - INFO - [inspection_main.py:703] - Starting inspection loop...
+2025-11-21 20:48:55,803 - __main__ - INFO - [inspection_main.py:709] - Qt GUI window shown
+2025-11-21 20:48:58,821 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: lava
+2025-11-21 20:48:58,822 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:48:59,216 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: gradedfire
+2025-11-21 20:48:59,217 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:48:59,521 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: hottest
+2025-11-21 20:48:59,521 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:48:59,925 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: amber
+2025-11-21 20:48:59,925 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:00,113 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: inferno
+2025-11-21 20:49:00,114 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:00,512 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow
+2025-11-21 20:49:00,512 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:00,725 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow_hc
+2025-11-21 20:49:00,725 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:00,821 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow_rev
+2025-11-21 20:49:00,821 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:01,011 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: spectral
+2025-11-21 20:49:01,011 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:01,218 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cool_hot
+2025-11-21 20:49:01,218 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:01,312 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: arctic
+2025-11-21 20:49:01,313 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:01,521 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: ice
+2025-11-21 20:49:01,521 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:01,718 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: winter
+2025-11-21 20:49:01,718 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:01,826 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: ocean
+2025-11-21 20:49:01,826 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:02,024 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: viridis
+2025-11-21 20:49:02,024 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:02,513 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: plasma
+2025-11-21 20:49:02,514 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:02,633 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: magma
+2025-11-21 20:49:02,633 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:02,821 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cividis
+2025-11-21 20:49:02,821 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:02,916 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: turbo
+2025-11-21 20:49:02,916 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:03,124 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: blue_red
+2025-11-21 20:49:03,124 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:03,522 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cool_warm
+2025-11-21 20:49:03,522 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:03,827 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: purple_orange
+2025-11-21 20:49:03,827 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:03,921 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: green_red
+2025-11-21 20:49:03,921 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:04,128 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: blue_yellow
+2025-11-21 20:49:04,128 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:04,324 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: pink_green
+2025-11-21 20:49:04,324 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:04,626 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: globow
+2025-11-21 20:49:04,626 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:04,722 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: medical
+2025-11-21 20:49:04,723 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:04,929 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: thermal
+2025-11-21 20:49:04,929 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:05,130 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: helix
+2025-11-21 20:49:05,131 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:05,218 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cubehelix
+2025-11-21 20:49:05,218 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:05,730 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: twilight
+2025-11-21 20:49:05,730 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:05,731 - __main__ - INFO - [inspection_main.py:872] - Frame 100: 10.0 FPS, 0 ROIs, 0 motion, 7 hot spots
+2025-11-21 20:49:05,921 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: dusk
+2025-11-21 20:49:05,921 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:06,020 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: fusion
+2025-11-21 20:49:06,020 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:06,226 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: prism
+2025-11-21 20:49:06,226 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:06,722 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: alarm
+2025-11-21 20:49:06,722 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:07,242 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: laplacian
+2025-11-21 20:49:07,243 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:07,425 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: isotherm
+2025-11-21 20:49:07,425 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:08,133 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: velocity
+2025-11-21 20:49:08,133 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:08,722 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: terrain
+2025-11-21 20:49:08,722 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:09,235 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: depth
+2025-11-21 20:49:09,235 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:09,827 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: white_hot
+2025-11-21 20:49:09,827 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:11,138 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: black_hot
+2025-11-21 20:49:11,139 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1648] - Palette cycle
+2025-11-21 20:49:15,748 - __main__ - INFO - [inspection_main.py:872] - Frame 200: 10.0 FPS, 0 ROIs, 2 motion, 15 hot spots
+2025-11-21 20:49:19,039 - __main__ - INFO - [inspection_main.py:914] - Switched to view mode: side_by_side
+2025-11-21 20:49:19,040 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - View mode cycle
+2025-11-21 20:49:20,947 - __main__ - INFO - [inspection_main.py:914] - Switched to view mode: pip
+2025-11-21 20:49:20,947 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - View mode cycle
+2025-11-21 20:49:21,747 - __main__ - INFO - [inspection_main.py:914] - Switched to view mode: thermal
+2025-11-21 20:49:21,747 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - View mode cycle
+2025-11-21 20:49:25,745 - __main__ - INFO - [inspection_main.py:872] - Frame 300: 10.0 FPS, 0 ROIs, 5 motion, 7 hot spots
+2025-11-21 20:49:35,761 - __main__ - INFO - [inspection_main.py:872] - Frame 400: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:49:45,776 - __main__ - INFO - [inspection_main.py:872] - Frame 500: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:49:55,794 - __main__ - INFO - [inspection_main.py:872] - Frame 600: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:50:05,808 - __main__ - INFO - [inspection_main.py:872] - Frame 700: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:50:15,832 - __main__ - INFO - [inspection_main.py:872] - Frame 800: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:50:25,844 - __main__ - INFO - [inspection_main.py:872] - Frame 900: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:50:35,855 - __main__ - INFO - [inspection_main.py:872] - Frame 1000: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:50:45,858 - __main__ - INFO - [inspection_main.py:872] - Frame 1100: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:50:55,875 - __main__ - INFO - [inspection_main.py:872] - Frame 1200: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:51:05,886 - __main__ - INFO - [inspection_main.py:872] - Frame 1300: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:51:15,905 - __main__ - INFO - [inspection_main.py:872] - Frame 1400: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:51:25,919 - __main__ - INFO - [inspection_main.py:872] - Frame 1500: 10.0 FPS, 0 ROIs, 0 motion, 2 hot spots
+2025-11-21 20:51:35,939 - __main__ - INFO - [inspection_main.py:872] - Frame 1600: 10.0 FPS, 0 ROIs, 0 motion, 2 hot spots
+2025-11-21 20:51:45,956 - __main__ - INFO - [inspection_main.py:872] - Frame 1700: 10.0 FPS, 0 ROIs, 0 motion, 2 hot spots
+2025-11-21 20:51:55,969 - __main__ - INFO - [inspection_main.py:872] - Frame 1800: 10.0 FPS, 0 ROIs, 0 motion, 2 hot spots
+2025-11-21 20:52:05,970 - __main__ - INFO - [inspection_main.py:872] - Frame 1900: 10.0 FPS, 0 ROIs, 0 motion, 2 hot spots
+2025-11-21 20:52:15,983 - __main__ - INFO - [inspection_main.py:872] - Frame 2000: 10.0 FPS, 0 ROIs, 0 motion, 2 hot spots
+2025-11-21 20:52:25,999 - __main__ - INFO - [inspection_main.py:872] - Frame 2100: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:52:36,016 - __main__ - INFO - [inspection_main.py:872] - Frame 2200: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:52:46,036 - __main__ - INFO - [inspection_main.py:872] - Frame 2300: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:52:56,051 - __main__ - INFO - [inspection_main.py:872] - Frame 2400: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:53:06,066 - __main__ - INFO - [inspection_main.py:872] - Frame 2500: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:53:16,081 - __main__ - INFO - [inspection_main.py:872] - Frame 2600: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:53:26,086 - __main__ - INFO - [inspection_main.py:872] - Frame 2700: 10.0 FPS, 0 ROIs, 0 motion, 1 hot spots
+2025-11-21 20:53:36,115 - __main__ - INFO - [inspection_main.py:872] - Frame 2800: 10.0 FPS, 0 ROIs, 0 motion, 2 hot spots
+2025-11-21 20:53:46,118 - __main__ - INFO - [inspection_main.py:872] - Frame 2900: 10.0 FPS, 0 ROIs, 0 motion, 2 hot spots
+2025-11-21 20:53:56,133 - __main__ - INFO - [inspection_main.py:872] - Frame 3000: 10.0 FPS, 0 ROIs, 0 motion, 2 hot spots
+2025-11-21 21:26:36,270 - root - INFO - [inspection_main.py:88] - [OK] Debug logging: thermal_inspection_debug.log
+2025-11-21 21:26:36,277 - __main__ - INFO - [inspection_main.py:1165] - ================================================================================
+2025-11-21 21:26:36,277 - __main__ - INFO - [inspection_main.py:1166] - Thermal Inspection Fusion Tool
+2025-11-21 21:26:36,277 - __main__ - INFO - [inspection_main.py:1167] - Transformed from ThermalFusionDrivingAssist
+2025-11-21 21:26:36,277 - __main__ - INFO - [inspection_main.py:1168] - ================================================================================
+2025-11-21 21:26:36,320 - __main__ - INFO - [inspection_main.py:1176] - Qt GUI enabled
+2025-11-21 21:26:36,347 - __main__ - INFO - [inspection_main.py:112] - Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-21 21:26:36,347 - __main__ - INFO - [inspection_main.py:364] - ================================================================================
+2025-11-21 21:26:36,347 - __main__ - INFO - [inspection_main.py:365] - Initializing Thermal Inspection Fusion Tool
+2025-11-21 21:26:36,347 - __main__ - INFO - [inspection_main.py:366] - ================================================================================
+2025-11-21 21:26:36,347 - __main__ - INFO - [inspection_main.py:367] - Platform: x86-64 (AMD64)
+2025-11-21 21:26:36,347 - __main__ - INFO - [inspection_main.py:369] - Mode: realtime
+2025-11-21 21:26:36,347 - __main__ - INFO - [inspection_main.py:370] - Device: cuda
+2025-11-21 21:26:36,347 - __main__ - INFO - [inspection_main.py:228] - Scanning for FLIR Boson thermal camera...
+2025-11-21 21:26:36,347 - flir_camera - INFO - [flir_camera.py:70] - Windows detected - trying DirectShow backend
+2025-11-21 21:26:37,779 - flir_camera - INFO - [flir_camera.py:96] - FLIR Boson camera opened successfully on device 0
+2025-11-21 21:26:37,780 - flir_camera - INFO - [flir_camera.py:97] - Resolution: (640, 512)
+2025-11-21 21:26:37,780 - flir_camera - INFO - [flir_camera.py:98] - FPS: 60.000240000960005
+2025-11-21 21:26:37,780 - __main__ - INFO - [inspection_main.py:243] - [OK] Thermal camera connected: 640x512
+2025-11-21 21:26:37,780 - __main__ - INFO - [inspection_main.py:292] - Detecting camera mode...
+2025-11-21 21:26:37,813 - flir_camera - INFO - [flir_camera.py:181] - Thermal camera mode detection:
+2025-11-21 21:26:37,813 - flir_camera - INFO - [flir_camera.py:182] -   Frame dtype: uint8
+2025-11-21 21:26:37,814 - flir_camera - INFO - [flir_camera.py:183] -   Frame shape: (512, 640, 3)
+2025-11-21 21:26:37,814 - flir_camera - INFO - [flir_camera.py:187] -   -> UVC MODE (8-bit YUV/RGB converted)
+2025-11-21 21:26:37,897 - __main__ - INFO - [inspection_main.py:305] - Median pixel value: 51.0
+2025-11-21 21:26:37,898 - __main__ - INFO - [inspection_main.py:313] - [DETECTED] Non-Radiometric Mode (Raw/AGC)
+2025-11-21 21:26:37,898 - __main__ - INFO - [inspection_main.py:330] - Scanning for RGB camera...
+2025-11-21 21:26:37,898 - camera_factory - INFO - [camera_factory.py:119] - Skipping thermal camera device 0, using next available device
+2025-11-21 21:26:37,898 - camera_factory - INFO - [camera_factory.py:122] - ============================================================
+2025-11-21 21:26:37,898 - camera_factory - INFO - [camera_factory.py:123] - RGB Camera Factory - Auto-detection
+2025-11-21 21:26:37,898 - camera_factory - INFO - [camera_factory.py:124] - ============================================================
+2025-11-21 21:26:37,898 - camera_factory - INFO - [camera_factory.py:154] - Auto-detecting RGB cameras...
+2025-11-21 21:26:37,899 - camera_factory - INFO - [camera_factory.py:193] - [X] No UVC cameras detected
+2025-11-21 21:26:37,899 - camera_factory - WARNING - [camera_factory.py:199] - Falling back to legacy RGBCamera class
+2025-11-21 21:26:37,900 - rgb_camera - INFO - [rgb_camera.py:90] - Windows detected - opening camera 1 with DirectShow
+2025-11-21 21:26:41,244 - rgb_camera - INFO - [rgb_camera.py:125] - RGB camera opened successfully
+2025-11-21 21:26:41,244 - rgb_camera - INFO - [rgb_camera.py:126] - Resolution: 640x480 @ 30 FPS
+2025-11-21 21:26:42,087 - __main__ - INFO - [inspection_main.py:345] - [OK] RGB camera connected: 640x480
+2025-11-21 21:26:42,088 - config - INFO - [config.py:114] - Configuration loaded from config.json
+2025-11-21 21:26:42,088 - fusion_processor - WARNING - [fusion_processor.py:63] - No calibration file provided - using identity transform
+2025-11-21 21:26:42,088 - __main__ - INFO - [inspection_main.py:401] - [OK] Fusion processor initialized (mode: thermal_overlay)
+2025-11-21 21:26:42,088 - __main__ - INFO - [inspection_main.py:402] -      7 fusion algorithms available!
+2025-11-21 21:26:42,088 - __main__ - INFO - [inspection_main.py:409] - ------------------------------------------------------------
+2025-11-21 21:26:42,088 - __main__ - INFO - [inspection_main.py:410] - Initializing inspection modules...
+2025-11-21 21:26:42,088 - thermal_processor - INFO - [thermal_processor.py:76] - VPI not available - using OpenCV fallback
+2025-11-21 21:26:42,090 - thermal_processor - INFO - [thermal_processor.py:156] - VPI not available - using OpenCV fallback
+2025-11-21 21:26:42,090 - __main__ - INFO - [inspection_main.py:423] - [OK] Thermal processor initialized
+2025-11-21 21:26:42,090 - __main__ - INFO - [inspection_main.py:434] - [OK] Thermal analyzer initialized
+2025-11-21 21:26:42,090 - __main__ - INFO - [inspection_main.py:444] - [OK] ROI manager initialized
+2025-11-21 21:26:42,114 - __main__ - INFO - [inspection_main.py:452] - [OK] Palette manager initialized
+2025-11-21 21:26:42,115 - __main__ - INFO - [inspection_main.py:453] -      45 palettes available
+2025-11-21 21:26:42,115 - __main__ - INFO - [inspection_main.py:467] - [OK] Video recorder initialized
+2025-11-21 21:26:42,115 - __main__ - INFO - [inspection_main.py:477] - [OK] Snapshot manager initialized
+2025-11-21 21:26:42,115 - __main__ - INFO - [inspection_main.py:489] - ------------------------------------------------------------
+2025-11-21 21:26:42,115 - performance_monitor - WARNING - [performance_monitor.py:59] - jtop not available, using basic metrics only
+2025-11-21 21:26:42,151 - __main__ - INFO - [inspection_main.py:501] - Qt GUI selected
+2025-11-21 21:26:42,391 - __main__ - INFO - [inspection_main.py:504] - Qt GUI created successfully
+2025-11-21 21:26:42,391 - __main__ - INFO - [inspection_main.py:522] - ================================================================================
+2025-11-21 21:26:42,391 - __main__ - INFO - [inspection_main.py:523] - Initialization complete!
+2025-11-21 21:26:42,392 - __main__ - INFO - [inspection_main.py:524] - ================================================================================
+2025-11-21 21:26:42,392 - __main__ - INFO - [inspection_main.py:703] - Starting inspection loop...
+2025-11-21 21:26:42,476 - __main__ - INFO - [inspection_main.py:709] - Qt GUI window shown
+2025-11-21 21:26:46,330 - __main__ - INFO - [inspection_main.py:914] - Switched to view mode: side_by_side
+2025-11-21 21:26:46,330 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1666] - View mode cycle
+2025-11-21 21:26:47,741 - __main__ - INFO - [inspection_main.py:914] - Switched to view mode: pip
+2025-11-21 21:26:47,741 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1666] - View mode cycle
+2025-11-21 21:26:48,730 - __main__ - INFO - [inspection_main.py:914] - Switched to view mode: thermal
+2025-11-21 21:26:48,730 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1666] - View mode cycle
+2025-11-21 21:26:50,043 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: lava
+2025-11-21 21:26:50,044 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:26:51,435 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: gradedfire
+2025-11-21 21:26:51,435 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:26:52,937 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: hottest
+2025-11-21 21:26:52,937 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:26:53,037 - __main__ - INFO - [inspection_main.py:872] - Frame 100: 10.0 FPS, 0 ROIs, 0 motion, 4 hot spots
+2025-11-21 21:26:54,746 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: amber
+2025-11-21 21:26:54,746 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:26:56,143 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: inferno
+2025-11-21 21:26:56,144 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:26:57,354 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow
+2025-11-21 21:26:57,354 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:27:00,562 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1618] - Developer mode: ON
+2025-11-21 21:27:03,055 - __main__ - INFO - [inspection_main.py:872] - Frame 200: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:27:03,267 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - Theme: solarized
+2025-11-21 21:27:05,266 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - Theme: colorful
+2025-11-21 21:27:07,568 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - Theme: auto
+2025-11-21 21:27:13,068 - __main__ - INFO - [inspection_main.py:872] - Frame 300: 10.0 FPS, 0 ROIs, 0 motion, 5 hot spots
+2025-11-21 21:27:18,081 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - Theme: light
+2025-11-21 21:27:19,797 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - Theme: dark
+2025-11-21 21:27:21,889 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - Theme: solarized
+2025-11-21 21:27:23,083 - __main__ - INFO - [inspection_main.py:872] - Frame 400: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:27:33,110 - __main__ - INFO - [inspection_main.py:872] - Frame 500: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:27:43,131 - __main__ - INFO - [inspection_main.py:872] - Frame 600: 10.0 FPS, 0 ROIs, 0 motion, 7 hot spots
+2025-11-21 21:27:53,138 - __main__ - INFO - [inspection_main.py:872] - Frame 700: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:28:02,241 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - Theme: colorful
+2025-11-21 21:28:03,148 - __main__ - INFO - [inspection_main.py:872] - Frame 800: 10.0 FPS, 0 ROIs, 3 motion, 5 hot spots
+2025-11-21 21:28:03,252 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - Theme: auto
+2025-11-21 21:28:04,445 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - Theme: light
+2025-11-21 21:28:05,953 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - Theme: dark
+2025-11-21 21:28:11,664 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - Theme: solarized
+2025-11-21 21:28:12,861 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - Theme: colorful
+2025-11-21 21:28:13,147 - __main__ - INFO - [inspection_main.py:872] - Frame 900: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:28:13,761 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - Theme: auto
+2025-11-21 21:28:14,566 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1654] - Theme: light
+2025-11-21 21:28:23,171 - __main__ - INFO - [inspection_main.py:872] - Frame 1000: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:28:33,189 - __main__ - INFO - [inspection_main.py:872] - Frame 1100: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:28:43,203 - __main__ - INFO - [inspection_main.py:872] - Frame 1200: 10.0 FPS, 0 ROIs, 0 motion, 2 hot spots
+2025-11-21 21:28:52,509 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow_hc
+2025-11-21 21:28:52,509 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:28:53,211 - __main__ - INFO - [inspection_main.py:872] - Frame 1300: 10.0 FPS, 0 ROIs, 3 motion, 9 hot spots
+2025-11-21 21:28:53,610 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: rainbow_rev
+2025-11-21 21:28:53,611 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:28:54,326 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: spectral
+2025-11-21 21:28:54,326 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:28:55,913 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cool_hot
+2025-11-21 21:28:55,913 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:28:56,923 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: arctic
+2025-11-21 21:28:56,923 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:28:58,713 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: ice
+2025-11-21 21:28:58,713 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:28:59,723 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: winter
+2025-11-21 21:28:59,723 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:00,618 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: ocean
+2025-11-21 21:29:00,618 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:02,026 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: viridis
+2025-11-21 21:29:02,026 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:03,230 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: plasma
+2025-11-21 21:29:03,231 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:03,231 - __main__ - INFO - [inspection_main.py:872] - Frame 1400: 10.0 FPS, 0 ROIs, 0 motion, 7 hot spots
+2025-11-21 21:29:04,123 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: magma
+2025-11-21 21:29:04,123 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:05,450 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cividis
+2025-11-21 21:29:05,450 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:06,426 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: turbo
+2025-11-21 21:29:06,426 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:07,629 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: blue_red
+2025-11-21 21:29:07,629 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:08,427 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cool_warm
+2025-11-21 21:29:08,427 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:09,131 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: purple_orange
+2025-11-21 21:29:09,131 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:09,937 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: green_red
+2025-11-21 21:29:09,938 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:11,531 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: blue_yellow
+2025-11-21 21:29:11,531 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:13,129 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: pink_green
+2025-11-21 21:29:13,129 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:13,242 - __main__ - INFO - [inspection_main.py:872] - Frame 1500: 10.0 FPS, 0 ROIs, 0 motion, 8 hot spots
+2025-11-21 21:29:15,148 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: globow
+2025-11-21 21:29:15,149 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:16,454 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: medical
+2025-11-21 21:29:16,454 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:17,740 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: thermal
+2025-11-21 21:29:17,741 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:19,338 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: helix
+2025-11-21 21:29:19,338 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:20,554 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: cubehelix
+2025-11-21 21:29:20,554 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:21,753 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: twilight
+2025-11-21 21:29:21,753 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:22,859 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: dusk
+2025-11-21 21:29:22,860 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:23,259 - __main__ - INFO - [inspection_main.py:872] - Frame 1600: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:29:24,060 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: fusion
+2025-11-21 21:29:24,060 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:24,955 - __main__ - INFO - [inspection_main.py:898] - Switched to palette: prism
+2025-11-21 21:29:24,955 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1660] - Palette cycle
+2025-11-21 21:29:33,256 - __main__ - INFO - [inspection_main.py:872] - Frame 1700: 10.0 FPS, 0 ROIs, 0 motion, 7 hot spots
+2025-11-21 21:29:43,270 - __main__ - INFO - [inspection_main.py:872] - Frame 1800: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:29:53,286 - __main__ - INFO - [inspection_main.py:872] - Frame 1900: 10.0 FPS, 0 ROIs, 0 motion, 7 hot spots
+2025-11-21 21:30:00,803 - root - INFO - [inspection_main.py:88] - [OK] Debug logging: thermal_inspection_debug.log
+2025-11-21 21:30:00,814 - __main__ - INFO - [inspection_main.py:1165] - ================================================================================
+2025-11-21 21:30:00,814 - __main__ - INFO - [inspection_main.py:1166] - Thermal Inspection Fusion Tool
+2025-11-21 21:30:00,814 - __main__ - INFO - [inspection_main.py:1167] - Transformed from ThermalFusionDrivingAssist
+2025-11-21 21:30:00,814 - __main__ - INFO - [inspection_main.py:1168] - ================================================================================
+2025-11-21 21:30:00,850 - __main__ - INFO - [inspection_main.py:1176] - Qt GUI enabled
+2025-11-21 21:30:00,882 - __main__ - INFO - [inspection_main.py:112] - Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-21 21:30:00,882 - __main__ - INFO - [inspection_main.py:364] - ================================================================================
+2025-11-21 21:30:00,882 - __main__ - INFO - [inspection_main.py:365] - Initializing Thermal Inspection Fusion Tool
+2025-11-21 21:30:00,882 - __main__ - INFO - [inspection_main.py:366] - ================================================================================
+2025-11-21 21:30:00,882 - __main__ - INFO - [inspection_main.py:367] - Platform: x86-64 (AMD64)
+2025-11-21 21:30:00,882 - __main__ - INFO - [inspection_main.py:369] - Mode: realtime
+2025-11-21 21:30:00,882 - __main__ - INFO - [inspection_main.py:370] - Device: cuda
+2025-11-21 21:30:00,882 - __main__ - INFO - [inspection_main.py:228] - Scanning for FLIR Boson thermal camera...
+2025-11-21 21:30:00,882 - flir_camera - INFO - [flir_camera.py:70] - Windows detected - trying DirectShow backend
+2025-11-21 21:30:02,365 - flir_camera - INFO - [flir_camera.py:96] - FLIR Boson camera opened successfully on device 0
+2025-11-21 21:30:02,365 - flir_camera - INFO - [flir_camera.py:97] - Resolution: (640, 512)
+2025-11-21 21:30:02,365 - flir_camera - INFO - [flir_camera.py:98] - FPS: 60.000240000960005
+2025-11-21 21:30:02,365 - __main__ - INFO - [inspection_main.py:243] - [OK] Thermal camera connected: 640x512
+2025-11-21 21:30:02,365 - __main__ - INFO - [inspection_main.py:292] - Detecting camera mode...
+2025-11-21 21:30:02,394 - flir_camera - INFO - [flir_camera.py:181] - Thermal camera mode detection:
+2025-11-21 21:30:02,395 - flir_camera - INFO - [flir_camera.py:182] -   Frame dtype: uint8
+2025-11-21 21:30:02,395 - flir_camera - INFO - [flir_camera.py:183] -   Frame shape: (512, 640, 3)
+2025-11-21 21:30:02,395 - flir_camera - INFO - [flir_camera.py:187] -   -> UVC MODE (8-bit YUV/RGB converted)
+2025-11-21 21:30:02,478 - __main__ - INFO - [inspection_main.py:305] - Median pixel value: 61.0
+2025-11-21 21:30:02,479 - __main__ - INFO - [inspection_main.py:313] - [DETECTED] Non-Radiometric Mode (Raw/AGC)
+2025-11-21 21:30:02,479 - __main__ - INFO - [inspection_main.py:330] - Scanning for RGB camera...
+2025-11-21 21:30:02,479 - camera_factory - INFO - [camera_factory.py:119] - Skipping thermal camera device 0, using next available device
+2025-11-21 21:30:02,479 - camera_factory - INFO - [camera_factory.py:122] - ============================================================
+2025-11-21 21:30:02,479 - camera_factory - INFO - [camera_factory.py:123] - RGB Camera Factory - Auto-detection
+2025-11-21 21:30:02,479 - camera_factory - INFO - [camera_factory.py:124] - ============================================================
+2025-11-21 21:30:02,479 - camera_factory - INFO - [camera_factory.py:154] - Auto-detecting RGB cameras...
+2025-11-21 21:30:02,480 - camera_factory - INFO - [camera_factory.py:193] - [X] No UVC cameras detected
+2025-11-21 21:30:02,480 - camera_factory - WARNING - [camera_factory.py:199] - Falling back to legacy RGBCamera class
+2025-11-21 21:30:02,480 - rgb_camera - INFO - [rgb_camera.py:90] - Windows detected - opening camera 1 with DirectShow
+2025-11-21 21:30:04,897 - rgb_camera - INFO - [rgb_camera.py:125] - RGB camera opened successfully
+2025-11-21 21:30:04,897 - rgb_camera - INFO - [rgb_camera.py:126] - Resolution: 640x480 @ 30 FPS
+2025-11-21 21:30:05,703 - __main__ - INFO - [inspection_main.py:345] - [OK] RGB camera connected: 640x480
+2025-11-21 21:30:05,704 - config - INFO - [config.py:114] - Configuration loaded from config.json
+2025-11-21 21:30:05,704 - fusion_processor - WARNING - [fusion_processor.py:63] - No calibration file provided - using identity transform
+2025-11-21 21:30:05,704 - __main__ - INFO - [inspection_main.py:401] - [OK] Fusion processor initialized (mode: thermal_overlay)
+2025-11-21 21:30:05,704 - __main__ - INFO - [inspection_main.py:402] -      7 fusion algorithms available!
+2025-11-21 21:30:05,704 - __main__ - INFO - [inspection_main.py:409] - ------------------------------------------------------------
+2025-11-21 21:30:05,704 - __main__ - INFO - [inspection_main.py:410] - Initializing inspection modules...
+2025-11-21 21:30:05,705 - thermal_processor - INFO - [thermal_processor.py:76] - VPI not available - using OpenCV fallback
+2025-11-21 21:30:05,706 - thermal_processor - INFO - [thermal_processor.py:156] - VPI not available - using OpenCV fallback
+2025-11-21 21:30:05,706 - __main__ - INFO - [inspection_main.py:423] - [OK] Thermal processor initialized
+2025-11-21 21:30:05,706 - __main__ - INFO - [inspection_main.py:434] - [OK] Thermal analyzer initialized
+2025-11-21 21:30:05,707 - __main__ - INFO - [inspection_main.py:444] - [OK] ROI manager initialized
+2025-11-21 21:30:05,733 - __main__ - INFO - [inspection_main.py:452] - [OK] Palette manager initialized
+2025-11-21 21:30:05,733 - __main__ - INFO - [inspection_main.py:453] -      45 palettes available
+2025-11-21 21:30:05,734 - __main__ - INFO - [inspection_main.py:467] - [OK] Video recorder initialized
+2025-11-21 21:30:05,734 - __main__ - INFO - [inspection_main.py:477] - [OK] Snapshot manager initialized
+2025-11-21 21:30:05,734 - __main__ - INFO - [inspection_main.py:489] - ------------------------------------------------------------
+2025-11-21 21:30:05,734 - performance_monitor - WARNING - [performance_monitor.py:59] - jtop not available, using basic metrics only
+2025-11-21 21:30:05,781 - __main__ - INFO - [inspection_main.py:501] - Qt GUI selected
+2025-11-21 21:30:06,055 - __main__ - INFO - [inspection_main.py:504] - Qt GUI created successfully
+2025-11-21 21:30:06,055 - __main__ - INFO - [inspection_main.py:522] - ================================================================================
+2025-11-21 21:30:06,056 - __main__ - INFO - [inspection_main.py:523] - Initialization complete!
+2025-11-21 21:30:06,056 - __main__ - INFO - [inspection_main.py:524] - ================================================================================
+2025-11-21 21:30:06,056 - __main__ - INFO - [inspection_main.py:703] - Starting inspection loop...
+2025-11-21 21:30:06,145 - __main__ - INFO - [inspection_main.py:709] - Qt GUI window shown
+2025-11-21 21:30:16,112 - __main__ - INFO - [inspection_main.py:872] - Frame 100: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:30:22,805 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1634] - Developer mode: ON
+2025-11-21 21:30:24,222 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1670] - Theme: solarized
+2025-11-21 21:30:26,305 - __main__ - INFO - [inspection_main.py:872] - Frame 200: 10.0 FPS, 0 ROIs, 0 motion, 2 hot spots
+2025-11-21 21:30:26,613 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1670] - Theme: colorful
+2025-11-21 21:30:27,412 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1670] - Theme: auto
+2025-11-21 21:30:28,219 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1670] - Theme: light
+2025-11-21 21:30:29,320 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1670] - Theme: dark
+2025-11-21 21:30:30,420 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1670] - Theme: solarized
+2025-11-21 21:30:31,716 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1670] - Theme: colorful
+2025-11-21 21:30:32,515 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1670] - Theme: auto
+2025-11-21 21:30:33,220 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1670] - Theme: light
+2025-11-21 21:30:34,533 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1670] - Theme: dark
+2025-11-21 21:30:35,335 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1670] - Theme: solarized
+2025-11-21 21:30:36,320 - __main__ - INFO - [inspection_main.py:872] - Frame 300: 10.0 FPS, 0 ROIs, 0 motion, 3 hot spots
+2025-11-21 21:30:46,346 - __main__ - INFO - [inspection_main.py:872] - Frame 400: 10.0 FPS, 0 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:30:53,751 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1670] - Theme: colorful
+2025-11-21 21:30:55,555 - inspection_gui_qt - INFO - [inspection_gui_qt.py:737] - Drawing mode enabled: ROIType.RECTANGLE
+2025-11-21 21:30:55,555 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1719] - Draw ROI mode activated (rectangle)
+2025-11-21 21:30:56,353 - __main__ - INFO - [inspection_main.py:872] - Frame 500: 10.0 FPS, 0 ROIs, 0 motion, 5 hot spots
+2025-11-21 21:30:56,945 - inspection_gui_qt - INFO - [inspection_gui_qt.py:1805] - ROI created: ROI-1 (ROIType.RECTANGLE)
+2025-11-21 21:30:56,945 - inspection_gui_qt - INFO - [inspection_gui_qt.py:746] - Drawing mode disabled
+2025-11-21 21:31:06,370 - __main__ - INFO - [inspection_main.py:872] - Frame 600: 10.0 FPS, 1 ROIs, 0 motion, 5 hot spots
+2025-11-21 21:31:16,384 - __main__ - INFO - [inspection_main.py:872] - Frame 700: 10.0 FPS, 1 ROIs, 0 motion, 5 hot spots
+2025-11-21 21:31:26,397 - __main__ - INFO - [inspection_main.py:872] - Frame 800: 10.0 FPS, 1 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:31:36,396 - __main__ - INFO - [inspection_main.py:872] - Frame 900: 10.0 FPS, 1 ROIs, 3 motion, 8 hot spots
+2025-11-21 21:31:46,414 - __main__ - INFO - [inspection_main.py:872] - Frame 1000: 10.0 FPS, 1 ROIs, 0 motion, 8 hot spots
+2025-11-21 21:31:56,429 - __main__ - INFO - [inspection_main.py:872] - Frame 1100: 10.0 FPS, 1 ROIs, 0 motion, 9 hot spots
+2025-11-21 21:32:06,447 - __main__ - INFO - [inspection_main.py:872] - Frame 1200: 10.0 FPS, 1 ROIs, 0 motion, 7 hot spots
+2025-11-21 21:32:16,464 - __main__ - INFO - [inspection_main.py:872] - Frame 1300: 10.0 FPS, 1 ROIs, 0 motion, 3 hot spots
+2025-11-21 21:32:26,480 - __main__ - INFO - [inspection_main.py:872] - Frame 1400: 10.0 FPS, 1 ROIs, 0 motion, 5 hot spots
+2025-11-21 21:32:36,497 - __main__ - INFO - [inspection_main.py:872] - Frame 1500: 10.0 FPS, 1 ROIs, 0 motion, 5 hot spots
+2025-11-21 21:32:46,510 - __main__ - INFO - [inspection_main.py:872] - Frame 1600: 10.0 FPS, 1 ROIs, 0 motion, 4 hot spots
+2025-11-21 21:32:56,510 - __main__ - INFO - [inspection_main.py:872] - Frame 1700: 10.0 FPS, 1 ROIs, 0 motion, 3 hot spots
+2025-11-21 21:33:06,522 - __main__ - INFO - [inspection_main.py:872] - Frame 1800: 10.0 FPS, 1 ROIs, 2 motion, 5 hot spots
+2025-11-21 21:33:16,545 - __main__ - INFO - [inspection_main.py:872] - Frame 1900: 10.0 FPS, 1 ROIs, 0 motion, 4 hot spots
+2025-11-21 21:33:26,558 - __main__ - INFO - [inspection_main.py:872] - Frame 2000: 10.0 FPS, 1 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:33:36,572 - __main__ - INFO - [inspection_main.py:872] - Frame 2100: 10.0 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:33:46,588 - __main__ - INFO - [inspection_main.py:872] - Frame 2200: 10.0 FPS, 1 ROIs, 0 motion, 7 hot spots
+2025-11-21 21:33:56,605 - __main__ - INFO - [inspection_main.py:872] - Frame 2300: 10.0 FPS, 1 ROIs, 0 motion, 7 hot spots
+2025-11-21 21:34:06,620 - __main__ - INFO - [inspection_main.py:872] - Frame 2400: 10.0 FPS, 1 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:34:16,618 - __main__ - INFO - [inspection_main.py:872] - Frame 2500: 10.0 FPS, 1 ROIs, 0 motion, 4 hot spots
+2025-11-21 21:34:26,637 - __main__ - INFO - [inspection_main.py:872] - Frame 2600: 10.0 FPS, 1 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:34:36,655 - __main__ - INFO - [inspection_main.py:872] - Frame 2700: 10.0 FPS, 1 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:34:46,667 - __main__ - INFO - [inspection_main.py:872] - Frame 2800: 10.0 FPS, 1 ROIs, 0 motion, 5 hot spots
+2025-11-21 21:34:56,683 - __main__ - INFO - [inspection_main.py:872] - Frame 2900: 10.0 FPS, 1 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:35:06,700 - __main__ - INFO - [inspection_main.py:872] - Frame 3000: 10.0 FPS, 1 ROIs, 0 motion, 6 hot spots
+2025-11-21 21:35:16,717 - __main__ - INFO - [inspection_main.py:872] - Frame 3100: 10.0 FPS, 1 ROIs, 0 motion, 5 hot spots
+2025-11-21 21:35:26,741 - __main__ - INFO - [inspection_main.py:872] - Frame 3200: 10.0 FPS, 1 ROIs, 2 motion, 2 hot spots
+2025-11-21 21:35:36,733 - __main__ - INFO - [inspection_main.py:872] - Frame 3300: 10.0 FPS, 1 ROIs, 1 motion, 6 hot spots
+2025-11-21 21:35:46,745 - __main__ - INFO - [inspection_main.py:872] - Frame 3400: 10.0 FPS, 1 ROIs, 1 motion, 6 hot spots
+2025-11-21 21:35:56,762 - __main__ - INFO - [inspection_main.py:872] - Frame 3500: 10.0 FPS, 1 ROIs, 0 motion, 4 hot spots
+2025-11-21 21:36:06,779 - __main__ - INFO - [inspection_main.py:872] - Frame 3600: 10.0 FPS, 1 ROIs, 0 motion, 3 hot spots
+2025-11-21 21:36:16,795 - __main__ - INFO - [inspection_main.py:872] - Frame 3700: 10.0 FPS, 1 ROIs, 0 motion, 3 hot spots
+2025-11-21 21:36:26,812 - __main__ - INFO - [inspection_main.py:872] - Frame 3800: 10.0 FPS, 1 ROIs, 0 motion, 4 hot spots
+2025-11-21 21:36:36,834 - __main__ - INFO - [inspection_main.py:872] - Frame 3900: 10.0 FPS, 1 ROIs, 0 motion, 5 hot spots
+2025-11-21 21:36:46,847 - __main__ - INFO - [inspection_main.py:872] - Frame 4000: 10.0 FPS, 1 ROIs, 0 motion, 3 hot spots
+2025-11-21 21:36:56,846 - __main__ - INFO - [inspection_main.py:872] - Frame 4100: 10.0 FPS, 1 ROIs, 0 motion, 3 hot spots
+2025-11-21 21:37:06,862 - __main__ - INFO - [inspection_main.py:872] - Frame 4200: 10.0 FPS, 1 ROIs, 0 motion, 3 hot spots
+2025-11-21 21:37:16,882 - __main__ - INFO - [inspection_main.py:872] - Frame 4300: 10.0 FPS, 1 ROIs, 0 motion, 3 hot spots
+2025-11-21 21:37:26,894 - __main__ - INFO - [inspection_main.py:872] - Frame 4400: 10.0 FPS, 1 ROIs, 0 motion, 3 hot spots
+2025-11-21 21:37:36,910 - __main__ - INFO - [inspection_main.py:872] - Frame 4500: 10.0 FPS, 1 ROIs, 0 motion, 4 hot spots
+2025-11-21 21:37:46,934 - __main__ - INFO - [inspection_main.py:872] - Frame 4600: 10.0 FPS, 1 ROIs, 0 motion, 4 hot spots
+2025-11-21 21:37:56,941 - __main__ - INFO - [inspection_main.py:872] - Frame 4700: 10.0 FPS, 1 ROIs, 0 motion, 5 hot spots
+2025-11-21 21:38:06,958 - __main__ - INFO - [inspection_main.py:872] - Frame 4800: 10.0 FPS, 1 ROIs, 0 motion, 4 hot spots
+2025-11-21 21:38:16,963 - __main__ - INFO - [inspection_main.py:872] - Frame 4900: 10.0 FPS, 1 ROIs, 2 motion, 6 hot spots
+2025-11-21 21:38:26,972 - __main__ - INFO - [inspection_main.py:872] - Frame 5000: 10.0 FPS, 1 ROIs, 0 motion, 4 hot spots
+2025-11-21 21:38:36,987 - __main__ - INFO - [inspection_main.py:872] - Frame 5100: 10.0 FPS, 1 ROIs, 0 motion, 5 hot spots
+2025-11-21 21:38:47,002 - __main__ - INFO - [inspection_main.py:872] - Frame 5200: 10.0 FPS, 1 ROIs, 0 motion, 5 hot spots
+2025-11-21 21:38:57,029 - __main__ - INFO - [inspection_main.py:872] - Frame 5300: 10.0 FPS, 1 ROIs, 0 motion, 5 hot spots
+2025-11-21 21:39:07,050 - __main__ - INFO - [inspection_main.py:872] - Frame 5400: 10.0 FPS, 1 ROIs, 0 motion, 4 hot spots
+2025-11-21 21:39:17,057 - __main__ - INFO - [inspection_main.py:872] - Frame 5500: 10.0 FPS, 1 ROIs, 0 motion, 4 hot spots
+2025-11-21 21:39:27,068 - __main__ - INFO - [inspection_main.py:872] - Frame 5600: 10.0 FPS, 1 ROIs, 0 motion, 5 hot spots
+2025-11-21 21:39:37,075 - __main__ - INFO - [inspection_main.py:872] - Frame 5700: 10.0 FPS, 1 ROIs, 2 motion, 6 hot spots
+2025-11-21 21:39:47,101 - __main__ - INFO - [inspection_main.py:872] - Frame 5800: 10.0 FPS, 1 ROIs, 0 motion, 2 hot spots
+2025-11-21 21:39:57,111 - __main__ - INFO - [inspection_main.py:872] - Frame 5900: 10.0 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:40:07,128 - __main__ - INFO - [inspection_main.py:872] - Frame 6000: 10.0 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:40:17,148 - __main__ - INFO - [inspection_main.py:872] - Frame 6100: 10.0 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:40:27,177 - __main__ - INFO - [inspection_main.py:872] - Frame 6200: 9.9 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:40:37,177 - __main__ - INFO - [inspection_main.py:872] - Frame 6300: 10.0 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:40:47,193 - __main__ - INFO - [inspection_main.py:872] - Frame 6400: 10.0 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:40:57,198 - __main__ - INFO - [inspection_main.py:872] - Frame 6500: 10.0 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:41:07,213 - __main__ - INFO - [inspection_main.py:872] - Frame 6600: 10.0 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:41:17,214 - __main__ - INFO - [inspection_main.py:872] - Frame 6700: 10.0 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:41:27,230 - __main__ - INFO - [inspection_main.py:872] - Frame 6800: 10.0 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:41:37,238 - __main__ - INFO - [inspection_main.py:872] - Frame 6900: 10.0 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:41:47,287 - __main__ - INFO - [inspection_main.py:872] - Frame 7000: 9.9 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:41:57,297 - __main__ - INFO - [inspection_main.py:872] - Frame 7100: 10.0 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:42:07,303 - __main__ - INFO - [inspection_main.py:872] - Frame 7200: 10.0 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:42:17,304 - __main__ - INFO - [inspection_main.py:872] - Frame 7300: 10.0 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:42:27,316 - __main__ - INFO - [inspection_main.py:872] - Frame 7400: 10.0 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:42:37,345 - __main__ - INFO - [inspection_main.py:872] - Frame 7500: 10.0 FPS, 1 ROIs, 0 motion, 1 hot spots
+2025-11-21 21:42:47,339 - __main__ - INFO - [inspection_main.py:872] - Frame 7600: 10.0 FPS, 1 ROIs, 0 motion, 2 hot spots
+2025-11-21 21:42:57,362 - __main__ - INFO - [inspection_main.py:872] - Frame 7700: 10.0 FPS, 1 ROIs, 1 motion, 4 hot spots
+2025-11-21 21:43:07,378 - __main__ - INFO - [inspection_main.py:872] - Frame 7800: 10.0 FPS, 1 ROIs, 1 motion, 4 hot spots
+2025-11-21 21:43:17,391 - __main__ - INFO - [inspection_main.py:872] - Frame 7900: 10.0 FPS, 1 ROIs, 0 motion, 3 hot spots
+2025-11-21 21:43:27,407 - __main__ - INFO - [inspection_main.py:872] - Frame 8000: 10.0 FPS, 1 ROIs, 3 motion, 3 hot spots
+2025-11-21 21:43:37,406 - __main__ - INFO - [inspection_main.py:872] - Frame 8100: 10.0 FPS, 1 ROIs, 7 motion, 3 hot spots
+2025-11-22 11:04:09,819 - __main__ - INFO - [inspection_main.py:872] - Frame 8200: 0.0 FPS, 1 ROIs, 0 motion, 44 hot spots
+2025-11-22 11:05:55,346 - __main__ - INFO - [inspection_main.py:872] - Frame 8300: 0.9 FPS, 1 ROIs, 0 motion, 4 hot spots
+2025-11-22 11:07:38,853 - __main__ - INFO - [inspection_main.py:872] - Frame 8400: 1.0 FPS, 1 ROIs, 0 motion, 12 hot spots
+2025-11-22 11:09:22,339 - __main__ - INFO - [inspection_main.py:872] - Frame 8500: 1.0 FPS, 1 ROIs, 0 motion, 6 hot spots
+2025-11-22 11:11:06,248 - __main__ - INFO - [inspection_main.py:872] - Frame 8600: 1.0 FPS, 1 ROIs, 0 motion, 4 hot spots
+2025-11-22 11:12:49,232 - __main__ - INFO - [inspection_main.py:872] - Frame 8700: 1.0 FPS, 1 ROIs, 0 motion, 47 hot spots
+2025-11-22 11:14:32,641 - __main__ - INFO - [inspection_main.py:872] - Frame 8800: 1.0 FPS, 1 ROIs, 0 motion, 15 hot spots
+2025-11-22 11:16:15,501 - __main__ - INFO - [inspection_main.py:872] - Frame 8900: 1.0 FPS, 1 ROIs, 0 motion, 3 hot spots
+2025-11-22 11:17:58,553 - __main__ - INFO - [inspection_main.py:872] - Frame 9000: 1.0 FPS, 1 ROIs, 0 motion, 57 hot spots
+2025-11-22 11:19:42,642 - __main__ - INFO - [inspection_main.py:872] - Frame 9100: 1.0 FPS, 1 ROIs, 0 motion, 5 hot spots
+2025-11-22 11:21:25,459 - __main__ - INFO - [inspection_main.py:872] - Frame 9200: 1.0 FPS, 1 ROIs, 0 motion, 3 hot spots
+2025-11-22 11:23:08,701 - __main__ - INFO - [inspection_main.py:872] - Frame 9300: 1.0 FPS, 1 ROIs, 0 motion, 54 hot spots
+2025-11-22 11:24:52,867 - __main__ - INFO - [inspection_main.py:872] - Frame 9400: 1.0 FPS, 1 ROIs, 0 motion, 9 hot spots
+2025-11-22 11:26:35,770 - __main__ - INFO - [inspection_main.py:872] - Frame 9500: 1.0 FPS, 1 ROIs, 0 motion, 6 hot spots
+2025-11-22 11:28:19,259 - __main__ - INFO - [inspection_main.py:872] - Frame 9600: 1.0 FPS, 1 ROIs, 0 motion, 59 hot spots
+2025-11-22 11:30:03,325 - __main__ - INFO - [inspection_main.py:872] - Frame 9700: 1.0 FPS, 1 ROIs, 0 motion, 6 hot spots
+2025-11-22 11:31:46,114 - __main__ - INFO - [inspection_main.py:872] - Frame 9800: 1.0 FPS, 1 ROIs, 0 motion, 4 hot spots
+2025-11-22 11:33:29,282 - __main__ - INFO - [inspection_main.py:872] - Frame 9900: 1.0 FPS, 1 ROIs, 0 motion, 89 hot spots
+2025-11-22 11:35:12,735 - __main__ - INFO - [inspection_main.py:872] - Frame 10000: 1.0 FPS, 1 ROIs, 0 motion, 6 hot spots
+2025-11-22 11:36:55,601 - __main__ - INFO - [inspection_main.py:872] - Frame 10100: 1.0 FPS, 1 ROIs, 0 motion, 7 hot spots
+2025-11-22 11:38:38,653 - __main__ - INFO - [inspection_main.py:872] - Frame 10200: 1.0 FPS, 1 ROIs, 0 motion, 21 hot spots
+2025-11-22 11:40:22,881 - __main__ - INFO - [inspection_main.py:872] - Frame 10300: 1.0 FPS, 1 ROIs, 2 motion, 14 hot spots
+2025-11-22 11:42:05,765 - __main__ - INFO - [inspection_main.py:872] - Frame 10400: 1.0 FPS, 1 ROIs, 0 motion, 5 hot spots
+2025-11-22 11:43:48,686 - __main__ - INFO - [inspection_main.py:872] - Frame 10500: 1.0 FPS, 1 ROIs, 2 motion, 23 hot spots
+2025-11-22 11:45:32,167 - __main__ - INFO - [inspection_main.py:872] - Frame 10600: 1.0 FPS, 1 ROIs, 0 motion, 10 hot spots
+2025-11-22 11:47:15,196 - __main__ - INFO - [inspection_main.py:872] - Frame 10700: 1.0 FPS, 1 ROIs, 0 motion, 9 hot spots
+2025-11-22 11:48:58,395 - __main__ - INFO - [inspection_main.py:872] - Frame 10800: 1.0 FPS, 1 ROIs, 0 motion, 22 hot spots
+2025-11-22 11:50:42,470 - __main__ - INFO - [inspection_main.py:872] - Frame 10900: 1.0 FPS, 1 ROIs, 0 motion, 4 hot spots
+2025-11-22 11:52:26,475 - __main__ - INFO - [inspection_main.py:872] - Frame 11000: 1.0 FPS, 1 ROIs, 0 motion, 10 hot spots
+2025-11-22 11:54:09,759 - __main__ - INFO - [inspection_main.py:872] - Frame 11100: 1.0 FPS, 1 ROIs, 0 motion, 56 hot spots
+2025-11-22 11:55:52,935 - __main__ - INFO - [inspection_main.py:872] - Frame 11200: 1.0 FPS, 1 ROIs, 0 motion, 5 hot spots
+2025-11-22 11:57:35,743 - __main__ - INFO - [inspection_main.py:872] - Frame 11300: 1.0 FPS, 1 ROIs, 0 motion, 19 hot spots
+2025-11-22 11:59:20,160 - __main__ - INFO - [inspection_main.py:872] - Frame 11400: 0.9 FPS, 1 ROIs, 0 motion, 55 hot spots
+2025-11-22 12:01:03,311 - __main__ - INFO - [inspection_main.py:872] - Frame 11500: 1.0 FPS, 1 ROIs, 0 motion, 5 hot spots
+2025-11-22 12:02:46,102 - __main__ - INFO - [inspection_main.py:872] - Frame 11600: 1.0 FPS, 1 ROIs, 0 motion, 13 hot spots
+2025-11-22 12:04:29,380 - __main__ - INFO - [inspection_main.py:872] - Frame 11700: 1.0 FPS, 1 ROIs, 0 motion, 8 hot spots
+2025-11-22 12:06:12,593 - __main__ - INFO - [inspection_main.py:872] - Frame 11800: 1.0 FPS, 1 ROIs, 0 motion, 61 hot spots
+2025-11-22 12:07:55,718 - __main__ - INFO - [inspection_main.py:872] - Frame 11900: 1.0 FPS, 1 ROIs, 0 motion, 10 hot spots
+2025-11-22 12:09:39,766 - __main__ - INFO - [inspection_main.py:872] - Frame 12000: 1.0 FPS, 1 ROIs, 0 motion, 59 hot spots
+2025-11-22 12:11:22,854 - __main__ - INFO - [inspection_main.py:872] - Frame 12100: 1.0 FPS, 1 ROIs, 0 motion, 6 hot spots
+2025-11-22 12:13:05,665 - __main__ - INFO - [inspection_main.py:872] - Frame 12200: 1.0 FPS, 1 ROIs, 0 motion, 10 hot spots
+2025-11-22 12:14:50,004 - __main__ - INFO - [inspection_main.py:872] - Frame 12300: 1.0 FPS, 1 ROIs, 0 motion, 16 hot spots
+2025-11-22 12:16:33,083 - __main__ - INFO - [inspection_main.py:872] - Frame 12400: 1.0 FPS, 1 ROIs, 0 motion, 3 hot spots
+2025-11-22 12:18:15,919 - __main__ - INFO - [inspection_main.py:872] - Frame 12500: 1.0 FPS, 1 ROIs, 0 motion, 12 hot spots
+2025-11-22 12:19:59,664 - __main__ - INFO - [inspection_main.py:872] - Frame 12600: 1.0 FPS, 1 ROIs, 0 motion, 66 hot spots
+2025-11-22 12:21:42,792 - __main__ - INFO - [inspection_main.py:872] - Frame 12700: 1.0 FPS, 1 ROIs, 0 motion, 12 hot spots
+2025-11-22 12:23:25,754 - __main__ - INFO - [inspection_main.py:872] - Frame 12800: 1.0 FPS, 1 ROIs, 0 motion, 23 hot spots
+2025-11-22 12:25:09,991 - __main__ - INFO - [inspection_main.py:872] - Frame 12900: 1.0 FPS, 1 ROIs, 0 motion, 4 hot spots
+2025-11-22 12:26:53,063 - __main__ - INFO - [inspection_main.py:872] - Frame 13000: 1.0 FPS, 1 ROIs, 0 motion, 3 hot spots
+2025-11-22 12:28:36,001 - __main__ - INFO - [inspection_main.py:872] - Frame 13100: 1.0 FPS, 1 ROIs, 0 motion, 29 hot spots
+2025-11-22 12:30:20,332 - __main__ - INFO - [inspection_main.py:872] - Frame 13200: 1.0 FPS, 1 ROIs, 0 motion, 78 hot spots
+2025-11-22 12:32:03,510 - __main__ - INFO - [inspection_main.py:872] - Frame 13300: 1.0 FPS, 1 ROIs, 0 motion, 3 hot spots
+2025-11-22 12:33:46,473 - __main__ - INFO - [inspection_main.py:872] - Frame 13400: 1.0 FPS, 1 ROIs, 0 motion, 12 hot spots
+2025-11-22 12:35:30,627 - __main__ - INFO - [inspection_main.py:872] - Frame 13500: 1.0 FPS, 1 ROIs, 0 motion, 67 hot spots
+2025-11-22 12:37:13,640 - __main__ - INFO - [inspection_main.py:872] - Frame 13600: 1.0 FPS, 1 ROIs, 0 motion, 4 hot spots
+2025-11-22 12:38:56,614 - __main__ - INFO - [inspection_main.py:872] - Frame 13700: 1.0 FPS, 1 ROIs, 0 motion, 14 hot spots
+2025-11-22 12:40:41,105 - __main__ - INFO - [inspection_main.py:872] - Frame 13800: 1.0 FPS, 1 ROIs, 0 motion, 71 hot spots
+2025-11-22 12:42:23,918 - __main__ - INFO - [inspection_main.py:872] - Frame 13900: 1.0 FPS, 1 ROIs, 0 motion, 2 hot spots
+2025-11-22 12:44:10,787 - __main__ - INFO - [inspection_main.py:872] - Frame 14000: 0.9 FPS, 1 ROIs, 1 motion, 7 hot spots

@@ -35,7 +35,8 @@
       "Bash(timeout 5 echo:*)",
       "Bash(timeout 10 echo:*)",
       "Bash(timeout 15 echo:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(del /S /Q __pycache__)"
     ],
     "deny": [],
     "ask": []

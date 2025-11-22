@@ -41,6 +41,10 @@ QMainWindow {
     background-color: #1a1a1a;
 }
 
+QWidget {
+    background-color: #1a1a1a;
+}
+
 QPushButton {
     background-color: #2d2d2d;
     color: #e0e0e0;
@@ -71,6 +75,10 @@ QPushButton:disabled {
     background-color: #1a1a1a;
     color: #666666;
     border: 2px solid #2d2d2d;
+}
+
+QLabel {
+    color: #e0e0e0;
 }
 
 QLabel#info_panel {
@@ -188,6 +196,10 @@ QMainWindow {
     background-color: #f5f5f5;
 }
 
+QWidget {
+    background-color: #f5f5f5;
+}
+
 QPushButton {
     background-color: #ffffff;
     color: #202020;
@@ -218,6 +230,10 @@ QPushButton:disabled {
     background-color: #f5f5f5;
     color: #a0a0a0;
     border: 2px solid #d0d0d0;
+}
+
+QLabel {
+    color: #202020;
 }
 
 QLabel#info_panel {
@@ -337,6 +353,10 @@ QMainWindow {
     background-color: #fdf6e3;
 }
 
+QWidget {
+    background-color: #fdf6e3;
+}
+
 QPushButton {
     background-color: #eee8d5;
     color: #657b83;
@@ -350,7 +370,7 @@ QPushButton {
 
 QPushButton:hover {
     background-color: #e8e2cf;
-    border: 2px solid: #268bd2;
+    border: 2px solid #268bd2;
 }
 
 QPushButton:pressed {
@@ -367,6 +387,10 @@ QPushButton:disabled {
     background-color: #fdf6e3;
     color: #93a1a1;
     border: 2px solid #eee8d5;
+}
+
+QLabel {
+    color: #657b83;
 }
 
 QGroupBox {
@@ -408,6 +432,10 @@ QMainWindow {
                                       stop:0 #1a3a52, stop:1 #0f1e2e);
 }
 
+QWidget {
+    background-color: #0f1e2e;
+}
+
 QPushButton {
     background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                                        stop:0 #2c5f7e, stop:1 #1c4a6e);
@@ -442,6 +470,10 @@ QPushButton:disabled {
     background-color: #1a3a52;
     color: #4a7c9e;
     border: 2px solid #1c4a6e;
+}
+
+QLabel {
+    color: #d4e8ff;
 }
 
 QGroupBox {
@@ -595,54 +627,71 @@ class InspectionOverlayWidget(QWidget):
             pen = QPen(color, thickness)
             painter.setPen(pen)
 
-            # Draw based on ROI type
+            # Draw based on ROI type (with coordinate transformation)
             if roi.roi_type == ROIType.RECTANGLE:
                 x, y, w, h = roi.get_bbox()
-                painter.drawRect(int(x), int(y), int(w), int(h))
+                # Transform frame coordinates to widget coordinates
+                wx1, wy1 = self.frame_to_widget(x, y)
+                wx2, wy2 = self.frame_to_widget(x + w, y + h)
+                painter.drawRect(wx1, wy1, wx2 - wx1, wy2 - wy1)
             elif roi.roi_type == ROIType.POLYGON:
                 from PyQt6.QtCore import QPoint
-                points = [QPoint(int(p[0]), int(p[1])) for p in roi.points]
+                # Transform all polygon points
+                points = [QPoint(int(self.frame_to_widget(p[0], p[1])[0]),
+                                int(self.frame_to_widget(p[0], p[1])[1])) for p in roi.points]
                 from PyQt6.QtGui import QPolygon
                 painter.drawPolygon(QPolygon(points))
             elif roi.roi_type == ROIType.ELLIPSE:
                 x, y, w, h = roi.get_bbox()
-                painter.drawEllipse(int(x), int(y), int(w), int(h))
+                # Transform frame coordinates to widget coordinates
+                wx1, wy1 = self.frame_to_widget(x, y)
+                wx2, wy2 = self.frame_to_widget(x + w, y + h)
+                painter.drawEllipse(wx1, wy1, wx2 - wx1, wy2 - wy1)
             elif roi.roi_type == ROIType.CIRCLE:
                 x, y, w, h = roi.get_bbox()
-                radius = int(w / 2)
-                center_x = int(x + radius)
-                center_y = int(y + radius)
+                # Transform to widget coordinates
+                wx1, wy1 = self.frame_to_widget(x, y)
+                wx2, wy2 = self.frame_to_widget(x + w, y + h)
+                ww = wx2 - wx1
+                wh = wy2 - wy1
+                radius = int(ww / 2)
+                center_x = int(wx1 + radius)
+                center_y = int(wy1 + radius)
                 painter.drawEllipse(center_x - radius, center_y - radius, radius * 2, radius * 2)
 
             # Draw label
             if roi.label:
                 x, y, _, _ = roi.get_bbox()
+                wx, wy = self.frame_to_widget(x, y)
                 painter.setPen(QPen(color, 1))
-                painter.drawText(int(x), int(y) - 5, roi.label)
+                painter.drawText(int(wx), int(wy) - 5, roi.label)
 
-        # Draw hot spots
+        # Draw hot spots (with coordinate transformation)
         for hot_spot in self.hot_spots:
             painter.setPen(QPen(QColor(255, 0, 0), 2))  # Red
             x, y = hot_spot.centroid
-            painter.drawEllipse(int(x) - 5, int(y) - 5, 10, 10)
-            painter.drawText(int(x) + 10, int(y), f"{hot_spot.max_temp:.1f}{hot_spot.unit}")
+            wx, wy = self.frame_to_widget(x, y)
+            painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
+            painter.drawText(int(wx) + 10, int(wy), f"{hot_spot.max_temp:.1f}{hot_spot.unit}")
 
-        # Draw cold spots
+        # Draw cold spots (with coordinate transformation)
         for cold_spot in self.cold_spots:
             painter.setPen(QPen(QColor(0, 128, 255), 2))  # Light blue
             x, y = cold_spot.centroid
-            painter.drawEllipse(int(x) - 5, int(y) - 5, 10, 10)
-            painter.drawText(int(x) + 10, int(y), f"{cold_spot.min_temp:.1f}{cold_spot.unit}")
+            wx, wy = self.frame_to_widget(x, y)
+            painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
+            painter.drawText(int(wx) + 10, int(wy), f"{cold_spot.min_temp:.1f}{cold_spot.unit}")
 
-        # Draw anomalies
+        # Draw anomalies (with coordinate transformation)
         for anomaly in self.anomalies:
             painter.setPen(QPen(QColor(255, 255, 0), 3))  # Yellow
             x, y = anomaly.location
+            wx, wy = self.frame_to_widget(x, y)
             # Draw warning triangle
-            painter.drawLine(int(x), int(y) - 10, int(x) - 8, int(y) + 6)
-            painter.drawLine(int(x) - 8, int(y) + 6, int(x) + 8, int(y) + 6)
-            painter.drawLine(int(x) + 8, int(y) + 6, int(x), int(y) - 10)
-            painter.drawText(int(x) + 15, int(y), f"⚠ {anomaly.anomaly_type}")
+            painter.drawLine(int(wx), int(wy) - 10, int(wx) - 8, int(wy) + 6)
+            painter.drawLine(int(wx) - 8, int(wy) + 6, int(wx) + 8, int(wy) + 6)
+            painter.drawLine(int(wx) + 8, int(wy) + 6, int(wx), int(wy) - 10)
+            painter.drawText(int(wx) + 15, int(wy), f"⚠ {anomaly.anomaly_type}")
 
         # Draw temporary ROI being created
         if self.drawing_mode and self.draw_start_pos and self.draw_current_pos:
@@ -747,8 +796,11 @@ class InspectionOverlayWidget(QWidget):
                 h = abs(event.pos().y() - self.draw_start_pos.y())
 
                 if w > 10 and h > 10:  # Minimum size
-                    # Convert bounds to points (4 corners)
-                    points = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+                    # Transform widget coordinates to frame coordinates
+                    fx1, fy1 = self.widget_to_frame(x, y)
+                    fx2, fy2 = self.widget_to_frame(x + w, y + h)
+                    # Convert bounds to points (4 corners) in frame coordinates
+                    points = [(fx1, fy1), (fx2, fy1), (fx2, fy2), (fx1, fy2)]
                     roi = ROI(
                         roi_id=str(uuid.uuid4()),
                         roi_type=ROIType.RECTANGLE,
@@ -765,8 +817,11 @@ class InspectionOverlayWidget(QWidget):
                 h = abs(event.pos().y() - self.draw_start_pos.y())
 
                 if w > 10 and h > 10:
-                    # Convert ellipse bounds to points (4 corners of bounding box)
-                    points = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+                    # Transform widget coordinates to frame coordinates
+                    fx1, fy1 = self.widget_to_frame(x, y)
+                    fx2, fy2 = self.widget_to_frame(x + w, y + h)
+                    # Convert ellipse bounds to points (4 corners of bounding box) in frame coordinates
+                    points = [(fx1, fy1), (fx2, fy1), (fx2, fy2), (fx1, fy2)]
                     roi = ROI(
                         roi_id=str(uuid.uuid4()),
                         roi_type=ROIType.ELLIPSE,
@@ -783,12 +838,15 @@ class InspectionOverlayWidget(QWidget):
                              (event.pos().y() - center_y) ** 2) ** 0.5)
 
                 if radius > 5:
-                    # Convert circle to points (bounding box corners)
+                    # Convert circle to points (bounding box corners) in widget coords
                     x = center_x - radius
                     y = center_y - radius
                     w = radius * 2
                     h = radius * 2
-                    points = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+                    # Transform to frame coordinates
+                    fx1, fy1 = self.widget_to_frame(x, y)
+                    fx2, fy2 = self.widget_to_frame(x + w, y + h)
+                    points = [(fx1, fy1), (fx2, fy1), (fx2, fy2), (fx1, fy2)]
                     roi = ROI(
                         roi_id=str(uuid.uuid4()),
                         roi_type=ROIType.CIRCLE,
@@ -888,6 +946,13 @@ class VideoWidget(QLabel):
         )
         self.setPixmap(self._last_qpixmap)
 
+        # Update overlay coordinate transformation
+        self.overlay.set_frame_transform(
+            width, height,  # Original frame size
+            self._last_qpixmap.width(), self._last_qpixmap.height(),  # Scaled pixmap size
+            self.width(), self.height()  # Widget size
+        )
+
     def update_rois(self, rois: List[ROI]):
         """Update ROIs on overlay."""
         self.overlay.update_rois(rois)
@@ -897,9 +962,29 @@ class VideoWidget(QLabel):
         self.overlay.update_thermal_detections(hot_spots, cold_spots, anomalies)
 
     def resizeEvent(self, event):
-        """Ensure overlay matches video widget size."""
+        """Ensure overlay matches video widget size and update coordinate transformation."""
         super().resizeEvent(event)
         self.overlay.setGeometry(self.rect())
+
+        # Update coordinate transformation if we have frame dimensions
+        if self._last_qpixmap and hasattr(self.overlay, 'frame_size') and self.overlay.frame_size != (640, 512):
+            # Re-scale pixmap and update transformation
+            if self._last_qimage:
+                frame_width, frame_height = self.overlay.frame_size
+                self._last_qpixmap = QPixmap.fromImage(self._last_qimage).scaled(
+                    self.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+                )
+                self.setPixmap(self._last_qpixmap)
+
+                # Update overlay coordinate transformation
+                self.overlay.set_frame_transform(
+                    frame_width, frame_height,
+                    self._last_qpixmap.width(), self._last_qpixmap.height(),
+                    self.width(), self.height()
+                )
+
+        # Trigger overlay repaint with new coordinates
+        self.overlay.update()
 
 
 # ============================================================================
@@ -938,6 +1023,7 @@ class ControlPanel(QWidget):
     fusion_priority_clicked = pyqtSignal()
     motion_detection_toggled = pyqtSignal(bool)
     edge_detection_toggled = pyqtSignal(bool)
+    anomaly_priority_toggled = pyqtSignal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1002,10 +1088,14 @@ class ControlPanel(QWidget):
         self.edge_btn = QPushButton("📐 Edges: ON")
         self.edge_btn.setCheckable(True)
         self.edge_btn.setChecked(True)
+        self.anomaly_priority_btn = QPushButton("🎯 Anomaly: OFF")
+        self.anomaly_priority_btn.setCheckable(True)
+        self.anomaly_priority_btn.setChecked(False)
 
         self.dev_layout.addWidget(self.device_btn, 3, 0)
         self.dev_layout.addWidget(self.motion_btn, 3, 1)
         self.dev_layout.addWidget(self.edge_btn, 3, 2)
+        self.dev_layout.addWidget(self.anomaly_priority_btn, 3, 3)
 
         # Row 4: Fusion controls
         self.fusion_mode_btn = QPushButton("🔀 Fusion: Alpha")
@@ -1045,6 +1135,7 @@ class ControlPanel(QWidget):
         self.device_btn.clicked.connect(lambda: self.device_clicked.emit())
         self.motion_btn.toggled.connect(self.motion_detection_toggled.emit)
         self.edge_btn.toggled.connect(self.edge_detection_toggled.emit)
+        self.anomaly_priority_btn.toggled.connect(self.anomaly_priority_toggled.emit)
 
         # Fusion
         self.fusion_mode_btn.clicked.connect(lambda: self.fusion_mode_clicked.emit())
@@ -1118,6 +1209,13 @@ class ControlPanel(QWidget):
             self.edge_btn.setText("📐 Edges: ON")
         else:
             self.edge_btn.setText("📐 Edges: OFF")
+
+    def update_anomaly_priority_button(self, enabled: bool):
+        """Update anomaly priority button."""
+        if enabled:
+            self.anomaly_priority_btn.setText("🎯 Anomaly: ON")
+        else:
+            self.anomaly_priority_btn.setText("🎯 Anomaly: OFF")
 
     def update_view_button(self, view_mode: str):
         """Update view mode button text."""
@@ -1257,7 +1355,6 @@ class ThermalAnalysisPanel(QWidget):
         
         self.hotspot_list = QListWidget()
         self.hotspot_list.setMaximumHeight(70)
-        self.hotspot_list.setStyleSheet("QListWidget { border: 1px solid palette(mid); border-radius: 3px; padding: 3  px; }")
         font = QFont()
         font.setPointSize(10)
         self.hotspot_list.setFont(font)
@@ -1270,7 +1367,6 @@ class ThermalAnalysisPanel(QWidget):
         
         self.coldspot_list = QListWidget()
         self.coldspot_list.setMaximumHeight(70)
-        self.coldspot_list.setStyleSheet("QListWidget { border: 1px solid palette(mid); border-radius: 3px; padding: 3px; }")
         font = QFont()
         font.setPointSize(10)
         self.coldspot_list.setFont(font)
@@ -1283,7 +1379,6 @@ class ThermalAnalysisPanel(QWidget):
         
         self.anomaly_list = QListWidget()
         self.anomaly_list.setMaximumHeight(70)
-        self.anomaly_list.setStyleSheet("QListWidget { border: 1px solid palette(mid); border-radius: 3px; padding: 3px; }")
         font = QFont()
         font.setPointSize(10)
         self.anomaly_list.setFont(font)
@@ -1296,7 +1391,6 @@ class ThermalAnalysisPanel(QWidget):
         
         self.roi_list = QListWidget()
         self.roi_list.setMaximumHeight(80)
-        self.roi_list.setStyleSheet("QListWidget { border: 1px solid palette(mid); border-radius: 3px; padding: 3px; }")
         font = QFont()
         font.setPointSize(10)
         self.roi_list.setFont(font)

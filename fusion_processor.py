@@ -126,7 +126,7 @@ class FusionProcessor:
             fusion_mode: New fusion mode to use
         """
         valid_modes = ['alpha_blend', 'edge_enhanced', 'thermal_overlay',
-                       'side_by_side', 'picture_in_picture', 'max_intensity', 'feature_weighted']
+                       'side_by_side', 'picture_in_picture', 'max_intensity', 'feature_weighted', 'anomaly_priority']
 
         if fusion_mode in valid_modes:
             self.fusion_mode = fusion_mode
