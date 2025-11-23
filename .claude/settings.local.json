@@ -36,7 +36,10 @@
       "Bash(timeout 10 echo:*)",
       "Bash(timeout 15 echo:*)",
       "Bash(git checkout:*)",
-      "Bash(del /S /Q __pycache__)"
+      "Bash(del /S /Q __pycache__)",
+      "Bash(powershell -Command \"Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(timeout 120 python:*)",
+      "Bash(tee:*)"
     ],
     "deny": [],
     "ask": []

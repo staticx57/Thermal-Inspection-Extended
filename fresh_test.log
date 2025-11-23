@@ -1,0 +1,222 @@
+WARNING:rgb_camera_firefly:PySpin not available. FLIR Firefly support disabled.
+WARNING:rgb_camera_firefly:Install Spinnaker SDK from: https://www.flir.com/products/spinnaker-sdk/
+WARNING:root:VPI not available - using OpenCV fallback
+WARNING:root:jtop not available. Install with: sudo pip3 install jetson-stats
+INFO:root:[OK] Debug logging: thermal_inspection_debug.log
+2025-11-22 19:49:12,085 - root - INFO - [OK] Debug logging: thermal_inspection_debug.log
+INFO:__main__:================================================================================
+2025-11-22 19:49:12,090 - __main__ - INFO - ================================================================================
+INFO:__main__:Thermal Inspection Fusion Tool
+2025-11-22 19:49:12,091 - __main__ - INFO - Thermal Inspection Fusion Tool
+INFO:__main__:Transformed from ThermalFusionDrivingAssist
+2025-11-22 19:49:12,091 - __main__ - INFO - Transformed from ThermalFusionDrivingAssist
+INFO:__main__:================================================================================
+2025-11-22 19:49:12,091 - __main__ - INFO - ================================================================================
+INFO:__main__:Qt GUI enabled
+2025-11-22 19:49:12,125 - __main__ - INFO - Qt GUI enabled
+INFO:__main__:Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-22 19:49:12,146 - __main__ - INFO - Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+INFO:__main__:================================================================================
+2025-11-22 19:49:12,147 - __main__ - INFO - ================================================================================
+INFO:__main__:Initializing Thermal Inspection Fusion Tool
+2025-11-22 19:49:12,147 - __main__ - INFO - Initializing Thermal Inspection Fusion Tool
+INFO:__main__:================================================================================
+2025-11-22 19:49:12,147 - __main__ - INFO - ================================================================================
+INFO:__main__:Platform: x86-64 (AMD64)
+2025-11-22 19:49:12,147 - __main__ - INFO - Platform: x86-64 (AMD64)
+INFO:__main__:Mode: realtime
+2025-11-22 19:49:12,147 - __main__ - INFO - Mode: realtime
+INFO:__main__:Device: cuda
+2025-11-22 19:49:12,147 - __main__ - INFO - Device: cuda
+INFO:__main__:Scanning for FLIR Boson thermal camera...
+2025-11-22 19:49:12,147 - __main__ - INFO - Scanning for FLIR Boson thermal camera...
+INFO:flir_camera:Windows detected - trying DirectShow backend
+2025-11-22 19:49:12,147 - flir_camera - INFO - Windows detected - trying DirectShow backend
+INFO:flir_camera:FLIR Boson camera opened successfully on device 0
+2025-11-22 19:49:13,521 - flir_camera - INFO - FLIR Boson camera opened successfully on device 0
+INFO:flir_camera:Resolution: (640, 512)
+2025-11-22 19:49:13,522 - flir_camera - INFO - Resolution: (640, 512)
+INFO:flir_camera:FPS: 60.000240000960005
+2025-11-22 19:49:13,522 - flir_camera - INFO - FPS: 60.000240000960005
+INFO:__main__:[OK] Thermal camera connected: 640x512
+2025-11-22 19:49:13,522 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+INFO:__main__:Detecting camera mode...
+2025-11-22 19:49:13,522 - __main__ - INFO - Detecting camera mode...
+INFO:flir_camera:Thermal camera mode detection:
+2025-11-22 19:49:13,560 - flir_camera - INFO - Thermal camera mode detection:
+INFO:flir_camera:  Frame dtype: uint8
+2025-11-22 19:49:13,560 - flir_camera - INFO -   Frame dtype: uint8
+INFO:flir_camera:  Frame shape: (512, 640, 3)
+2025-11-22 19:49:13,560 - flir_camera - INFO -   Frame shape: (512, 640, 3)
+INFO:flir_camera:  -> UVC MODE (8-bit YUV/RGB converted)
+2025-11-22 19:49:13,560 - flir_camera - INFO -   -> UVC MODE (8-bit YUV/RGB converted)
+INFO:__main__:Median pixel value: 55.0
+2025-11-22 19:49:13,643 - __main__ - INFO - Median pixel value: 55.0
+INFO:__main__:[DETECTED] Non-Radiometric Mode (Raw/AGC)
+2025-11-22 19:49:13,644 - __main__ - INFO - [DETECTED] Non-Radiometric Mode (Raw/AGC)
+INFO:__main__:Scanning for RGB camera...
+2025-11-22 19:49:13,644 - __main__ - INFO - Scanning for RGB camera...
+INFO:camera_factory:Skipping thermal camera device 0, using next available device
+2025-11-22 19:49:13,644 - camera_factory - INFO - Skipping thermal camera device 0, using next available device
+INFO:camera_factory:============================================================
+2025-11-22 19:49:13,644 - camera_factory - INFO - ============================================================
+INFO:camera_factory:RGB Camera Factory - Auto-detection
+2025-11-22 19:49:13,644 - camera_factory - INFO - RGB Camera Factory - Auto-detection
+INFO:camera_factory:============================================================
+2025-11-22 19:49:13,644 - camera_factory - INFO - ============================================================
+INFO:camera_factory:Auto-detecting RGB cameras...
+2025-11-22 19:49:13,644 - camera_factory - INFO - Auto-detecting RGB cameras...
+INFO:camera_factory:[X] No UVC cameras detected
+2025-11-22 19:49:13,645 - camera_factory - INFO - [X] No UVC cameras detected
+WARNING:camera_factory:Falling back to legacy RGBCamera class
+2025-11-22 19:49:13,645 - camera_factory - WARNING - Falling back to legacy RGBCamera class
+INFO:rgb_camera:Windows detected - opening camera 1 with DirectShow
+2025-11-22 19:49:13,646 - rgb_camera - INFO - Windows detected - opening camera 1 with DirectShow
+INFO:rgb_camera:RGB camera opened successfully
+2025-11-22 19:49:16,184 - rgb_camera - INFO - RGB camera opened successfully
+INFO:rgb_camera:Resolution: 640x480 @ 30 FPS
+2025-11-22 19:49:16,185 - rgb_camera - INFO - Resolution: 640x480 @ 30 FPS
+INFO:__main__:[OK] RGB camera connected: 640x480
+2025-11-22 19:49:16,993 - __main__ - INFO - [OK] RGB camera connected: 640x480
+INFO:config:Configuration loaded from config.json
+2025-11-22 19:49:16,994 - config - INFO - Configuration loaded from config.json
+WARNING:fusion_processor:No calibration file provided - using identity transform
+2025-11-22 19:49:16,994 - fusion_processor - WARNING - No calibration file provided - using identity transform
+INFO:__main__:[OK] Fusion processor initialized (mode: thermal_overlay)
+2025-11-22 19:49:16,994 - __main__ - INFO - [OK] Fusion processor initialized (mode: thermal_overlay)
+INFO:__main__:     7 fusion algorithms available!
+2025-11-22 19:49:16,994 - __main__ - INFO -      7 fusion algorithms available!
+INFO:__main__:------------------------------------------------------------
+2025-11-22 19:49:16,994 - __main__ - INFO - ------------------------------------------------------------
+INFO:__main__:Initializing inspection modules...
+2025-11-22 19:49:16,994 - __main__ - INFO - Initializing inspection modules...
+INFO:thermal_processor:VPI not available - using OpenCV fallback
+2025-11-22 19:49:16,994 - thermal_processor - INFO - VPI not available - using OpenCV fallback
+INFO:thermal_processor:VPI not available - using OpenCV fallback
+2025-11-22 19:49:16,996 - thermal_processor - INFO - VPI not available - using OpenCV fallback
+INFO:__main__:[OK] Thermal processor initialized
+2025-11-22 19:49:16,996 - __main__ - INFO - [OK] Thermal processor initialized
+INFO:__main__:[OK] Thermal analyzer initialized
+2025-11-22 19:49:16,996 - __main__ - INFO - [OK] Thermal analyzer initialized
+INFO:__main__:[OK] ROI manager initialized
+2025-11-22 19:49:16,996 - __main__ - INFO - [OK] ROI manager initialized
+INFO:__main__:[OK] Palette manager initialized
+2025-11-22 19:49:17,046 - __main__ - INFO - [OK] Palette manager initialized
+INFO:__main__:     45 palettes available
+2025-11-22 19:49:17,047 - __main__ - INFO -      45 palettes available
+INFO:__main__:[OK] Video recorder initialized
+2025-11-22 19:49:17,047 - __main__ - INFO - [OK] Video recorder initialized
+INFO:__main__:[OK] Snapshot manager initialized
+2025-11-22 19:49:17,047 - __main__ - INFO - [OK] Snapshot manager initialized
+INFO:__main__:------------------------------------------------------------
+2025-11-22 19:49:17,048 - __main__ - INFO - ------------------------------------------------------------
+WARNING:performance_monitor:jtop not available, using basic metrics only
+2025-11-22 19:49:17,048 - performance_monitor - WARNING - jtop not available, using basic metrics only
+INFO:__main__:Qt GUI selected
+2025-11-22 19:49:17,049 - __main__ - INFO - Qt GUI selected
+INFO:__main__:Qt GUI created successfully
+2025-11-22 19:49:17,321 - __main__ - INFO - Qt GUI created successfully
+INFO:__main__:================================================================================
+2025-11-22 19:49:17,321 - __main__ - INFO - ================================================================================
+INFO:__main__:Initialization complete!
+2025-11-22 19:49:17,322 - __main__ - INFO - Initialization complete!
+INFO:__main__:================================================================================
+2025-11-22 19:49:17,322 - __main__ - INFO - ================================================================================
+INFO:__main__:Starting inspection loop...
+2025-11-22 19:49:17,322 - __main__ - INFO - Starting inspection loop...
+INFO:__main__:Qt GUI window shown
+2025-11-22 19:49:17,413 - __main__ - INFO - Qt GUI window shown
+INFO:inspection_gui_qt:Developer mode: ON
+2025-11-22 19:49:21,887 - inspection_gui_qt - INFO - Developer mode: ON
+INFO:__main__:Switched to view mode: side_by_side
+2025-11-22 19:49:22,996 - __main__ - INFO - Switched to view mode: side_by_side
+INFO:inspection_gui_qt:View mode cycle
+2025-11-22 19:49:22,996 - inspection_gui_qt - INFO - View mode cycle
+INFO:__main__:Switched to view mode: pip
+2025-11-22 19:49:23,183 - __main__ - INFO - Switched to view mode: pip
+INFO:inspection_gui_qt:View mode cycle
+2025-11-22 19:49:23,183 - inspection_gui_qt - INFO - View mode cycle
+INFO:__main__:Switched to view mode: thermal
+2025-11-22 19:49:23,280 - __main__ - INFO - Switched to view mode: thermal
+INFO:inspection_gui_qt:View mode cycle
+2025-11-22 19:49:23,280 - inspection_gui_qt - INFO - View mode cycle
+INFO:__main__:Frame 100: 10.0 FPS (100.2ms/frame), 0 ROIs, 2 motion, 7 hot spots
+2025-11-22 19:49:27,585 - __main__ - INFO - Frame 100: 10.0 FPS (100.2ms/frame), 0 ROIs, 2 motion, 7 hot spots
+INFO:__main__:Frame 200: 10.0 FPS (99.8ms/frame), 0 ROIs, 4 motion, 7 hot spots
+2025-11-22 19:49:37,593 - __main__ - INFO - Frame 200: 10.0 FPS (99.8ms/frame), 0 ROIs, 4 motion, 7 hot spots
+INFO:thermal_processor:Anomaly priority: enabled
+2025-11-22 19:49:39,198 - thermal_processor - INFO - Anomaly priority: enabled
+INFO:__main__:Anomaly priority: True
+2025-11-22 19:49:39,198 - __main__ - INFO - Anomaly priority: True
+INFO:inspection_gui_qt:Anomaly priority: ON
+2025-11-22 19:49:39,198 - inspection_gui_qt - INFO - Anomaly priority: ON
+INFO:__main__:Enabled anomaly types: {'motion': False, 'edges': True, 'hot_spots': True, 'cold_spots': True, 'thermal_anomalies': True}
+2025-11-22 19:49:40,918 - __main__ - INFO - Enabled anomaly types: {'motion': False, 'edges': True, 'hot_spots': True, 'cold_spots': True, 'thermal_anomalies': True}
+INFO:inspection_gui_qt:Anomaly types changed: {'motion': False, 'edges': True, 'hot_spots': True, 'cold_spots': True, 'thermal_anomalies': True}
+2025-11-22 19:49:40,918 - inspection_gui_qt - INFO - Anomaly types changed: {'motion': False, 'edges': True, 'hot_spots': True, 'cold_spots': True, 'thermal_anomalies': True}
+INFO:__main__:Enabled anomaly types: {'motion': False, 'edges': False, 'hot_spots': True, 'cold_spots': True, 'thermal_anomalies': True}
+2025-11-22 19:49:41,413 - __main__ - INFO - Enabled anomaly types: {'motion': False, 'edges': False, 'hot_spots': True, 'cold_spots': True, 'thermal_anomalies': True}
+INFO:inspection_gui_qt:Anomaly types changed: {'motion': False, 'edges': False, 'hot_spots': True, 'cold_spots': True, 'thermal_anomalies': True}
+2025-11-22 19:49:41,413 - inspection_gui_qt - INFO - Anomaly types changed: {'motion': False, 'edges': False, 'hot_spots': True, 'cold_spots': True, 'thermal_anomalies': True}
+INFO:__main__:Enabled anomaly types: {'motion': False, 'edges': False, 'hot_spots': True, 'cold_spots': True, 'thermal_anomalies': False}
+2025-11-22 19:49:42,526 - __main__ - INFO - Enabled anomaly types: {'motion': False, 'edges': False, 'hot_spots': True, 'cold_spots': True, 'thermal_anomalies': False}
+INFO:inspection_gui_qt:Anomaly types changed: {'motion': False, 'edges': False, 'hot_spots': True, 'cold_spots': True, 'thermal_anomalies': False}
+2025-11-22 19:49:42,526 - inspection_gui_qt - INFO - Anomaly types changed: {'motion': False, 'edges': False, 'hot_spots': True, 'cold_spots': True, 'thermal_anomalies': False}
+INFO:__main__:Enabled anomaly types: {'motion': False, 'edges': False, 'hot_spots': True, 'cold_spots': False, 'thermal_anomalies': False}
+2025-11-22 19:49:43,324 - __main__ - INFO - Enabled anomaly types: {'motion': False, 'edges': False, 'hot_spots': True, 'cold_spots': False, 'thermal_anomalies': False}
+INFO:inspection_gui_qt:Anomaly types changed: {'motion': False, 'edges': False, 'hot_spots': True, 'cold_spots': False, 'thermal_anomalies': False}
+2025-11-22 19:49:43,324 - inspection_gui_qt - INFO - Anomaly types changed: {'motion': False, 'edges': False, 'hot_spots': True, 'cold_spots': False, 'thermal_anomalies': False}
+INFO:__main__:Enabled anomaly types: {'motion': False, 'edges': False, 'hot_spots': False, 'cold_spots': False, 'thermal_anomalies': False}
+2025-11-22 19:49:43,818 - __main__ - INFO - Enabled anomaly types: {'motion': False, 'edges': False, 'hot_spots': False, 'cold_spots': False, 'thermal_anomalies': False}
+INFO:inspection_gui_qt:Anomaly types changed: {'motion': False, 'edges': False, 'hot_spots': False, 'cold_spots': False, 'thermal_anomalies': False}
+2025-11-22 19:49:43,820 - inspection_gui_qt - INFO - Anomaly types changed: {'motion': False, 'edges': False, 'hot_spots': False, 'cold_spots': False, 'thermal_anomalies': False}
+INFO:__main__:Enabled anomaly types: {'motion': False, 'edges': False, 'hot_spots': True, 'cold_spots': False, 'thermal_anomalies': False}
+2025-11-22 19:49:44,205 - __main__ - INFO - Enabled anomaly types: {'motion': False, 'edges': False, 'hot_spots': True, 'cold_spots': False, 'thermal_anomalies': False}
+INFO:inspection_gui_qt:Anomaly types changed: {'motion': False, 'edges': False, 'hot_spots': True, 'cold_spots': False, 'thermal_anomalies': False}
+2025-11-22 19:49:44,205 - inspection_gui_qt - INFO - Anomaly types changed: {'motion': False, 'edges': False, 'hot_spots': True, 'cold_spots': False, 'thermal_anomalies': False}
+INFO:__main__:Enabled anomaly types: {'motion': False, 'edges': False, 'hot_spots': False, 'cold_spots': False, 'thermal_anomalies': False}
+2025-11-22 19:49:44,630 - __main__ - INFO - Enabled anomaly types: {'motion': False, 'edges': False, 'hot_spots': False, 'cold_spots': False, 'thermal_anomalies': False}
+INFO:inspection_gui_qt:Anomaly types changed: {'motion': False, 'edges': False, 'hot_spots': False, 'cold_spots': False, 'thermal_anomalies': False}
+2025-11-22 19:49:44,630 - inspection_gui_qt - INFO - Anomaly types changed: {'motion': False, 'edges': False, 'hot_spots': False, 'cold_spots': False, 'thermal_anomalies': False}
+INFO:__main__:Enabled anomaly types: {'motion': False, 'edges': False, 'hot_spots': False, 'cold_spots': False, 'thermal_anomalies': True}
+2025-11-22 19:49:45,611 - __main__ - INFO - Enabled anomaly types: {'motion': False, 'edges': False, 'hot_spots': False, 'cold_spots': False, 'thermal_anomalies': True}
+INFO:inspection_gui_qt:Anomaly types changed: {'motion': False, 'edges': False, 'hot_spots': False, 'cold_spots': False, 'thermal_anomalies': True}
+2025-11-22 19:49:45,611 - inspection_gui_qt - INFO - Anomaly types changed: {'motion': False, 'edges': False, 'hot_spots': False, 'cold_spots': False, 'thermal_anomalies': True}
+INFO:__main__:Frame 300: 10.0 FPS (99.9ms/frame), 0 ROIs, 7 motion, 10 hot spots
+2025-11-22 19:49:47,624 - __main__ - INFO - Frame 300: 10.0 FPS (99.9ms/frame), 0 ROIs, 7 motion, 10 hot spots
+INFO:__main__:Enabled anomaly types: {'motion': False, 'edges': False, 'hot_spots': False, 'cold_spots': False, 'thermal_anomalies': False}
+2025-11-22 19:49:54,134 - __main__ - INFO - Enabled anomaly types: {'motion': False, 'edges': False, 'hot_spots': False, 'cold_spots': False, 'thermal_anomalies': False}
+INFO:inspection_gui_qt:Anomaly types changed: {'motion': False, 'edges': False, 'hot_spots': False, 'cold_spots': False, 'thermal_anomalies': False}
+2025-11-22 19:49:54,134 - inspection_gui_qt - INFO - Anomaly types changed: {'motion': False, 'edges': False, 'hot_spots': False, 'cold_spots': False, 'thermal_anomalies': False}
+INFO:thermal_processor:Anomaly priority: disabled
+2025-11-22 19:49:56,221 - thermal_processor - INFO - Anomaly priority: disabled
+INFO:__main__:Anomaly priority: False
+2025-11-22 19:49:56,221 - __main__ - INFO - Anomaly priority: False
+INFO:inspection_gui_qt:Anomaly priority: OFF
+2025-11-22 19:49:56,221 - inspection_gui_qt - INFO - Anomaly priority: OFF
+INFO:__main__:Frame 400: 10.0 FPS (99.6ms/frame), 0 ROIs, 0 motion, 6 hot spots
+2025-11-22 19:49:57,623 - __main__ - INFO - Frame 400: 10.0 FPS (99.6ms/frame), 0 ROIs, 0 motion, 6 hot spots
+INFO:__main__:Frame 500: 10.0 FPS (100.2ms/frame), 0 ROIs, 3 motion, 4 hot spots
+2025-11-22 19:50:07,640 - __main__ - INFO - Frame 500: 10.0 FPS (100.2ms/frame), 0 ROIs, 3 motion, 4 hot spots
+INFO:__main__:Frame 600: 10.0 FPS (100.3ms/frame), 0 ROIs, 2 motion, 8 hot spots
+2025-11-22 19:50:17,668 - __main__ - INFO - Frame 600: 10.0 FPS (100.3ms/frame), 0 ROIs, 2 motion, 8 hot spots
+INFO:__main__:Frame 700: 10.0 FPS (100.3ms/frame), 0 ROIs, 1 motion, 2 hot spots
+2025-11-22 19:50:27,673 - __main__ - INFO - Frame 700: 10.0 FPS (100.3ms/frame), 0 ROIs, 1 motion, 2 hot spots
+INFO:__main__:Frame 800: 10.0 FPS (100.2ms/frame), 0 ROIs, 0 motion, 3 hot spots
+2025-11-22 19:50:37,686 - __main__ - INFO - Frame 800: 10.0 FPS (100.2ms/frame), 0 ROIs, 0 motion, 3 hot spots
+INFO:__main__:Frame 900: 10.0 FPS (100.0ms/frame), 0 ROIs, 8 motion, 5 hot spots
+2025-11-22 19:50:47,688 - __main__ - INFO - Frame 900: 10.0 FPS (100.0ms/frame), 0 ROIs, 8 motion, 5 hot spots
+INFO:__main__:Frame 1000: 10.0 FPS (99.9ms/frame), 0 ROIs, 1 motion, 5 hot spots
+2025-11-22 19:50:57,700 - __main__ - INFO - Frame 1000: 10.0 FPS (99.9ms/frame), 0 ROIs, 1 motion, 5 hot spots
+INFO:__main__:Frame 1100: 10.0 FPS (100.0ms/frame), 0 ROIs, 1 motion, 5 hot spots
+2025-11-22 19:51:07,717 - __main__ - INFO - Frame 1100: 10.0 FPS (100.0ms/frame), 0 ROIs, 1 motion, 5 hot spots
+INFO:__main__:Frame 1200: 10.0 FPS (100.1ms/frame), 0 ROIs, 0 motion, 11 hot spots
+2025-11-22 19:51:17,736 - __main__ - INFO - Frame 1200: 10.0 FPS (100.1ms/frame), 0 ROIs, 0 motion, 11 hot spots
+INFO:__main__:Frame 1300: 10.0 FPS (100.2ms/frame), 0 ROIs, 0 motion, 2 hot spots
+2025-11-22 19:51:27,748 - __main__ - INFO - Frame 1300: 10.0 FPS (100.2ms/frame), 0 ROIs, 0 motion, 2 hot spots
+INFO:__main__:Frame 1400: 9.9 FPS (100.5ms/frame), 0 ROIs, 1 motion, 6 hot spots
+2025-11-22 19:51:37,781 - __main__ - INFO - Frame 1400: 9.9 FPS (100.5ms/frame), 0 ROIs, 1 motion, 6 hot spots
+INFO:__main__:Frame 1500: 10.0 FPS (100.3ms/frame), 0 ROIs, 2 motion, 6 hot spots
+2025-11-22 19:51:47,783 - __main__ - INFO - Frame 1500: 10.0 FPS (100.3ms/frame), 0 ROIs, 2 motion, 6 hot spots
+INFO:__main__:Frame 1600: 10.0 FPS (100.1ms/frame), 0 ROIs, 0 motion, 7 hot spots
+2025-11-22 19:51:57,798 - __main__ - INFO - Frame 1600: 10.0 FPS (100.1ms/frame), 0 ROIs, 0 motion, 7 hot spots

@@ -156,8 +156,23 @@ class ThermalInspectionFusion:
 
         # Runtime state
         self.running = False
+        self.last_frame_time = time.time()
         self.frame_count = 0
+        self.fps = 0.0
         self.device = getattr(args, 'device', 'cuda')
+        
+        # Performance settings
+        self.target_fps_rgb = 30
+        self.target_fps_thermal = 60
+        self.target_fps_fusion = 30
+        self.frame_skip_counter = 0
+
+        # Auto-ROI optimization - don't run every frame
+        self.auto_roi_frame_counter = 0
+        self.auto_roi_update_interval = 10  # Update auto-ROIs every 10 frames
+        
+        # Camera specific flags
+        self.is_flir_boson = False
 
         # Inspection mode settings
         self.inspection_mode = getattr(args, 'mode', 'realtime')  # realtime or playback
@@ -214,6 +229,15 @@ class ThermalInspectionFusion:
             'edge': True
         }
 
+        # Anomaly type filtering (for anomaly priority feature)
+        self.enabled_anomaly_types = {
+            "motion": True,
+            "edges": True,
+            "hot_spots": True,
+            "cold_spots": True,
+            "thermal_anomalies": True
+        }
+
     def _try_connect_thermal(self) -> bool:
         """
         Try to connect to thermal camera.
@@ -241,6 +265,9 @@ class ThermalInspectionFusion:
             if self.thermal_camera.open():
                 actual_res = self.thermal_camera.get_actual_resolution()
                 logger.info(f"[OK] Thermal camera connected: {actual_res[0]}x{actual_res[1]}")
+
+                # Set FLIR Boson flag
+                self.is_flir_boson = True
 
                 # NEW: Log SDK status (Phase 7)
                 if self.thermal_camera.is_sdk_connected():
@@ -273,11 +300,13 @@ class ThermalInspectionFusion:
             else:
                 logger.debug("Thermal camera not found")
                 self.thermal_camera = None
+                self.is_flir_boson = False
                 return False
 
         except Exception as e:
             logger.debug(f"Thermal camera connection failed: {e}")
             self.thermal_camera = None
+            self.is_flir_boson = False
             return False
 
     def _detect_radiometric_mode(self) -> bool:
@@ -570,29 +599,34 @@ class ThermalInspectionFusion:
             result['thermal_colorized'] = thermal_colorized
 
             # 3. Automatic ROI detection (if enabled)
+            # OPTIMIZATION: Only run auto-ROI detection every N frames to reduce overhead
             if self.auto_roi_enabled:
-                # Clear previous auto-detected ROIs
-                self.roi_manager.delete_rois_by_source(ROISource.AUTO_TEMPERATURE)
-                self.roi_manager.delete_rois_by_source(ROISource.AUTO_GRADIENT)
-                self.roi_manager.delete_rois_by_source(ROISource.AUTO_MOTION)
-                self.roi_manager.delete_rois_by_source(ROISource.AUTO_EDGE)
+                self.auto_roi_frame_counter += 1
+                if self.auto_roi_frame_counter >= self.auto_roi_update_interval:
+                    self.auto_roi_frame_counter = 0
 
-                # Detect new ROIs
-                if self.auto_roi_methods.get('temperature', True):
-                    temp_rois = self.roi_manager.detect_temperature_rois(thermal_frame)
+                    # Clear previous auto-detected ROIs
+                    self.roi_manager.delete_rois_by_source(ROISource.AUTO_TEMPERATURE)
+                    self.roi_manager.delete_rois_by_source(ROISource.AUTO_GRADIENT)
+                    self.roi_manager.delete_rois_by_source(ROISource.AUTO_MOTION)
+                    self.roi_manager.delete_rois_by_source(ROISource.AUTO_EDGE)
 
-                if self.auto_roi_methods.get('gradient', True):
-                    grad_rois = self.roi_manager.detect_gradient_rois(thermal_frame)
+                    # Detect new ROIs
+                    if self.auto_roi_methods.get('temperature', True):
+                        temp_rois = self.roi_manager.detect_temperature_rois(thermal_frame)
 
-                if self.auto_roi_methods.get('motion', True) and result['motion_detections']:
-                    motion_dicts = [
-                        {'bbox': (d.bbox[0], d.bbox[1], d.bbox[2]-d.bbox[0], d.bbox[3]-d.bbox[1])}
-                        for d in result['motion_detections']
-                    ]
-                    motion_rois = self.roi_manager.detect_motion_rois(motion_dicts)
+                    if self.auto_roi_methods.get('gradient', True):
+                        grad_rois = self.roi_manager.detect_gradient_rois(thermal_frame)
 
-                if self.auto_roi_methods.get('edge', True):
-                    edge_rois = self.roi_manager.detect_edge_rois(thermal_frame)
+                    if self.auto_roi_methods.get('motion', True) and result['motion_detections']:
+                        motion_dicts = [
+                            {'bbox': (d.bbox[0], d.bbox[1], d.bbox[2]-d.bbox[0], d.bbox[3]-d.bbox[1])}
+                            for d in result['motion_detections']
+                        ]
+                        motion_rois = self.roi_manager.detect_motion_rois(motion_dicts)
+
+                    if self.auto_roi_methods.get('edge', True):
+                        edge_rois = self.roi_manager.detect_edge_rois(thermal_frame)
 
             # 4. Thermal analysis for each ROI
             for roi in self.roi_manager.get_all_rois(active_only=True):
@@ -621,6 +655,44 @@ class ThermalInspectionFusion:
 
             # Anomaly detection
             result['anomalies'] = self.thermal_analyzer.detect_anomalies(thermal_frame, 'global')
+
+            # 5b. Apply anomaly priority colorization if enabled (AFTER all detections)
+            if self.thermal_processor.anomaly_priority_enabled:
+                # Combine enabled anomaly types for gradient fade visualization
+                all_anomalies = []
+
+                # Add motion detections (if enabled)
+                if self.enabled_anomaly_types.get("motion", True):
+                    for motion in result['motion_detections']:
+                        all_anomalies.append(motion)  # MotionDetection has .bbox attribute
+
+                # Add edge clusters (if enabled)
+                if self.enabled_anomaly_types.get("edges", True):
+                    for edge in result['edge_clusters']:
+                        all_anomalies.append(edge)  # EdgeCluster has .bbox attribute
+
+                # Add hot spots (if enabled)
+                if self.enabled_anomaly_types.get("hot_spots", True):
+                    for hot_spot in result['hot_spots']:
+                        all_anomalies.append(hot_spot)  # ThermalHotspot has .bbox attribute
+
+                # Add cold spots (if enabled)
+                if self.enabled_anomaly_types.get("cold_spots", True):
+                    for cold_spot in result['cold_spots']:
+                        all_anomalies.append(cold_spot)  # ThermalColdspot has .bbox attribute
+
+                # Add statistical thermal anomalies (if enabled)
+                if self.enabled_anomaly_types.get("thermal_anomalies", True):
+                    for thermal_anomaly in result['anomalies']:
+                        all_anomalies.append(thermal_anomaly)  # ThermalAnomaly has .bbox attribute
+
+                # Apply gradient fade colorization with ALL anomalies
+                # This updates thermal_colorized which is then used in fusion
+                thermal_colorized = self.thermal_processor.apply_anomaly_priority_colorization(
+                    thermal_frame, all_anomalies, thermal_colorized
+                )
+                # Update result with anomaly-priority-applied colorization
+                result['thermal_colorized'] = thermal_colorized
 
             # 6. Create fused frame if RGB available
             if rgb_frame is not None and self.fusion_processor:
@@ -711,6 +783,17 @@ class ThermalInspectionFusion:
         try:
             while self.running:
                 loop_start = time.time()
+                t_markers = {'start': loop_start}  # Timing markers for profiling
+
+                # Calculate FPS
+                current_time = time.time()
+                if (current_time - self.last_frame_time) > 0:
+                    self.fps = 1.0 / (current_time - self.last_frame_time)
+                self.last_frame_time = current_time
+
+                # REMOVED: Frame skipping logic - it was creating a feedback loop
+                # The issue was that skipping frames causes fps to measure incorrectly
+                # Instead, we'll optimize the processing pipeline itself
 
                 # 1. Poll for thermal camera if not connected (hot-plug support)
                 if not self.thermal_connected:
@@ -721,6 +804,7 @@ class ThermalInspectionFusion:
                             logger.info("[OK] Thermal camera connected!")
 
                 # 2. Capture thermal frame
+                t_markers['before_thermal_read'] = time.time()
                 thermal_frame = None
                 try:
                     if self.thermal_camera and self.thermal_connected:
@@ -731,12 +815,16 @@ class ThermalInspectionFusion:
                             if self.thermal_camera:
                                 self.thermal_camera.release()
                             self.thermal_camera = None
+                            self.is_flir_boson = False # Reset flag
                 except Exception as e:
                     logger.warning(f"Thermal camera error: {e}")
                     self.thermal_connected = False
                     if self.thermal_camera:
                         self.thermal_camera.release()
                     self.thermal_camera = None
+                    self.is_flir_boson = False # Reset flag
+
+                t_markers['after_thermal_read'] = time.time()
 
                 # Create placeholder if no thermal
                 if thermal_frame is None:
@@ -744,6 +832,8 @@ class ThermalInspectionFusion:
                     placeholder_rgb = create_thermal_placeholder(width=res[0], height=res[1])
                     placeholder_gray = cv2.cvtColor(placeholder_rgb, cv2.COLOR_BGR2GRAY)
                     thermal_frame = (placeholder_gray.astype(np.uint16) * 256)
+
+                t_markers['after_placeholder'] = time.time()
 
                 # 3. Capture RGB frame
                 rgb_frame = None
@@ -756,8 +846,11 @@ class ThermalInspectionFusion:
                         logger.debug(f"RGB camera error: {e}")
                         rgb_frame = None
 
+                t_markers['after_rgb_read'] = time.time()
+
                 # 4. Process frames through inspection pipeline
                 result = self.process_frame(thermal_frame, rgb_frame)
+                t_markers['after_process_frame'] = time.time()
 
                 # 4.5. Handle recording (NEW - Phase 6)
                 display_frame = result.get('display_frame')
@@ -833,11 +926,12 @@ class ThermalInspectionFusion:
                                 logger.warning("Could not read FPA temperature")
                         else:
                             logger.warning("Temperature reading requires Boson SDK connection")
+                t_markers['before_gui_update'] = time.time()
                 # Update Qt GUI
                 elif self.gui_type == 'qt' and self.gui:
                     if display_frame is not None:
                         self.gui.update_frame(display_frame)
-                    
+
                     # Update metrics
                     self.gui.update_metrics(
                         fps=self.smoothed_fps,
@@ -845,20 +939,30 @@ class ThermalInspectionFusion:
                         thermal_connected=self.thermal_connected,
                         rgb_connected=self.rgb_available
                     )
-                    
+
                     # Update thermal analysis
                     self.gui.update_thermal_analysis(
                         stats=result.get('thermal_stats'),
                         hot_spots=result.get('hot_spots', []),
                         cold_spots=result.get('cold_spots', []),
                         anomalies=result.get('anomalies', []),
+                        motion_detections=result.get('motion_detections', []),
+                        edge_clusters=result.get('edge_clusters', []),
                         trend=None
                     )
-                    
+
                     # Update ROIs
                     self.gui.update_rois(result.get('rois', []))
-                    
+
+                    # Update Boson panel (every 60 frames to reduce overhead)
+                    if self.frame_count % 60 == 0:
+                        self.update_boson_gui()
+
+                    t_markers['before_processEvents'] = time.time()
                     self.qt_app.processEvents()
+                    t_markers['after_processEvents'] = time.time()
+
+                t_markers['after_gui_update'] = time.time()
                 loop_time = time.time() - loop_start
                 self.frame_times.append(loop_time)
                 if len(self.frame_times) > 0:
@@ -867,11 +971,21 @@ class ThermalInspectionFusion:
 
                 self.frame_count += 1
 
-                # Log periodically
+                # Log periodically with detailed timing breakdown
                 if self.frame_count % 100 == 0:
-                    logger.info(f"Frame {self.frame_count}: {self.smoothed_fps:.1f} FPS, "
-                               f"{len(result['rois'])} ROIs, "
-                               f"{len(result['motion_detections'])} motion, "
+                    # Calculate timing deltas
+                    thermal_read_ms = (t_markers.get('after_thermal_read', 0) - t_markers.get('before_thermal_read', 0)) * 1000
+                    placeholder_ms = (t_markers.get('after_placeholder', 0) - t_markers.get('after_thermal_read', 0)) * 1000
+                    rgb_read_ms = (t_markers.get('after_rgb_read', 0) - t_markers.get('after_placeholder', 0)) * 1000
+                    process_frame_ms = (t_markers.get('after_process_frame', 0) - t_markers.get('after_rgb_read', 0)) * 1000
+                    gui_update_ms = (t_markers.get('after_gui_update', 0) - t_markers.get('before_gui_update', 0)) * 1000
+                    process_events_ms = (t_markers.get('after_processEvents', 0) - t_markers.get('before_processEvents', 0)) * 1000
+
+                    logger.info(f"Frame {self.frame_count}: {self.smoothed_fps:.1f} FPS ({avg_time*1000:.1f}ms/frame)")
+                    logger.info(f"  Timing breakdown: thermal_read={thermal_read_ms:.1f}ms, placeholder={placeholder_ms:.1f}ms, "
+                               f"rgb_read={rgb_read_ms:.1f}ms, process_frame={process_frame_ms:.1f}ms, "
+                               f"gui_update={gui_update_ms:.1f}ms, processEvents={process_events_ms:.1f}ms")
+                    logger.info(f"  Detections: {len(result['rois'])} ROIs, {len(result['motion_detections'])} motion, "
                                f"{len(result['hot_spots'])} hot spots")
 
         except KeyboardInterrupt:
@@ -962,6 +1076,17 @@ class ThermalInspectionFusion:
         if self.thermal_processor:
             self.thermal_processor.set_edge_enabled(enabled)
             logger.info(f"Edge detection: {enabled}")
+
+    def toggle_anomaly_priority(self, enabled: bool):
+        """Toggle anomaly priority mode."""
+        if self.thermal_processor:
+            self.thermal_processor.set_anomaly_priority_enabled(enabled)
+            logger.info(f"Anomaly priority: {enabled}")
+
+    def set_enabled_anomaly_types(self, types_dict: dict):
+        """Set which anomaly types are enabled for anomaly priority visualization."""
+        self.enabled_anomaly_types = types_dict.copy()
+        logger.info(f"Enabled anomaly types: {self.enabled_anomaly_types}")
 
     def cycle_fusion_mode(self):
         """Cycle fusion mode."""
@@ -1069,6 +1194,84 @@ class ThermalInspectionFusion:
             else:
                 self.thermal_analyzer.set_baseline(None)
                 logger.info("Baseline unlocked")
+
+    # ========================================================================
+    # Boson SDK Control Methods
+    # ========================================================================
+
+    def trigger_ffc(self):
+        """Trigger FFC (Flat Field Correction)."""
+        if self.thermal_camera and self.thermal_camera.is_sdk_connected():
+            logger.info("Triggering FFC...")
+            if self.thermal_camera.trigger_ffc():
+                logger.info("✓ FFC completed successfully")
+                if self.gui and hasattr(self.gui, 'boson_panel'):
+                    self.gui.boson_panel.set_ffc_status("FFC completed successfully", is_error=False)
+                return True
+            else:
+                logger.error("✗ FFC failed")
+                if self.gui and hasattr(self.gui, 'boson_panel'):
+                    self.gui.boson_panel.set_ffc_status("FFC failed", is_error=True)
+                return False
+        else:
+            logger.warning("FFC requires Boson SDK connection")
+            return False
+
+    def set_boson_gain_mode(self, mode: str):
+        """Set Boson gain mode (high/low/auto)."""
+        if self.thermal_camera and self.thermal_camera.is_sdk_connected():
+            # Map string to enum value
+            mode_map = {
+                'high': 0,
+                'low': 1,
+                'auto': 2
+            }
+            if mode.lower() in mode_map:
+                if self.thermal_camera.set_gain_mode(mode_map[mode.lower()]):
+                    logger.info(f"Gain mode set to {mode}")
+                    return True
+                else:
+                    logger.error(f"Failed to set gain mode to {mode}")
+                    return False
+        return False
+
+    def set_boson_ffc_mode(self, mode: str):
+        """Set Boson FFC mode (manual/auto/external)."""
+        if self.thermal_camera and self.thermal_camera.is_sdk_connected():
+            # Map string to enum value
+            mode_map = {
+                'manual': 0,
+                'auto': 1,
+                'external': 2
+            }
+            if mode.lower() in mode_map:
+                if self.thermal_camera.set_ffc_mode(mode_map[mode.lower()]):
+                    logger.info(f"FFC mode set to {mode}")
+                    return True
+                else:
+                    logger.error(f"Failed to set FFC mode to {mode}")
+                    return False
+        return False
+
+    def update_boson_gui(self):
+        """Update Boson control panel with current camera info."""
+        if not self.gui or not hasattr(self.gui, 'boson_panel'):
+            return
+
+        # Update connection status
+        is_connected = self.thermal_camera and self.thermal_camera.is_sdk_connected()
+        self.gui.boson_panel.update_connection_status(is_connected)
+
+        if is_connected:
+            # Update camera info
+            info = self.thermal_camera.get_camera_info()
+            if info:
+                self.gui.boson_panel.update_camera_info(info)
+
+            # Update FPA temperature
+            temp = self.thermal_camera.get_fpa_temperature()
+            if temp:
+                self.gui.boson_panel.update_fpa_temperature(temp[0], temp[1])
 
 
     def cleanup(self):

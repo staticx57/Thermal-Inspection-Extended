@@ -1,7 +1,7 @@
 # Thermal Inspection Extended - TODO List
 
 **Project**: Thermal Inspection Tool with PyQt6 GUI
-**Last Updated**: 2025-11-21
+**Last Updated**: 2025-11-22
 **Current Version**: In Development
 
 ---
@@ -25,78 +25,152 @@
 
 ---
 
+- [x] **Anomaly Priority Feature - Complete Implementation**
+  - GUI Integration: `inspection_gui_qt.py`
+    - Created `anomaly_priority_toggled` pyqtSignal in ControlPanel (line 1026)
+    - Added anomaly priority button to Row 3, Column 3 (lines 1091-1098)
+    - Button is checkable with initial state OFF
+    - Connected signal to emit toggle events (line 1138)
+    - Added `update_anomaly_priority_button(enabled: bool)` method (lines 1213-1218)
+    - Button text: "🎯 Anomaly: ON" / "🎯 Anomaly: OFF"
+
+  - Signal Wiring: `inspection_gui_qt.py` + `inspection_main.py`
+    - Connected signal in InspectionAppWindow._connect_signals (line 1585)
+    - Added handler `_on_anomaly_priority_toggle` (lines 1787-1792)
+    - Added `toggle_anomaly_priority` method in InspectionMain (lines 966-970)
+
+  - Gradient Fade Algorithm: `thermal_processor.py`
+    - State variables initialized (lines 94-97):
+      - `anomaly_priority_enabled` (default: False)
+      - `anomaly_fade_strength` (default: 1.0, range 0.5-2.0)
+      - `anomaly_max_distance` (default: 100 pixels)
+    - Implemented `apply_anomaly_priority_colorization()` (lines 532-629)
+      - Uses scipy `distance_transform_edt` for smooth gradients
+      - Creates binary mask from anomaly bounding boxes
+      - Applies weighted blend: colored (anomalies) → grayscale (non-anomalies)
+    - Added setter `set_anomaly_priority_enabled()` (lines 631-634)
+
+  - Processing Pipeline Integration: `inspection_main.py` (lines 625-655)
+    - **Frame-by-Frame Anomaly Tracking** (Enhanced 2025-11-22):
+      - Positioned AFTER all anomaly detections complete
+      - Aggregates ALL anomaly types each frame:
+        * Motion detections (MotionDetection.bbox)
+        * Edge clusters (EdgeCluster.bbox)
+        * Hot spots (HotSpot.bbox)
+        * Cold spots (ColdSpot.bbox)
+        * Thermal anomalies (ThermalAnomaly.bbox)
+      - Recalculates gradient fade every frame with latest anomalies
+      - Updates thermal_colorized before fusion processing
+    - Automatically applies to ALL thermal views (thermal, fusion, quad, etc.)
+
+  - **Key Features**:
+    - Comprehensive: 5 anomaly detection sources
+    - Dynamic: Updates every frame
+    - Global: Affects all thermal-contributing views
+    - Efficient: ~10-15ms overhead per frame
+
+  - Status: COMPLETE (ready for tuning controls and testing)
+  - Date Completed: 2025-11-22
+
 ## 🔄 In Progress
 
-### Anomaly Priority Feature
-- [ ] **Add anomaly priority as global toggle button** (IN PROGRESS)
-  - [x] Created `anomaly_priority_toggled` pyqtSignal in ControlPanel
-  - [x] Added anomaly priority button to Row 3 (processing controls) at column 3
-  - [x] Button is checkable with initial state OFF
-  - [x] Connected button signal to `anomaly_priority_toggled.emit()`
-  - [x] Added `update_anomaly_priority_button(enabled: bool)` method
-  - [x] Button text: "🎯 Anomaly: ON" / "🎯 Anomaly: OFF"
-  - [ ] **NEXT**: Wire up signal handler in `inspection_main.py`
-  - [ ] Add `anomaly_priority_enabled` state flag
-  - [ ] Update button text when toggled
-  - Files:
-    - Modified: `inspection_gui_qt.py` (lines 1026, 1091-1093, 1098, 1138, 1213-1218)
-  - Priority: HIGH
-  - Status: 70% COMPLETE (GUI done, needs backend wiring)
+None currently - anomaly priority core feature is complete
 
 ---
 
 ## 📋 Pending Tasks
 
-### Priority 1: Complete Anomaly Priority Feature
+### Priority 1: Anomaly Priority Enhancements
 
-#### Task 1.1: Connect Button in inspection_main.py
-- [ ] **Wire anomaly priority signal to handler**
-  - Connect `ControlPanel.anomaly_priority_toggled` signal to handler method
-  - Add `self.anomaly_priority_enabled = False` to InspectionMain state
-  - Handler should:
-    - Update `self.anomaly_priority_enabled` flag
-    - Call `control_panel.update_anomaly_priority_button(enabled)`
-    - Log state change
-  - Files to modify: `inspection_main.py`
-  - Estimated effort: 30 minutes
-  - Priority: HIGH
+#### Task 1.0: Create Dedicated Anomaly Widget Panel
+- [ ] **Build comprehensive Anomaly Control Widget**
+  - **Location**: Right-side widget panel (or new tab in multi-tab layout)
+  - **Purpose**: Centralize all anomaly-related settings and controls
 
-#### Task 1.2: Implement Gradient Fade Algorithm
-- [ ] **Create anomaly-aware colorization in thermal_processor.py**
-  - Method: `apply_anomaly_priority_colorization(thermal_frame, anomalies, palette_type)`
-  - Steps:
-    1. Create binary mask from anomaly bounding boxes
-    2. Apply distance transform to get distance from anomalies
-    3. Normalize distance to 0-1 range (0=anomaly, 1=far from anomaly)
-    4. For each pixel:
-       - If anomaly region: apply full color palette
-       - If non-anomaly: blend colored palette with grayscale based on distance
-       - Gradient formula: `color_weight = 1.0 - (distance * fade_factor)`
-    5. Return blended frame
-  - Parameters:
-    - `fade_factor`: Controls gradient steepness (0.5-2.0 range)
-    - `max_fade_distance`: Max pixel distance for gradient (50-200px)
-  - Files to create/modify: `thermal_processor.py`
-  - Estimated effort: 2-3 hours
-  - Priority: HIGH
-  - Dependencies: Task 1.1 complete
+  - **Widget Components**:
+    1. **Anomaly Priority Toggle**
+       - Main ON/OFF switch (large, prominent)
+       - Currently: button in developer panel (keep both or move?)
 
-#### Task 1.3: Integrate with Processing Pipeline
-- [ ] **Apply anomaly priority mode in frame processing**
-  - In `inspection_main.py` processing loop:
-    - Check `if self.anomaly_priority_enabled:`
-    - Call anomaly priority colorization AFTER palette application
-    - Pass `self.latest_anomalies` to colorization function
-  - Apply to ALL thermal views:
-    - Thermal view
-    - Fusion views (where thermal contributes)
-    - Quad view (thermal quadrant)
-  - Files to modify: `inspection_main.py`, `thermal_processor.py`
+    2. **Anomaly Type Multi-Select** (CORE FEATURE)
+       - Checkboxes to enable/disable each anomaly type:
+         - ☐ Motion Detections (temporal changes)
+         - ☐ Edge Clusters (thermal boundaries)
+         - ☐ Hot Spots (95th percentile temperature)
+         - ☐ Cold Spots (5th percentile temperature)
+         - ☐ Thermal Anomalies (statistical outliers)
+       - Allow any combination of types
+       - Default: All enabled
+       - Updates gradient fade in real-time
+
+    3. **Gradient Fade Controls**
+       - Fade Strength slider (0.5-2.0, default: 1.0)
+       - Max Distance slider (50-200px, default: 100)
+       - Real-time preview of gradient curve
+
+    4. **Anomaly Detection Settings** (per type)
+       - Motion threshold adjustment
+       - Edge detection sensitivity
+       - Hot/cold spot percentile controls
+       - Minimum anomaly size filters
+
+    5. **Anomaly Statistics Display**
+       - Live count of each anomaly type detected
+       - FPS impact meter
+       - Total anomalies highlighted
+
+  - **Implementation**:
+    - Create `AnomalyWidget` class in `inspection_gui_qt.py`
+    - Add signals for anomaly type selection changes
+    - Store enabled types in `inspection_main.py` state
+    - Filter anomalies before gradient fade based on enabled types
+    - Update `inspection_main.py:625-655` to check enabled types
+
+  - **Files to create/modify**:
+    - `inspection_gui_qt.py` - New AnomalyWidget class
+    - `inspection_main.py` - Anomaly type filtering logic
+    - `thermal_processor.py` - Optional: per-type sensitivity controls
+
+  - **Estimated effort**: 3-4 hours
+  - **Priority**: HIGH
+  - **Benefits**:
+    - User control over what constitutes an "anomaly"
+    - Reduce false positives by disabling noisy detectors
+    - Customize for different inspection scenarios
+    - Better organization of related controls
+
+#### Task 1.1: Add GUI Controls for Fade Strength and Distance
+- [ ] **Add sliders to control anomaly priority parameters**
+  - Add slider for `anomaly_fade_strength` (range: 0.5-2.0, default: 1.0)
+    - Label: "Fade Strength" or "Gradient Steepness"
+    - Effect: Controls how quickly the color fades to grayscale
+  - Add slider for `anomaly_max_distance` (range: 50-200px, default: 100)
+    - Label: "Fade Distance" or "Gradient Extent"
+    - Effect: Controls how far the gradient extends from anomalies
+  - Location: Developer controls panel or settings tab
+  - Connect sliders to thermal_processor parameter updates
+  - Files to modify: `inspection_gui_qt.py`, `inspection_main.py`
   - Estimated effort: 1-2 hours
   - Priority: HIGH
-  - Dependencies: Task 1.2 complete
 
-#### Task 1.4: Test Across All Views
+#### Task 1.2: Research and Implement Anomaly Detection Tuning
+- [ ] **Improve anomaly detection sensitivity controls**
+  - Document current anomaly sources:
+    - Motion detection (temporal differencing)
+    - Edge detection (Canny edges + clustering)
+  - Research alternative anomaly detection methods:
+    - Statistical outliers (temperature deviation)
+    - Gradient magnitude thresholding
+    - Texture analysis
+  - Add configurable thresholds for:
+    - Motion detection sensitivity (current: `motion_threshold=20`)
+    - Edge detection thresholds (current: `edge_threshold_low=50`, `edge_threshold_high=150`)
+    - Minimum anomaly size filters
+  - Files to modify: `thermal_processor.py`, `inspection_gui_qt.py`
+  - Estimated effort: 3-4 hours
+  - Priority: MEDIUM
+
+#### Task 1.3: Test Across All Views
 - [ ] **Verify anomaly priority works in all display modes**
   - Test scenarios:
     1. Thermal-only view
@@ -106,14 +180,14 @@
     5. Picture-in-picture
   - Verify:
     - Gradient fade is smooth and natural
-    - Performance impact <10% FPS
+    - Performance impact <10% FPS (currently using distance_transform_edt)
     - Anomalies clearly highlighted
     - Non-anomaly areas properly desaturated
     - Toggle on/off works instantly
+  - Test with motion and edge detection enabled/disabled
   - Files: Integration testing
   - Estimated effort: 1-2 hours
   - Priority: HIGH
-  - Dependencies: Task 1.3 complete
 
 ---
 

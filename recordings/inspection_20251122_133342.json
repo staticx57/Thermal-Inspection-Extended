@@ -1,0 +1,302 @@
+{
+  "start_time": "2025-11-22T13:33:42.408069",
+  "fps": 30,
+  "frame_shape": [
+    640,
+    512
+  ],
+  "codec": "mp4v",
+  "frames": [
+    {
+      "frame_number": 0,
+      "timestamp": 0.027577,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 1,
+      "timestamp": 0.12361,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 2,
+      "timestamp": 0.221916,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 3,
+      "timestamp": 0.335708,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 4,
+      "timestamp": 0.427408,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 5,
+      "timestamp": 0.523934,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 6,
+      "timestamp": 0.620024,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 7,
+      "timestamp": 0.73526,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 8,
+      "timestamp": 0.828594,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 9,
+      "timestamp": 0.924199,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 10,
+      "timestamp": 1.021915,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 11,
+      "timestamp": 1.131235,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 12,
+      "timestamp": 1.230162,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 13,
+      "timestamp": 1.325514,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 14,
+      "timestamp": 1.420546,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 15,
+      "timestamp": 1.531591,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 16,
+      "timestamp": 1.627636,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 17,
+      "timestamp": 1.724226,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 18,
+      "timestamp": 1.821819,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 19,
+      "timestamp": 1.934099,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 20,
+      "timestamp": 2.027504,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 21,
+      "timestamp": 2.126972,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 22,
+      "timestamp": 2.237206,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 23,
+      "timestamp": 2.334051,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 24,
+      "timestamp": 2.441659,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 25,
+      "timestamp": 2.525022,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 26,
+      "timestamp": 2.63692,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 27,
+      "timestamp": 2.734069,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 28,
+      "timestamp": 2.829884,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 29,
+      "timestamp": 2.930648,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 30,
+      "timestamp": 3.03927,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 31,
+      "timestamp": 3.13347,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    }
+  ],
+  "end_time": "2025-11-22T13:33:45.548552",
+  "total_frames": 32,
+  "duration": 3.140483
+}

@@ -15,7 +15,8 @@ try:
                                   QVBoxLayout, QHBoxLayout, QGridLayout, QApplication,
                                   QSizePolicy, QFileDialog, QListWidget, QListWidgetItem,
                                   QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox,
-                                  QGroupBox, QScrollArea, QTabWidget, QFrame, QMessageBox)
+                                  QGroupBox, QScrollArea, QTabWidget, QFrame, QMessageBox,
+                                  QSlider, QProgressBar)
     from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QSize
     from PyQt6.QtGui import QImage, QPixmap, QFont, QPainter, QPen, QColor, QPalette
     PYQT_AVAILABLE = True
@@ -399,7 +400,7 @@ QGroupBox {
     border-radius: 5px;
     margin-top: 10px;
     padding: 10px;
-    color: #657b83;
+    color: #586e75;
     font-weight: bold;
 }
 
@@ -408,6 +409,22 @@ QListWidget {
     color: #657b83;
     border: 1px solid #93a1a1;
     border-radius: 3px;
+}
+
+QCheckBox {
+    color: #657b83;
+}
+
+QComboBox {
+    background-color: #eee8d5;
+    color: #657b83;
+    border: 1px solid #93a1a1;
+}
+
+QSpinBox {
+    background-color: #eee8d5;
+    color: #657b83;
+    border: 1px solid #93a1a1;
 }
 
 QListWidget::item:selected {
@@ -602,6 +619,21 @@ class InspectionOverlayWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
+        # Helper to draw text with background
+        def draw_label(x, y, text, color):
+            font_metrics = painter.fontMetrics()
+            rect = font_metrics.boundingRect(text)
+            # Add padding
+            rect.adjust(-2, -2, 2, 2)
+            rect.moveTo(x, y - rect.height() + 2)
+            
+            painter.setBrush(QColor(0, 0, 0, 160))  # Semi-transparent black
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRect(rect)
+            
+            painter.setPen(QPen(color, 1))
+            painter.drawText(x, y, text)
+
         # Draw ROIs
         for roi in self.rois:
             # Determine color and thickness
@@ -663,8 +695,7 @@ class InspectionOverlayWidget(QWidget):
             if roi.label:
                 x, y, _, _ = roi.get_bbox()
                 wx, wy = self.frame_to_widget(x, y)
-                painter.setPen(QPen(color, 1))
-                painter.drawText(int(wx), int(wy) - 5, roi.label)
+                draw_label(int(wx), int(wy) - 5, roi.label, color)
 
         # Draw hot spots (with coordinate transformation)
         for hot_spot in self.hot_spots:
@@ -672,7 +703,7 @@ class InspectionOverlayWidget(QWidget):
             x, y = hot_spot.centroid
             wx, wy = self.frame_to_widget(x, y)
             painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
-            painter.drawText(int(wx) + 10, int(wy), f"{hot_spot.max_temp:.1f}{hot_spot.unit}")
+            draw_label(int(wx) + 10, int(wy), f"{hot_spot.max_temp:.1f}{hot_spot.unit}", QColor(255, 100, 100))
 
         # Draw cold spots (with coordinate transformation)
         for cold_spot in self.cold_spots:
@@ -680,7 +711,7 @@ class InspectionOverlayWidget(QWidget):
             x, y = cold_spot.centroid
             wx, wy = self.frame_to_widget(x, y)
             painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
-            painter.drawText(int(wx) + 10, int(wy), f"{cold_spot.min_temp:.1f}{cold_spot.unit}")
+            draw_label(int(wx) + 10, int(wy), f"{cold_spot.min_temp:.1f}{cold_spot.unit}", QColor(100, 200, 255))
 
         # Draw anomalies (with coordinate transformation)
         for anomaly in self.anomalies:
@@ -691,7 +722,10 @@ class InspectionOverlayWidget(QWidget):
             painter.drawLine(int(wx), int(wy) - 10, int(wx) - 8, int(wy) + 6)
             painter.drawLine(int(wx) - 8, int(wy) + 6, int(wx) + 8, int(wy) + 6)
             painter.drawLine(int(wx) + 8, int(wy) + 6, int(wx), int(wy) - 10)
-            painter.drawText(int(wx) + 15, int(wy), f"⚠ {anomaly.anomaly_type}")
+            
+            # Use description if available, otherwise type
+            label_text = f"⚠ {anomaly.description}" if anomaly.description else f"⚠ {anomaly.anomaly_type.value}"
+            draw_label(int(wx) + 15, int(wy), label_text, QColor(255, 255, 0))
 
         # Draw temporary ROI being created
         if self.drawing_mode and self.draw_start_pos and self.draw_current_pos:
@@ -749,14 +783,14 @@ class InspectionOverlayWidget(QWidget):
         """Handle mouse press for ROI drawing."""
         if not self.drawing_mode:
             # Check if clicking on existing ROI for selection
+            # Transform click to frame coordinates
+            click_x, click_y = self.widget_to_frame(event.pos().x(), event.pos().y())
+            
             for roi in self.rois:
-                if roi.roi_type == ROIType.RECTANGLE:
-                    x, y, w, h = roi.get_bbox()
-                    if (x <= event.pos().x() <= x + w and
-                        y <= event.pos().y() <= y + h):
-                        self.set_selected_roi(roi.roi_id)
-                        self.roi_selected.emit(roi.roi_id)
-                        break
+                if roi.contains_point((click_x, click_y)):
+                    self.set_selected_roi(roi.roi_id)
+                    self.roi_selected.emit(roi.roi_id)
+                    break
             return
 
         if self.drawing_type == ROIType.POLYGON:
@@ -838,15 +872,15 @@ class InspectionOverlayWidget(QWidget):
                              (event.pos().y() - center_y) ** 2) ** 0.5)
 
                 if radius > 5:
-                    # Convert circle to points (bounding box corners) in widget coords
-                    x = center_x - radius
-                    y = center_y - radius
-                    w = radius * 2
-                    h = radius * 2
-                    # Transform to frame coordinates
-                    fx1, fy1 = self.widget_to_frame(x, y)
-                    fx2, fy2 = self.widget_to_frame(x + w, y + h)
-                    points = [(fx1, fy1), (fx2, fy1), (fx2, fy2), (fx1, fy2)]
+                    # Transform center to frame coordinates
+                    fcx, fcy = self.widget_to_frame(center_x, center_y)
+                    
+                    # Calculate a point on the circumference in frame coordinates
+                    # We can't just transform the radius because scaling might be different (though here it's uniform)
+                    # Let's transform the current mouse position
+                    fpx, fpy = self.widget_to_frame(event.pos().x(), event.pos().y())
+                    
+                    points = [(fcx, fcy), (fpx, fpy)]
                     roi = ROI(
                         roi_id=str(uuid.uuid4()),
                         roi_type=ROIType.CIRCLE,
@@ -895,10 +929,37 @@ class InspectionOverlayWidget(QWidget):
             self.draw_current_pos = None
             self.update()
 
-
-# ============================================================================
-# Video Display Widget
-# ============================================================================
+    def mouseDoubleClickEvent(self, event):
+        """Handle double click to finalize polygon."""
+        if self.drawing_mode and self.drawing_type == ROIType.POLYGON:
+            if len(self.temp_polygon_points) > 2:
+                try:
+                    from roi_manager import ROI, ROISource
+                    import uuid
+                    
+                    # Transform all points to frame coordinates
+                    points = []
+                    for p in self.temp_polygon_points:
+                        fx, fy = self.widget_to_frame(p.x(), p.y())
+                        points.append((fx, fy))
+                        
+                    roi = ROI(
+                        roi_id=str(uuid.uuid4()),
+                        roi_type=ROIType.POLYGON,
+                        roi_source=ROISource.MANUAL,
+                        points=points,
+                        label=f"ROI-{len(self.rois) + 1}"
+                    )
+                    self.roi_created.emit(roi)
+                    
+                    # Reset drawing state
+                    self.temp_polygon_points = []
+                    self.draw_start_pos = None
+                    self.draw_current_pos = None
+                    self.update()
+                    
+                except Exception as e:
+                    logger.error(f"Error creating polygon ROI: {e}", exc_info=True)
 
 class VideoWidget(QLabel):
     """
@@ -941,8 +1002,11 @@ class VideoWidget(QLabel):
         self._last_qimage = qimage.copy()
 
         # Scale to widget size and display
+        # PERFORMANCE: Use FastTransformation instead of SmoothTransformation
+        # SmoothTransformation uses bicubic interpolation (~100ms per frame)
+        # FastTransformation uses nearest neighbor (~1ms per frame)
         self._last_qpixmap = QPixmap.fromImage(self._last_qimage).scaled(
-            self.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+            self.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation
         )
         self.setPixmap(self._last_qpixmap)
 
@@ -1032,7 +1096,7 @@ class ControlPanel(QWidget):
         # Main layout
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(10, 10, 10, 10)
-        self.main_layout.setSpacing(10)
+        self.main_layout.setSpacing(15)  # Increased spacing
 
         # === Simple Controls (Always Visible) ===
         self.simple_layout = QHBoxLayout()
@@ -1492,8 +1556,690 @@ class ThermalAnalysisPanel(QWidget):
 
 
 # ============================================================================
+# Anomaly Priority Control Widget
+# ============================================================================
+
+class AnomalyWidget(QWidget):
+    """Anomaly priority control panel widget."""
+
+    # Signals
+    anomaly_priority_toggled = pyqtSignal(bool)
+    anomaly_types_changed = pyqtSignal(dict)
+    fade_strength_changed = pyqtSignal(float)
+    fade_distance_changed = pyqtSignal(int)
+    motion_threshold_changed = pyqtSignal(int)
+    edge_thresholds_changed = pyqtSignal(int, int)
+    hot_spot_percentile_changed = pyqtSignal(int)
+    cold_spot_percentile_changed = pyqtSignal(int)
+    min_anomaly_size_changed = pyqtSignal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedWidth(380)
+
+        # State
+        self.enabled_types = {
+            "motion": True,
+            "edges": True,
+            "hot_spots": True,
+            "cold_spots": True,
+            "thermal_anomalies": True
+        }
+
+        self.anomaly_counts = {
+            "motion": 0,
+            "edges": 0,
+            "hot_spots": 0,
+            "cold_spots": 0,
+            "thermal_anomalies": 0
+        }
+
+        self._init_ui()
+        self._connect_signals()
+
+    def _init_ui(self):
+        """Initialize widget UI components."""
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(8, 8, 8, 8)
+        main_layout.setSpacing(15)
+
+        # Scroll area for content
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        content = QWidget()
+        self.content_layout = QVBoxLayout(content)
+        self.content_layout.setSpacing(15)
+        self.content_layout.setContentsMargins(5, 5, 5, 5)
+
+        # 1. Main toggle
+        self._create_main_toggle()
+
+        # 2. Anomaly types multi-select
+        self._create_type_selector()
+
+        # 3. Gradient controls
+        self._create_gradient_controls()
+
+        # 4. Detection settings (collapsible)
+        self._create_detection_settings()
+
+        # 5. Performance display
+        self._create_performance_display()
+
+        self.content_layout.addStretch()
+
+        scroll.setWidget(content)
+        main_layout.addWidget(scroll)
+
+    def _create_main_toggle(self):
+        """Create main anomaly priority ON/OFF toggle."""
+        toggle_group = QGroupBox("ANOMALY PRIORITY CONTROL")
+        toggle_layout = QVBoxLayout(toggle_group)
+
+        self.main_toggle = QPushButton("Anomaly Priority: OFF")
+        self.main_toggle.setCheckable(True)
+        self.main_toggle.setMinimumHeight(40)
+        self.main_toggle.setToolTip("Enable/disable anomaly priority gradient fade visualization")
+
+        toggle_layout.addWidget(self.main_toggle)
+        self.content_layout.addWidget(toggle_group)
+
+    def _create_type_selector(self):
+        """Create anomaly type multi-select checkboxes."""
+        type_group = QGroupBox("ANOMALY TYPES")
+        type_layout = QVBoxLayout(type_group)
+
+        info_label = QLabel("Select which detections to highlight:")
+        info_label.setWordWrap(True)
+        type_layout.addWidget(info_label)
+
+        # Create checkboxes with live count labels
+        self.type_checkboxes = {}
+        self.type_count_labels = {}
+
+        anomaly_type_configs = [
+            ("motion", "Motion Detections", "Temporal changes between frames"),
+            ("edges", "Edge Clusters", "Thermal boundary edges"),
+            ("hot_spots", "Hot Spots", "95th percentile temperature"),
+            ("cold_spots", "Cold Spots", "5th percentile temperature"),
+            ("thermal_anomalies", "Thermal Anomalies", "Statistical outliers")
+        ]
+
+        for key, label, tooltip in anomaly_type_configs:
+            row_layout = QHBoxLayout()
+
+            checkbox = QCheckBox(label)
+            checkbox.setChecked(True)
+            checkbox.setToolTip(tooltip)
+            self.type_checkboxes[key] = checkbox
+
+            count_label = QLabel("(0 found)")
+            count_label.setStyleSheet("font-size: 10px;")
+            self.type_count_labels[key] = count_label
+
+            row_layout.addWidget(checkbox)
+            row_layout.addWidget(count_label)
+            row_layout.addStretch()
+
+            type_layout.addLayout(row_layout)
+
+        # Total count
+        self.total_count_label = QLabel("Total: 0 anomalies")
+        font = QFont()
+        font.setBold(True)
+        self.total_count_label.setFont(font)
+        type_layout.addWidget(self.total_count_label)
+
+        self.content_layout.addWidget(type_group)
+
+    def _create_gradient_controls(self):
+        """Create gradient fade control sliders."""
+        gradient_group = QGroupBox("GRADIENT FADE")
+        gradient_layout = QVBoxLayout(gradient_group)
+
+        # Fade Strength slider
+        strength_label = QLabel("Fade Strength:")
+        gradient_layout.addWidget(strength_label)
+
+        strength_row = QHBoxLayout()
+        self.fade_strength_slider = QSlider(Qt.Orientation.Horizontal)
+        self.fade_strength_slider.setMinimum(5)  # 0.5
+        self.fade_strength_slider.setMaximum(20)  # 2.0
+        self.fade_strength_slider.setValue(10)  # 1.0
+        self.fade_strength_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.fade_strength_slider.setTickInterval(5)
+        self.fade_strength_slider.setToolTip("Controls gradient steepness (0.5 soft - 2.0 sharp)")
+
+        self.fade_strength_value = QLabel("1.0")
+        self.fade_strength_value.setMinimumWidth(35)
+
+        strength_row.addWidget(self.fade_strength_slider)
+        strength_row.addWidget(self.fade_strength_value)
+        gradient_layout.addLayout(strength_row)
+
+        strength_hint = QLabel("(0.5 soft ← → 2.0 sharp)")
+        strength_hint.setStyleSheet("font-size: 9px;")
+        gradient_layout.addWidget(strength_hint)
+
+        # Fade Distance slider
+        distance_label = QLabel("Fade Distance:")
+        gradient_layout.addWidget(distance_label)
+
+        distance_row = QHBoxLayout()
+        self.fade_distance_slider = QSlider(Qt.Orientation.Horizontal)
+        self.fade_distance_slider.setMinimum(50)
+        self.fade_distance_slider.setMaximum(200)
+        self.fade_distance_slider.setValue(100)
+        self.fade_distance_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.fade_distance_slider.setTickInterval(50)
+        self.fade_distance_slider.setToolTip("Maximum distance for gradient fade effect (pixels)")
+
+        self.fade_distance_value = QLabel("100px")
+        self.fade_distance_value.setMinimumWidth(50)
+
+        distance_row.addWidget(self.fade_distance_slider)
+        distance_row.addWidget(self.fade_distance_value)
+        gradient_layout.addLayout(distance_row)
+
+        distance_hint = QLabel("(50px ← → 200px)")
+        distance_hint.setStyleSheet("font-size: 9px;")
+        gradient_layout.addWidget(distance_hint)
+
+        self.content_layout.addWidget(gradient_group)
+
+    def _create_detection_settings(self):
+        """Create collapsible detection settings section."""
+        self.detection_group = QGroupBox("DETECTION SETTINGS")
+        detection_layout = QVBoxLayout(self.detection_group)
+
+        # Expand/Collapse button
+        self.detection_expand_btn = QPushButton("Expand Settings")
+        self.detection_expand_btn.setCheckable(True)
+        self.detection_expand_btn.setMaximumHeight(28)
+        detection_layout.addWidget(self.detection_expand_btn)
+
+        # Collapsible content
+        self.detection_content = QWidget()
+        self.detection_content.setVisible(False)
+        settings_layout = QVBoxLayout(self.detection_content)
+        settings_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Motion Threshold
+        motion_layout = QHBoxLayout()
+        motion_layout.addWidget(QLabel("Motion Threshold:"))
+        self.motion_threshold_spin = QSpinBox()
+        self.motion_threshold_spin.setRange(5, 50)
+        self.motion_threshold_spin.setValue(20)
+        self.motion_threshold_spin.setToolTip("Sensitivity for motion detection")
+        motion_layout.addWidget(self.motion_threshold_spin)
+        settings_layout.addLayout(motion_layout)
+
+        # Edge Thresholds
+        edge_low_layout = QHBoxLayout()
+        edge_low_layout.addWidget(QLabel("Edge Low:"))
+        self.edge_low_spin = QSpinBox()
+        self.edge_low_spin.setRange(10, 100)
+        self.edge_low_spin.setValue(50)
+        self.edge_low_spin.setToolTip("Low threshold for edge detection")
+        edge_low_layout.addWidget(self.edge_low_spin)
+        settings_layout.addLayout(edge_low_layout)
+
+        edge_high_layout = QHBoxLayout()
+        edge_high_layout.addWidget(QLabel("Edge High:"))
+        self.edge_high_spin = QSpinBox()
+        self.edge_high_spin.setRange(50, 200)
+        self.edge_high_spin.setValue(150)
+        self.edge_high_spin.setToolTip("High threshold for edge detection")
+        edge_high_layout.addWidget(self.edge_high_spin)
+        settings_layout.addLayout(edge_high_layout)
+
+        # Hot Spot Percentile
+        hot_layout = QHBoxLayout()
+        hot_layout.addWidget(QLabel("Hot Spot %ile:"))
+        self.hot_spot_spin = QSpinBox()
+        self.hot_spot_spin.setRange(85, 99)
+        self.hot_spot_spin.setValue(95)
+        self.hot_spot_spin.setToolTip("Percentile threshold for hot spot detection")
+        hot_layout.addWidget(self.hot_spot_spin)
+        settings_layout.addLayout(hot_layout)
+
+        # Cold Spot Percentile
+        cold_layout = QHBoxLayout()
+        cold_layout.addWidget(QLabel("Cold Spot %ile:"))
+        self.cold_spot_spin = QSpinBox()
+        self.cold_spot_spin.setRange(1, 15)
+        self.cold_spot_spin.setValue(5)
+        self.cold_spot_spin.setToolTip("Percentile threshold for cold spot detection")
+        cold_layout.addWidget(self.cold_spot_spin)
+        settings_layout.addLayout(cold_layout)
+
+        # Min Anomaly Size
+        size_layout = QHBoxLayout()
+        size_layout.addWidget(QLabel("Min Size (px²):"))
+        self.min_size_spin = QSpinBox()
+        self.min_size_spin.setRange(100, 2000)
+        self.min_size_spin.setValue(400)
+        self.min_size_spin.setSingleStep(100)
+        self.min_size_spin.setToolTip("Minimum anomaly area size filter")
+        size_layout.addWidget(self.min_size_spin)
+        settings_layout.addLayout(size_layout)
+
+        detection_layout.addWidget(self.detection_content)
+        self.content_layout.addWidget(self.detection_group)
+
+    def _create_performance_display(self):
+        """Create performance metrics display."""
+        perf_group = QGroupBox("PERFORMANCE")
+        perf_layout = QVBoxLayout(perf_group)
+
+        self.fps_label = QLabel("FPS: --")
+        self.processing_time_label = QLabel("Processing: --")
+        self.overhead_label = QLabel("Overhead: --")
+
+        self.overhead_bar = QProgressBar()
+        self.overhead_bar.setRange(0, 100)
+        self.overhead_bar.setValue(0)
+        self.overhead_bar.setTextVisible(True)
+        self.overhead_bar.setFormat("%p%")
+        self.overhead_bar.setMaximumHeight(20)
+
+        perf_layout.addWidget(self.fps_label)
+        perf_layout.addWidget(self.processing_time_label)
+        perf_layout.addWidget(self.overhead_label)
+        perf_layout.addWidget(self.overhead_bar)
+
+        self.content_layout.addWidget(perf_group)
+
+    def _connect_signals(self):
+        """Connect internal widget signals."""
+        # Main toggle
+        self.main_toggle.toggled.connect(self._on_main_toggle_changed)
+
+        # Anomaly type checkboxes
+        for key, checkbox in self.type_checkboxes.items():
+            checkbox.stateChanged.connect(self._on_type_checkbox_changed)
+
+        # Gradient sliders
+        self.fade_strength_slider.valueChanged.connect(self._on_fade_strength_changed)
+        self.fade_distance_slider.valueChanged.connect(self._on_fade_distance_changed)
+
+        # Detection settings expand/collapse
+        self.detection_expand_btn.toggled.connect(self._on_detection_expand_toggled)
+
+        # Detection setting spinboxes
+        self.motion_threshold_spin.valueChanged.connect(self.motion_threshold_changed.emit)
+        self.edge_low_spin.valueChanged.connect(self._on_edge_thresholds_changed)
+        self.edge_high_spin.valueChanged.connect(self._on_edge_thresholds_changed)
+        self.hot_spot_spin.valueChanged.connect(self.hot_spot_percentile_changed.emit)
+        self.cold_spot_spin.valueChanged.connect(self.cold_spot_percentile_changed.emit)
+        self.min_size_spin.valueChanged.connect(self.min_anomaly_size_changed.emit)
+
+    def _on_main_toggle_changed(self, checked: bool):
+        """Handle main toggle state change."""
+        self.main_toggle.setText(f"Anomaly Priority: {'ON' if checked else 'OFF'}")
+        self.anomaly_priority_toggled.emit(checked)
+
+    def _on_type_checkbox_changed(self):
+        """Handle anomaly type checkbox changes."""
+        for key, checkbox in self.type_checkboxes.items():
+            self.enabled_types[key] = checkbox.isChecked()
+
+        self.anomaly_types_changed.emit(self.enabled_types)
+        self._update_total_count()
+
+    def _on_fade_strength_changed(self, value: int):
+        """Handle fade strength slider change."""
+        strength = value / 10.0  # Convert 5-20 to 0.5-2.0
+        self.fade_strength_value.setText(f"{strength:.1f}")
+        self.fade_strength_changed.emit(strength)
+
+    def _on_fade_distance_changed(self, value: int):
+        """Handle fade distance slider change."""
+        self.fade_distance_value.setText(f"{value}px")
+        self.fade_distance_changed.emit(value)
+
+    def _on_detection_expand_toggled(self, expanded: bool):
+        """Handle detection settings expand/collapse."""
+        self.detection_content.setVisible(expanded)
+        self.detection_expand_btn.setText("Collapse Settings" if expanded else "Expand Settings")
+
+    def _on_edge_thresholds_changed(self):
+        """Handle edge threshold changes."""
+        low = self.edge_low_spin.value()
+        high = self.edge_high_spin.value()
+        self.edge_thresholds_changed.emit(low, high)
+
+    def update_counts(self, counts: dict):
+        """Update live anomaly counts.
+
+        Args:
+            counts: Dict with keys matching enabled_types
+        """
+        for key, count in counts.items():
+            if key in self.anomaly_counts:
+                self.anomaly_counts[key] = count
+                if key in self.type_count_labels:
+                    self.type_count_labels[key].setText(f"({count} found)")
+
+        self._update_total_count()
+
+    def _update_total_count(self):
+        """Update total anomaly count display."""
+        total = sum(
+            self.anomaly_counts[key]
+            for key in self.enabled_types
+            if self.enabled_types[key]
+        )
+        self.total_count_label.setText(f"Total: {total} anomalies")
+
+    def update_performance(self, fps: float, processing_time: float, overhead: float = 0.0):
+        """Update performance metrics.
+
+        Args:
+            fps: Current frames per second
+            processing_time: Processing time in milliseconds
+            overhead: Overhead percentage (0-100)
+        """
+        self.fps_label.setText(f"FPS: {fps:.1f}")
+        self.processing_time_label.setText(f"Processing: {processing_time:.1f}ms")
+        self.overhead_label.setText(f"Overhead: {overhead:.1f}%")
+
+        self.overhead_bar.setValue(int(overhead))
+
+        # Color code overhead bar
+        if overhead < 10:
+            color = "#4CAF50"  # Green
+        elif overhead < 20:
+            color = "#FFC107"  # Yellow
+        else:
+            color = "#F44336"  # Red
+
+        self.overhead_bar.setStyleSheet(f"""
+            QProgressBar::chunk {{
+                background-color: {color};
+            }}
+        """)
+
+    def set_anomaly_priority_enabled(self, enabled: bool):
+        """Programmatically set anomaly priority state."""
+        self.main_toggle.setChecked(enabled)
+
+
+# ============================================================================
 # Main Inspection Window
 # ============================================================================
+
+class BosonControlPanel(QWidget):
+    """FLIR Boson camera control panel widget."""
+
+    # Signals
+    ffc_triggered = pyqtSignal()
+    gain_mode_changed = pyqtSignal(str)  # 'high', 'low', 'auto'
+    ffc_mode_changed = pyqtSignal(str)  # 'manual', 'auto', 'external'
+    color_lut_changed = pyqtSignal(str)  # LUT name
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedWidth(380)
+        self._init_ui()
+        self._connect_signals()
+
+    def _init_ui(self):
+        """Initialize widget UI components."""
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(8, 8, 8, 8)
+        main_layout.setSpacing(15)
+
+        # Scroll area for content
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setSpacing(15)
+        content_layout.setContentsMargins(5, 5, 5, 5)
+
+        # SDK Connection Status
+        self._create_connection_status(content_layout)
+
+        # Camera Info
+        self._create_camera_info(content_layout)
+
+        # FFC Controls
+        self._create_ffc_controls(content_layout)
+
+        # Gain Controls
+        self._create_gain_controls(content_layout)
+
+        # Color LUT Controls
+        self._create_color_lut_controls(content_layout)
+
+        # Temperature Display
+        self._create_temperature_display(content_layout)
+
+        content_layout.addStretch()
+        scroll.setWidget(content)
+        main_layout.addWidget(scroll)
+
+    def _create_connection_status(self, layout):
+        """Create SDK connection status display."""
+        status_group = QGroupBox("SDK CONNECTION")
+        status_layout = QVBoxLayout(status_group)
+
+        self.connection_status_label = QLabel("● Disconnected")
+        self.connection_status_label.setStyleSheet("color: #ff4444; font-weight: bold;")
+        status_layout.addWidget(self.connection_status_label)
+
+        self.connection_hint = QLabel("Enable SDK with --enable-boson-sdk")
+        self.connection_hint.setStyleSheet("font-size: 10px; color: #888;")
+        self.connection_hint.setWordWrap(True)
+        status_layout.addWidget(self.connection_hint)
+
+        layout.addWidget(status_group)
+
+    def _create_camera_info(self, layout):
+        """Create camera info display."""
+        info_group = QGroupBox("CAMERA INFORMATION")
+        info_layout = QVBoxLayout(info_group)
+
+        self.info_labels = {}
+
+        info_fields = [
+            ('serial', 'Serial Number:'),
+            ('part_number', 'Part Number:'),
+            ('software', 'Software Version:'),
+            ('lens', 'Lens Number:'),
+            ('table', 'Table Number:')
+        ]
+
+        for key, label_text in info_fields:
+            row = QHBoxLayout()
+            label = QLabel(label_text)
+            label.setStyleSheet("font-weight: bold; min-width: 120px;")
+            value = QLabel("N/A")
+            value.setStyleSheet("color: #888;")
+            value.setWordWrap(True)
+
+            row.addWidget(label)
+            row.addWidget(value, stretch=1)
+
+            self.info_labels[key] = value
+            info_layout.addLayout(row)
+
+        layout.addWidget(info_group)
+
+    def _create_ffc_controls(self, layout):
+        """Create FFC control buttons."""
+        ffc_group = QGroupBox("FLAT FIELD CORRECTION (FFC)")
+        ffc_layout = QVBoxLayout(ffc_group)
+
+        # Manual FFC trigger button
+        self.ffc_button = QPushButton("⚡ Trigger FFC")
+        self.ffc_button.setMinimumHeight(40)
+        self.ffc_button.setToolTip("Manually trigger Flat Field Correction (watch camera shutter)")
+        ffc_layout.addWidget(self.ffc_button)
+
+        # FFC Mode selection
+        ffc_mode_layout = QHBoxLayout()
+        ffc_mode_layout.addWidget(QLabel("FFC Mode:"))
+
+        self.ffc_mode_combo = QComboBox()
+        self.ffc_mode_combo.addItems(['Manual', 'Auto', 'External'])
+        self.ffc_mode_combo.setToolTip("FFC mode: Manual, Auto, or External trigger")
+        ffc_mode_layout.addWidget(self.ffc_mode_combo, stretch=1)
+
+        ffc_layout.addLayout(ffc_mode_layout)
+
+        # Last FFC status
+        self.ffc_status_label = QLabel("Status: Ready")
+        self.ffc_status_label.setStyleSheet("font-size: 10px; color: #888;")
+        ffc_layout.addWidget(self.ffc_status_label)
+
+        layout.addWidget(ffc_group)
+
+    def _create_gain_controls(self, layout):
+        """Create gain mode controls."""
+        gain_group = QGroupBox("GAIN MODE")
+        gain_layout = QVBoxLayout(gain_group)
+
+        self.gain_mode_combo = QComboBox()
+        self.gain_mode_combo.addItems(['High', 'Low', 'Auto'])
+        self.gain_mode_combo.setToolTip("Sensor gain mode:\n• High: Optimal for low temps\n• Low: Optimal for high temps\n• Auto: Automatic switching")
+        gain_layout.addWidget(self.gain_mode_combo)
+
+        # Current gain display
+        self.current_gain_label = QLabel("Current: Auto")
+        self.current_gain_label.setStyleSheet("font-size: 10px; color: #888;")
+        gain_layout.addWidget(self.current_gain_label)
+
+        layout.addWidget(gain_group)
+
+    def _create_color_lut_controls(self, layout):
+        """Create color LUT controls."""
+        lut_group = QGroupBox("COLOR LOOKUP TABLE (LUT)")
+        lut_layout = QVBoxLayout(lut_group)
+
+        self.color_lut_combo = QComboBox()
+        self.color_lut_combo.addItems([
+            'White Hot', 'Black Hot', 'Rainbow', 'Rainbow HC',
+            'Ironbow', 'Lava', 'Arctic', 'Globow',
+            'Graded Fire', 'Hottest'
+        ])
+        self.color_lut_combo.setToolTip("Hardware color palette (applies on-camera)")
+        lut_layout.addWidget(self.color_lut_combo)
+
+        hint = QLabel("Note: Hardware LUT applies before software processing")
+        hint.setStyleSheet("font-size: 9px; color: #888;")
+        hint.setWordWrap(True)
+        lut_layout.addWidget(hint)
+
+        layout.addWidget(lut_group)
+
+    def _create_temperature_display(self, layout):
+        """Create FPA temperature display."""
+        temp_group = QGroupBox("FPA TEMPERATURE")
+        temp_layout = QVBoxLayout(temp_group)
+
+        self.fpa_temp_label = QLabel("N/A")
+        self.fpa_temp_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #00aaff;")
+        self.fpa_temp_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        temp_layout.addWidget(self.fpa_temp_label)
+
+        self.fpa_temp_unit = QLabel("Focal Plane Array Temperature")
+        self.fpa_temp_unit.setStyleSheet("font-size: 10px; color: #888;")
+        self.fpa_temp_unit.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        temp_layout.addWidget(self.fpa_temp_unit)
+
+        # Auto-refresh toggle
+        refresh_layout = QHBoxLayout()
+        self.temp_auto_refresh = QCheckBox("Auto-refresh (1s)")
+        self.temp_auto_refresh.setChecked(True)
+        self.temp_auto_refresh.setToolTip("Automatically read temperature every second")
+        refresh_layout.addWidget(self.temp_auto_refresh)
+        refresh_layout.addStretch()
+        temp_layout.addLayout(refresh_layout)
+
+        layout.addWidget(temp_group)
+
+    def _connect_signals(self):
+        """Connect internal signals."""
+        self.ffc_button.clicked.connect(lambda: self.ffc_triggered.emit())
+        self.gain_mode_combo.currentTextChanged.connect(
+            lambda text: self.gain_mode_changed.emit(text.lower())
+        )
+        self.ffc_mode_combo.currentTextChanged.connect(
+            lambda text: self.ffc_mode_changed.emit(text.lower())
+        )
+        self.color_lut_combo.currentTextChanged.connect(
+            lambda text: self.color_lut_changed.emit(text.lower().replace(' ', '_'))
+        )
+
+    def update_connection_status(self, connected: bool):
+        """Update SDK connection status."""
+        if connected:
+            self.connection_status_label.setText("● Connected")
+            self.connection_status_label.setStyleSheet("color: #44ff44; font-weight: bold;")
+            self.connection_hint.setText("SDK features available")
+
+            # Enable controls
+            self.ffc_button.setEnabled(True)
+            self.gain_mode_combo.setEnabled(True)
+            self.ffc_mode_combo.setEnabled(True)
+            self.color_lut_combo.setEnabled(True)
+        else:
+            self.connection_status_label.setText("● Disconnected")
+            self.connection_status_label.setStyleSheet("color: #ff4444; font-weight: bold;")
+            self.connection_hint.setText("Enable SDK with --enable-boson-sdk")
+
+            # Disable controls
+            self.ffc_button.setEnabled(False)
+            self.gain_mode_combo.setEnabled(False)
+            self.ffc_mode_combo.setEnabled(False)
+            self.color_lut_combo.setEnabled(False)
+
+    def update_camera_info(self, info):
+        """Update camera information display."""
+        if hasattr(info, 'serial_number') and info.serial_number:
+            self.info_labels['serial'].setText(info.serial_number)
+            self.info_labels['serial'].setStyleSheet("color: #e0e0e0;")
+
+        if hasattr(info, 'camera_part_number') and info.camera_part_number:
+            self.info_labels['part_number'].setText(info.camera_part_number)
+            self.info_labels['part_number'].setStyleSheet("color: #e0e0e0;")
+
+        if hasattr(info, 'software_version') and info.software_version:
+            self.info_labels['software'].setText(info.software_version)
+            self.info_labels['software'].setStyleSheet("color: #e0e0e0;")
+
+        if hasattr(info, 'lens_number') and info.lens_number is not None:
+            self.info_labels['lens'].setText(str(info.lens_number))
+            self.info_labels['lens'].setStyleSheet("color: #e0e0e0;")
+
+        if hasattr(info, 'table_number') and info.table_number is not None:
+            self.info_labels['table'].setText(str(info.table_number))
+            self.info_labels['table'].setStyleSheet("color: #e0e0e0;")
+
+        # Update gain mode if available
+        if hasattr(info, 'gain_mode') and info.gain_mode:
+            self.current_gain_label.setText(f"Current: {info.gain_mode.name}")
+            self.current_gain_label.setStyleSheet("font-size: 10px; color: #00aaff;")
+
+    def update_fpa_temperature(self, temp_kelvin: float, temp_celsius: float):
+        """Update FPA temperature display."""
+        self.fpa_temp_label.setText(f"{temp_celsius:.1f}°C")
+        self.fpa_temp_unit.setText(f"({temp_kelvin:.1f}K)")
+
+    def set_ffc_status(self, message: str, is_error: bool = False):
+        """Update FFC status message."""
+        color = "#ff4444" if is_error else "#44ff44"
+        self.ffc_status_label.setText(f"Status: {message}")
+        self.ffc_status_label.setStyleSheet(f"font-size: 10px; color: {color};")
+
 
 class InspectionAppWindow(QMainWindow):
     """
@@ -1547,10 +2293,23 @@ class InspectionAppWindow(QMainWindow):
 
         main_layout.addWidget(left_widget, stretch=7)
 
-        # Right side: Thermal Analysis Panel (hidden by default)
+        # Right side: Tabbed widget panel (hidden by default)
+        self.right_panel_tabs = QTabWidget()
+        self.right_panel_tabs.setVisible(False)
+
+        # Add Analysis Panel tab
         self.analysis_panel = ThermalAnalysisPanel()
-        self.analysis_panel.setVisible(False)
-        main_layout.addWidget(self.analysis_panel, stretch=2)
+        self.right_panel_tabs.addTab(self.analysis_panel, "Analysis")
+
+        # Add Anomaly Widget tab
+        self.anomaly_widget = AnomalyWidget()
+        self.right_panel_tabs.addTab(self.anomaly_widget, "Anomaly")
+
+        # Add Boson Control Panel tab
+        self.boson_panel = BosonControlPanel()
+        self.right_panel_tabs.addTab(self.boson_panel, "Boson")
+
+        main_layout.addWidget(self.right_panel_tabs, stretch=2)
 
         # Info panel (overlay on video widget)
         self.info_panel = InfoPanel(self.video_widget)
@@ -1582,6 +2341,7 @@ class InspectionAppWindow(QMainWindow):
         self.control_panel.device_clicked.connect(self._on_device_cycle)
         self.control_panel.motion_detection_toggled.connect(self._on_motion_toggle)
         self.control_panel.edge_detection_toggled.connect(self._on_edge_toggle)
+        self.control_panel.anomaly_priority_toggled.connect(self._on_anomaly_priority_toggle)
 
         # Fusion
         self.control_panel.fusion_mode_clicked.connect(self._on_fusion_mode_cycle)
@@ -1591,6 +2351,22 @@ class InspectionAppWindow(QMainWindow):
         
         # Analysis
         self.analysis_panel.baseline_toggled.connect(self._on_baseline_toggle)
+
+        # Boson Control Panel
+        self.boson_panel.ffc_triggered.connect(self._on_boson_ffc)
+        self.boson_panel.gain_mode_changed.connect(self._on_boson_gain_mode)
+        self.boson_panel.ffc_mode_changed.connect(self._on_boson_ffc_mode)
+
+        # Anomaly Widget
+        self.anomaly_widget.anomaly_priority_toggled.connect(self._on_anomaly_priority_toggle)
+        self.anomaly_widget.anomaly_types_changed.connect(self._on_anomaly_types_changed)
+        self.anomaly_widget.fade_strength_changed.connect(self._on_fade_strength_changed)
+        self.anomaly_widget.fade_distance_changed.connect(self._on_fade_distance_changed)
+        self.anomaly_widget.motion_threshold_changed.connect(self._on_motion_threshold_changed)
+        self.anomaly_widget.edge_thresholds_changed.connect(self._on_edge_thresholds_changed)
+        self.anomaly_widget.hot_spot_percentile_changed.connect(self._on_hot_spot_percentile_changed)
+        self.anomaly_widget.cold_spot_percentile_changed.connect(self._on_cold_spot_percentile_changed)
+        self.anomaly_widget.min_anomaly_size_changed.connect(self._on_min_anomaly_size_changed)
 
         # ROI Overlay signals
         if hasattr(self.video_widget, 'overlay'):
@@ -1636,7 +2412,7 @@ class InspectionAppWindow(QMainWindow):
         """Toggle developer mode (show/hide advanced controls and analysis panel)."""
         self.developer_mode = not self.developer_mode
         self.control_panel.show_developer_controls(self.developer_mode)
-        self.analysis_panel.setVisible(self.developer_mode)
+        self.right_panel_tabs.setVisible(self.developer_mode)
 
         # Adjust window size
         if self.developer_mode:
@@ -1783,6 +2559,62 @@ class InspectionAppWindow(QMainWindow):
             self.app.toggle_edge(enabled)
         logger.info(f"Edge detection: {'ON' if enabled else 'OFF'}")
 
+    def _on_anomaly_priority_toggle(self, enabled: bool):
+        """Toggle anomaly priority mode."""
+        self.control_panel.update_anomaly_priority_button(enabled)
+        if self.app:
+            self.app.toggle_anomaly_priority(enabled)
+        logger.info(f"Anomaly priority: {'ON' if enabled else 'OFF'}")
+
+    def _on_anomaly_types_changed(self, types_dict: dict):
+        """Handle anomaly type selection changes."""
+        if self.app:
+            self.app.set_enabled_anomaly_types(types_dict)
+        logger.info(f"Anomaly types changed: {types_dict}")
+
+    def _on_fade_strength_changed(self, value: float):
+        """Handle fade strength changes."""
+        if self.app and hasattr(self.app, 'thermal_processor'):
+            self.app.thermal_processor.anomaly_fade_strength = value
+        logger.info(f"Fade strength: {value}")
+
+    def _on_fade_distance_changed(self, value: int):
+        """Handle fade distance changes."""
+        if self.app and hasattr(self.app, 'thermal_processor'):
+            self.app.thermal_processor.anomaly_max_distance = value
+        logger.info(f"Fade distance: {value}px")
+
+    def _on_motion_threshold_changed(self, value: int):
+        """Handle motion threshold changes."""
+        if self.app and hasattr(self.app, 'thermal_processor'):
+            self.app.thermal_processor.motion_threshold = value
+        logger.info(f"Motion threshold: {value}")
+
+    def _on_edge_thresholds_changed(self, low: int, high: int):
+        """Handle edge threshold changes."""
+        if self.app and hasattr(self.app, 'thermal_processor'):
+            self.app.thermal_processor.edge_threshold_low = low
+            self.app.thermal_processor.edge_threshold_high = high
+        logger.info(f"Edge thresholds: {low}/{high}")
+
+    def _on_hot_spot_percentile_changed(self, value: int):
+        """Handle hot spot percentile changes."""
+        if self.app and hasattr(self.app, 'thermal_analyzer'):
+            self.app.thermal_analyzer.hot_spot_percentile = value
+        logger.info(f"Hot spot percentile: {value}")
+
+    def _on_cold_spot_percentile_changed(self, value: int):
+        """Handle cold spot percentile changes."""
+        if self.app and hasattr(self.app, 'thermal_analyzer'):
+            self.app.thermal_analyzer.cold_spot_percentile = value
+        logger.info(f"Cold spot percentile: {value}")
+
+    def _on_min_anomaly_size_changed(self, value: int):
+        """Handle minimum anomaly size changes."""
+        if self.app and hasattr(self.app, 'thermal_analyzer'):
+            self.app.thermal_analyzer.min_anomaly_size = value
+        logger.info(f"Min anomaly size: {value}px²")
+
     def _on_fusion_mode_cycle(self):
         """Cycle fusion mode."""
         if self.app:
@@ -1808,6 +2640,21 @@ class InspectionAppWindow(QMainWindow):
             if hasattr(self.app, 'lock_baseline'):
                 self.app.lock_baseline(enabled)
         logger.info(f"Baseline lock: {'ON' if enabled else 'OFF'}")
+
+    def _on_boson_ffc(self):
+        """Handle FFC trigger from Boson panel."""
+        if self.app and hasattr(self.app, 'trigger_ffc'):
+            self.app.trigger_ffc()
+
+    def _on_boson_gain_mode(self, mode: str):
+        """Handle gain mode change from Boson panel."""
+        if self.app and hasattr(self.app, 'set_boson_gain_mode'):
+            self.app.set_boson_gain_mode(mode)
+
+    def _on_boson_ffc_mode(self, mode: str):
+        """Handle FFC mode change from Boson panel."""
+        if self.app and hasattr(self.app, 'set_boson_ffc_mode'):
+            self.app.set_boson_ffc_mode(mode)
 
     def _on_roi_created(self, roi):
         """Handle new ROI created from overlay."""
@@ -1857,6 +2704,8 @@ class InspectionAppWindow(QMainWindow):
                                 hot_spots: List[HotSpot],
                                 cold_spots: List[ColdSpot],
                                 anomalies: List[ThermalAnomaly],
+                                motion_detections: List = None,
+                                edge_clusters: List = None,
                                 trend: Optional[TemperatureTrend] = None):
         """Update thermal analysis displays."""
         self.video_widget.update_thermal_detections(hot_spots, cold_spots, anomalies)
@@ -1865,6 +2714,16 @@ class InspectionAppWindow(QMainWindow):
         self.analysis_panel.update_cold_spots(cold_spots)
         self.analysis_panel.update_anomalies(anomalies)
         self.analysis_panel.update_trend(trend)
+
+        # Update Anomaly Widget counts
+        counts = {
+            "hot_spots": len(hot_spots),
+            "cold_spots": len(cold_spots),
+            "thermal_anomalies": len(anomalies),
+            "motion": len(motion_detections) if motion_detections else 0,
+            "edges": len(edge_clusters) if edge_clusters else 0
+        }
+        self.anomaly_widget.update_counts(counts)
 
 
 # ============================================================================
