@@ -750,7 +750,7 @@ class PaletteManager:
         # Start with global palette
         output = self.apply_palette(thermal_frame, self.global_palette)
 
-        # Apply ROI-specific palettes
+        # Apply ROI-specific palettes (from roi_palettes dict - legacy)
         for roi_id, palette_config in self.roi_palettes.items():
             roi = roi_manager.get_roi(roi_id)
             if roi is None or not roi.active:
@@ -767,6 +767,27 @@ class PaletteManager:
             # Blend ROI palette onto output
             mask_3ch = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
             output = np.where(mask_3ch > 0, roi_colorized, output)
+
+        # Apply custom palettes from ROI.custom_palette field (NEW!)
+        for roi in roi_manager.get_all_rois(active_only=True):
+            if roi.custom_palette:
+                # Get ROI mask
+                mask = roi.get_mask(thermal_frame.shape)
+                if mask is None or np.sum(mask) == 0:
+                    continue
+
+                # Create palette config from custom_palette name
+                try:
+                    palette_type = PaletteType(roi.custom_palette)
+                    palette_config = PaletteConfig(palette_type=palette_type)
+                    roi_colorized = self.apply_palette(thermal_frame, palette_config)
+
+                    # Blend ROI palette onto output
+                    mask_3ch = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+                    output = np.where(mask_3ch > 0, roi_colorized, output)
+                except (ValueError, KeyError):
+                    # Invalid palette name - skip
+                    pass
 
         return output
 

@@ -87,12 +87,13 @@ class RGBCamera:
                     logger.info(f"Linux detected - opening USB camera {self.device_id} with V4L2")
                     self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_V4L2)
                 elif system == "Windows":
-                    logger.info(f"Windows detected - opening camera {self.device_id} with DirectShow")
+                    # OPTIMIZATION: Use MSMF (Media Foundation) instead of DirectShow for better performance
+                    logger.info(f"Windows detected - opening camera {self.device_id} with MSMF")
                     try:
-                        self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_DSHOW)
-                    except:
-                        logger.info("DirectShow failed, trying MSMF")
                         self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_MSMF)
+                    except:
+                        logger.info("MSMF failed, trying DirectShow")
+                        self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_DSHOW)
                 else:
                     logger.info(f"{system} detected - using default backend")
                     self.cap = cv2.VideoCapture(self.device_id)
@@ -113,9 +114,10 @@ class RGBCamera:
                 self.cap.set(cv2.CAP_PROP_FPS, self.fps)
                 self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimize latency
 
-                # Enable auto exposure and auto white balance
-                self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
-                self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+                # OPTIMIZATION: Disable auto-exposure and autofocus to reduce latency
+                # These can cause blocking delays waiting for camera adjustments
+                self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # Manual mode (0.25 = manual, 0.75 = auto)
+                self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)  # Disable autofocus
 
             # Verify actual resolution
             actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))

@@ -39,7 +39,8 @@
       "Bash(del /S /Q __pycache__)",
       "Bash(powershell -Command \"Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force\")",
       "Bash(timeout 120 python:*)",
-      "Bash(tee:*)"
+      "Bash(tee:*)",
+      "Bash(timeout 35 python inspection_main.py:*)"
     ],
     "deny": [],
     "ask": []

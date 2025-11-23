@@ -138,6 +138,10 @@ class ThermalInspectionFusion:
         self.rgb_available = False
         self.thermal_connected = False
 
+        # Threaded camera capture (for performance)
+        self.use_threaded_capture = getattr(args, 'threaded_capture', True)
+        self.threaded_capture = None
+
         # NEW: Inspection processors
         self.thermal_processor: Optional[ThermalProcessor] = None
         self.thermal_analyzer: Optional[ThermalAnalyzer] = None
@@ -517,6 +521,15 @@ class ThermalInspectionFusion:
 
             logger.info("-" * 60)
 
+            # 5.5 Initialize threaded camera capture (if enabled)
+            if self.use_threaded_capture and (self.thermal_connected or self.rgb_available):
+                from threaded_camera_capture import DualThreadedCameraCapture
+                self.threaded_capture = DualThreadedCameraCapture(
+                    self.thermal_camera if self.thermal_connected else None,
+                    self.rgb_camera if self.rgb_available else None
+                )
+                logger.info("[OK] Threaded camera capture initialized")
+
             # 6. Initialize performance monitor
             self.perf_monitor = PerformanceMonitor()
 
@@ -569,6 +582,9 @@ class ThermalInspectionFusion:
         Returns:
             Dictionary with all processing results
         """
+        t_prof = {}  # Timing profile for this function
+        t_prof['start'] = time.time()
+
         result = {
             'thermal_colorized': None,
             'rgb_frame': rgb_frame,
@@ -580,7 +596,8 @@ class ThermalInspectionFusion:
             'cold_spots': [],
             'anomalies': [],
             'rois': [],
-            'thermal_stats': None
+            'thermal_stats': None,
+            'timing_profile': t_prof  # Include timing in result
         }
 
         if thermal_frame is None:
@@ -588,18 +605,23 @@ class ThermalInspectionFusion:
 
         try:
             # 1. Process thermal frame (motion + edge detection)
+            t_prof['before_thermal_processor'] = time.time()
             processor_result = self.thermal_processor.process_frame(thermal_frame)
+            t_prof['after_thermal_processor'] = time.time()
             result['motion_detections'] = processor_result['motion_detections']
             result['edge_clusters'] = processor_result['edge_clusters']
 
             # 2. Apply palette (global + ROI overrides)
+            t_prof['before_palette'] = time.time()
             thermal_colorized = self.palette_manager.apply_composite_palette(
                 thermal_frame, self.roi_manager
             )
+            t_prof['after_palette'] = time.time()
             result['thermal_colorized'] = thermal_colorized
 
             # 3. Automatic ROI detection (if enabled)
             # OPTIMIZATION: Only run auto-ROI detection every N frames to reduce overhead
+            t_prof['before_auto_roi'] = time.time()
             if self.auto_roi_enabled:
                 self.auto_roi_frame_counter += 1
                 if self.auto_roi_frame_counter >= self.auto_roi_update_interval:
@@ -627,8 +649,10 @@ class ThermalInspectionFusion:
 
                     if self.auto_roi_methods.get('edge', True):
                         edge_rois = self.roi_manager.detect_edge_rois(thermal_frame)
+            t_prof['after_auto_roi'] = time.time()
 
             # 4. Thermal analysis for each ROI
+            t_prof['before_roi_analysis'] = time.time()
             for roi in self.roi_manager.get_all_rois(active_only=True):
                 mask = roi.get_mask(thermal_frame.shape)
                 stats = self.thermal_analyzer.analyze_frame(thermal_frame, mask)
@@ -644,8 +668,10 @@ class ThermalInspectionFusion:
 
                     # Update trend tracking
                     self.thermal_analyzer.update_trend(roi.roi_id, stats.mean_temp)
+            t_prof['after_roi_analysis'] = time.time()
 
             # 5. Global thermal analysis (whole frame)
+            t_prof['before_thermal_analysis'] = time.time()
             global_stats = self.thermal_analyzer.analyze_frame(thermal_frame)
             result['thermal_stats'] = global_stats
 
@@ -655,8 +681,10 @@ class ThermalInspectionFusion:
 
             # Anomaly detection
             result['anomalies'] = self.thermal_analyzer.detect_anomalies(thermal_frame, 'global')
+            t_prof['after_thermal_analysis'] = time.time()
 
             # 5b. Apply anomaly priority colorization if enabled (AFTER all detections)
+            t_prof['before_anomaly_priority'] = time.time()
             if self.thermal_processor.anomaly_priority_enabled:
                 # Combine enabled anomaly types for gradient fade visualization
                 all_anomalies = []
@@ -693,8 +721,10 @@ class ThermalInspectionFusion:
                 )
                 # Update result with anomaly-priority-applied colorization
                 result['thermal_colorized'] = thermal_colorized
+            t_prof['after_anomaly_priority'] = time.time()
 
             # 6. Create fused frame if RGB available
+            t_prof['before_fusion'] = time.time()
             if rgb_frame is not None and self.fusion_processor:
                 try:
                     fused_frame = self.fusion_processor.fuse_frames(thermal_colorized, rgb_frame)
@@ -702,8 +732,10 @@ class ThermalInspectionFusion:
                 except Exception as e:
                     logger.debug(f"Fusion processing error: {e}")
                     result['fused_frame'] = None
+            t_prof['after_fusion'] = time.time()
 
             # 7. Select display frame based on view mode
+            t_prof['before_display_select'] = time.time()
             if self.view_mode == ViewMode.THERMAL_ONLY:
                 # Show only thermal colorized
                 display_frame = thermal_colorized.copy()
@@ -749,8 +781,12 @@ class ThermalInspectionFusion:
                 # Default: fusion
                 display_frame = result['fused_frame'].copy()
 
+            t_prof['after_display_select'] = time.time()
+
             # 8. Draw ROIs on display frame
+            t_prof['before_draw_rois'] = time.time()
             display_frame = self.roi_manager.draw_rois(display_frame, active_only=True)
+            t_prof['after_draw_rois'] = time.time()
 
             result['display_frame'] = display_frame
             result['rois'] = self.roi_manager.get_all_rois(active_only=True)
@@ -765,8 +801,11 @@ class ThermalInspectionFusion:
             self.latest_display_frame = result['display_frame']
             self.latest_rois = result['rois']
 
+            t_prof['end'] = time.time()
+
         except Exception as e:
             logger.error(f"Frame processing error: {e}", exc_info=True)
+            t_prof['end'] = time.time()
 
         return result
 
@@ -774,6 +813,11 @@ class ThermalInspectionFusion:
         """Main inspection application loop."""
         logger.info("Starting inspection loop...")
         self.running = True
+
+        # Start threaded camera capture (if enabled)
+        if self.threaded_capture:
+            self.threaded_capture.start()
+            logger.info("Threaded camera capture started")
 
         # Show Qt GUI if available
         if self.gui_type == 'qt' and self.gui:
@@ -806,25 +850,48 @@ class ThermalInspectionFusion:
                 # 2. Capture thermal frame
                 t_markers['before_thermal_read'] = time.time()
                 thermal_frame = None
-                try:
-                    if self.thermal_camera and self.thermal_connected:
-                        ret_thermal, thermal_frame = self.thermal_camera.read()
-                        if not ret_thermal or thermal_frame is None:
-                            logger.warning("Thermal camera disconnected")
-                            self.thermal_connected = False
-                            if self.thermal_camera:
-                                self.thermal_camera.release()
-                            self.thermal_camera = None
-                            self.is_flir_boson = False # Reset flag
-                except Exception as e:
-                    logger.warning(f"Thermal camera error: {e}")
-                    self.thermal_connected = False
-                    if self.thermal_camera:
-                        self.thermal_camera.release()
-                    self.thermal_camera = None
-                    self.is_flir_boson = False # Reset flag
+                rgb_frame = None
 
-                t_markers['after_thermal_read'] = time.time()
+                # Use threaded capture if available (MUCH faster!)
+                if self.threaded_capture:
+                    thermal_frame, rgb_frame = self.threaded_capture.get_frames()
+                    t_markers['after_thermal_read'] = time.time()
+                    t_markers['after_placeholder'] = time.time()
+                    t_markers['after_rgb_read'] = time.time()
+                else:
+                    # Fallback to blocking capture
+                    try:
+                        if self.thermal_camera and self.thermal_connected:
+                            ret_thermal, thermal_frame = self.thermal_camera.read()
+                            if not ret_thermal or thermal_frame is None:
+                                logger.warning("Thermal camera disconnected")
+                                self.thermal_connected = False
+                                if self.thermal_camera:
+                                    self.thermal_camera.release()
+                                self.thermal_camera = None
+                                self.is_flir_boson = False # Reset flag
+                    except Exception as e:
+                        logger.warning(f"Thermal camera error: {e}")
+                        self.thermal_connected = False
+                        if self.thermal_camera:
+                            self.thermal_camera.release()
+                        self.thermal_camera = None
+                        self.is_flir_boson = False # Reset flag
+
+                    t_markers['after_thermal_read'] = time.time()
+
+                    # RGB capture
+                    if self.rgb_camera and self.rgb_available:
+                        try:
+                            ret_rgb, rgb_frame = self.rgb_camera.read()
+                            if not ret_rgb:
+                                rgb_frame = None
+                        except Exception as e:
+                            logger.debug(f"RGB camera error: {e}")
+                            rgb_frame = None
+
+                    t_markers['after_placeholder'] = time.time()
+                    t_markers['after_rgb_read'] = time.time()
 
                 # Create placeholder if no thermal
                 if thermal_frame is None:
@@ -832,21 +899,6 @@ class ThermalInspectionFusion:
                     placeholder_rgb = create_thermal_placeholder(width=res[0], height=res[1])
                     placeholder_gray = cv2.cvtColor(placeholder_rgb, cv2.COLOR_BGR2GRAY)
                     thermal_frame = (placeholder_gray.astype(np.uint16) * 256)
-
-                t_markers['after_placeholder'] = time.time()
-
-                # 3. Capture RGB frame
-                rgb_frame = None
-                if self.rgb_camera and self.rgb_available:
-                    try:
-                        ret_rgb, rgb_frame = self.rgb_camera.read()
-                        if not ret_rgb:
-                            rgb_frame = None
-                    except Exception as e:
-                        logger.debug(f"RGB camera error: {e}")
-                        rgb_frame = None
-
-                t_markers['after_rgb_read'] = time.time()
 
                 # 4. Process frames through inspection pipeline
                 result = self.process_frame(thermal_frame, rgb_frame)
@@ -881,6 +933,7 @@ class ThermalInspectionFusion:
                     logger.info("Recording stopped")
 
                 # 5. Display (temporary simple display until GUI is ready)
+                t_markers['before_gui_update'] = time.time()
                 display_frame = result.get('display_frame')
                 if display_frame is not None and self.gui_type == 'opencv':
                     # Simple OpenCV display
@@ -926,7 +979,6 @@ class ThermalInspectionFusion:
                                 logger.warning("Could not read FPA temperature")
                         else:
                             logger.warning("Temperature reading requires Boson SDK connection")
-                t_markers['before_gui_update'] = time.time()
                 # Update Qt GUI
                 elif self.gui_type == 'qt' and self.gui:
                     if display_frame is not None:
@@ -973,7 +1025,7 @@ class ThermalInspectionFusion:
 
                 # Log periodically with detailed timing breakdown
                 if self.frame_count % 100 == 0:
-                    # Calculate timing deltas
+                    # Calculate main loop timing deltas
                     thermal_read_ms = (t_markers.get('after_thermal_read', 0) - t_markers.get('before_thermal_read', 0)) * 1000
                     placeholder_ms = (t_markers.get('after_placeholder', 0) - t_markers.get('after_thermal_read', 0)) * 1000
                     rgb_read_ms = (t_markers.get('after_rgb_read', 0) - t_markers.get('after_placeholder', 0)) * 1000
@@ -982,9 +1034,28 @@ class ThermalInspectionFusion:
                     process_events_ms = (t_markers.get('after_processEvents', 0) - t_markers.get('before_processEvents', 0)) * 1000
 
                     logger.info(f"Frame {self.frame_count}: {self.smoothed_fps:.1f} FPS ({avg_time*1000:.1f}ms/frame)")
-                    logger.info(f"  Timing breakdown: thermal_read={thermal_read_ms:.1f}ms, placeholder={placeholder_ms:.1f}ms, "
+                    logger.info(f"  Main loop: thermal_read={thermal_read_ms:.1f}ms, placeholder={placeholder_ms:.1f}ms, "
                                f"rgb_read={rgb_read_ms:.1f}ms, process_frame={process_frame_ms:.1f}ms, "
                                f"gui_update={gui_update_ms:.1f}ms, processEvents={process_events_ms:.1f}ms")
+
+                    # Calculate process_frame internal timing (from result's timing_profile)
+                    t_prof = result.get('timing_profile', {})
+                    if t_prof:
+                        thermal_proc_ms = (t_prof.get('after_thermal_processor', 0) - t_prof.get('before_thermal_processor', 0)) * 1000
+                        palette_ms = (t_prof.get('after_palette', 0) - t_prof.get('before_palette', 0)) * 1000
+                        auto_roi_ms = (t_prof.get('after_auto_roi', 0) - t_prof.get('before_auto_roi', 0)) * 1000
+                        roi_analysis_ms = (t_prof.get('after_roi_analysis', 0) - t_prof.get('before_roi_analysis', 0)) * 1000
+                        thermal_analysis_ms = (t_prof.get('after_thermal_analysis', 0) - t_prof.get('before_thermal_analysis', 0)) * 1000
+                        anomaly_priority_ms = (t_prof.get('after_anomaly_priority', 0) - t_prof.get('before_anomaly_priority', 0)) * 1000
+                        fusion_ms = (t_prof.get('after_fusion', 0) - t_prof.get('before_fusion', 0)) * 1000
+                        display_select_ms = (t_prof.get('after_display_select', 0) - t_prof.get('before_display_select', 0)) * 1000
+                        draw_rois_ms = (t_prof.get('after_draw_rois', 0) - t_prof.get('before_draw_rois', 0)) * 1000
+
+                        logger.info(f"  process_frame breakdown: thermal_proc={thermal_proc_ms:.1f}ms, palette={palette_ms:.1f}ms, "
+                                   f"auto_roi={auto_roi_ms:.1f}ms, roi_analysis={roi_analysis_ms:.1f}ms, "
+                                   f"thermal_analysis={thermal_analysis_ms:.1f}ms, anomaly_priority={anomaly_priority_ms:.1f}ms, "
+                                   f"fusion={fusion_ms:.1f}ms, display_select={display_select_ms:.1f}ms, draw_rois={draw_rois_ms:.1f}ms")
+
                     logger.info(f"  Detections: {len(result['rois'])} ROIs, {len(result['motion_detections'])} motion, "
                                f"{len(result['hot_spots'])} hot spots")
 
@@ -1278,6 +1349,10 @@ class ThermalInspectionFusion:
         """Clean up resources."""
         logger.info("Cleaning up...")
         self.running = False
+
+        # Stop threaded capture first
+        if self.threaded_capture:
+            self.threaded_capture.stop()
 
         # Stop recording if active (NEW - Phase 6)
         if self.video_recorder and self.video_recorder.is_recording():

@@ -41,6 +41,8 @@ class ROI:
     color: Tuple[int, int, int] = (0, 255, 0)  # BGR
     active: bool = True
     locked: bool = False
+    selected: bool = False  # NEW: For multi-select functionality
+    custom_palette: Optional[str] = None  # NEW: Custom palette override for this ROI
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
     last_updated: float = field(default_factory=time.time)
@@ -558,6 +560,57 @@ class ROIManager:
         """Clear all ROIs."""
         self.rois.clear()
 
+    # ========================================================================
+    # Multi-Select Methods (NEW)
+    # ========================================================================
+
+    def select_roi(self, roi_id: str):
+        """Select an ROI."""
+        if roi_id in self.rois:
+            self.rois[roi_id].selected = True
+
+    def deselect_roi(self, roi_id: str):
+        """Deselect an ROI."""
+        if roi_id in self.rois:
+            self.rois[roi_id].selected = False
+
+    def toggle_roi_selection(self, roi_id: str):
+        """Toggle ROI selection state."""
+        if roi_id in self.rois:
+            self.rois[roi_id].selected = not self.rois[roi_id].selected
+
+    def select_all_rois(self):
+        """Select all ROIs."""
+        for roi in self.rois.values():
+            roi.selected = True
+
+    def deselect_all_rois(self):
+        """Deselect all ROIs."""
+        for roi in self.rois.values():
+            roi.selected = False
+
+    def get_selected_rois(self) -> List[ROI]:
+        """Get list of selected ROIs."""
+        return [roi for roi in self.rois.values() if roi.selected]
+
+    def delete_selected_rois(self):
+        """Delete all selected ROIs."""
+        to_delete = [roi_id for roi_id, roi in self.rois.items() if roi.selected]
+        for roi_id in to_delete:
+            del self.rois[roi_id]
+
+    def set_palette_for_selected(self, palette_name: str):
+        """Set custom palette for all selected ROIs."""
+        for roi in self.rois.values():
+            if roi.selected:
+                roi.custom_palette = palette_name
+
+    def clear_palette_for_selected(self):
+        """Clear custom palette for all selected ROIs (use global palette)."""
+        for roi in self.rois.values():
+            if roi.selected:
+                roi.custom_palette = None
+
     def save_rois(self, filepath: str):
         """
         Save all ROIs to JSON file.
@@ -618,30 +671,59 @@ class ROIManager:
 
             points_array = np.array(roi.points, dtype=np.int32)
 
+            # Use thicker line for selected ROIs
+            draw_thickness = thickness * 3 if roi.selected else thickness
+            draw_color = roi.color
+
             if roi.roi_type == ROIType.RECTANGLE:
                 x, y, w, h = roi.get_bbox()
-                cv2.rectangle(output, (x, y), (x+w, y+h), roi.color, thickness)
+                cv2.rectangle(output, (x, y), (x+w, y+h), draw_color, draw_thickness)
+
+                # Draw selection indicator (corner markers)
+                if roi.selected:
+                    marker_size = 10
+                    cv2.line(output, (x, y), (x+marker_size, y), (255, 255, 0), 3)
+                    cv2.line(output, (x, y), (x, y+marker_size), (255, 255, 0), 3)
+                    cv2.line(output, (x+w, y), (x+w-marker_size, y), (255, 255, 0), 3)
+                    cv2.line(output, (x+w, y), (x+w, y+marker_size), (255, 255, 0), 3)
 
             elif roi.roi_type == ROIType.POLYGON:
-                cv2.polylines(output, [points_array], True, roi.color, thickness)
+                cv2.polylines(output, [points_array], True, draw_color, draw_thickness)
+
+                # Draw selection indicator
+                if roi.selected:
+                    for pt in roi.points:
+                        cv2.circle(output, pt, 5, (255, 255, 0), -1)
 
             elif roi.roi_type == ROIType.ELLIPSE:
                 x, y, w, h = roi.get_bbox()
                 center = (x + w//2, y + h//2)
                 axes = (w//2, h//2)
-                cv2.ellipse(output, center, axes, 0, 0, 360, roi.color, thickness)
+                cv2.ellipse(output, center, axes, 0, 0, 360, draw_color, draw_thickness)
+
+                # Draw selection indicator
+                if roi.selected:
+                    cv2.circle(output, center, 5, (255, 255, 0), -1)
 
             elif roi.roi_type == ROIType.CIRCLE:
                 center = roi.points[0]
                 dx = roi.points[1][0] - roi.points[0][0]
                 dy = roi.points[1][1] - roi.points[0][1]
                 radius = int(np.sqrt(dx**2 + dy**2))
-                cv2.circle(output, center, radius, roi.color, thickness)
+                cv2.circle(output, center, radius, draw_color, draw_thickness)
+
+                # Draw selection indicator
+                if roi.selected:
+                    cv2.circle(output, center, 5, (255, 255, 0), -1)
 
             # Draw label
             if show_labels and roi.label:
                 centroid = roi.get_centroid()
-                cv2.putText(output, roi.label, centroid, cv2.FONT_HERSHEY_SIMPLEX,
-                           0.5, roi.color, 1, cv2.LINE_AA)
+                label_text = roi.label
+                # Add palette indicator if custom palette is set
+                if roi.custom_palette:
+                    label_text += f" [{roi.custom_palette}]"
+                cv2.putText(output, label_text, centroid, cv2.FONT_HERSHEY_SIMPLEX,
+                           0.5, draw_color, 1, cv2.LINE_AA)
 
         return output

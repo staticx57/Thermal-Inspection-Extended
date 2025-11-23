@@ -1,0 +1,144 @@
+WARNING:rgb_camera_firefly:PySpin not available. FLIR Firefly support disabled.
+WARNING:rgb_camera_firefly:Install Spinnaker SDK from: https://www.flir.com/products/spinnaker-sdk/
+WARNING:root:VPI not available - using OpenCV fallback
+WARNING:root:jtop not available. Install with: sudo pip3 install jetson-stats
+INFO:root:[OK] Debug logging: thermal_inspection_debug.log
+2025-11-22 20:04:30,996 - root - INFO - [OK] Debug logging: thermal_inspection_debug.log
+INFO:__main__:================================================================================
+2025-11-22 20:04:31,001 - __main__ - INFO - ================================================================================
+INFO:__main__:Thermal Inspection Fusion Tool
+2025-11-22 20:04:31,001 - __main__ - INFO - Thermal Inspection Fusion Tool
+INFO:__main__:Transformed from ThermalFusionDrivingAssist
+2025-11-22 20:04:31,001 - __main__ - INFO - Transformed from ThermalFusionDrivingAssist
+INFO:__main__:================================================================================
+2025-11-22 20:04:31,001 - __main__ - INFO - ================================================================================
+INFO:__main__:Qt GUI enabled
+2025-11-22 20:04:31,038 - __main__ - INFO - Qt GUI enabled
+INFO:__main__:Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-22 20:04:31,069 - __main__ - INFO - Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+INFO:__main__:================================================================================
+2025-11-22 20:04:31,069 - __main__ - INFO - ================================================================================
+INFO:__main__:Initializing Thermal Inspection Fusion Tool
+2025-11-22 20:04:31,069 - __main__ - INFO - Initializing Thermal Inspection Fusion Tool
+INFO:__main__:================================================================================
+2025-11-22 20:04:31,069 - __main__ - INFO - ================================================================================
+INFO:__main__:Platform: x86-64 (AMD64)
+2025-11-22 20:04:31,069 - __main__ - INFO - Platform: x86-64 (AMD64)
+INFO:__main__:Mode: realtime
+2025-11-22 20:04:31,069 - __main__ - INFO - Mode: realtime
+INFO:__main__:Device: cuda
+2025-11-22 20:04:31,069 - __main__ - INFO - Device: cuda
+INFO:__main__:Scanning for FLIR Boson thermal camera...
+2025-11-22 20:04:31,069 - __main__ - INFO - Scanning for FLIR Boson thermal camera...
+INFO:flir_camera:Windows detected - trying DirectShow backend
+2025-11-22 20:04:31,069 - flir_camera - INFO - Windows detected - trying DirectShow backend
+INFO:flir_camera:FLIR Boson camera opened successfully on device 0
+2025-11-22 20:04:32,485 - flir_camera - INFO - FLIR Boson camera opened successfully on device 0
+INFO:flir_camera:Resolution: (640, 512)
+2025-11-22 20:04:32,486 - flir_camera - INFO - Resolution: (640, 512)
+INFO:flir_camera:FPS: 60.000240000960005
+2025-11-22 20:04:32,486 - flir_camera - INFO - FPS: 60.000240000960005
+INFO:__main__:[OK] Thermal camera connected: 640x512
+2025-11-22 20:04:32,486 - __main__ - INFO - [OK] Thermal camera connected: 640x512
+INFO:__main__:Detecting camera mode...
+2025-11-22 20:04:32,486 - __main__ - INFO - Detecting camera mode...
+INFO:flir_camera:Thermal camera mode detection:
+2025-11-22 20:04:32,516 - flir_camera - INFO - Thermal camera mode detection:
+INFO:flir_camera:  Frame dtype: uint8
+2025-11-22 20:04:32,517 - flir_camera - INFO -   Frame dtype: uint8
+INFO:flir_camera:  Frame shape: (512, 640, 3)
+2025-11-22 20:04:32,517 - flir_camera - INFO -   Frame shape: (512, 640, 3)
+INFO:flir_camera:  -> UVC MODE (8-bit YUV/RGB converted)
+2025-11-22 20:04:32,517 - flir_camera - INFO -   -> UVC MODE (8-bit YUV/RGB converted)
+INFO:__main__:Median pixel value: 129.0
+2025-11-22 20:04:32,601 - __main__ - INFO - Median pixel value: 129.0
+INFO:__main__:[DETECTED] Non-Radiometric Mode (Raw/AGC)
+2025-11-22 20:04:32,601 - __main__ - INFO - [DETECTED] Non-Radiometric Mode (Raw/AGC)
+INFO:__main__:Scanning for RGB camera...
+2025-11-22 20:04:32,601 - __main__ - INFO - Scanning for RGB camera...
+INFO:camera_factory:Skipping thermal camera device 0, using next available device
+2025-11-22 20:04:32,601 - camera_factory - INFO - Skipping thermal camera device 0, using next available device
+INFO:camera_factory:============================================================
+2025-11-22 20:04:32,601 - camera_factory - INFO - ============================================================
+INFO:camera_factory:RGB Camera Factory - Auto-detection
+2025-11-22 20:04:32,602 - camera_factory - INFO - RGB Camera Factory - Auto-detection
+INFO:camera_factory:============================================================
+2025-11-22 20:04:32,602 - camera_factory - INFO - ============================================================
+INFO:camera_factory:Auto-detecting RGB cameras...
+2025-11-22 20:04:32,602 - camera_factory - INFO - Auto-detecting RGB cameras...
+INFO:camera_factory:[X] No UVC cameras detected
+2025-11-22 20:04:32,603 - camera_factory - INFO - [X] No UVC cameras detected
+WARNING:camera_factory:Falling back to legacy RGBCamera class
+2025-11-22 20:04:32,603 - camera_factory - WARNING - Falling back to legacy RGBCamera class
+INFO:rgb_camera:Windows detected - opening camera 1 with DirectShow
+2025-11-22 20:04:32,603 - rgb_camera - INFO - Windows detected - opening camera 1 with DirectShow
+INFO:rgb_camera:RGB camera opened successfully
+2025-11-22 20:04:35,094 - rgb_camera - INFO - RGB camera opened successfully
+INFO:rgb_camera:Resolution: 640x480 @ 30 FPS
+2025-11-22 20:04:35,094 - rgb_camera - INFO - Resolution: 640x480 @ 30 FPS
+INFO:__main__:[OK] RGB camera connected: 640x480
+2025-11-22 20:04:35,930 - __main__ - INFO - [OK] RGB camera connected: 640x480
+INFO:config:Configuration loaded from config.json
+2025-11-22 20:04:35,931 - config - INFO - Configuration loaded from config.json
+WARNING:fusion_processor:No calibration file provided - using identity transform
+2025-11-22 20:04:35,931 - fusion_processor - WARNING - No calibration file provided - using identity transform
+INFO:__main__:[OK] Fusion processor initialized (mode: thermal_overlay)
+2025-11-22 20:04:35,932 - __main__ - INFO - [OK] Fusion processor initialized (mode: thermal_overlay)
+INFO:__main__:     7 fusion algorithms available!
+2025-11-22 20:04:35,932 - __main__ - INFO -      7 fusion algorithms available!
+INFO:__main__:------------------------------------------------------------
+2025-11-22 20:04:35,932 - __main__ - INFO - ------------------------------------------------------------
+INFO:__main__:Initializing inspection modules...
+2025-11-22 20:04:35,932 - __main__ - INFO - Initializing inspection modules...
+INFO:thermal_processor:VPI not available - using OpenCV fallback
+2025-11-22 20:04:35,932 - thermal_processor - INFO - VPI not available - using OpenCV fallback
+INFO:thermal_processor:VPI not available - using OpenCV fallback
+2025-11-22 20:04:35,934 - thermal_processor - INFO - VPI not available - using OpenCV fallback
+INFO:__main__:[OK] Thermal processor initialized
+2025-11-22 20:04:35,934 - __main__ - INFO - [OK] Thermal processor initialized
+INFO:__main__:[OK] Thermal analyzer initialized
+2025-11-22 20:04:35,934 - __main__ - INFO - [OK] Thermal analyzer initialized
+INFO:__main__:[OK] ROI manager initialized
+2025-11-22 20:04:35,934 - __main__ - INFO - [OK] ROI manager initialized
+INFO:__main__:[OK] Palette manager initialized
+2025-11-22 20:04:35,976 - __main__ - INFO - [OK] Palette manager initialized
+INFO:__main__:     45 palettes available
+2025-11-22 20:04:35,976 - __main__ - INFO -      45 palettes available
+INFO:__main__:[OK] Video recorder initialized
+2025-11-22 20:04:35,977 - __main__ - INFO - [OK] Video recorder initialized
+INFO:__main__:[OK] Snapshot manager initialized
+2025-11-22 20:04:35,977 - __main__ - INFO - [OK] Snapshot manager initialized
+INFO:__main__:------------------------------------------------------------
+2025-11-22 20:04:35,977 - __main__ - INFO - ------------------------------------------------------------
+WARNING:performance_monitor:jtop not available, using basic metrics only
+2025-11-22 20:04:35,977 - performance_monitor - WARNING - jtop not available, using basic metrics only
+INFO:__main__:Qt GUI selected
+2025-11-22 20:04:35,979 - __main__ - INFO - Qt GUI selected
+INFO:__main__:Qt GUI created successfully
+2025-11-22 20:04:36,242 - __main__ - INFO - Qt GUI created successfully
+INFO:__main__:================================================================================
+2025-11-22 20:04:36,242 - __main__ - INFO - ================================================================================
+INFO:__main__:Initialization complete!
+2025-11-22 20:04:36,242 - __main__ - INFO - Initialization complete!
+INFO:__main__:================================================================================
+2025-11-22 20:04:36,243 - __main__ - INFO - ================================================================================
+INFO:__main__:Starting inspection loop...
+2025-11-22 20:04:36,243 - __main__ - INFO - Starting inspection loop...
+INFO:__main__:Qt GUI window shown
+2025-11-22 20:04:36,338 - __main__ - INFO - Qt GUI window shown
+INFO:__main__:Frame 100: 10.0 FPS (100.3ms/frame)
+2025-11-22 20:04:46,202 - __main__ - INFO - Frame 100: 10.0 FPS (100.3ms/frame)
+INFO:__main__:  Main loop: thermal_read=0.0ms, placeholder=0.0ms, rgb_read=82.8ms, process_frame=25.0ms, gui_update=5.3ms, processEvents=4.3ms
+2025-11-22 20:04:46,202 - __main__ - INFO -   Main loop: thermal_read=0.0ms, placeholder=0.0ms, rgb_read=82.8ms, process_frame=25.0ms, gui_update=5.3ms, processEvents=4.3ms
+INFO:__main__:  process_frame breakdown: thermal_proc=2.0ms, palette=2.1ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=18.0ms, anomaly_priority=0.0ms, fusion=2.9ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-22 20:04:46,202 - __main__ - INFO -   process_frame breakdown: thermal_proc=2.0ms, palette=2.1ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=18.0ms, anomaly_priority=0.0ms, fusion=2.9ms, display_select=0.0ms, draw_rois=0.0ms
+INFO:__main__:  Detections: 0 ROIs, 0 motion, 2 hot spots
+2025-11-22 20:04:46,202 - __main__ - INFO -   Detections: 0 ROIs, 0 motion, 2 hot spots
+INFO:__main__:Frame 200: 10.0 FPS (100.3ms/frame)
+2025-11-22 20:04:56,218 - __main__ - INFO - Frame 200: 10.0 FPS (100.3ms/frame)
+INFO:__main__:  Main loop: thermal_read=0.0ms, placeholder=0.0ms, rgb_read=83.2ms, process_frame=23.9ms, gui_update=6.1ms, processEvents=4.0ms
+2025-11-22 20:04:56,218 - __main__ - INFO -   Main loop: thermal_read=0.0ms, placeholder=0.0ms, rgb_read=83.2ms, process_frame=23.9ms, gui_update=6.1ms, processEvents=4.0ms
+INFO:__main__:  process_frame breakdown: thermal_proc=0.9ms, palette=2.1ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=19.0ms, anomaly_priority=0.0ms, fusion=1.9ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-22 20:04:56,218 - __main__ - INFO -   process_frame breakdown: thermal_proc=0.9ms, palette=2.1ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=19.0ms, anomaly_priority=0.0ms, fusion=1.9ms, display_select=0.0ms, draw_rois=0.0ms
+INFO:__main__:  Detections: 0 ROIs, 0 motion, 2 hot spots
+2025-11-22 20:04:56,218 - __main__ - INFO -   Detections: 0 ROIs, 0 motion, 2 hot spots
