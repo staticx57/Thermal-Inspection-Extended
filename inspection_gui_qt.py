@@ -16,7 +16,7 @@ try:
                                   QSizePolicy, QFileDialog, QListWidget, QListWidgetItem,
                                   QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox,
                                   QGroupBox, QScrollArea, QTabWidget, QFrame, QMessageBox,
-                                  QSlider, QProgressBar)
+                                  QSlider, QProgressBar, QMenu)
     from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QSize
     from PyQt6.QtGui import QImage, QPixmap, QFont, QPainter, QPen, QColor, QPalette
     PYQT_AVAILABLE = True
@@ -553,6 +553,7 @@ class InspectionOverlayWidget(QWidget):
         self.cold_spots: List[ColdSpot] = []
         self.anomalies: List[ThermalAnomaly] = []
         self.selected_roi_id: Optional[str] = None
+        self.show_detection_info = True  # Toggle for showing detection info
 
         # Multi-select support
         self.selected_roi_ids: set = set()  # Set of selected ROI IDs
@@ -707,35 +708,36 @@ class InspectionOverlayWidget(QWidget):
                 wx, wy = self.frame_to_widget(x, y)
                 draw_label(int(wx), int(wy) - 5, roi.label, color)
 
-        # Draw hot spots (with coordinate transformation)
-        for hot_spot in self.hot_spots:
-            painter.setPen(QPen(QColor(255, 0, 0), 2))  # Red
-            x, y = hot_spot.centroid
-            wx, wy = self.frame_to_widget(x, y)
-            painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
-            draw_label(int(wx) + 10, int(wy), f"{hot_spot.max_temp:.1f}{hot_spot.unit}", QColor(255, 100, 100))
+        # Draw hot spots (with coordinate transformation) - only if info is enabled
+        if self.show_detection_info:
+            for hot_spot in self.hot_spots:
+                painter.setPen(QPen(QColor(255, 0, 0), 2))  # Red
+                x, y = hot_spot.centroid
+                wx, wy = self.frame_to_widget(x, y)
+                painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
+                draw_label(int(wx) + 10, int(wy), f"{hot_spot.max_temp:.1f}{hot_spot.unit}", QColor(255, 100, 100))
 
-        # Draw cold spots (with coordinate transformation)
-        for cold_spot in self.cold_spots:
-            painter.setPen(QPen(QColor(0, 128, 255), 2))  # Light blue
-            x, y = cold_spot.centroid
-            wx, wy = self.frame_to_widget(x, y)
-            painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
-            draw_label(int(wx) + 10, int(wy), f"{cold_spot.min_temp:.1f}{cold_spot.unit}", QColor(100, 200, 255))
+            # Draw cold spots (with coordinate transformation)
+            for cold_spot in self.cold_spots:
+                painter.setPen(QPen(QColor(0, 128, 255), 2))  # Light blue
+                x, y = cold_spot.centroid
+                wx, wy = self.frame_to_widget(x, y)
+                painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
+                draw_label(int(wx) + 10, int(wy), f"{cold_spot.min_temp:.1f}{cold_spot.unit}", QColor(100, 200, 255))
 
-        # Draw anomalies (with coordinate transformation)
-        for anomaly in self.anomalies:
-            painter.setPen(QPen(QColor(255, 255, 0), 3))  # Yellow
-            x, y = anomaly.location
-            wx, wy = self.frame_to_widget(x, y)
-            # Draw warning triangle
-            painter.drawLine(int(wx), int(wy) - 10, int(wx) - 8, int(wy) + 6)
-            painter.drawLine(int(wx) - 8, int(wy) + 6, int(wx) + 8, int(wy) + 6)
-            painter.drawLine(int(wx) + 8, int(wy) + 6, int(wx), int(wy) - 10)
-            
-            # Use description if available, otherwise type
-            label_text = f"⚠ {anomaly.description}" if anomaly.description else f"⚠ {anomaly.anomaly_type.value}"
-            draw_label(int(wx) + 15, int(wy), label_text, QColor(255, 255, 0))
+            # Draw anomalies (with coordinate transformation)
+            for anomaly in self.anomalies:
+                painter.setPen(QPen(QColor(255, 255, 0), 3))  # Yellow
+                x, y = anomaly.location
+                wx, wy = self.frame_to_widget(x, y)
+                # Draw warning triangle
+                painter.drawLine(int(wx), int(wy) - 10, int(wx) - 8, int(wy) + 6)
+                painter.drawLine(int(wx) - 8, int(wy) + 6, int(wx) + 8, int(wy) + 6)
+                painter.drawLine(int(wx) + 8, int(wy) + 6, int(wx), int(wy) - 10)
+
+                # Use description if available, otherwise type
+                label_text = f"⚠ {anomaly.description}" if anomaly.description else f"⚠ {anomaly.anomaly_type.value}"
+                draw_label(int(wx) + 15, int(wy), label_text, QColor(255, 255, 0))
 
         # Draw temporary ROI being created
         if self.drawing_mode and self.draw_start_pos and self.draw_current_pos:
@@ -788,6 +790,11 @@ class InspectionOverlayWidget(QWidget):
         self.temp_polygon_points = []
         self.setCursor(Qt.CursorShape.ArrowCursor)
         logger.info("Drawing mode disabled")
+
+    def set_show_detection_info(self, show: bool):
+        """Toggle visibility of detection info (hot spots, cold spots, anomalies)."""
+        self.show_detection_info = show
+        self.update()  # Trigger repaint
 
     def mousePressEvent(self, event):
         """Handle mouse press for ROI drawing and selection."""
@@ -1532,10 +1539,15 @@ class ThermalAnalysisPanel(QWidget):
 
     baseline_toggled = pyqtSignal(bool)
     global_palette_changed = pyqtSignal(str)  # Emits palette name
+    roi_palette_changed = pyqtSignal(str, str)  # Emits (roi_id, palette_name)
+    roi_palette_cleared = pyqtSignal(str)  # Emits roi_id
+    overlay_info_toggled = pyqtSignal(bool)  # Emits show/hide state
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedWidth(380)  # Increased from 350 for better readability
+        self.current_rois = []  # Store ROI list
+        self.selected_roi_index = -1  # Track selected ROI
 
         # Main layout with scroll area
         main_layout = QVBoxLayout(self)
@@ -1569,6 +1581,19 @@ class ThermalAnalysisPanel(QWidget):
             palette.setColor(QPalette.ColorRole.WindowText, palette.color(QPalette.ColorRole.Mid))
             line.setPalette(palette)
             return line
+
+        # === Overlay Display Toggle ===
+        self.content_layout.addWidget(create_section_header("👁️ Overlay Display"))
+
+        self.overlay_info_checkbox = QCheckBox("Show Detection Info")
+        self.overlay_info_checkbox.setChecked(True)  # Default to showing info
+        font = QFont()
+        font.setPointSize(10)
+        self.overlay_info_checkbox.setFont(font)
+        self.overlay_info_checkbox.setStyleSheet("padding: 5px;")
+        self.content_layout.addWidget(self.overlay_info_checkbox)
+
+        self.content_layout.addWidget(create_separator())
 
         # === Global Palette Selection ===
         self.content_layout.addWidget(create_section_header("🎨 Palette"))
@@ -1690,6 +1715,9 @@ class ThermalAnalysisPanel(QWidget):
 
         self.baseline_btn.toggled.connect(self.baseline_toggled.emit)
         self.global_palette_combo.currentTextChanged.connect(self._on_global_palette_changed)
+        self.roi_list.currentRowChanged.connect(self._on_roi_selected)
+        self.roi_palette_combo.currentTextChanged.connect(self._on_roi_palette_combo_changed)
+        self.overlay_info_checkbox.toggled.connect(self.overlay_info_toggled.emit)
 
     def _populate_palette_combo(self, combo: QComboBox):
         """Populate a combo box with categorized palettes."""
@@ -1751,12 +1779,37 @@ class ThermalAnalysisPanel(QWidget):
         if palette_name:
             self.global_palette_changed.emit(palette_name)
 
+    def _on_roi_selected(self, index: int):
+        """Handle ROI selection from list."""
+        self.selected_roi_index = index
+        if 0 <= index < len(self.current_rois):
+            roi = self.current_rois[index]
+            # Update palette combo to show current ROI's palette if it has one
+            # For now, just enable the combo (palette display update would need palette manager query)
+            self.roi_palette_combo.setEnabled(True)
+        else:
+            self.roi_palette_combo.setEnabled(False)
+
+    def _on_roi_palette_combo_changed(self, text: str):
+        """Handle ROI palette combo change."""
+        if self.selected_roi_index >= 0 and self.selected_roi_index < len(self.current_rois):
+            roi = self.current_rois[self.selected_roi_index]
+            palette_name = self.roi_palette_combo.currentData()
+            if palette_name:
+                self.roi_palette_changed.emit(roi.roi_id, palette_name)
+
     def update_rois(self, rois: List[ROI]):
         """Update ROI list."""
+        self.current_rois = rois  # Store the ROI list
         self.roi_list.clear()
         for roi in rois:
             label = roi.label or f"{roi.roi_type.value} ({roi.roi_id[:8]})"
             self.roi_list.addItem(label)
+
+        # Disable palette combo if no ROIs
+        if not rois:
+            self.roi_palette_combo.setEnabled(False)
+            self.selected_roi_index = -1
 
     def update_statistics(self, stats: Optional[ThermalStatistics]):
         """Update temperature statistics display."""
@@ -2881,6 +2934,9 @@ class InspectionAppWindow(QMainWindow):
         # Analysis
         self.analysis_panel.baseline_toggled.connect(self._on_baseline_toggle)
         self.analysis_panel.global_palette_changed.connect(self._on_global_palette_changed)
+        self.analysis_panel.roi_palette_changed.connect(self._on_roi_palette_changed)
+        self.analysis_panel.roi_palette_cleared.connect(self._on_roi_palette_cleared)
+        self.analysis_panel.overlay_info_toggled.connect(self._on_overlay_info_toggle)
 
         # Boson Control Panel
         self.boson_panel.ffc_triggered.connect(self._on_boson_ffc)
@@ -3236,6 +3292,12 @@ class InspectionAppWindow(QMainWindow):
         if self.app and hasattr(self.app, 'set_boson_ffc_mode'):
             self.app.set_boson_ffc_mode(mode)
 
+    def _on_overlay_info_toggle(self, show: bool):
+        """Handle overlay detection info toggle."""
+        if hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.set_show_detection_info(show)
+            logger.info(f"Overlay detection info: {'ON' if show else 'OFF'}")
+
     def _on_roi_created(self, roi):
         """Handle new ROI created from overlay."""
         try:
@@ -3262,7 +3324,7 @@ class InspectionAppWindow(QMainWindow):
         logger.info(f"ROI selected: {roi_id}")
         # Update analysis panel to show selected ROI stats
         if self.app and hasattr(self.app, 'roi_manager'):
-            roi = self.app.roi_manager.get_roi_by_id(roi_id)
+            roi = self.app.roi_manager.get_roi(roi_id)
             if roi:
                 # Could update a detail panel here
                 pass
@@ -3273,11 +3335,11 @@ class InspectionAppWindow(QMainWindow):
             from palette_manager import PaletteType
             try:
                 # Convert string name to PaletteType enum
-                palette_type = PaletteType[palette_name.upper()]
+                palette_type = PaletteType(palette_name)
                 self.app.palette_manager.set_roi_palette(roi_id, palette_type)
                 logger.info(f"ROI {roi_id} palette set to: {palette_name}")
-            except KeyError:
-                logger.error(f"Unknown palette: {palette_name}")
+            except (KeyError, ValueError) as e:
+                logger.error(f"Unknown palette: {palette_name} - {e}")
 
     def _on_roi_palette_cleared(self, roi_id: str):
         """Handle ROI palette clear."""
