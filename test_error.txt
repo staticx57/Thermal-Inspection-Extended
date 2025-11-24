@@ -1,0 +1,10 @@
+WARNING:rgb_camera_firefly:PySpin not available. FLIR Firefly support disabled.
+WARNING:rgb_camera_firefly:Install Spinnaker SDK from: https://www.flir.com/products/spinnaker-sdk/
+WARNING:root:VPI not available - using OpenCV fallback
+WARNING:root:jtop not available. Install with: sudo pip3 install jetson-stats
+INFO:root:[OK] Debug logging: thermal_inspection_debug.log
+2025-11-24 09:18:18,538 - root - INFO - [OK] Debug logging: thermal_inspection_debug.log
+Traceback (most recent call last):
+  File "C:\Users\stati\Desktop\Projects\Thermal-Inspection\test_gui_widgets.py", line 8, in <module>
+    from inspection_main import ThermalInspectionApp
+ImportError: cannot import name 'ThermalInspectionApp' from 'inspection_main' (C:\Users\stati\Desktop\Projects\Thermal-Inspection\inspection_main.py)

@@ -60,12 +60,13 @@ class RGBCamera:
 
     def open(self) -> bool:
         """
-        Open camera connection (cross-platform: Windows/Linux/macOS)
-
+        Open camera connection with timeout and backend fallback.
+        
         Returns:
             True if successful
         """
         import platform
+        import time
         system = platform.system()
 
         try:
@@ -82,72 +83,78 @@ class RGBCamera:
                     self.cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
 
             if not self.use_gstreamer:
-                # Platform-specific backend for USB cameras
+                # Try multiple backends with timeout
+                backends = []
                 if system == "Linux":
-                    logger.info(f"Linux detected - opening USB camera {self.device_id} with V4L2")
-                    self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_V4L2)
+                    backends = [(cv2.CAP_V4L2, "V4L2"), (cv2.CAP_ANY, "Any")]
                 elif system == "Windows":
-                    # OPTIMIZATION: Use MSMF (Media Foundation) instead of DirectShow for better performance
-                    logger.info(f"Windows detected - opening camera {self.device_id} with MSMF")
-                    try:
-                        self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_MSMF)
-                    except:
-                        logger.info("MSMF failed, trying DirectShow")
-                        self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_DSHOW)
+                    backends = [(cv2.CAP_DSHOW, "DirectShow"), (cv2.CAP_MSMF, "MSMF"), (cv2.CAP_ANY, "Any")]
                 else:
-                    logger.info(f"{system} detected - using default backend")
-                    self.cap = cv2.VideoCapture(self.device_id)
+                    backends = [(cv2.CAP_ANY, "Any")]
+                
+                for backend, name in backends:
+                    try:
+                        logger.info(f"Trying backend: {name}")
+                        
+                        # Create capture with backend
+                        self.cap = cv2.VideoCapture(self.device_id, backend)
+                        
+                        # Try to open and test read
+                        if self.cap.isOpened():
+                            ret, frame = self.cap.read()
+                            if ret and frame is not None:
+                                logger.info(f"[OK] RGB camera opened successfully with {name}")
+                                
+                                # Set properties
+                                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                                self.cap.set(cv2.CAP_PROP_FPS, self.fps)
+                                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                                self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.75)  # Auto mode (was 0.25 manual)
+                                self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+                                
+                                # Get actual resolution
+                                actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                                actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                                actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
+                                
+                                logger.info(f"Resolution: {actual_width}x{actual_height} @ {actual_fps} FPS")
 
-                # Fallback if platform-specific backend failed
-                if not self.cap.isOpened():
-                    logger.warning("Platform-specific backend failed, trying default")
-                    self.cap = cv2.VideoCapture(self.device_id)
+                                # Warm up camera
+                                time.sleep(0.3)
+                                warmup_success = False
+                                for attempt in range(10):
+                                    ret, _ = self.cap.read()
+                                    if ret:
+                                        warmup_success = True
+                                        break
+                                    time.sleep(0.1)
 
-            if not self.cap.isOpened():
-                logger.error(f"Failed to open camera {self.device_id}")
+                                if not warmup_success:
+                                    logger.warning("Camera warmup struggled but continuing anyway")
+
+                                time.sleep(0.5)
+                                self.is_open = True
+                                return True
+                            else:
+                                logger.warning(f"Camera opened but failed to read frame with {name}")
+                                self.cap.release()
+                                self.cap = None
+                        else:
+                            logger.debug(f"Failed to open with {name}")
+                            if self.cap:
+                                self.cap.release()
+                                self.cap = None
+                                
+                    except Exception as e:
+                        logger.debug(f"Backend {name} failed: {e}")
+                        if self.cap:
+                            self.cap.release()
+                            self.cap = None
+                        continue
+                
+                logger.error(f"Failed to open RGB camera {self.device_id} with all backends")
                 return False
-
-            # Configure camera properties (for USB cameras)
-            if not self.use_gstreamer:
-                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-                self.cap.set(cv2.CAP_PROP_FPS, self.fps)
-                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimize latency
-
-                # OPTIMIZATION: Disable auto-exposure and autofocus to reduce latency
-                # These can cause blocking delays waiting for camera adjustments
-                self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # Manual mode (0.25 = manual, 0.75 = auto)
-                self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)  # Disable autofocus
-
-            # Verify actual resolution
-            actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            actual_fps = int(self.cap.get(cv2.CAP_PROP_FPS))
-
-            logger.info(f"RGB camera opened successfully")
-            logger.info(f"Resolution: {actual_width}x{actual_height} @ {actual_fps} FPS")
-
-            # Warm up camera (discard first few frames and allow camera to initialize)
-            import time
-            time.sleep(0.3)  # Longer delay to let camera stabilize after opening
-
-            # Warm up by reading and discarding frames
-            warmup_success = False
-            for attempt in range(10):
-                ret, _ = self.cap.read()
-                if ret:
-                    warmup_success = True
-                    break
-                time.sleep(0.1)
-
-            if not warmup_success:
-                logger.warning("Camera warmup struggled but continuing anyway")
-
-            # Extra warm-up for webcams (they often need more initialization time)
-            time.sleep(0.5)
-
-            self.is_open = True
-            return True
 
         except Exception as e:
             logger.error(f"Failed to open RGB camera: {e}")
@@ -244,6 +251,10 @@ class RGBCamera:
             self.cap = None
         self.is_open = False
         logger.info("RGB camera released")
+        
+        # Small delay to ensure resource cleanup
+        import time
+        time.sleep(0.1)
 
     def __del__(self):
         """Cleanup on deletion"""

@@ -248,6 +248,136 @@ def print_camera_summary():
     print("="*60)
 
 
+def autodetect_camera_types() -> Tuple[Optional[int], Optional[int]]:
+    """
+    Auto-detect Thermal and RGB cameras based on resolution and image analysis.
+    
+    FLIR Boson thermal cameras typically output 640x512 resolution.
+    RGB cameras typically output 640x480, 1920x1080, etc.
+    
+    Returns:
+        (thermal_id, rgb_id)
+    """
+    import cv2
+    import numpy as np
+    import time
+    
+    logger.info("Auto-detecting camera types based on image analysis...")
+    thermal_id = None
+    rgb_id = None
+    
+    candidates = []
+    
+    # Scan first 4 indices
+    for i in range(4):
+        cap = None
+        try:
+            logger.info(f"Probing camera {i}...")
+            
+            # Try DirectShow backend (most stable on Windows)
+            cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+            
+            if not cap.isOpened():
+                logger.debug(f"  DirectShow failed, trying default backend...")
+                cap = cv2.VideoCapture(i)
+            
+            if cap and cap.isOpened():
+                # CRITICAL: Wait for camera to initialize
+                time.sleep(0.5)
+                
+                # Flush buffer and read fresh frames
+                for _ in range(10):
+                    cap.read()
+                
+                time.sleep(0.2)
+                
+                # Read multiple frames and average saturation
+                saturation_values = []
+                for attempt in range(5):
+                    ret, frame = cap.read()
+                    if ret and frame is not None:
+                        try:
+                            # Convert to HSV and analyze saturation
+                            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+                            saturation = np.mean(hsv[:, :, 1])
+                            saturation_values.append(saturation)
+                        except Exception as e:
+                            logger.debug(f"  Frame analysis error: {e}")
+                    time.sleep(0.05)
+                
+                if saturation_values:
+                    # Use median saturation to avoid outliers
+                    avg_saturation = np.median(saturation_values)
+                    
+                    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    
+                    # CRITICAL: Resolution-based heuristic for FLIR Boson
+                    is_thermal_res = (width == 640 and height == 512)
+                    
+                    logger.info(f"  Camera {i}: {width}x{height}, Saturation={avg_saturation:.1f}, Thermal_Res={is_thermal_res}")
+                    
+                    candidates.append({
+                        'id': i,
+                        'saturation': avg_saturation,
+                        'res': (width, height),
+                        'is_thermal_res': is_thermal_res
+                    })
+                else:
+                    logger.warning(f"  Camera {i} opened but failed to read valid frames")
+                    
+                cap.release()
+                cap = None
+            else:
+                logger.debug(f"  Camera {i} failed to open")
+                
+            # Delay between probes
+            time.sleep(0.3)
+            
+        except Exception as e:
+            logger.debug(f"  Error probing camera {i}: {e}")
+        finally:
+            if cap:
+                try:
+                    cap.release()
+                except:
+                    pass
+            
+    # IMPROVED HEURISTIC: Prioritize resolution-based detection
+    # 1. First, look for 640x512 (FLIR Boson thermal camera)
+    thermal_res_candidates = [c for c in candidates if c.get('is_thermal_res', False)]
+    if thermal_res_candidates:
+        thermal_id = thermal_res_candidates[0]['id']
+        logger.info(f"  Detected thermal camera by resolution: device {thermal_id}")
+    
+    # 2. If no thermal found by resolution, fall back to saturation
+    if thermal_id is None:
+        thermal_candidates = [c for c in candidates if c['saturation'] < 15.0]
+        if thermal_candidates:
+            best_thermal = min(thermal_candidates, key=lambda x: x['saturation'])
+            thermal_id = best_thermal['id']
+            logger.info(f"  Detected thermal camera by saturation: device {thermal_id}")
+    
+    # 3. RGB camera: any camera that's NOT the thermal camera
+    rgb_candidates = [c for c in candidates if c['id'] != thermal_id]
+    if rgb_candidates:
+        # Prefer higher saturation (more colorful = better RGB camera)
+        rgb_candidates.sort(key=lambda x: x['saturation'], reverse=True)
+        rgb_id = rgb_candidates[0]['id']
+        logger.info(f"  Detected RGB camera: device {rgb_id}")
+        
+    # Fallback: If only one camera found
+    if len(candidates) == 1:
+        if thermal_id is None and rgb_id is None:
+            if candidates[0].get('is_thermal_res', False) or candidates[0]['saturation'] < 30:
+                thermal_id = candidates[0]['id']
+            else:
+                rgb_id = candidates[0]['id']
+
+    logger.info(f"Auto-detection results: Thermal={thermal_id}, RGB={rgb_id}")
+    return thermal_id, rgb_id
+
+
 if __name__ == "__main__":
     """Test camera factory"""
     import sys

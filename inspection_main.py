@@ -36,7 +36,7 @@ faulthandler.enable()
 
 # Camera modules
 from flir_camera import FLIRBosonCamera
-from camera_factory import create_rgb_camera
+from camera_factory import create_rgb_camera, autodetect_camera_types
 from placeholder_frames import create_thermal_placeholder, create_rgb_placeholder
 
 # Processing modules (NEW - Inspection focused)
@@ -79,6 +79,15 @@ def setup_logging():
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(simple_formatter)
+    
+    # Fix Unicode encoding issues on Windows
+    try:
+        console_handler.stream.reconfigure(encoding='utf-8', errors='replace')
+    except AttributeError:
+        # Python < 3.7 fallback
+        import codecs
+        console_handler.stream = codecs.getwriter('utf-8')(console_handler.stream.buffer, errors='replace')
+    
     root_logger.addHandler(console_handler)
 
     # File handler
@@ -138,6 +147,53 @@ class ThermalInspectionFusion:
         self.qt_app = qt_app
         self.platform_info = detect_platform()
 
+        # Auto-detect cameras if not explicitly specified
+        should_autodetect = getattr(args, 'auto_detect_cameras', True)
+        thermal_specified = getattr(args, 'thermal_device', None) is not None
+        rgb_specified = getattr(args, 'rgb_device', None) is not None
+        
+        if should_autodetect and (not thermal_specified or not rgb_specified):
+            try:
+                logger.info("=" * 60)
+                logger.info("AUTO-DETECTING CAMERAS")
+                logger.info("=" * 60)
+                
+                t_id, r_id = autodetect_camera_types()
+                
+                # Assign thermal camera
+                if not thermal_specified:
+                    if t_id is not None:
+                        logger.info(f"[OK] Auto-detected Thermal Camera at index {t_id}")
+                        self.args.thermal_device = t_id
+                    else:
+                        logger.warning("[WARN] No thermal camera detected, defaulting to index 1")
+                        self.args.thermal_device = 1  # Changed from 0 to 1 (640x512 thermal)
+                else:
+                    logger.info(f"Using specified Thermal Camera at index {self.args.thermal_device}")
+                
+                # Assign RGB camera
+                if not rgb_specified:
+                    if r_id is not None:
+                        logger.info(f"[OK] Auto-detected RGB Camera at index {r_id}")
+                        self.args.rgb_device = r_id
+                    else:
+                        logger.warning("[WARN] No RGB camera detected, defaulting to index 0")
+                        self.args.rgb_device = 0  # Changed from 2 to 0 (640x480 RGB)
+                else:
+                    logger.info(f"Using specified RGB Camera at index {self.args.rgb_device}")
+                    
+                logger.info("=" * 60)
+                
+            except Exception as e:
+                logger.error(f"Camera auto-detection failed: {e}")
+                import traceback
+                traceback.print_exc()
+                # Fallback to defaults
+                if not thermal_specified:
+                    self.args.thermal_device = 0
+                if not rgb_specified:
+                    self.args.rgb_device = 1
+
         # Cameras
         self.thermal_camera: Optional[FLIRBosonCamera] = None
         self.rgb_camera = None
@@ -183,6 +239,7 @@ class ThermalInspectionFusion:
         
         # Camera specific flags
         self.is_flir_boson = False
+        self.reconfiguring = False  # Flag to pause main loop during camera reconfiguration
 
         # Inspection mode settings
         self.inspection_mode = getattr(args, 'mode', 'realtime')  # realtime or playback
@@ -312,7 +369,7 @@ class ThermalInspectionFusion:
                 # NEW: Log SDK status (Phase 7)
                 if self.thermal_camera.is_sdk_connected():
                     logger.info("=" * 60)
-                    logger.info("✓ Boson SDK connected - serial control enabled")
+                    logger.info("[OK] Boson SDK connected - serial control enabled")
                     info = self.thermal_camera.get_camera_info()
                     if info:
                         logger.info(f"  Camera SN: {info.serial_number}")
@@ -402,10 +459,17 @@ class ThermalInspectionFusion:
             if self.thermal_connected and self.thermal_camera:
                 thermal_id = self.thermal_camera.device_id
 
+            # CRITICAL FIX: Use args.rgb_device, NOT camera_index=0
+            # The auto-detection should have set this correctly
+            rgb_device_id = getattr(self.args, 'rgb_device', 0)  # Fallback to device 0
+            
+            logger.info(f"Attempting to open RGB camera on device {rgb_device_id}")
+
             self.rgb_camera = create_rgb_camera(
                 resolution=(640, 480),
                 fps=30,
                 camera_type="auto",
+                camera_index=rgb_device_id,  # Use the detected/assigned ID
                 thermal_device_id=thermal_id
             )
 
@@ -969,6 +1033,13 @@ class ThermalInspectionFusion:
 
         try:
             while self.running:
+                # 0. Check if reconfiguring (pause loop if so)
+                if self.reconfiguring:
+                    time.sleep(0.1)
+                    if self.gui_type == 'qt' and self.qt_app:
+                        self.qt_app.processEvents()
+                    continue
+
                 loop_start = time.time()
                 t_markers = {'start': loop_start}  # Timing markers for profiling
 
@@ -1108,9 +1179,9 @@ class ThermalInspectionFusion:
                         if self.thermal_camera and self.thermal_camera.is_sdk_connected():
                             logger.info("Triggering FFC (watch camera shutter)...")
                             if self.thermal_camera.trigger_ffc():
-                                logger.info("✓ FFC completed successfully")
+                                logger.info("[OK] FFC completed successfully")
                             else:
-                                logger.error("✗ FFC failed")
+                                logger.error("[ERROR] FFC failed")
                         else:
                             logger.warning("FFC requires Boson SDK connection (use --enable-boson-sdk)")
                     elif key == ord('t'):
@@ -1243,6 +1314,42 @@ class ThermalInspectionFusion:
                     if self.gui and hasattr(self.gui, 'control_panel'):
                         self.gui.control_panel.update_palette_button(palettes[0])
 
+    def set_device(self, device: str):
+        """Set processing device."""
+        self.device = device.lower()
+        logger.info(f"Device set to: {self.device}")
+
+    def set_fusion_mode(self, mode: str):
+        """Set fusion mode."""
+        self.fusion_mode = mode.lower()
+        logger.info(f"Fusion mode set to: {self.fusion_mode}")
+
+    def set_fusion_alpha(self, alpha: float):
+        """Set fusion alpha blending factor."""
+        self.fusion_alpha = max(0.0, min(1.0, alpha))
+        # logger.info(f"Fusion alpha set to: {self.fusion_alpha}")
+
+    def set_fusion_priority(self, priority: str):
+        """Set fusion priority."""
+        self.fusion_priority = priority.lower()
+        logger.info(f"Fusion priority set to: {self.fusion_priority}")
+
+    def set_view_mode(self, mode: str):
+        """Set view mode."""
+        mode_map = {
+            "thermal only": ViewMode.THERMAL_ONLY,
+            "rgb only": ViewMode.RGB_ONLY,
+            "fusion": ViewMode.FUSION,
+            "side-by-side": ViewMode.SIDE_BY_SIDE,
+            "picture-in-picture": ViewMode.PICTURE_IN_PICTURE
+        }
+        view_mode = mode_map.get(mode.lower())
+        if view_mode:
+            self.view_mode = view_mode
+            logger.info(f"View mode set to: {self.view_mode}")
+        else:
+            logger.warning(f"Invalid view mode: {mode}")
+
     def cycle_view_mode(self):
         """Cycle view mode."""
         modes = [ViewMode.THERMAL_ONLY, ViewMode.RGB_ONLY, ViewMode.FUSION, ViewMode.SIDE_BY_SIDE, ViewMode.PICTURE_IN_PICTURE]
@@ -1260,7 +1367,7 @@ class ThermalInspectionFusion:
         self.recording_enabled = enabled
         # Note: Actual recording start happens in the main loop when first frame arrives
         # This just sets the flag
-        logger.info(f"Recording: {'ENABLED' if enabled else 'DISABLED'}")
+        logger.info(f"Recording: {'ENABLED' if enabled else 'OFF'}")
 
     def capture_snapshot(self):
         """Capture snapshot."""
@@ -1467,18 +1574,74 @@ class ThermalInspectionFusion:
         if self.thermal_camera and self.thermal_camera.is_sdk_connected():
             logger.info("Triggering FFC...")
             if self.thermal_camera.trigger_ffc():
-                logger.info("✓ FFC completed successfully")
+                logger.info("[OK] FFC completed successfully")
                 if self.gui and hasattr(self.gui, 'boson_panel'):
-                    self.gui.boson_panel.set_ffc_status("FFC completed successfully", is_error=False)
+                    self.gui.boson_panel.set_status("FFC completed successfully", is_error=False)
                 return True
             else:
-                logger.error("✗ FFC failed")
+                logger.error("[ERROR] FFC failed")
                 if self.gui and hasattr(self.gui, 'boson_panel'):
-                    self.gui.boson_panel.set_ffc_status("FFC failed", is_error=True)
+                    self.gui.boson_panel.set_status("FFC failed", is_error=True)
                 return False
         else:
             logger.warning("FFC requires Boson SDK connection")
+        return False
+
+    def connect_boson_sdk(self, com_port: str) -> bool:
+        """
+        Connect to Boson SDK on specified COM port.
+        
+        Args:
+            com_port: COM port string (e.g., "COM6")
+            
+        Returns:
+            True if successful
+        """
+        try:
+            if not self.thermal_camera:
+                logger.warning("No thermal camera available for SDK connection")
+                return False
+                
+            logger.info(f"Connecting to Boson SDK on {com_port}...")
+            success = self.thermal_camera.connect_sdk(com_port)
+            
+            if success:
+                logger.info("[OK] Boson SDK connected")
+                return True
+            else:
+                logger.error("[ERROR] Boson SDK connection failed")
+                return False
+                
+        except Exception as e:
+            logger.error(f"SDK connection error: {e}")
+            import traceback
+            traceback.print_exc()
             return False
+
+    def scan_boson_com_ports(self) -> list:
+        """
+        Scan for available COM ports.
+        
+        Returns:
+            List of available COM port names
+        """
+        try:
+            import serial.tools.list_ports
+            
+            ports = []
+            for port in serial.tools.list_ports.comports():
+                ports.append(port.device)
+                logger.debug(f"Found COM port: {port.device} - {port.description}")
+                
+            logger.info(f"Scanned {len(ports)} COM ports")
+            return ports
+            
+        except ImportError:
+            logger.error("pyserial not installed - cannot scan COM ports")
+            return []
+        except Exception as e:
+            logger.error(f"Error scanning COM ports: {e}")
+            return []
 
     def set_boson_gain_mode(self, mode: str):
         """Set Boson gain mode (high/low/auto)."""
@@ -1516,25 +1679,196 @@ class ThermalInspectionFusion:
                     return False
         return False
 
-    def update_boson_gui(self):
-        """Update Boson control panel with current camera info."""
-        if not self.gui or not hasattr(self.gui, 'boson_panel'):
+    def connect_boson_sdk(self, com_port: str) -> bool:
+        """
+        Connect to Boson SDK.
+
+        Args:
+            com_port: COM port (e.g., 'COM6')
+
+        Returns:
+            True if successful
+        """
+        if not self.thermal_camera or not self.is_flir_boson:
+            logger.warning("No thermal camera connected or not a Boson")
+            return False
+
+        if self.thermal_camera.connect_sdk(com_port if com_port else None):
+            logger.info(f"Boson SDK connected on {com_port}")
+            return True
+        else:
+            return False
+
+    def swap_cameras(self) -> bool:
+        """
+        Swap RGB and Thermal camera sources.
+        Useful if UVC cameras are assigned incorrectly.
+        """
+        logger.info("Swapping camera sources...")
+        
+        # Get current IDs
+        current_thermal = getattr(self.args, 'thermal_device', 0)
+        current_rgb = getattr(self.args, 'rgb_device', None)
+        
+        if current_rgb is None:
+            # If RGB was auto-detected, we need to guess.
+            # Usually if thermal is 0, RGB is 1.
+            current_rgb = 1 if current_thermal == 0 else 0
+            
+        # Swap
+        new_thermal = current_rgb
+        new_rgb = current_thermal
+        
+        # Run in separate thread to avoid blocking GUI
+        threading.Thread(target=self.reassign_cameras, args=(new_thermal, new_rgb), daemon=True).start()
+        return True
+
+    def reassign_cameras(self, thermal_id: int, rgb_id: int) -> bool:
+        """
+        Reassign camera device IDs.
+        
+        Args:
+            thermal_id: New thermal camera device ID
+            rgb_id: New RGB camera device ID
+            
+        Returns:
+            True if successful
+        """
+        if self.reconfiguring:
+            logger.warning("Already reconfiguring cameras...")
+            return False
+
+        self.reconfiguring = True
+        logger.info(f"Reassigning cameras: Thermal={thermal_id}, RGB={rgb_id}")
+        
+        try:
+            # 1. Stop capture
+            if self.threaded_capture:
+                logger.info("Stopping capture threads...")
+                self.threaded_capture.stop()
+                self.threaded_capture = None
+            
+            # 2. Update args FIRST (before releasing cameras)
+            logger.info(f"Updating device IDs: Thermal={thermal_id}, RGB={rgb_id}")
+            self.args.thermal_device = thermal_id
+            self.args.rgb_device = rgb_id
+                
+            # 3. Release current cameras
+            if self.thermal_camera:
+                logger.info("Releasing thermal camera...")
+                self.thermal_camera.release()
+                self.thermal_camera = None
+                self.thermal_connected = False
+                self.is_flir_boson = False
+                
+            if self.rgb_camera:
+                logger.info("Releasing RGB camera...")
+                self.rgb_camera.release()
+                self.rgb_camera = None
+                self.rgb_available = False
+                
+            # Force OpenCV to release resources
+            cv2.waitKey(1)
+            cv2.destroyAllWindows()
+            cv2.waitKey(1)
+            
+            # Wait for OS to release resources (increased to 2s for stability)
+            logger.info("Waiting for OS to release camera resources...")
+            time.sleep(2.0)
+            
+            # 4. Re-connect with NEW device IDs
+            logger.info(f"Reconnecting thermal camera on device {thermal_id}...")
+            self.thermal_connected = self._try_connect_thermal()
+            
+            logger.info(f"Reconnecting RGB camera on device {rgb_id}...")
+            self.rgb_available = self._try_connect_rgb()
+            
+            # 5. Restart threaded capture
+            if self.thermal_connected or self.rgb_available:
+                logger.info("Restarting capture threads...")
+                from threaded_camera_capture import ThreadedCameraCapture
+                self.threaded_capture = ThreadedCameraCapture(self.thermal_camera, self.rgb_camera)
+                self.threaded_capture.start()
+                logger.info("[OK] Camera reassignment complete")
+            else:
+                logger.error("[ERROR] No cameras connected after reassignment")
+                
+        except Exception as e:
+            logger.error(f"Error reassigning cameras: {e}")
+            import traceback
+            traceback.print_exc()
+            
+        finally:
+            self.reconfiguring = False
+            
+        return True
+
+    def disconnect_boson_sdk(self):
+        """Disconnect from Boson SDK."""
+        if not self.thermal_camera:
             return
 
-        # Update connection status
-        is_connected = self.thermal_camera and self.thermal_camera.is_sdk_connected()
-        self.gui.boson_panel.update_connection_status(is_connected)
+        if not self.thermal_camera.is_sdk_connected():
+            logger.info("SDK not connected")
+            return
 
-        if is_connected:
-            # Update camera info
-            info = self.thermal_camera.get_camera_info()
-            if info:
-                self.gui.boson_panel.update_camera_info(info)
+        try:
+            logger.info("Disconnecting Boson SDK...")
+            self.thermal_camera.disconnect_sdk()
+            logger.info("[OK] Boson SDK disconnected")
 
-            # Update FPA temperature
-            temp = self.thermal_camera.get_fpa_temperature()
-            if temp:
-                self.gui.boson_panel.update_fpa_temperature(temp[0], temp[1])
+            # Update GUI status if available
+            if self.gui and hasattr(self.gui, 'boson_panel'):
+                self.gui.boson_panel.update_connection_status(False)
+
+        except Exception as e:
+            logger.error(f"[ERROR] SDK disconnection error: {e}")
+
+    def scan_boson_com_ports(self) -> list:
+        """
+        Scan for available COM ports that might be Boson cameras.
+
+        Returns:
+            List of COM port names
+        """
+        try:
+            from boson_serial import BosonSerialInterface
+            ports = BosonSerialInterface.find_boson_com_ports()
+            logger.info(f"Found {len(ports)} potential Boson COM ports")
+            return ports
+        except ImportError:
+            logger.warning("boson_serial module not available")
+            return []
+        except Exception as e:
+            logger.error(f"Error scanning COM ports: {e}")
+            return []
+
+    def update_boson_gui(self):
+        """Update Boson SDK panel GUI state."""
+        if not self.gui or not hasattr(self.gui, 'boson_panel'):
+            return
+            
+        try:
+            is_connected = (self.thermal_camera and 
+                          self.thermal_camera.is_sdk_connected())
+            
+            # Update connection status
+            self.gui.boson_panel.set_connected(is_connected)
+            
+            # Update camera info if connected
+            if is_connected and hasattr(self.thermal_camera, 'get_camera_info'):
+                info = self.thermal_camera.get_camera_info()
+                if info:
+                    self.gui.boson_panel.set_status(f"SN: {info.serial_number}")
+            
+            # Update FPA temperature if connected
+            if is_connected and hasattr(self.thermal_camera, 'get_fpa_temperature'):
+                temp = self.thermal_camera.get_fpa_temperature()
+                if temp:
+                    self.gui.boson_panel.update_fpa_temperature(temp[0], temp[1])
+                    
+        except Exception as e:
+            logger.debug(f"Error updating Boson GUI: {e}")
 
 
     def cleanup(self):
@@ -1588,8 +1922,12 @@ def parse_arguments():
     )
 
     # Camera settings
-    parser.add_argument('--thermal-device', type=int, default=0,
-                       help='Thermal camera device ID (default: 0)')
+    parser.add_argument('--thermal-device', type=int, default=None,
+                       help='Thermal camera device ID (default: auto-detect)')
+    parser.add_argument('--rgb-device', type=int, default=None,
+                       help='RGB camera device ID (default: auto-detect)')
+    parser.add_argument('--auto-detect-cameras', action='store_true', default=True,
+                       help='Auto-detect camera types (default: True)')
     parser.add_argument('--width', type=int, default=640,
                        help='Thermal camera width (default: 640)')
     parser.add_argument('--height', type=int, default=512,

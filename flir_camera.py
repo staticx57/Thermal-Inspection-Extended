@@ -103,7 +103,7 @@ class FLIRBosonCamera:
                         self.sdk = BosonSDK(com_port=self.com_port or 'COM6')
                         if self.sdk.open():
                             self.sdk_connected = True
-                            logger.info("✓ Boson SDK connected - serial control enabled")
+                            logger.info("[OK] Boson SDK connected - serial control enabled")
                             logger.info(f"  Camera SN: {self.sdk.get_info().serial_number}")
                             logger.info(f"  FPA Temp: {self.sdk.get_info().fpa_temperature_k - 273.15:.1f}°C")
                         else:
@@ -215,8 +215,13 @@ class FLIRBosonCamera:
         # Release video capture
         if self.cap is not None:
             self.cap.release()
+            self.cap = None
             self.is_opened = False
             logger.info("FLIR Boson camera released")
+            
+            # Small delay to ensure resource cleanup
+            import time
+            time.sleep(0.1)
 
     # ========================================================================
     # SDK Control Methods (Phase 7)
@@ -310,6 +315,113 @@ class FLIRBosonCamera:
     def is_sdk_connected(self) -> bool:
         """Check if SDK is connected for serial control."""
         return self.sdk_connected
+
+    # ========================================================================
+    # Runtime SDK Connection (Phase 7 Enhancement - v2.7.0)
+    # ========================================================================
+
+    def connect_sdk(self, com_port: Optional[str] = None) -> bool:
+        """
+        Connect to Boson SDK at runtime.
+
+        Args:
+            com_port: COM port (e.g., 'COM6'). None for auto-detect.
+
+        Returns:
+            True if connection successful, False otherwise
+        """
+        if not SDK_AVAILABLE:
+            logger.error("Boson SDK not available - cannot connect")
+            return False
+
+        if self.sdk_connected:
+            logger.warning("SDK already connected")
+            return True
+
+        try:
+            logger.info(f"Attempting to connect Boson SDK{f' on {com_port}' if com_port else ' (auto-detect)'}...")
+
+            # Create SDK instance
+            self.sdk = BosonSDK(com_port=com_port or 'COM6')
+
+            # Attempt connection
+            if self.sdk.open():
+                self.sdk_connected = True
+                logger.info("[OK] Boson SDK connected successfully")
+
+                # Log camera info
+                try:
+                    info = self.sdk.get_info()
+                    if info:
+                        logger.info(f"  Camera SN: {info.serial_number}")
+                        logger.info(f"  FPA Temp: {info.fpa_temperature_k - 273.15:.1f}°C")
+                except Exception as e:
+                    logger.debug(f"Could not retrieve camera info: {e}")
+
+                return True
+            else:
+                logger.error("[ERROR] Failed to open SDK connection")
+                self.sdk = None
+                return False
+
+        except Exception as e:
+            logger.error(f"[ERROR] SDK connection error: {e}")
+            self.sdk = None
+            self.sdk_connected = False
+            return False
+
+    def disconnect_sdk(self) -> bool:
+        """
+        Disconnect from Boson SDK.
+
+        Returns:
+            True if disconnection successful
+        """
+        if not self.sdk_connected or not self.sdk:
+            logger.info("SDK not connected - nothing to disconnect")
+            return True
+
+        try:
+            logger.info("Disconnecting Boson SDK...")
+            self.sdk.close()
+            self.sdk_connected = False
+            self.sdk = None
+            logger.info("[OK] Boson SDK disconnected")
+            return True
+
+        except Exception as e:
+            logger.error(f"[ERROR] SDK disconnection error: {e}")
+            # Force disconnect state even on error
+            self.sdk_connected = False
+            self.sdk = None
+            return False
+
+    @staticmethod
+    def scan_com_ports() -> list:
+        """
+        Scan for available COM ports that might be Boson cameras.
+
+        Returns:
+            List of potential COM port strings
+        """
+        if not SDK_AVAILABLE:
+            logger.warning("Boson SDK not available - cannot scan ports")
+            return []
+
+        try:
+            # Try to use BosonSerialInterface if available
+            try:
+                from boson_serial import BosonSerialInterface
+                ports = BosonSerialInterface.find_boson_com_ports()
+                logger.info(f"Found {len(ports)} potential Boson COM ports: {ports}")
+                return ports
+            except ImportError:
+                logger.warning("boson_serial module not available for port scanning")
+                return []
+
+        except Exception as e:
+            logger.error(f"Error scanning COM ports: {e}")
+            return []
 
     # ========================================================================
     # Context Manager

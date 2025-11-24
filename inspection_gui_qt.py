@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 
 try:
-    from PyQt6.QtWidgets import (QMainWindow, QWidget, QLabel, QPushButton,
+    from PyQt6.QtWidgets import (QMainWindow, QWidget, QLabel, QPushButton, QDialog,
                                   QVBoxLayout, QHBoxLayout, QGridLayout, QApplication,
                                   QSizePolicy, QFileDialog, QListWidget, QListWidgetItem,
                                   QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox,
@@ -117,6 +117,7 @@ QListWidget {
 
 QListWidget::item:selected {
     background-color: #00aaff;
+    color: #ffffff;
 }
 
 QComboBox {
@@ -139,6 +140,7 @@ QComboBox QAbstractItemView {
     background-color: #2d2d2d;
     color: #e0e0e0;
     selection-background-color: #00aaff;
+    selection-color: #ffffff;
 }
 
 QSpinBox, QDoubleSpinBox {
@@ -421,15 +423,72 @@ QComboBox {
     border: 1px solid #93a1a1;
 }
 
-QSpinBox {
+QSpinBox, QDoubleSpinBox {
     background-color: #eee8d5;
     color: #657b83;
     border: 1px solid #93a1a1;
+    border-radius: 3px;
+    padding: 3px;
+}
+
+QSpinBox:hover, QDoubleSpinBox:hover {
+    border: 1px solid #268bd2;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #eee8d5;
+    color: #657b83;
+    selection-background-color: #268bd2;
+    selection-color: #fdf6e3;
+}
+
+QComboBox:hover {
+    border: 1px solid #268bd2;
+}
+
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #93a1a1;
+    border-radius: 3px;
+    background-color: #eee8d5;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #268bd2;
 }
 
 QListWidget::item:selected {
     background-color: #268bd2;
     color: #fdf6e3;
+}
+
+QTabWidget::pane {
+    border: 1px solid #93a1a1;
+    background-color: #eee8d5;
+}
+
+QTabBar::tab {
+    background-color: #fdf6e3;
+    color: #657b83;
+    border: 1px solid #93a1a1;
+    padding: 8px 16px;
+    margin-right: 2px;
+}
+
+QTabBar::tab:selected {
+    background-color: #268bd2;
+    color: #fdf6e3;
+}
+
+QTabBar::tab:hover {
+    background-color: #e8e2cf;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 5px;
 }
 
 QLabel#info_panel {
@@ -504,6 +563,12 @@ QGroupBox {
     font-weight: bold;
 }
 
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 5px;
+}
+
 QListWidget {
     background-color: #0f1e2e;
     color: #d4e8ff;
@@ -514,6 +579,79 @@ QListWidget {
 QListWidget::item:selected {
     background-color: #6bcf9d;
     color: #ffffff;
+}
+
+QComboBox {
+    background-color: #1c4a6e;
+    color: #d4e8ff;
+    border: 1px solid #4a7c9e;
+    border-radius: 3px;
+    padding: 5px;
+}
+
+QComboBox:hover {
+    border: 1px solid #6bcf9d;
+}
+
+QComboBox::drop-down {
+    border: none;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #1c4a6e;
+    color: #d4e8ff;
+    selection-background-color: #6bcf9d;
+    selection-color: #ffffff;
+}
+
+QSpinBox, QDoubleSpinBox {
+    background-color: #1c4a6e;
+    color: #d4e8ff;
+    border: 1px solid #4a7c9e;
+    border-radius: 3px;
+    padding: 3px;
+}
+
+QSpinBox:hover, QDoubleSpinBox:hover {
+    border: 1px solid #6bcf9d;
+}
+
+QCheckBox {
+    color: #d4e8ff;
+}
+
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #4a7c9e;
+    border-radius: 3px;
+    background-color: #1c4a6e;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #6bcf9d;
+}
+
+QTabWidget::pane {
+    border: 1px solid #4a7c9e;
+    background-color: #1c4a6e;
+}
+
+QTabBar::tab {
+    background-color: #0f1e2e;
+    color: #d4e8ff;
+    border: 1px solid #4a7c9e;
+    padding: 8px 16px;
+    margin-right: 2px;
+}
+
+QTabBar::tab:selected {
+    background-color: #6bcf9d;
+    color: #ffffff;
+}
+
+QTabBar::tab:hover {
+    background-color: #1c4a6e;
 }
 
 QLabel#info_panel {
@@ -1239,36 +1377,19 @@ class VideoWidget(QLabel):
 class ControlPanel(QWidget):
     """
     Control panel with inspection-specific buttons.
-    Replaces driving controls with inspection controls.
+    Streamlined to 7 core functions.
     """
 
-    # Simple mode signals (always visible)
-    palette_clicked = pyqtSignal()
-    view_mode_clicked = pyqtSignal()
-    day_night_clicked = pyqtSignal()
-
-    # Recording signals
+    # Signals
     record_toggled = pyqtSignal(bool)
     snapshot_clicked = pyqtSignal()
-
-    # ROI signals
+    freeze_frame_toggled = pyqtSignal(bool)
+    camera_clicked = pyqtSignal()
     auto_roi_clicked = pyqtSignal()
     draw_roi_clicked = pyqtSignal()
     clear_rois_clicked = pyqtSignal()
-    save_rois_clicked = pyqtSignal()
-    load_rois_clicked = pyqtSignal()
-
-    # Analysis signals
-    freeze_frame_toggled = pyqtSignal(bool)
-
-    # Developer mode signals
-    device_clicked = pyqtSignal()
-    fusion_mode_clicked = pyqtSignal()
-    fusion_alpha_clicked = pyqtSignal()
-    fusion_priority_clicked = pyqtSignal()
-    motion_detection_toggled = pyqtSignal(bool)
-    edge_detection_toggled = pyqtSignal(bool)
-    anomaly_priority_toggled = pyqtSignal(bool)
+    view_mode_clicked = pyqtSignal()
+    day_night_clicked = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1277,211 +1398,144 @@ class ControlPanel(QWidget):
         # Main layout
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(10, 10, 10, 10)
-        self.main_layout.setSpacing(15)  # Increased spacing
+        self.main_layout.setSpacing(12)
 
-        # === Simple Controls (Always Visible) ===
-        self.simple_layout = QHBoxLayout()
+        # Controls Layout (Grid)
+        self.controls_layout = QGridLayout()
+        self.controls_layout.setSpacing(10)
 
-        self.palette_btn = QPushButton("🎨 Palette")
-        self.view_btn = QPushButton("👁 View")
-        self.day_night_btn = QPushButton("☀ Day")
-
-        self.simple_layout.addWidget(self.palette_btn)
-        self.simple_layout.addWidget(self.view_btn)
-        self.simple_layout.addStretch()
-        self.simple_layout.addWidget(self.day_night_btn)
-
-        self.main_layout.addLayout(self.simple_layout)
-
-        # === Developer Controls (Hidden by default) ===
-        self.dev_controls = QWidget()
-        self.dev_layout = QGridLayout(self.dev_controls)
-        self.dev_layout.setSpacing(8)
-
-        # Row 0: Recording controls
-        self.record_btn = QPushButton("⏺ Record: OFF")
+        # Row 0: Capture & Camera
+        self.record_btn = QPushButton("⏺ Record")
         self.record_btn.setCheckable(True)
+        self.record_btn.setMinimumWidth(100)
+        self.record_btn.setToolTip("Toggle video recording")
+        
         self.snapshot_btn = QPushButton("📷 Snapshot")
-        self.freeze_btn = QPushButton("⏸ Freeze: OFF")
+        self.snapshot_btn.setMinimumWidth(100)
+        self.snapshot_btn.setToolTip("Capture snapshot")
+        
+        self.freeze_btn = QPushButton("⏸ Freeze")
         self.freeze_btn.setCheckable(True)
+        self.freeze_btn.setMinimumWidth(100)
+        self.freeze_btn.setToolTip("Freeze/Unfreeze frame")
+        
+        self.camera_btn = QPushButton("🎥 Cameras")
+        self.camera_btn.setMinimumWidth(100)
+        self.camera_btn.setToolTip("Manage camera connections")
 
-        self.dev_layout.addWidget(self.record_btn, 0, 0)
-        self.dev_layout.addWidget(self.snapshot_btn, 0, 1)
-        self.dev_layout.addWidget(self.freeze_btn, 0, 2)
+        self.controls_layout.addWidget(self.record_btn, 0, 0)
+        self.controls_layout.addWidget(self.snapshot_btn, 0, 1)
+        self.controls_layout.addWidget(self.freeze_btn, 0, 2)
+        self.controls_layout.addWidget(self.camera_btn, 0, 3)
 
-        # Row 1: ROI controls
+        # Row 1: ROI Controls
         self.auto_roi_btn = QPushButton("🔍 Auto ROI")
+        self.auto_roi_btn.setMinimumWidth(100)
+        self.auto_roi_btn.setToolTip("Automatically detect ROIs")
+        
         self.draw_roi_btn = QPushButton("✏ Draw ROI")
+        self.draw_roi_btn.setCheckable(True)
+        self.draw_roi_btn.setMinimumWidth(100)
+        self.draw_roi_btn.setToolTip("Manually draw ROI")
+        
         self.clear_roi_btn = QPushButton("🗑 Clear ROIs")
+        self.clear_roi_btn.setMinimumWidth(100)
+        self.clear_roi_btn.setToolTip("Clear all ROIs")
 
-        self.dev_layout.addWidget(self.auto_roi_btn, 1, 0)
-        self.dev_layout.addWidget(self.draw_roi_btn, 1, 1)
-        self.dev_layout.addWidget(self.clear_roi_btn, 1, 2)
+        self.controls_layout.addWidget(self.auto_roi_btn, 1, 0)
+        self.controls_layout.addWidget(self.draw_roi_btn, 1, 1)
+        self.controls_layout.addWidget(self.clear_roi_btn, 1, 2)
 
-        # Row 2: ROI persistence
-        self.save_roi_btn = QPushButton("💾 Save ROIs")
-        self.load_roi_btn = QPushButton("📂 Load ROIs")
+        # Row 2: View Controls
+        self.view_mode_btn = QPushButton("👁 View Mode")
+        self.view_mode_btn.setMinimumWidth(100)
+        self.view_mode_btn.setToolTip("Cycle view mode (Thermal/RGB/Fusion/Side-by-Side/PiP)")
 
-        self.dev_layout.addWidget(self.save_roi_btn, 2, 0)
-        self.dev_layout.addWidget(self.load_roi_btn, 2, 1)
+        self.theme_btn = QPushButton("🌓 Theme")
+        self.theme_btn.setMinimumWidth(100)
+        self.theme_btn.setToolTip("Toggle dark/light theme")
 
-        # Row 3: Processing controls
-        self.device_btn = QPushButton("🖥 Device: CPU")
-        self.motion_btn = QPushButton("🏃 Motion: ON")
-        self.motion_btn.setCheckable(True)
-        self.motion_btn.setChecked(True)
-        self.edge_btn = QPushButton("📐 Edges: ON")
-        self.edge_btn.setCheckable(True)
-        self.edge_btn.setChecked(True)
-        self.anomaly_priority_btn = QPushButton("🎯 Anomaly: OFF")
-        self.anomaly_priority_btn.setCheckable(True)
-        self.anomaly_priority_btn.setChecked(False)
+        self.controls_layout.addWidget(self.view_mode_btn, 2, 0)
+        self.controls_layout.addWidget(self.theme_btn, 2, 1)
 
-        self.dev_layout.addWidget(self.device_btn, 3, 0)
-        self.dev_layout.addWidget(self.motion_btn, 3, 1)
-        self.dev_layout.addWidget(self.edge_btn, 3, 2)
-        self.dev_layout.addWidget(self.anomaly_priority_btn, 3, 3)
-
-        # Row 4: Fusion controls
-        self.fusion_mode_btn = QPushButton("🔀 Fusion: Alpha")
-        self.fusion_alpha_btn = QPushButton("⚖ Alpha: 0.5")
-        self.fusion_priority_btn = QPushButton("🎯 Priority: Thermal")
-
-        self.dev_layout.addWidget(self.fusion_mode_btn, 4, 0)
-        self.dev_layout.addWidget(self.fusion_alpha_btn, 4, 1)
-        self.dev_layout.addWidget(self.fusion_priority_btn, 4, 2)
-
-        self.main_layout.addWidget(self.dev_controls)
-        self.dev_controls.setVisible(False)
+        self.main_layout.addLayout(self.controls_layout)
 
         # Connect signals
         self._connect_signals()
 
     def _connect_signals(self):
         """Connect button signals."""
-        # Simple controls
-        self.palette_btn.clicked.connect(lambda: self.palette_clicked.emit())
-        self.view_btn.clicked.connect(lambda: self.view_mode_clicked.emit())
-        self.day_night_btn.clicked.connect(lambda: self.day_night_clicked.emit())
-
-        # Recording
         self.record_btn.toggled.connect(self.record_toggled.emit)
-        self.snapshot_btn.clicked.connect(lambda: self.snapshot_clicked.emit())
+        self.snapshot_btn.clicked.connect(self.snapshot_clicked.emit)
         self.freeze_btn.toggled.connect(self.freeze_frame_toggled.emit)
-
-        # ROI
-        self.auto_roi_btn.clicked.connect(lambda: self.auto_roi_clicked.emit())
-        self.draw_roi_btn.clicked.connect(lambda: self.draw_roi_clicked.emit())
-        self.clear_roi_btn.clicked.connect(lambda: self.clear_rois_clicked.emit())
-        self.save_roi_btn.clicked.connect(lambda: self.save_rois_clicked.emit())
-        self.load_roi_btn.clicked.connect(lambda: self.load_rois_clicked.emit())
-
-        # Processing
-        self.device_btn.clicked.connect(lambda: self.device_clicked.emit())
-        self.motion_btn.toggled.connect(self.motion_detection_toggled.emit)
-        self.edge_btn.toggled.connect(self.edge_detection_toggled.emit)
-        self.anomaly_priority_btn.toggled.connect(self.anomaly_priority_toggled.emit)
-
-        # Fusion
-        self.fusion_mode_btn.clicked.connect(lambda: self.fusion_mode_clicked.emit())
-        self.fusion_alpha_btn.clicked.connect(lambda: self.fusion_alpha_clicked.emit())
-        self.fusion_priority_btn.clicked.connect(lambda: self.fusion_priority_clicked.emit())
-
-    def show_developer_controls(self, show: bool):
-        """Toggle developer controls visibility."""
-        self.dev_controls.setVisible(show)
-
-    def update_palette_button(self, palette: str):
-        """Update palette button text."""
-        self.palette_btn.setText(f"🎨 {palette.replace('_', ' ').title()}")
-
-    def update_view_button(self, view: str):
-        """Update view mode button text."""
-        self.view_btn.setText(f"👁 {view.replace('_', ' ').title()}")
-
-    def update_theme_button(self, theme: str):
-        """Update theme button text."""
-        theme_icons = {
-            "light": "☀ Light",
-            "dark": "🌙 Dark",
-            "solarized": "🌊 Solarized",
-            "colorful": "🎨 Colorful"
-        }
-        # Handle auto mode with actual theme
-        if "(" in theme and theme.startswith("auto"):
-            self.day_night_btn.setText(f"🔄 {theme}")
-        else:
-            display_text = theme_icons.get(theme, f"🔄 Auto")
-            self.day_night_btn.setText(display_text)
-
-    def update_fusion_mode_button(self, mode: str):
-        """Update fusion mode button text."""
-        mode_display = mode.replace('_', ' ').title()
-        self.fusion_mode_btn.setText(f"🔀 Fusion: {mode_display}")
-
-    def update_fusion_alpha_button(self, alpha: float):
-        """Update fusion alpha button text."""
-        self.fusion_alpha_btn.setText(f"⚖ Alpha: {alpha:.1f}")
-
-    def update_fusion_priority_button(self, priority: str):
-        """Update fusion priority button text."""
-        self.fusion_priority_btn.setText(f"🎯 Priority: {priority.title()}")
+        self.camera_btn.clicked.connect(self.camera_clicked.emit)
+        self.auto_roi_btn.clicked.connect(self.auto_roi_clicked.emit)
+        self.draw_roi_btn.clicked.connect(self.draw_roi_clicked.emit)
+        self.clear_roi_btn.clicked.connect(self.clear_rois_clicked.emit)
+        self.view_mode_btn.clicked.connect(self.view_mode_clicked.emit)
+        self.theme_btn.clicked.connect(self.day_night_clicked.emit)
 
     def update_record_button(self, recording: bool):
-        """Update record button text."""
+        """Update record button state."""
         if recording:
-            self.record_btn.setText("⏹ Recording...")
+            self.record_btn.setText("⏹ Stop")
+            self.record_btn.setStyleSheet("background-color: #ff4444; color: white;")
         else:
-            self.record_btn.setText("⏺ Record: OFF")
+            self.record_btn.setText("⏺ Record")
+            self.record_btn.setStyleSheet("")
+        self.record_btn.setChecked(recording)
 
     def update_freeze_button(self, frozen: bool):
-        """Update freeze button text."""
+        """Update freeze button state."""
         if frozen:
             self.freeze_btn.setText("▶ Resume")
+            self.freeze_btn.setStyleSheet("background-color: #4444ff; color: white;")
         else:
-            self.freeze_btn.setText("⏸ Freeze: OFF")
+            self.freeze_btn.setText("⏸ Freeze")
+            self.freeze_btn.setStyleSheet("")
+        self.freeze_btn.setChecked(frozen)
 
-    def update_motion_button(self, enabled: bool):
-        """Update motion detection button."""
-        if enabled:
-            self.motion_btn.setText("🏃 Motion: ON")
-        else:
-            self.motion_btn.setText("🏃 Motion: OFF")
-
-    def update_edge_button(self, enabled: bool):
-        """Update edge detection button."""
-        if enabled:
-            self.edge_btn.setText("📐 Edges: ON")
-        else:
-            self.edge_btn.setText("📐 Edges: OFF")
-
-    def update_anomaly_priority_button(self, enabled: bool):
-        """Update anomaly priority button."""
-        if enabled:
-            self.anomaly_priority_btn.setText("🎯 Anomaly: ON")
-        else:
-            self.anomaly_priority_btn.setText("🎯 Anomaly: OFF")
-
-    def update_view_button(self, view_mode: str):
-        """Update view mode button text."""
-        # Handle ViewMode object or string
-        if hasattr(view_mode, 'lower'):
-            mode_str = view_mode.lower()
-        else:
-            mode_str = str(view_mode).lower()
-        
-        mode_names = {
-            "thermal": "🌡 Thermal",
-            "thermal_only": "🌡 Thermal",
-            "rgb": "📷 RGB",
-            "rgb_only": "📷 RGB",
-            "fusion": "🔥 Fusion",
-            "side_by_side": "⬌ Side-by-Side",
-            "picture_in_picture": "📺 PiP",
-            "pip": "📺 PiP"
+    def update_theme_button(self, theme: str):
+        """Update theme button display - shows current theme."""
+        # Theme icons and display names
+        theme_info = {
+            "dark": ("🌙", "Dark"),
+            "light": ("☀", "Light"),
+            "solarized": ("🌅", "Solarized"),
+            "colorful": ("🎨", "Colorful"),
+            "auto": ("🔄", "Auto")
         }
-        mode_text = mode_names.get(mode_str, "👁 View")
-        self.view_btn.setText(mode_text)
+
+        # Handle auto mode with actual theme in parentheses
+        display_theme = theme
+        if "auto (" in theme:
+            # Extract actual theme from "auto (dark)" or "auto (light)"
+            display_theme = "auto"
+            icon, name = theme_info.get("auto", ("🔄", "Auto"))
+            self.theme_btn.setText(f"{icon} {theme.replace('auto ', 'Auto ')}")
+            self.theme_btn.setToolTip(f"Theme: {theme} - Click to cycle")
+        else:
+            icon, name = theme_info.get(theme, ("🌓", "Theme"))
+            self.theme_btn.setText(f"{icon} {name}")
+            self.theme_btn.setToolTip(f"Theme: {name} - Click to cycle")
+
+    def update_view_button(self, view_mode):
+        """Update view mode button display."""
+        from view_mode import ViewMode
+        mode_names = {
+            ViewMode.THERMAL_ONLY: "Thermal",
+            ViewMode.RGB_ONLY: "RGB",
+            ViewMode.FUSION: "Fusion",
+            ViewMode.SIDE_BY_SIDE: "Side-by-Side",
+            ViewMode.PICTURE_IN_PICTURE: "PiP"
+        }
+        mode_name = mode_names.get(view_mode, "View")
+        self.view_mode_btn.setText(f"👁 {mode_name}")
+
+    def show_developer_controls(self, show: bool):
+        """Legacy method compatibility."""
+        pass
+
 
 
 # ============================================================================
@@ -1497,7 +1551,7 @@ class InfoPanel(QLabel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("info_panel")
-        self.setFixedSize(280, 70)
+        self.setFixedSize(300, 70)  # Increased width for better text display
         self.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         self.setWordWrap(True)
 
@@ -1537,15 +1591,17 @@ class ThermalAnalysisPanel(QWidget):
     Shows temperature statistics, hot/cold spots, trends, and anomalies.
     """
 
+    # Signals
     baseline_toggled = pyqtSignal(bool)
-    global_palette_changed = pyqtSignal(str)  # Emits palette name
-    roi_palette_changed = pyqtSignal(str, str)  # Emits (roi_id, palette_name)
-    roi_palette_cleared = pyqtSignal(str)  # Emits roi_id
-    overlay_info_toggled = pyqtSignal(bool)  # Emits show/hide state
+    palette_changed = pyqtSignal(str)  # Emits palette name
+    roi_selected = pyqtSignal(str)  # Emits ROI ID
+    roi_palette_changed = pyqtSignal(str, str)  # Emits (ROI ID, palette name)
+    roi_palette_cleared = pyqtSignal(str)  # Emits ROI ID when palette is cleared
+    overlay_info_toggled = pyqtSignal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedWidth(380)  # Increased from 350 for better readability
+        self.setFixedWidth(420)  # Increased from 380 for better text accommodation
         self.current_rois = []  # Store ROI list
         self.selected_roi_index = -1  # Track selected ROI
 
@@ -1560,8 +1616,8 @@ class ThermalAnalysisPanel(QWidget):
 
         content = QWidget()
         self.content_layout = QVBoxLayout(content)
-        self.content_layout.setSpacing(15)  # Increased spacing
-        self.content_layout.setContentsMargins(5, 5, 5, 5)
+        self.content_layout.setSpacing(12)  # Standardized spacing
+        self.content_layout.setContentsMargins(8, 8, 8, 8)
 
         # Helper function to create section headers
         def create_section_header(text):
@@ -1582,37 +1638,56 @@ class ThermalAnalysisPanel(QWidget):
             line.setPalette(palette)
             return line
 
-        # === Overlay Display Toggle ===
-        self.content_layout.addWidget(create_section_header("👁️ Overlay Display"))
-
-        self.overlay_info_checkbox = QCheckBox("Show Detection Info")
-        self.overlay_info_checkbox.setChecked(True)  # Default to showing info
-        font = QFont()
-        font.setPointSize(10)
-        self.overlay_info_checkbox.setFont(font)
-        self.overlay_info_checkbox.setStyleSheet("padding: 5px;")
-        self.content_layout.addWidget(self.overlay_info_checkbox)
-
-        self.content_layout.addWidget(create_separator())
-
-        # === Global Palette Selection ===
+        # === Palette Selection ===
         self.content_layout.addWidget(create_section_header("🎨 Palette"))
 
-        global_palette_layout = QHBoxLayout()
-        global_palette_layout.setSpacing(8)
+        palette_layout = QHBoxLayout()
+        palette_layout.setSpacing(8)
         palette_label = QLabel("Global:")
         font = QFont()
         font.setPointSize(10)
         palette_label.setFont(font)
-        global_palette_layout.addWidget(palette_label)
+        palette_layout.addWidget(palette_label)
 
         self.global_palette_combo = QComboBox()
         self.global_palette_combo.setMinimumHeight(28)
-        # Populate with categorized palettes
+        self.global_palette_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self._populate_palette_combo(self.global_palette_combo)
-        global_palette_layout.addWidget(self.global_palette_combo, 1)
-        self.content_layout.addLayout(global_palette_layout)
+        palette_layout.addWidget(self.global_palette_combo, 1)
+        self.content_layout.addLayout(palette_layout)
 
+        self.content_layout.addWidget(create_separator())
+
+        # === Overlay Display ===
+        self.content_layout.addWidget(create_section_header("👁 Overlay Display"))
+
+        self.overlay_info_checkbox = QCheckBox("Show Detection Info")
+        self.overlay_info_checkbox.setChecked(True)
+        self.overlay_info_checkbox.setToolTip("Show/hide hot spots, cold spots, and anomalies on video")
+        self.overlay_info_checkbox.setMinimumHeight(28)
+        self.content_layout.addWidget(self.overlay_info_checkbox)
+
+        self.content_layout.addWidget(create_separator())
+
+        # === Detection Results ===
+        self.content_layout.addWidget(create_section_header("🎯 Detection Results"))
+
+        self.detection_label = QLabel("No detections")
+        self.detection_label.setWordWrap(True)
+        font = QFont("Consolas", 10)
+        self.detection_label.setFont(font)
+        self.content_layout.addWidget(self.detection_label)
+
+        self.content_layout.addWidget(create_separator())
+
+        # === ROI Summary ===
+        self.content_layout.addWidget(create_section_header("📍 ROI Summary"))
+        
+        self.roi_summary_label = QLabel("No active ROIs")
+        self.roi_summary_label.setWordWrap(True)
+        self.roi_summary_label.setFont(font)
+        self.content_layout.addWidget(self.roi_summary_label)
+        
         self.content_layout.addWidget(create_separator())
 
         # === Temperature Statistics ===
@@ -1620,9 +1695,10 @@ class ThermalAnalysisPanel(QWidget):
 
         self.stats_label = QLabel("No data")
         self.stats_label.setWordWrap(True)
+        self.stats_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         font = QFont("Consolas", 10)  # Larger, more readable font
         self.stats_label.setFont(font)
-        self.stats_label.setStyleSheet("padding: 5px;")
+        self.stats_label.setStyleSheet("padding: 8px;")
         self.content_layout.addWidget(self.stats_label)
         
         # Baseline control
@@ -1638,7 +1714,8 @@ class ThermalAnalysisPanel(QWidget):
         self.content_layout.addWidget(create_section_header("🔥 Hot Spots"))
         
         self.hotspot_list = QListWidget()
-        self.hotspot_list.setMaximumHeight(70)
+        self.hotspot_list.setMaximumHeight(90)  # Increased to show more items
+        self.hotspot_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         font = QFont()
         font.setPointSize(10)
         self.hotspot_list.setFont(font)
@@ -1650,7 +1727,8 @@ class ThermalAnalysisPanel(QWidget):
         self.content_layout.addWidget(create_section_header("❄️ Cold Spots"))
         
         self.coldspot_list = QListWidget()
-        self.coldspot_list.setMaximumHeight(70)
+        self.coldspot_list.setMaximumHeight(90)  # Increased to show more items
+        self.coldspot_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         font = QFont()
         font.setPointSize(10)
         self.coldspot_list.setFont(font)
@@ -1662,7 +1740,8 @@ class ThermalAnalysisPanel(QWidget):
         self.content_layout.addWidget(create_section_header("⚠️ Thermal Anomalies"))
         
         self.anomaly_list = QListWidget()
-        self.anomaly_list.setMaximumHeight(70)
+        self.anomaly_list.setMaximumHeight(90)  # Increased to show more items
+        self.anomaly_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         font = QFont()
         font.setPointSize(10)
         self.anomaly_list.setFont(font)
@@ -1674,7 +1753,8 @@ class ThermalAnalysisPanel(QWidget):
         self.content_layout.addWidget(create_section_header("📍 Regions of Interest"))
         
         self.roi_list = QListWidget()
-        self.roi_list.setMaximumHeight(80)
+        self.roi_list.setMaximumHeight(100)  # Increased to show more items
+        self.roi_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         font = QFont()
         font.setPointSize(10)
         self.roi_list.setFont(font)
@@ -1691,6 +1771,7 @@ class ThermalAnalysisPanel(QWidget):
         
         self.roi_palette_combo = QComboBox()
         self.roi_palette_combo.setMinimumHeight(28)
+        self.roi_palette_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         # Populate with categorized palettes (same as global)
         self._populate_palette_combo(self.roi_palette_combo)
         roi_palette_layout.addWidget(self.roi_palette_combo, 1)
@@ -1703,9 +1784,10 @@ class ThermalAnalysisPanel(QWidget):
         
         self.trend_label = QLabel("No trend data")
         self.trend_label.setWordWrap(True)
+        self.trend_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         font = QFont("Consolas", 10)
         self.trend_label.setFont(font)
-        self.trend_label.setStyleSheet("padding: 5px;")
+        self.trend_label.setStyleSheet("padding: 8px;")
         self.content_layout.addWidget(self.trend_label)
 
         self.content_layout.addStretch()
@@ -1757,64 +1839,83 @@ class ThermalAnalysisPanel(QWidget):
             ])
         ]
 
+        # Populate combo box with categorized palettes
         for category_name, palettes in palette_categories:
-            # Add category header (non-selectable)
-            combo.addItem(f"──── {category_name} ────")
-            category_index = combo.count() - 1
-            combo.model().item(category_index).setEnabled(False)
-            # Style the header
+            # Add category header (bold, disabled)
+            combo.addItem(f"─── {category_name} ───")
+            idx = combo.count() - 1
+            item = combo.model().item(idx)
             font = QFont()
             font.setBold(True)
-            font.setPointSize(9)
-            combo.model().item(category_index).setFont(font)
+            item.setFont(font)
+            item.setEnabled(False)
 
-            # Add palettes in this category
+            # Add palette items (indented)
             for palette in palettes:
-                display_name = "  " + palette.value.replace('_', ' ').title()
-                combo.addItem(display_name, palette.value)
+                combo.addItem(f"  {palette.value}")
 
-    def _on_global_palette_changed(self, text: str):
-        """Handle global palette selection change."""
-        palette_name = self.global_palette_combo.currentData()
-        if palette_name:
-            self.global_palette_changed.emit(palette_name)
+    def _on_global_palette_changed(self, palette_name: str):
+        """Handle global palette change."""
+        # Remove category header prefix and indentation if present
+        clean_name = palette_name.strip().lstrip("─ ")
+        if clean_name and not clean_name.startswith("───"):
+            self.palette_changed.emit(clean_name)
 
-    def _on_roi_selected(self, index: int):
-        """Handle ROI selection from list."""
-        self.selected_roi_index = index
-        if 0 <= index < len(self.current_rois):
-            roi = self.current_rois[index]
-            # Update palette combo to show current ROI's palette if it has one
-            # For now, just enable the combo (palette display update would need palette manager query)
-            self.roi_palette_combo.setEnabled(True)
+    def _on_roi_selected(self, row: int):
+        """Handle ROI selection in list."""
+        if 0 <= row < len(self.current_rois):
+            roi = self.current_rois[row]
+            self.roi_selected.emit(roi.roi_id)
+            self.selected_roi_index = row
         else:
-            self.roi_palette_combo.setEnabled(False)
+            self.selected_roi_index = -1
 
-    def _on_roi_palette_combo_changed(self, text: str):
-        """Handle ROI palette combo change."""
-        if self.selected_roi_index >= 0 and self.selected_roi_index < len(self.current_rois):
-            roi = self.current_rois[self.selected_roi_index]
-            palette_name = self.roi_palette_combo.currentData()
-            if palette_name:
-                self.roi_palette_changed.emit(roi.roi_id, palette_name)
+    def _on_roi_palette_combo_changed(self, palette_name: str):
+        """Handle ROI palette change."""
+        # Remove category header prefix and indentation if present
+        clean_name = palette_name.strip().lstrip("─ ")
+        if clean_name and not clean_name.startswith("───"):
+            if 0 <= self.selected_roi_index < len(self.current_rois):
+                roi = self.current_rois[self.selected_roi_index]
+                self.roi_palette_changed.emit(roi.roi_id, clean_name)
+
+    def update_detection_results(self, motion_count: int, edge_count: int, anomaly_count: int):
+        """Update detection results display."""
+        text = (
+            f"Motion Events: {motion_count}\n"
+            f"Edge Clusters: {edge_count}\n"
+            f"Anomalies:     {anomaly_count}"
+        )
+        self.detection_label.setText(text)
 
     def update_rois(self, rois: List[ROI]):
-        """Update ROI list."""
-        self.current_rois = rois  # Store the ROI list
-        self.roi_list.clear()
+        """Update ROI summary."""
+        self.current_rois = rois
+        count = len(rois)
+        
+        if count == 0:
+            self.roi_summary_label.setText("No active ROIs")
+            return
+            
+        # Calculate some basic stats if needed, for now just list types
+        types = {}
         for roi in rois:
-            label = roi.label or f"{roi.roi_type.value} ({roi.roi_id[:8]})"
-            self.roi_list.addItem(label)
+            t = roi.roi_type.value
+            types[t] = types.get(t, 0) + 1
+            
+        summary = f"Total ROIs: {count}\n"
+        for t, c in types.items():
+            summary += f"• {t}: {c}\n"
+            
+        self.roi_summary_label.setText(summary)
 
-        # Disable palette combo if no ROIs
-        if not rois:
-            self.roi_palette_combo.setEnabled(False)
-            self.selected_roi_index = -1
+
 
     def update_statistics(self, stats: Optional[ThermalStatistics]):
         """Update temperature statistics display."""
         if stats is None:
             self.stats_label.setText("No data")
+            self.stats_label.setToolTip("")
             return
 
         unit = stats.unit
@@ -1825,33 +1926,60 @@ class ThermalAnalysisPanel(QWidget):
             f"Std:  {stats.std_temp:.1f}{unit}"
         )
         
+        # Create detailed tooltip
+        tooltip = (
+            f"Temperature Statistics:\n"
+            f"Minimum: {stats.min_temp:.2f}{unit}\n"
+            f"Maximum: {stats.max_temp:.2f}{unit}\n"
+            f"Mean (Average): {stats.mean_temp:.2f}{unit}\n"
+            f"Standard Deviation: {stats.std_temp:.2f}{unit}"
+        )
+        
         if stats.relative_mean is not None:
             text += f"\n\nΔ Mean: {stats.relative_mean:+.1f}{unit}"
+            tooltip += f"\nRelative to Baseline: {stats.relative_mean:+.2f}{unit}"
             
         self.stats_label.setText(text)
+        self.stats_label.setToolTip(tooltip)
 
     def update_hot_spots(self, hot_spots: List[HotSpot]):
         """Update hot spot list."""
         self.hotspot_list.clear()
         for i, hs in enumerate(hot_spots):
-            self.hotspot_list.addItem(f"#{i}: {hs.max_temp:.1f}{hs.unit} at ({hs.centroid[0]:.0f}, {hs.centroid[1]:.0f})")
+            text = f"#{i}: {hs.max_temp:.1f}{hs.unit} at ({hs.centroid[0]:.0f}, {hs.centroid[1]:.0f})"
+            item = QListWidgetItem(text)
+            # Add tooltip with full information
+            tooltip = f"Hot Spot #{i}\nTemperature: {hs.max_temp:.2f}{hs.unit}\nLocation: ({hs.centroid[0]:.1f}, {hs.centroid[1]:.1f})\nArea: {hs.area} pixels"
+            item.setToolTip(tooltip)
+            self.hotspot_list.addItem(item)
 
     def update_cold_spots(self, cold_spots: List[ColdSpot]):
         """Update cold spot list."""
         self.coldspot_list.clear()
         for i, cs in enumerate(cold_spots):
-            self.coldspot_list.addItem(f"#{i}: {cs.min_temp:.1f}{cs.unit} at ({cs.centroid[0]:.0f}, {cs.centroid[1]:.0f})")
+            text = f"#{i}: {cs.min_temp:.1f}{cs.unit} at ({cs.centroid[0]:.0f}, {cs.centroid[1]:.0f})"
+            item = QListWidgetItem(text)
+            # Add tooltip with full information
+            tooltip = f"Cold Spot #{i}\nTemperature: {cs.min_temp:.2f}{cs.unit}\nLocation: ({cs.centroid[0]:.1f}, {cs.centroid[1]:.1f})\nArea: {cs.area} pixels"
+            item.setToolTip(tooltip)
+            self.coldspot_list.addItem(item)
 
     def update_anomalies(self, anomalies: List[ThermalAnomaly]):
         """Update anomaly list."""
         self.anomaly_list.clear()
         for i, anom in enumerate(anomalies, 1):
-            self.anomaly_list.addItem(f"#{i}: {anom.anomaly_type} - {anom.description}")
+            text = f"#{i}: {anom.anomaly_type} - {anom.description}"
+            item = QListWidgetItem(text)
+            # Add tooltip with full information
+            tooltip = f"Anomaly #{i}\nType: {anom.anomaly_type}\nDescription: {anom.description}\nSeverity: {anom.severity}\nLocation: ({anom.location[0]:.1f}, {anom.location[1]:.1f})"
+            item.setToolTip(tooltip)
+            self.anomaly_list.addItem(item)
 
     def update_trend(self, trend: Optional[TemperatureTrend]):
         """Update temperature trend display."""
         if trend is None or trend.data_points == 0:
             self.trend_label.setText("No trend data")
+            self.trend_label.setToolTip("")
             return
 
         text = (
@@ -1860,7 +1988,18 @@ class ThermalAnalysisPanel(QWidget):
             f"Predicted: {trend.predicted_temp:.1f}°C\n"
             f"Data points: {trend.data_points}"
         )
+        
+        # Create detailed tooltip
+        tooltip = (
+            f"Temperature Trend Analysis:\n"
+            f"Trend Direction: {trend.trend_direction}\n"
+            f"Rate of Change: {trend.rate_of_change:.4f}°C/second\n"
+            f"Predicted Temperature: {trend.predicted_temp:.2f}°C\n"
+            f"Based on {trend.data_points} data points"
+        )
+        
         self.trend_label.setText(text)
+        self.trend_label.setToolTip(tooltip)
 
 
 # ============================================================================
@@ -2517,6 +2656,9 @@ class BosonControlPanel(QWidget):
     """FLIR Boson camera control panel widget."""
 
     # Signals
+    sdk_connect_requested = pyqtSignal(str)  # Emits COM port
+    sdk_disconnect_requested = pyqtSignal()
+    sdk_scan_ports_requested = pyqtSignal()
     ffc_triggered = pyqtSignal()
     gain_mode_changed = pyqtSignal(str)  # 'high', 'low', 'auto'
     ffc_mode_changed = pyqtSignal(str)  # 'manual', 'auto', 'external'
@@ -2524,7 +2666,7 @@ class BosonControlPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedWidth(380)
+        self.setFixedWidth(420)  # Increased from 380 to match ThermalAnalysisPanel
         self._init_ui()
         self._connect_signals()
 
@@ -2532,7 +2674,7 @@ class BosonControlPanel(QWidget):
         """Initialize widget UI components."""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(8, 8, 8, 8)
-        main_layout.setSpacing(15)
+        main_layout.setSpacing(12)  # Standardized spacing
 
         # Scroll area for content
         scroll = QScrollArea()
@@ -2542,8 +2684,8 @@ class BosonControlPanel(QWidget):
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
-        content_layout.setSpacing(15)
-        content_layout.setContentsMargins(5, 5, 5, 5)
+        content_layout.setSpacing(12)  # Standardized spacing
+        content_layout.setContentsMargins(8, 8, 8, 8)  # Standardized margins
 
         # SDK Connection Status
         self._create_connection_status(content_layout)
@@ -2568,15 +2710,51 @@ class BosonControlPanel(QWidget):
         main_layout.addWidget(scroll)
 
     def _create_connection_status(self, layout):
-        """Create SDK connection status display."""
+        """Create SDK connection status display and controls."""
         status_group = QGroupBox("SDK CONNECTION")
         status_layout = QVBoxLayout(status_group)
 
+        # Connection status
         self.connection_status_label = QLabel("● Disconnected")
         self.connection_status_label.setStyleSheet("color: #ff4444; font-weight: bold;")
         status_layout.addWidget(self.connection_status_label)
 
-        self.connection_hint = QLabel("Enable SDK with --enable-boson-sdk")
+        # COM port selection
+        port_layout = QHBoxLayout()
+        port_layout.addWidget(QLabel("COM Port:"))
+
+        self.com_port_combo = QComboBox()
+        self.com_port_combo.setEditable(True)
+        self.com_port_combo.setPlaceholderText("Auto-detect or enter manually")
+        self.com_port_combo.setToolTip("Select COM port or enter manually (e.g., COM6)")
+        port_layout.addWidget(self.com_port_combo, stretch=1)
+
+        self.scan_ports_button = QPushButton("🔄")
+        self.scan_ports_button.setFixedWidth(35)
+        self.scan_ports_button.setToolTip("Scan for available COM ports")
+        port_layout.addWidget(self.scan_ports_button)
+
+        status_layout.addLayout(port_layout)
+
+        # Connection buttons
+        button_layout = QHBoxLayout()
+
+        self.connect_button = QPushButton("Connect")
+        self.connect_button.setMinimumHeight(35)
+        self.connect_button.setStyleSheet("background-color: #4CAF50;")
+        self.connect_button.setToolTip("Connect to Boson camera via SDK")
+        button_layout.addWidget(self.connect_button)
+
+        self.disconnect_button = QPushButton("Disconnect")
+        self.disconnect_button.setMinimumHeight(35)
+        self.disconnect_button.setEnabled(False)
+        self.disconnect_button.setToolTip("Disconnect from SDK")
+        button_layout.addWidget(self.disconnect_button)
+
+        status_layout.addLayout(button_layout)
+
+        # Connection hint
+        self.connection_hint = QLabel("Connect via COM port or use --enable-boson-sdk flag")
         self.connection_hint.setStyleSheet("font-size: 10px; color: #888;")
         self.connection_hint.setWordWrap(True)
         status_layout.addWidget(self.connection_hint)
@@ -2709,6 +2887,12 @@ class BosonControlPanel(QWidget):
 
     def _connect_signals(self):
         """Connect internal signals."""
+        # SDK connection controls
+        self.connect_button.clicked.connect(self._on_connect_clicked)
+        self.disconnect_button.clicked.connect(lambda: self.sdk_disconnect_requested.emit())
+        self.scan_ports_button.clicked.connect(self._on_scan_ports_clicked)
+
+        # Camera controls
         self.ffc_button.clicked.connect(lambda: self.ffc_triggered.emit())
         self.gain_mode_combo.currentTextChanged.connect(
             lambda text: self.gain_mode_changed.emit(text.lower())
@@ -2720,12 +2904,31 @@ class BosonControlPanel(QWidget):
             lambda text: self.color_lut_changed.emit(text.lower().replace(' ', '_'))
         )
 
+    def _on_connect_clicked(self):
+        """Handle connect button click."""
+        com_port = self.com_port_combo.currentText().strip()
+        if com_port:
+            self.sdk_connect_requested.emit(com_port)
+        else:
+            # Auto-detect if no port specified
+            self.sdk_connect_requested.emit("")
+
+    def _on_scan_ports_clicked(self):
+        """Handle scan ports button click."""
+        self.sdk_scan_ports_requested.emit()
+
     def update_connection_status(self, connected: bool):
-        """Update SDK connection status."""
+        """Update SDK connection status and button states."""
         if connected:
             self.connection_status_label.setText("● Connected")
             self.connection_status_label.setStyleSheet("color: #44ff44; font-weight: bold;")
             self.connection_hint.setText("SDK features available")
+
+            # Update connection button states
+            self.connect_button.setEnabled(False)
+            self.disconnect_button.setEnabled(True)
+            self.com_port_combo.setEnabled(False)
+            self.scan_ports_button.setEnabled(False)
 
             # Enable controls
             self.ffc_button.setEnabled(True)
@@ -2735,13 +2938,28 @@ class BosonControlPanel(QWidget):
         else:
             self.connection_status_label.setText("● Disconnected")
             self.connection_status_label.setStyleSheet("color: #ff4444; font-weight: bold;")
-            self.connection_hint.setText("Enable SDK with --enable-boson-sdk")
+            self.connection_hint.setText("Connect via COM port or use --enable-boson-sdk flag")
+
+            # Update connection button states
+            self.connect_button.setEnabled(True)
+            self.disconnect_button.setEnabled(False)
+            self.com_port_combo.setEnabled(True)
+            self.scan_ports_button.setEnabled(True)
 
             # Disable controls
             self.ffc_button.setEnabled(False)
             self.gain_mode_combo.setEnabled(False)
             self.ffc_mode_combo.setEnabled(False)
             self.color_lut_combo.setEnabled(False)
+
+    def update_com_ports(self, ports: list):
+        """Update COM port dropdown with available ports."""
+        current = self.com_port_combo.currentText()
+        self.com_port_combo.clear()
+        self.com_port_combo.addItems(ports)
+        # Restore previous selection if it's still available
+        if current in ports:
+            self.com_port_combo.setCurrentText(current)
 
     def update_camera_info(self, info):
         """Update camera information display."""
@@ -2818,6 +3036,449 @@ class CombinedAnomalyWidget(QWidget):
 
         main_layout.addWidget(self.mode_tabs)
 
+# ============================================================================
+# Settings Panel
+# ============================================================================
+
+class SettingsPanel(QGroupBox):
+    """Panel for application configuration settings."""
+
+    # Signals
+    device_changed = pyqtSignal(str)
+    palette_changed = pyqtSignal(str)
+    baseline_lock_toggled = pyqtSignal(bool)
+    fusion_mode_changed = pyqtSignal(str)
+    fusion_alpha_changed = pyqtSignal(float)
+    fusion_priority_changed = pyqtSignal(str)
+    save_rois_clicked = pyqtSignal()
+    load_rois_clicked = pyqtSignal()
+    overlay_info_toggled = pyqtSignal(bool)
+    show_stats_toggled = pyqtSignal(bool)
+    show_trends_toggled = pyqtSignal(bool)
+    show_detections_toggled = pyqtSignal(bool)
+    view_mode_changed = pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        super().__init__("Configuration", parent)
+        self._init_ui()
+
+    def _init_ui(self):
+        layout = QVBoxLayout()
+        layout.setSpacing(12)
+
+        # Processing Settings
+        proc_group = QGroupBox("Processing")
+        proc_layout = QVBoxLayout(proc_group)
+        
+        # Device Selection
+        device_layout = QHBoxLayout()
+        device_layout.addWidget(QLabel("Device:"))
+        self.device_combo = QComboBox()
+        self.device_combo.addItems(["CPU", "CUDA"])
+        self.device_combo.currentTextChanged.connect(self.device_changed.emit)
+        device_layout.addWidget(self.device_combo)
+        proc_layout.addLayout(device_layout)
+
+        # Global Palette
+        palette_layout = QHBoxLayout()
+        palette_layout.addWidget(QLabel("Palette:"))
+        self.palette_combo = QComboBox()
+        self.palette_combo.addItems([
+            "Ironbow", "Rainbow", "White Hot", "Black Hot", 
+            "Arctic", "Lava", "Medical"
+        ])
+        self.palette_combo.currentTextChanged.connect(self.palette_changed.emit)
+        palette_layout.addWidget(self.palette_combo)
+        proc_layout.addLayout(palette_layout)
+
+        # Baseline Lock
+        self.baseline_check = QCheckBox("Lock Baseline Temp")
+        self.baseline_check.toggled.connect(self.baseline_lock_toggled.emit)
+        proc_layout.addWidget(self.baseline_check)
+        
+        layout.addWidget(proc_group)
+
+        # Fusion Settings
+        fusion_group = QGroupBox("Fusion")
+        fusion_layout = QVBoxLayout(fusion_group)
+
+        # Mode
+        mode_layout = QHBoxLayout()
+        mode_layout.addWidget(QLabel("Mode:"))
+        self.fusion_mode_combo = QComboBox()
+        self.fusion_mode_combo.addItems([
+            "alpha_blend", "thermal_only", "rgb_only", "edge_enhanced"
+        ])
+        self.fusion_mode_combo.currentTextChanged.connect(self.fusion_mode_changed.emit)
+        mode_layout.addWidget(self.fusion_mode_combo)
+        fusion_layout.addLayout(mode_layout)
+
+        # Alpha
+        alpha_layout = QHBoxLayout()
+        alpha_layout.addWidget(QLabel("Alpha:"))
+        self.alpha_slider = QSlider(Qt.Orientation.Horizontal)
+        self.alpha_slider.setRange(0, 100)
+        self.alpha_slider.setValue(50)
+        self.alpha_slider.valueChanged.connect(
+            lambda v: self.fusion_alpha_changed.emit(v / 100.0)
+        )
+        alpha_layout.addWidget(self.alpha_slider)
+        fusion_layout.addLayout(alpha_layout)
+
+        # Priority
+        priority_layout = QHBoxLayout()
+        priority_layout.addWidget(QLabel("Priority:"))
+        self.priority_combo = QComboBox()
+        self.priority_combo.addItems(["Thermal", "RGB", "Balanced"])
+        self.priority_combo.currentTextChanged.connect(self.fusion_priority_changed.emit)
+        priority_layout.addWidget(self.priority_combo)
+        fusion_layout.addLayout(priority_layout)
+
+        layout.addWidget(fusion_group)
+
+        # ROI Settings
+        roi_group = QGroupBox("ROI Management")
+        roi_layout = QVBoxLayout(roi_group)
+
+        btn_layout = QHBoxLayout()
+        self.save_btn = QPushButton("💾 Save")
+        self.save_btn.clicked.connect(self.save_rois_clicked.emit)
+        self.load_btn = QPushButton("📂 Load")
+        self.load_btn.clicked.connect(self.load_rois_clicked.emit)
+        btn_layout.addWidget(self.save_btn)
+        btn_layout.addWidget(self.load_btn)
+        roi_layout.addLayout(btn_layout)
+
+        self.overlay_check = QCheckBox("Show Overlay Info")
+        self.overlay_check.setChecked(True)
+        self.overlay_check.toggled.connect(self.overlay_info_toggled.emit)
+        roi_layout.addWidget(self.overlay_check)
+
+        layout.addWidget(roi_group)
+
+        # Display Settings
+        display_group = QGroupBox("Display Options")
+        display_layout = QVBoxLayout(display_group)
+
+        # View Mode
+        view_layout = QHBoxLayout()
+        view_layout.addWidget(QLabel("View Mode:"))
+        self.view_mode_combo = QComboBox()
+        self.view_mode_combo.addItems([
+            "Thermal Only", "RGB Only", "Fusion", 
+            "Side-by-Side", "Picture-in-Picture"
+        ])
+        self.view_mode_combo.currentTextChanged.connect(self.view_mode_changed.emit)
+        view_layout.addWidget(self.view_mode_combo)
+        display_layout.addLayout(view_layout)
+
+        self.show_stats_check = QCheckBox("Show Statistics")
+        self.show_stats_check.setChecked(True)
+        self.show_stats_check.toggled.connect(self.show_stats_toggled.emit)
+        display_layout.addWidget(self.show_stats_check)
+
+        self.show_trends_check = QCheckBox("Show Trends")
+        self.show_trends_check.setChecked(True)
+        self.show_trends_check.toggled.connect(self.show_trends_toggled.emit)
+        display_layout.addWidget(self.show_trends_check)
+
+        self.show_detections_check = QCheckBox("Show Detections")
+        self.show_detections_check.setChecked(True)
+        self.show_detections_check.toggled.connect(self.show_detections_toggled.emit)
+        display_layout.addWidget(self.show_detections_check)
+
+        layout.addWidget(display_group)
+        layout.addStretch()
+        
+        self.setLayout(layout)
+
+# ============================================================================
+# Boson SDK Panel
+# ============================================================================
+
+class BosonSDKPanel(QGroupBox):
+    """Panel for Boson SDK connection controls"""
+    
+    # Signals
+    connect_clicked = pyqtSignal(str)  # COM port
+    disconnect_clicked = pyqtSignal()
+    ffc_clicked = pyqtSignal()
+    scan_ports_clicked = pyqtSignal()
+    
+    def __init__(self, parent=None):
+        super().__init__("Boson SDK Control", parent)
+        self._init_ui()
+        
+    def _init_ui(self):
+        layout = QVBoxLayout()
+        
+        # Connection Status
+        status_layout = QHBoxLayout()
+        status_layout.addWidget(QLabel("Status:"))
+        self.status_label = QLabel("Disconnected")
+        self.status_label.setStyleSheet("color: #ff6b6b; font-weight: bold;")
+        status_layout.addWidget(self.status_label)
+        status_layout.addStretch()
+        layout.addLayout(status_layout)
+        
+        # COM Port Selection
+        port_layout = QHBoxLayout()
+        port_layout.addWidget(QLabel("COM Port:"))
+        self.port_combo = QComboBox()
+        self.port_combo.setEditable(True)
+        self.port_combo.addItems(["COM1", "COM2", "COM3", "COM4", "COM5", "COM6"])
+        self.port_combo.setCurrentText("COM6")
+        self.port_combo.setMinimumWidth(100)
+        port_layout.addWidget(self.port_combo)
+        
+        self.scan_btn = QPushButton("🔍")
+        self.scan_btn.setToolTip("Scan for available COM ports")
+        self.scan_btn.setMaximumWidth(40)
+        self.scan_btn.clicked.connect(self._on_scan_ports)
+        port_layout.addWidget(self.scan_btn)
+        layout.addLayout(port_layout)
+        
+        # Connect/Disconnect Buttons
+        btn_layout = QHBoxLayout()
+        self.connect_btn = QPushButton("Connect")
+        self.connect_btn.clicked.connect(self._on_connect)
+        btn_layout.addWidget(self.connect_btn)
+        
+        self.disconnect_btn = QPushButton("Disconnect")
+        self.disconnect_btn.clicked.connect(self._on_disconnect)
+        self.disconnect_btn.setEnabled(False)
+        btn_layout.addWidget(self.disconnect_btn)
+        layout.addLayout(btn_layout)
+        
+        # FFC Button
+        self.ffc_btn = QPushButton("Trigger FFC")
+        self.ffc_btn.setToolTip("Flat Field Correction (shutter calibration)")
+        self.ffc_btn.clicked.connect(self._on_ffc)
+        self.ffc_btn.setEnabled(False)
+        layout.addWidget(self.ffc_btn)
+        
+        # Status Message
+        self.message_label = QLabel("")
+        self.message_label.setWordWrap(True)
+        self.message_label.setStyleSheet("font-size: 9pt; color: #666;")
+        layout.addWidget(self.message_label)
+        
+        self.setLayout(layout)
+        
+    def _on_connect(self):
+        """Emit connect signal with selected COM port"""
+        port = self.port_combo.currentText()
+        self.connect_clicked.emit(port)
+        
+    def _on_disconnect(self):
+        """Emit disconnect signal"""
+        self.disconnect_clicked.emit()
+        
+    def _on_ffc(self):
+        """Emit FFC trigger signal"""
+        self.ffc_clicked.emit()
+        
+    def _on_scan_ports(self):
+        """Emit scan ports signal"""
+        self.scan_ports_clicked.emit()
+        
+    def set_connected(self, connected: bool):
+        """Update UI for connection state"""
+        if connected:
+            self.status_label.setText("Connected")
+            self.status_label.setStyleSheet("color: #51cf66; font-weight: bold;")
+            self.connect_btn.setEnabled(False)
+            self.disconnect_btn.setEnabled(True)
+            self.ffc_btn.setEnabled(True)
+            self.port_combo.setEnabled(False)
+            self.scan_btn.setEnabled(False)
+        else:
+            self.status_label.setText("Disconnected")
+            self.status_label.setStyleSheet("color: #ff6b6b; font-weight: bold;")
+            self.connect_btn.setEnabled(True)
+            self.disconnect_btn.setEnabled(False)
+            self.ffc_btn.setEnabled(False)
+            self.port_combo.setEnabled(True)
+            self.scan_btn.setEnabled(True)
+            
+    def set_status(self, message: str, is_error: bool = False):
+        """Set status message"""
+        self.message_label.setText(message)
+        if is_error:
+            self.message_label.setStyleSheet("font-size: 9pt; color: #ff6b6b;")
+        else:
+            self.message_label.setStyleSheet("font-size: 9pt; color: #51cf66;")
+            
+    def update_ports(self, ports: list):
+        """Update COM port dropdown"""
+        current = self.port_combo.currentText()
+        self.port_combo.clear()
+        self.port_combo.addItems(ports)
+        if current in ports:
+            self.port_combo.setCurrentText(current)
+            
+    def update_camera_info(self, serial_number: str):
+        """Update camera information display"""
+        self.set_status(f"SN: {serial_number}")
+        
+    def update_fpa_temperature(self, temp_k: float, temp_c: float):
+        """Update FPA temperature display"""
+        # For now, just show in status message
+        # Can be enhanced later with dedicated display
+        pass
+
+# ============================================================================
+# Camera Manager Dialog
+# ============================================================================
+
+class CameraManagerDialog(QDialog):
+    """Dialog to manage camera assignments."""
+    def __init__(self, app, parent=None):
+        super().__init__(parent)
+        self.app = app
+        self.setWindowTitle("Camera Management")
+        self.setModal(True)
+        self.setMinimumWidth(400)
+        self._init_ui()
+        
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # Camera Status Group
+        status_group = QGroupBox("Current Assignment")
+        status_layout = QGridLayout()
+        
+        status_layout.addWidget(QLabel("Thermal Camera:"), 0, 0)
+        self.thermal_label = QLabel(f"Device {getattr(self.app.args, 'thermal_device', 0)}")
+        status_layout.addWidget(self.thermal_label, 0, 1)
+        
+        status_layout.addWidget(QLabel("RGB Camera:"), 1, 0)
+        rgb_dev = getattr(self.app.args, 'rgb_device', None)
+        self.rgb_label = QLabel(f"Device {rgb_dev if rgb_dev is not None else 'Auto'}")
+        status_layout.addWidget(self.rgb_label, 1, 1)
+        
+        status_group.setLayout(status_layout)
+        layout.addWidget(status_group)
+        
+        # Actions
+        btn_layout = QHBoxLayout()
+        
+        self.redetect_btn = QPushButton("🔍 Re-Detect Cameras")
+        self.redetect_btn.clicked.connect(self._on_redetect)
+        self.redetect_btn.setToolTip("Stop capture and re-detect available cameras")
+        btn_layout.addWidget(self.redetect_btn)
+
+        self.swap_btn = QPushButton("Swap Cameras")
+        self.swap_btn.clicked.connect(self._on_swap)
+        self.swap_btn.setToolTip("Swap Thermal and RGB camera sources")
+        btn_layout.addWidget(self.swap_btn)
+        
+        layout.addLayout(btn_layout)
+        
+        # Manual Assignment Group
+        manual_group = QGroupBox("Manual Assignment")
+        manual_layout = QGridLayout()
+        
+        manual_layout.addWidget(QLabel("Thermal Device ID:"), 0, 0)
+        self.thermal_spin = QSpinBox()
+        self.thermal_spin.setRange(0, 10)
+        self.thermal_spin.setValue(getattr(self.app.args, 'thermal_device', 0))
+        manual_layout.addWidget(self.thermal_spin, 0, 1)
+        
+        manual_layout.addWidget(QLabel("RGB Device ID:"), 1, 0)
+        self.rgb_spin = QSpinBox()
+        self.rgb_spin.setRange(0, 10)
+        val = getattr(self.app.args, 'rgb_device', 0)
+        if val is None: val = 0
+        self.rgb_spin.setValue(val)
+        manual_layout.addWidget(self.rgb_spin, 1, 1)
+        
+        self.apply_btn = QPushButton("Apply Assignment")
+        self.apply_btn.clicked.connect(self._on_apply)
+        manual_layout.addWidget(self.apply_btn, 2, 0, 1, 2)
+        
+        manual_group.setLayout(manual_layout)
+        layout.addWidget(manual_group)
+        
+        # Close
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn)
+        
+    def _on_swap(self):
+        if QMessageBox.question(self, "Confirm Swap", 
+                              "This will stop capture, swap cameras, and restart.\nContinue?",
+                              QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+            
+            self.app.swap_cameras()
+            self._update_labels()
+            QMessageBox.information(self, "Success", "Cameras swapped successfully.")
+            
+    def _on_redetect(self):
+        """Re-detect cameras and reassign"""
+        if QMessageBox.question(self, "Confirm Re-Detection", 
+                              "This will stop capture, detect cameras, and restart.\nContinue?",
+                              QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+            
+            try:
+                # Import auto-detection
+                from camera_factory import autodetect_camera_types
+                
+                # Run auto-detection
+                logger.info("Re-detecting cameras...")
+                t_id, r_id = autodetect_camera_types()
+                
+                if t_id is None and r_id is None:
+                    QMessageBox.warning(self, "Detection Failed", 
+                                      "No cameras detected. Please check connections.")
+                    return
+                
+                # Use detected IDs or fallback
+                thermal_id = t_id if t_id is not None else 1
+                rgb_id = r_id if r_id is not None else 0
+                
+                logger.info(f"Re-detection results: Thermal={thermal_id}, RGB={rgb_id}")
+                
+                # Reassign cameras
+                self.app.reassign_cameras(thermal_id, rgb_id)
+                
+                # Update spinboxes
+                self.thermal_spin.setValue(thermal_id)
+                self.rgb_spin.setValue(rgb_id)
+                
+                self._update_labels()
+                QMessageBox.information(self, "Success", 
+                                      f"Cameras re-detected and assigned:\nThermal: Device {thermal_id}\nRGB: Device {rgb_id}")
+                
+            except Exception as e:
+                logger.error(f"Re-detection failed: {e}")
+                QMessageBox.critical(self, "Error", f"Re-detection failed: {e}")
+    
+    def _on_apply(self):
+        t_id = self.thermal_spin.value()
+        r_id = self.rgb_spin.value()
+        
+        if t_id == r_id:
+            QMessageBox.warning(self, "Invalid Assignment", "Thermal and RGB cameras cannot share the same device ID.")
+            return
+
+        if QMessageBox.question(self, "Confirm Assignment", 
+                              f"Reassign cameras?\nThermal: {t_id}\nRGB: {r_id}",
+                              QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+            
+            self.app.reassign_cameras(t_id, r_id)
+            self._update_labels()
+            QMessageBox.information(self, "Success", "Cameras reassigned successfully.")
+
+    def _update_labels(self):
+        self.thermal_label.setText(f"Device {getattr(self.app.args, 'thermal_device', 0)}")
+        rgb_dev = getattr(self.app.args, 'rgb_device', None)
+        self.rgb_label.setText(f"Device {rgb_dev if rgb_dev is not None else 'Auto'}")
+        self.thermal_spin.setValue(getattr(self.app.args, 'thermal_device', 0))
+        val = getattr(self.app.args, 'rgb_device', 0)
+        if val is None: val = 0
+        self.rgb_spin.setValue(val)
+
 
 class InspectionAppWindow(QMainWindow):
     """
@@ -2835,7 +3496,7 @@ class InspectionAppWindow(QMainWindow):
 
         # State
         self.current_theme = "dark"
-        self.developer_mode = False
+        self.developer_mode = True
         self.recording = False
         self.frozen = False
 
@@ -2845,39 +3506,81 @@ class InspectionAppWindow(QMainWindow):
         # Apply initial theme
         self._apply_theme(self.current_theme)
 
+        # Force layout update after startup to ensure panels are visible
+        QTimer.singleShot(500, self._force_layout_update)
+
+    def _force_layout_update(self):
+        """Force layout update and visibility check."""
+        self.right_panel_tabs.setVisible(True)
+        self.control_panel.setVisible(True)
+        
+        # Log geometry and visibility
+        logger.info(f"Window geometry: {self.geometry()}")
+        logger.info(f"Right panel visible: {self.right_panel_tabs.isVisible()}")
+        logger.info(f"Right panel geometry: {self.right_panel_tabs.geometry()}")
+        logger.info(f"Right panel size hint: {self.right_panel_tabs.sizeHint()}")
+        logger.info(f"Control panel visible: {self.control_panel.isVisible()}")
+        logger.info(f"Control panel geometry: {self.control_panel.geometry()}")
+        
+        # Check if tabs have content
+        logger.info(f"Tab count: {self.right_panel_tabs.count()}")
+        for i in range(self.right_panel_tabs.count()):
+            logger.info(f"Tab {i}: {self.right_panel_tabs.tabText(i)}")
+            
+        # Trigger a slight resize to force layout recalculation
+        self.resize(self.width() + 1, self.height())
+        self.resize(self.width() - 1, self.height())
+        logger.info("Forced layout update and visibility check")
+
     def _build_ui(self):
         """Build the main UI layout."""
+        logger.info("Building UI layout...")
+        
         # Central widget
         central = QWidget()
+        central.setObjectName("central_widget")
+        central.setStyleSheet("QWidget#central_widget { background-color: #202020; }")
         self.setCentralWidget(central)
 
+        # Main layout container
         main_layout = QHBoxLayout(central)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
         # Left side: Video + Controls
         left_widget = QWidget()
+        left_widget.setObjectName("left_widget")
+        # left_widget.setStyleSheet("border: 1px solid red;") # Debug border
         left_layout = QVBoxLayout(left_widget)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(0)
 
         # Video widget
         self.video_widget = VideoWidget()
-        left_layout.addWidget(self.video_widget, stretch=9)
+        self.video_widget.setMinimumSize(640, 480)
+        left_layout.addWidget(self.video_widget, stretch=1) # Let it expand
 
         # Control panel
         self.control_panel = ControlPanel()
-        left_layout.addWidget(self.control_panel, stretch=1)
+        self.control_panel.setMinimumHeight(120) # Ensure visibility
+        # self.control_panel.setStyleSheet("border: 1px solid blue;") # Debug border
+        left_layout.addWidget(self.control_panel, stretch=0) # Fixed height based on content
 
-        main_layout.addWidget(left_widget, stretch=7)
+        main_layout.addWidget(left_widget, stretch=1) # Expand to fill available space
 
-        # Right side: Tabbed widget panel (hidden by default)
+        # Right side: Tabbed widget panel
         self.right_panel_tabs = QTabWidget()
-        self.right_panel_tabs.setVisible(False)
+        self.right_panel_tabs.setObjectName("right_panel")
+        self.right_panel_tabs.setFixedWidth(420) # Fixed width to prevent collapse
+        self.right_panel_tabs.setVisible(True)
 
         # Add Analysis Panel tab
         self.analysis_panel = ThermalAnalysisPanel()
         self.right_panel_tabs.addTab(self.analysis_panel, "Analysis")
+
+        # Add Settings Panel tab
+        self.settings_panel = SettingsPanel()
+        self.right_panel_tabs.addTab(self.settings_panel, "Settings")
 
         # Add Combined Anomaly Widget tab (Automatic + Manual modes)
         self.combined_anomaly_widget = CombinedAnomalyWidget()
@@ -2887,11 +3590,20 @@ class InspectionAppWindow(QMainWindow):
         self.anomaly_widget = self.combined_anomaly_widget.automatic_widget
         self.manual_threshold_widget = self.combined_anomaly_widget.manual_widget
 
-        # Add Boson Control Panel tab
-        self.boson_panel = BosonControlPanel()
-        self.right_panel_tabs.addTab(self.boson_panel, "Boson")
+        # Add Boson SDK Panel tab
+        self.boson_panel = BosonSDKPanel()
+        self.right_panel_tabs.addTab(self.boson_panel, "Boson SDK")
 
-        main_layout.addWidget(self.right_panel_tabs, stretch=2)
+        main_layout.addWidget(self.right_panel_tabs, stretch=0) # Fixed width
+
+        # Info panel (overlay on video widget)
+        self.info_panel = InfoPanel(self.video_widget)
+        self.info_panel.move(10, 10)  # Top-left corner
+
+        # Connect signals
+        self._connect_signals()
+        
+        logger.info("UI layout built successfully")
 
         # Info panel (overlay on video widget)
         self.info_panel = InfoPanel(self.video_widget)
@@ -2903,7 +3615,6 @@ class InspectionAppWindow(QMainWindow):
     def _connect_signals(self):
         """Connect control panel signals to handlers."""
         # Simple controls
-        self.control_panel.palette_clicked.connect(self._on_palette_cycle)
         self.control_panel.view_mode_clicked.connect(self._on_view_mode_cycle)
         self.control_panel.day_night_clicked.connect(self._on_theme_cycle)
 
@@ -2916,32 +3627,44 @@ class InspectionAppWindow(QMainWindow):
         self.control_panel.auto_roi_clicked.connect(self._on_auto_roi)
         self.control_panel.draw_roi_clicked.connect(self._on_draw_roi)
         self.control_panel.clear_rois_clicked.connect(self._on_clear_rois)
-        self.control_panel.save_rois_clicked.connect(self._on_save_rois)
-        self.control_panel.load_rois_clicked.connect(self._on_load_rois)
 
-        # Processing
-        self.control_panel.device_clicked.connect(self._on_device_cycle)
-        self.control_panel.motion_detection_toggled.connect(self._on_motion_toggle)
-        self.control_panel.edge_detection_toggled.connect(self._on_edge_toggle)
-        self.control_panel.anomaly_priority_toggled.connect(self._on_anomaly_priority_toggle)
+        # Camera
+        self.control_panel.camera_clicked.connect(self._on_camera_clicked)
 
-        # Fusion
-        self.control_panel.fusion_mode_clicked.connect(self._on_fusion_mode_cycle)
-        self.control_panel.fusion_alpha_clicked.connect(self._on_fusion_alpha_cycle)
-        self.control_panel.fusion_alpha_clicked.connect(self._on_fusion_alpha_cycle)
-        self.control_panel.fusion_priority_clicked.connect(self._on_fusion_priority_cycle)
-        
-        # Analysis
-        self.analysis_panel.baseline_toggled.connect(self._on_baseline_toggle)
-        self.analysis_panel.global_palette_changed.connect(self._on_global_palette_changed)
+        # Settings Panel Signals
+        self.settings_panel.device_changed.connect(self._on_device_changed)
+        self.settings_panel.palette_changed.connect(self._on_global_palette_changed)
+        self.settings_panel.baseline_lock_toggled.connect(self._on_baseline_toggle)
+        self.settings_panel.fusion_mode_changed.connect(self._on_fusion_mode_changed)
+        self.settings_panel.fusion_alpha_changed.connect(self._on_fusion_alpha_changed)
+        self.settings_panel.fusion_priority_changed.connect(self._on_fusion_priority_changed)
+        self.settings_panel.save_rois_clicked.connect(self._on_save_rois)
+        self.settings_panel.load_rois_clicked.connect(self._on_load_rois)
+        self.settings_panel.overlay_info_toggled.connect(self._on_overlay_info_toggle)
+        self.settings_panel.show_stats_toggled.connect(self._on_show_stats_toggle)
+        self.settings_panel.show_trends_toggled.connect(self._on_show_trends_toggle)
+        self.settings_panel.show_detections_toggled.connect(self._on_show_detections_toggle)
+        self.settings_panel.view_mode_changed.connect(self._on_view_mode_changed)
+
+        # Anomaly Widget Signals
+        self.anomaly_widget.anomaly_priority_toggled.connect(self._on_anomaly_priority_toggle)
+        self.anomaly_widget.motion_threshold_changed.connect(self._on_motion_threshold_changed)
+        # Connect other anomaly signals as needed...
+
+        # Boson SDK Signals
+        self.boson_panel.connect_clicked.connect(self._on_boson_connect)
+        self.boson_panel.disconnect_clicked.connect(self._on_boson_disconnect)
+        self.boson_panel.ffc_clicked.connect(self._on_boson_ffc)
+        self.boson_panel.scan_ports_clicked.connect(self._on_boson_scan_ports)
         self.analysis_panel.roi_palette_changed.connect(self._on_roi_palette_changed)
         self.analysis_panel.roi_palette_cleared.connect(self._on_roi_palette_cleared)
         self.analysis_panel.overlay_info_toggled.connect(self._on_overlay_info_toggle)
 
-        # Boson Control Panel
-        self.boson_panel.ffc_triggered.connect(self._on_boson_ffc)
-        self.boson_panel.gain_mode_changed.connect(self._on_boson_gain_mode)
-        self.boson_panel.ffc_mode_changed.connect(self._on_boson_ffc_mode)
+        # Boson SDK Panel
+        self.boson_panel.connect_clicked.connect(self._on_boson_connect)
+        self.boson_panel.disconnect_clicked.connect(self._on_boson_disconnect)
+        self.boson_panel.ffc_clicked.connect(self._on_boson_ffc)
+        self.boson_panel.scan_ports_clicked.connect(self._on_boson_scan_ports)
 
         # Anomaly Widget
         self.anomaly_widget.anomaly_priority_toggled.connect(self._on_anomaly_priority_toggle)
@@ -3133,29 +3856,57 @@ class InspectionAppWindow(QMainWindow):
             else:
                 logger.info(f"ROIs loaded from {filename}")
 
-    def _on_device_cycle(self):
-        """Cycle processing device."""
+    def _on_view_mode_changed(self, mode_name: str):
+        """Handle view mode change."""
         if self.app:
-            self.app.cycle_device()
-        logger.info("Device cycle")
+            self.app.set_view_mode(mode_name)
+        logger.info(f"View mode changed to: {mode_name}")
 
-    def _on_motion_toggle(self, enabled: bool):
-        """Toggle motion detection."""
-        self.control_panel.update_motion_button(enabled)
+    def _on_device_changed(self, device_name: str):
+        """Handle processing device change."""
         if self.app:
-            self.app.toggle_motion(enabled)
-        logger.info(f"Motion detection: {'ON' if enabled else 'OFF'}")
+            self.app.set_device(device_name)
+        logger.info(f"Device changed to: {device_name}")
 
-    def _on_edge_toggle(self, enabled: bool):
-        """Toggle edge detection."""
-        self.control_panel.update_edge_button(enabled)
+    def _on_fusion_mode_changed(self, mode_name: str):
+        """Handle fusion mode change."""
         if self.app:
-            self.app.toggle_edge(enabled)
-        logger.info(f"Edge detection: {'ON' if enabled else 'OFF'}")
+            self.app.set_fusion_mode(mode_name)
+        logger.info(f"Fusion mode changed to: {mode_name}")
+
+    def _on_fusion_alpha_changed(self, alpha: float):
+        """Handle fusion alpha change."""
+        if self.app:
+            self.app.set_fusion_alpha(alpha)
+
+    def _on_fusion_priority_changed(self, priority: str):
+        """Handle fusion priority change."""
+        if self.app:
+            self.app.set_fusion_priority(priority)
+        logger.info(f"Fusion priority changed to: {priority}")
+
+    def _on_show_stats_toggle(self, checked: bool):
+        """Toggle statistics display."""
+        if hasattr(self.analysis_panel, 'stats_label'):
+             self.analysis_panel.stats_label.setVisible(checked)
+        logger.info(f"Show stats: {checked}")
+
+    def _on_show_trends_toggle(self, checked: bool):
+        """Toggle trends display."""
+        if hasattr(self.analysis_panel, 'trend_label'):
+             self.analysis_panel.trend_label.setVisible(checked)
+        logger.info(f"Show trends: {checked}")
+
+    def _on_show_detections_toggle(self, checked: bool):
+        """Toggle detections display."""
+        if hasattr(self.analysis_panel, 'detection_label'):
+             self.analysis_panel.detection_label.setVisible(checked)
+        logger.info(f"Show detections: {checked}")
 
     def _on_anomaly_priority_toggle(self, enabled: bool):
         """Toggle anomaly priority mode."""
-        self.control_panel.update_anomaly_priority_button(enabled)
+        # Update button if it exists (it might not anymore if removed from control panel)
+        # self.control_panel.update_anomaly_priority_button(enabled) 
         if self.app:
             self.app.toggle_anomaly_priority(enabled)
         logger.info(f"Anomaly priority: {'ON' if enabled else 'OFF'}")
@@ -3277,10 +4028,54 @@ class InspectionAppWindow(QMainWindow):
             self.app.set_palette(palette_name)
         logger.info(f"Global palette changed: {palette_name}")
 
+    def _on_boson_connect(self, com_port: str):
+        """Handle SDK connection request from Boson panel."""
+        if self.app and hasattr(self.app, 'connect_boson_sdk'):
+            success = self.app.connect_boson_sdk(com_port)
+            if success:
+                self.boson_panel.set_connected(True)
+                logger.info(f"Boson SDK connected on {com_port}")
+                # Get camera info and display
+                if hasattr(self.app.thermal_camera, 'get_camera_info'):
+                    info = self.app.thermal_camera.get_camera_info()
+                    if info:
+                        self.boson_panel.set_status(f"SN: {info.serial_number}")
+            else:
+                self.boson_panel.set_status("Connection failed", is_error=True)
+                logger.error(f"Boson SDK connection failed on {com_port}")
+        else:
+            self.boson_panel.set_status("App not ready", is_error=True)
+
+    def _on_boson_disconnect(self):
+        """Handle SDK disconnection request from Boson panel."""
+        if self.app and hasattr(self.app, 'disconnect_boson_sdk'):
+            self.app.disconnect_boson_sdk()
+            self.boson_panel.set_connected(False)
+            self.boson_panel.set_status("Disconnected")
+            logger.info("Boson SDK disconnected")
+
+    def _on_boson_scan_ports(self):
+        """Handle COM port scan request from Boson panel."""
+        if self.app and hasattr(self.app, 'scan_boson_com_ports'):
+            ports = self.app.scan_boson_com_ports()
+            if ports:
+                self.boson_panel.update_ports(ports)
+                self.boson_panel.set_status(f"Found {len(ports)} COM ports")
+                logger.info(f"Found COM ports: {', '.join(ports)}")
+            else:
+                self.boson_panel.set_status("No COM ports found", is_error=True)
+                logger.warning("No COM ports found")
+
     def _on_boson_ffc(self):
         """Handle FFC trigger from Boson panel."""
         if self.app and hasattr(self.app, 'trigger_ffc'):
-            self.app.trigger_ffc()
+            success = self.app.trigger_ffc()
+            if success:
+                self.boson_panel.set_status("FFC completed successfully")
+                logger.info("FFC triggered successfully")
+            else:
+                self.boson_panel.set_status("FFC failed", is_error=True)
+                logger.error("FFC trigger failed")
 
     def _on_boson_gain_mode(self, mode: str):
         """Handle gain mode change from Boson panel."""
@@ -3391,7 +4186,12 @@ class InspectionAppWindow(QMainWindow):
         }
         self.anomaly_widget.update_counts(counts)
 
-
+    def _on_camera_clicked(self):
+        """Handle camera manager button click."""
+        if not self.app:
+            return
+        dialog = CameraManagerDialog(self.app, self)
+        dialog.exec()
 # ============================================================================
 # Standalone Test
 # ============================================================================

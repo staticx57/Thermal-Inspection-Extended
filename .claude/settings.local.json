@@ -43,7 +43,9 @@
       "Bash(timeout 35 python inspection_main.py:*)",
       "Bash(dir /b /od *.log *.txt *.dump 2)",
       "Bash(timeout 20 python:*)",
-      "Bash(timeout 60 python:*)"
+      "Bash(timeout 60 python:*)",
+      "Bash(timeout 5 python:*)",
+      "Bash(timeout 30 head:*)"
     ],
     "deny": [],
     "ask": []
