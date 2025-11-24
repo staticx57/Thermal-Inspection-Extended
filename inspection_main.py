@@ -29,6 +29,7 @@ import numpy as np
 import faulthandler
 from typing import Optional, Dict, List
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Enable faulthandler for debugging
 faulthandler.enable()
@@ -40,7 +41,12 @@ from placeholder_frames import create_thermal_placeholder, create_rgb_placeholde
 
 # Processing modules (NEW - Inspection focused)
 from thermal_processor import ThermalProcessor
-from thermal_analyzer import ThermalAnalyzer
+from thermal_analyzer import (
+    ThermalAnalyzer,
+    ThresholdMode,
+    ThresholdVisualization,
+    ThresholdDetectionResult
+)
 from roi_manager import ROIManager, ROISource
 from palette_manager import PaletteManager, PaletteType
 from media_recorder import VideoRecorder, VideoPlayer, SnapshotManager
@@ -239,8 +245,38 @@ class ThermalInspectionFusion:
             "edges": True,
             "hot_spots": True,
             "cold_spots": True,
-            "thermal_anomalies": True
+            "thermal_anomalies": True,
+            "enhanced_fusion": False  # Off by default (performance)
         }
+
+        # Manual threshold detection state
+        self.manual_threshold_enabled = False
+        self.manual_threshold_mode = ThresholdMode.ABOVE
+        self.manual_threshold_min = 50.0  # Default: 50% (percentage mode)
+        self.manual_threshold_max = 75.0  # Default: 75% (percentage mode)
+        self.manual_threshold_use_raw = False  # Default: percentage mode (not raw)
+        self.manual_threshold_viz_mode = ThresholdVisualization.GRAYSCALE_NON_ANOMALY
+        self.latest_threshold_result: Optional[ThresholdDetectionResult] = None
+
+        # Parallel processing configuration (Phase 1 optimization)
+        self.enable_parallel_processing = getattr(args, 'enable_parallel', True)
+        self.max_detection_workers = getattr(args, 'max_workers', 5)
+
+        # ThreadPoolExecutor for parallel detection tasks
+        if self.enable_parallel_processing:
+            self.detection_executor = ThreadPoolExecutor(
+                max_workers=self.max_detection_workers,
+                thread_name_prefix="detection"
+            )
+            self.roi_executor = ThreadPoolExecutor(
+                max_workers=4,
+                thread_name_prefix="roi_analysis"
+            )
+            logger.info(f"Parallel processing enabled: {self.max_detection_workers} detection workers, 4 ROI workers")
+        else:
+            self.detection_executor = None
+            self.roi_executor = None
+            logger.info("Parallel processing disabled (sequential mode)")
 
     def _try_connect_thermal(self) -> bool:
         """
@@ -447,7 +483,8 @@ class ThermalInspectionFusion:
                 'device': self.device,
                 'thermal_palette': getattr(self.args, 'palette', 'ironbow'),
                 'motion_detection_enabled': True,
-                'edge_detection_enabled': True
+                'edge_detection_enabled': True,
+                'min_edge_cluster_area': 50  # Lowered from 500 for better edge detection
             }
             self.thermal_processor = ThermalProcessor(processor_config)
             if not self.thermal_processor.initialize():
@@ -653,34 +690,118 @@ class ThermalInspectionFusion:
 
             # 4. Thermal analysis for each ROI
             t_prof['before_roi_analysis'] = time.time()
-            for roi in self.roi_manager.get_all_rois(active_only=True):
-                mask = roi.get_mask(thermal_frame.shape)
-                stats = self.thermal_analyzer.analyze_frame(thermal_frame, mask)
+            rois = self.roi_manager.get_all_rois(active_only=True)
 
-                # Store stats in ROI metadata
-                if stats:
-                    roi.metadata['thermal_stats'] = {
-                        'min_temp': stats.min_temp,
-                        'max_temp': stats.max_temp,
-                        'mean_temp': stats.mean_temp,
-                        'std_temp': stats.std_temp
-                    }
+            # OPTIMIZATION: Parallel ROI analysis (Phase 1)
+            if self.enable_parallel_processing and self.roi_executor and len(rois) > 0:
+                def analyze_single_roi(roi):
+                    """Analyze a single ROI (thread-safe)."""
+                    mask = roi.get_mask(thermal_frame.shape)
+                    stats = self.thermal_analyzer.analyze_frame(thermal_frame, mask)
+                    return roi, stats
 
-                    # Update trend tracking
-                    self.thermal_analyzer.update_trend(roi.roi_id, stats.mean_temp)
+                # Process all ROIs in parallel
+                roi_futures = {self.roi_executor.submit(analyze_single_roi, roi): roi for roi in rois}
+
+                for future in as_completed(roi_futures):
+                    roi, stats = future.result()
+                    # Store stats in ROI metadata
+                    if stats:
+                        roi.metadata['thermal_stats'] = {
+                            'min_temp': stats.min_temp,
+                            'max_temp': stats.max_temp,
+                            'mean_temp': stats.mean_temp,
+                            'std_temp': stats.std_temp
+                        }
+                        # Update trend tracking
+                        self.thermal_analyzer.update_trend(roi.roi_id, stats.mean_temp)
+
+            else:
+                # FALLBACK: Sequential ROI analysis
+                for roi in rois:
+                    mask = roi.get_mask(thermal_frame.shape)
+                    stats = self.thermal_analyzer.analyze_frame(thermal_frame, mask)
+
+                    # Store stats in ROI metadata
+                    if stats:
+                        roi.metadata['thermal_stats'] = {
+                            'min_temp': stats.min_temp,
+                            'max_temp': stats.max_temp,
+                            'mean_temp': stats.mean_temp,
+                            'std_temp': stats.std_temp
+                        }
+
+                        # Update trend tracking
+                        self.thermal_analyzer.update_trend(roi.roi_id, stats.mean_temp)
+
             t_prof['after_roi_analysis'] = time.time()
 
             # 5. Global thermal analysis (whole frame)
             t_prof['before_thermal_analysis'] = time.time()
-            global_stats = self.thermal_analyzer.analyze_frame(thermal_frame)
-            result['thermal_stats'] = global_stats
 
-            # Hot/cold spot detection
-            result['hot_spots'] = self.thermal_analyzer.detect_hot_spots(thermal_frame)
-            result['cold_spots'] = self.thermal_analyzer.detect_cold_spots(thermal_frame)
+            # OPTIMIZATION: Parallel detection tasks (Phase 1)
+            if self.enable_parallel_processing and self.detection_executor:
+                # Submit all detection tasks in parallel
+                future_stats = self.detection_executor.submit(
+                    self.thermal_analyzer.analyze_frame, thermal_frame
+                )
+                future_hot = self.detection_executor.submit(
+                    self.thermal_analyzer.detect_hot_spots, thermal_frame
+                )
+                future_cold = self.detection_executor.submit(
+                    self.thermal_analyzer.detect_cold_spots, thermal_frame
+                )
+                future_anomaly = self.detection_executor.submit(
+                    self.thermal_analyzer.detect_anomalies, thermal_frame, 'global'
+                )
 
-            # Anomaly detection
-            result['anomalies'] = self.thermal_analyzer.detect_anomalies(thermal_frame, 'global')
+                future_threshold = None
+                if self.manual_threshold_enabled:
+                    future_threshold = self.detection_executor.submit(
+                        self.thermal_analyzer.detect_threshold_anomalies,
+                        thermal_frame,
+                        threshold_mode=self.manual_threshold_mode,
+                        min_threshold=self.manual_threshold_min,
+                        max_threshold=self.manual_threshold_max,
+                        use_raw_values=self.manual_threshold_use_raw
+                    )
+
+                # Collect results (blocks until all complete)
+                result['thermal_stats'] = future_stats.result()
+                result['hot_spots'] = future_hot.result()
+                result['cold_spots'] = future_cold.result()
+                result['anomalies'] = future_anomaly.result()
+
+                if future_threshold:
+                    result['manual_threshold_result'] = future_threshold.result()
+                    self.latest_threshold_result = result['manual_threshold_result']
+                else:
+                    result['manual_threshold_result'] = None
+                    self.latest_threshold_result = None
+
+            else:
+                # FALLBACK: Sequential execution (for debugging or single-threaded mode)
+                global_stats = self.thermal_analyzer.analyze_frame(thermal_frame)
+                result['thermal_stats'] = global_stats
+
+                result['hot_spots'] = self.thermal_analyzer.detect_hot_spots(thermal_frame)
+                result['cold_spots'] = self.thermal_analyzer.detect_cold_spots(thermal_frame)
+                result['anomalies'] = self.thermal_analyzer.detect_anomalies(thermal_frame, 'global')
+
+                if self.manual_threshold_enabled:
+                    threshold_result = self.thermal_analyzer.detect_threshold_anomalies(
+                        thermal_frame,
+                        threshold_mode=self.manual_threshold_mode,
+                        min_threshold=self.manual_threshold_min,
+                        max_threshold=self.manual_threshold_max,
+                        use_raw_values=self.manual_threshold_use_raw
+                    )
+                    result['manual_threshold_result'] = threshold_result
+                    self.latest_threshold_result = threshold_result
+                else:
+                    result['manual_threshold_result'] = None
+                    self.latest_threshold_result = None
+
             t_prof['after_thermal_analysis'] = time.time()
 
             # 5b. Apply anomaly priority colorization if enabled (AFTER all detections)
@@ -714,6 +835,18 @@ class ThermalInspectionFusion:
                     for thermal_anomaly in result['anomalies']:
                         all_anomalies.append(thermal_anomaly)  # ThermalAnomaly has .bbox attribute
 
+                # Add enhanced fusion (thermal + edge combined) if enabled
+                # This adds both thermal anomalies and edges together when enabled
+                if self.enabled_anomaly_types.get("enhanced_fusion", False):
+                    # Add edges if not already added
+                    if not self.enabled_anomaly_types.get("edges", False):
+                        for edge in result['edge_clusters']:
+                            all_anomalies.append(edge)
+                    # Add thermal anomalies if not already added
+                    if not self.enabled_anomaly_types.get("thermal_anomalies", False):
+                        for thermal_anomaly in result['anomalies']:
+                            all_anomalies.append(thermal_anomaly)
+
                 # Apply gradient fade colorization with ALL anomalies
                 # This updates thermal_colorized which is then used in fusion
                 thermal_colorized = self.thermal_processor.apply_anomaly_priority_colorization(
@@ -722,6 +855,16 @@ class ThermalInspectionFusion:
                 # Update result with anomaly-priority-applied colorization
                 result['thermal_colorized'] = thermal_colorized
             t_prof['after_anomaly_priority'] = time.time()
+
+            # 5c. Apply manual threshold visualization if enabled
+            if self.manual_threshold_enabled and self.latest_threshold_result is not None:
+                thermal_colorized = self.thermal_analyzer.apply_threshold_visualization(
+                    thermal_frame,
+                    thermal_colorized,
+                    self.latest_threshold_result,
+                    viz_mode=self.manual_threshold_viz_mode
+                )
+                result['thermal_colorized'] = thermal_colorized
 
             # 6. Create fused frame if RGB available
             t_prof['before_fusion'] = time.time()
@@ -909,7 +1052,8 @@ class ThermalInspectionFusion:
                 if self.recording_enabled and display_frame is not None:
                     # Start recording if not already started
                     if not self.video_recorder.is_recording():
-                        frame_shape = display_frame.shape
+                        # Extract height and width from frame shape (ignore channels)
+                        frame_shape = (display_frame.shape[0], display_frame.shape[1])
                         if self.video_recorder.start_recording(frame_shape, fps=30):
                             logger.info("Recording started")
 
@@ -1057,7 +1201,7 @@ class ThermalInspectionFusion:
                                    f"fusion={fusion_ms:.1f}ms, display_select={display_select_ms:.1f}ms, draw_rois={draw_rois_ms:.1f}ms")
 
                     logger.info(f"  Detections: {len(result['rois'])} ROIs, {len(result['motion_detections'])} motion, "
-                               f"{len(result['hot_spots'])} hot spots")
+                               f"{len(result['edge_clusters'])} edges, {len(result['hot_spots'])} hot spots")
 
         except KeyboardInterrupt:
             logger.info("Interrupted by user")
@@ -1068,6 +1212,17 @@ class ThermalInspectionFusion:
     # ========================================================================
     # GUI Control Methods
     # ========================================================================
+
+    def set_palette(self, palette_name: str):
+        """Set specific palette by name."""
+        if self.palette_manager:
+            try:
+                self.palette_manager.set_global_palette(PaletteType(palette_name))
+                if self.gui and hasattr(self.gui, 'control_panel'):
+                    self.gui.control_panel.update_palette_button(palette_name)
+                logger.info(f"Switched to palette: {palette_name}")
+            except (ValueError, KeyError) as e:
+                logger.error(f"Failed to set palette '{palette_name}': {e}")
 
     def cycle_palette(self):
         """Cycle to next palette."""
@@ -1103,14 +1258,9 @@ class ThermalInspectionFusion:
     def toggle_recording(self, enabled: bool):
         """Toggle recording."""
         self.recording_enabled = enabled
-        if self.recording_enabled:
-            if self.video_recorder:
-                filename = self.video_recorder.start_recording((self.args.width, self.args.height))
-                logger.info(f"Started recording: {filename}")
-        else:
-            if self.video_recorder:
-                self.video_recorder.stop_recording()
-                logger.info("Stopped recording")
+        # Note: Actual recording start happens in the main loop when first frame arrives
+        # This just sets the flag
+        logger.info(f"Recording: {'ENABLED' if enabled else 'DISABLED'}")
 
     def capture_snapshot(self):
         """Capture snapshot."""
@@ -1158,6 +1308,48 @@ class ThermalInspectionFusion:
         """Set which anomaly types are enabled for anomaly priority visualization."""
         self.enabled_anomaly_types = types_dict.copy()
         logger.info(f"Enabled anomaly types: {self.enabled_anomaly_types}")
+
+    def set_manual_threshold_enabled(self, enabled: bool):
+        """Enable/disable manual threshold detection."""
+        self.manual_threshold_enabled = enabled
+        logger.info(f"Manual threshold enabled: {enabled}")
+
+    def set_manual_threshold_mode(self, mode: str):
+        """Set manual threshold mode."""
+        mode_map = {
+            "above": ThresholdMode.ABOVE,
+            "below": ThresholdMode.BELOW,
+            "between": ThresholdMode.BETWEEN,
+            "outside": ThresholdMode.OUTSIDE
+        }
+        self.manual_threshold_mode = mode_map.get(mode, ThresholdMode.ABOVE)
+        logger.info(f"Manual threshold mode: {mode} -> {self.manual_threshold_mode}")
+
+    def set_manual_min_threshold(self, value: float):
+        """Set manual minimum threshold."""
+        self.manual_threshold_min = value
+        logger.info(f"Manual min threshold: {value}")
+
+    def set_manual_max_threshold(self, value: float):
+        """Set manual maximum threshold."""
+        self.manual_threshold_max = value
+        logger.info(f"Manual max threshold: {value}")
+
+    def set_manual_use_raw_values(self, use_raw: bool):
+        """Set whether manual threshold uses raw values or temperature."""
+        self.manual_threshold_use_raw = use_raw
+        logger.info(f"Manual threshold use raw: {use_raw}")
+
+    def set_manual_viz_mode(self, mode: str):
+        """Set manual threshold visualization mode."""
+        mode_map = {
+            "grayscale_non_anomaly": ThresholdVisualization.GRAYSCALE_NON_ANOMALY,
+            "color_non_anomaly": ThresholdVisualization.COLOR_NON_ANOMALY,
+            "binary_mask": ThresholdVisualization.BINARY_MASK,
+            "gradient_overlay": ThresholdVisualization.GRADIENT_OVERLAY
+        }
+        self.manual_threshold_viz_mode = mode_map.get(mode, ThresholdVisualization.GRAYSCALE_NON_ANOMALY)
+        logger.info(f"Manual threshold viz mode: {mode} -> {self.manual_threshold_viz_mode}")
 
     def cycle_fusion_mode(self):
         """Cycle fusion mode."""
@@ -1367,6 +1559,17 @@ class ThermalInspectionFusion:
         if self.video_player:
             self.video_player.cleanup()
 
+        # Shutdown thread pool executors (Phase 1 optimization)
+        if hasattr(self, 'detection_executor') and self.detection_executor:
+            logger.info("Shutting down detection executor...")
+            self.detection_executor.shutdown(wait=True, cancel_futures=True)
+            logger.info("Detection executor shutdown complete")
+
+        if hasattr(self, 'roi_executor') and self.roi_executor:
+            logger.info("Shutting down ROI executor...")
+            self.roi_executor.shutdown(wait=True, cancel_futures=True)
+            logger.info("ROI executor shutdown complete")
+
         if self.thermal_camera:
             self.thermal_camera.release()
         if self.rgb_camera:
@@ -1428,10 +1631,18 @@ def parse_arguments():
                        help='Enable automatic ROI detection')
 
     # GUI settings
+    parser.add_argument('--gui', type=str, choices=['qt', 'opencv', 'headless'], default='qt',
+                       help='GUI type (default: qt)')
     parser.add_argument('--use-opencv-gui', action='store_true',
                        help='Use simple OpenCV GUI instead of Qt')
     parser.add_argument('--headless', action='store_true',
                        help='Run without GUI')
+
+    # Performance optimization settings (Phase 1)
+    parser.add_argument('--enable_parallel', type=lambda x: x.lower() == 'true', default=True,
+                       help='Enable parallel processing (default: True)')
+    parser.add_argument('--max_workers', type=int, default=5,
+                       help='Maximum number of worker threads for parallel detection (default: 5)')
 
     return parser.parse_args()
 

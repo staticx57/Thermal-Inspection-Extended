@@ -30,6 +30,22 @@ class AnomalyType(Enum):
     STATISTICAL_OUTLIER = "statistical_outlier"
 
 
+class ThresholdMode(Enum):
+    """Manual threshold detection modes."""
+    ABOVE = "above"  # Highlight values above threshold
+    BELOW = "below"  # Highlight values below threshold
+    BETWEEN = "between"  # Highlight values between min and max
+    OUTSIDE = "outside"  # Highlight values outside min/max range
+
+
+class ThresholdVisualization(Enum):
+    """Visualization modes for threshold-based detection."""
+    GRAYSCALE_NON_ANOMALY = "grayscale_non_anomaly"  # Normal areas grayscale, anomalies in color
+    COLOR_NON_ANOMALY = "color_non_anomaly"  # Normal areas in color, anomalies highlighted
+    BINARY_MASK = "binary_mask"  # Black/white binary visualization
+    GRADIENT_OVERLAY = "gradient_overlay"  # Smooth gradient based on distance from threshold
+
+
 @dataclass
 class ThermalStatistics:
     """Statistical data for a thermal region."""
@@ -94,6 +110,19 @@ class TemperatureTrend:
     trend_direction: str  # "increasing", "decreasing", "stable"
     rate_of_change: float  # degrees per second
     prediction: Optional[float] = None
+
+
+@dataclass
+class ThresholdDetectionResult:
+    """Results from manual threshold-based anomaly detection."""
+    mask: np.ndarray  # Binary mask of detected anomalies
+    anomaly_percentage: float  # Percentage of pixels flagged as anomalies
+    anomaly_count: int  # Number of anomaly pixels
+    total_pixels: int  # Total number of pixels analyzed
+    threshold_mode: ThresholdMode
+    min_threshold: float
+    max_threshold: Optional[float] = None
+    timestamp: float = field(default_factory=time.time)
 
 
 class ThermalAnalyzer:
@@ -658,8 +687,259 @@ class ThermalAnalyzer:
             return temp_c * 9/5 + 32
         elif to_unit == TemperatureUnit.KELVIN:
             return temp_c + 273.15
+
+    # ========================================================================
+    # Manual Threshold Detection
+    # ========================================================================
+
+    def detect_threshold_anomalies(
+        self,
+        thermal_frame: np.ndarray,
+        threshold_mode: ThresholdMode,
+        min_threshold: float,
+        max_threshold: Optional[float] = None,
+        use_raw_values: bool = True
+    ) -> ThresholdDetectionResult:
+        """
+        Detect anomalies based on user-defined thresholds.
+
+        Args:
+            thermal_frame: Thermal image (14-bit raw or temperature values)
+            threshold_mode: Detection mode (ABOVE, BELOW, BETWEEN, OUTSIDE)
+            min_threshold: Minimum threshold value (percentage 0-100 if use_raw_values=False)
+            max_threshold: Maximum threshold value (percentage 0-100 if use_raw_values=False)
+            use_raw_values: If True, thresholds are raw 14-bit values; if False, percentage values (0-100)
+
+        Returns:
+            ThresholdDetectionResult with binary mask and statistics
+        """
+        if thermal_frame is None or thermal_frame.size == 0:
+            # Return empty result
+            empty_mask = np.zeros_like(thermal_frame, dtype=np.uint8)
+            return ThresholdDetectionResult(
+                mask=empty_mask,
+                anomaly_percentage=0.0,
+                anomaly_count=0,
+                total_pixels=0,
+                threshold_mode=threshold_mode,
+                min_threshold=min_threshold,
+                max_threshold=max_threshold
+            )
+
+        # Convert percentage to actual values if needed
+        if not use_raw_values:
+            frame_min = np.min(thermal_frame)
+            frame_max = np.max(thermal_frame)
+            frame_range = frame_max - frame_min
+
+            # Convert percentage (0-100) to actual value
+            min_threshold = frame_min + (min_threshold / 100.0) * frame_range
+            if max_threshold is not None:
+                max_threshold = frame_min + (max_threshold / 100.0) * frame_range
+
+        # Apply threshold based on mode
+        if threshold_mode == ThresholdMode.ABOVE:
+            mask = (thermal_frame >= min_threshold).astype(np.uint8) * 255
+
+        elif threshold_mode == ThresholdMode.BELOW:
+            mask = (thermal_frame <= min_threshold).astype(np.uint8) * 255
+
+        elif threshold_mode == ThresholdMode.BETWEEN:
+            if max_threshold is None:
+                max_threshold = min_threshold + 1000  # Default range
+            mask = ((thermal_frame >= min_threshold) & (thermal_frame <= max_threshold)).astype(np.uint8) * 255
+
+        elif threshold_mode == ThresholdMode.OUTSIDE:
+            if max_threshold is None:
+                max_threshold = min_threshold + 1000  # Default range
+            mask = ((thermal_frame < min_threshold) | (thermal_frame > max_threshold)).astype(np.uint8) * 255
+
         else:
-            return temp_c
+            mask = np.zeros_like(thermal_frame, dtype=np.uint8)
+
+        # Calculate statistics
+        total_pixels = thermal_frame.size
+        anomaly_count = np.count_nonzero(mask)
+        anomaly_percentage = (anomaly_count / total_pixels * 100.0) if total_pixels > 0 else 0.0
+
+        return ThresholdDetectionResult(
+            mask=mask,
+            anomaly_percentage=anomaly_percentage,
+            anomaly_count=anomaly_count,
+            total_pixels=total_pixels,
+            threshold_mode=threshold_mode,
+            min_threshold=min_threshold,
+            max_threshold=max_threshold
+        )
+
+    def apply_threshold_visualization(
+        self,
+        thermal_frame: np.ndarray,
+        colorized_frame: np.ndarray,
+        detection_result: ThresholdDetectionResult,
+        viz_mode: ThresholdVisualization,
+        anomaly_palette: Optional[np.ndarray] = None
+    ) -> np.ndarray:
+        """
+        Apply threshold visualization to colorized thermal frame.
+
+        Args:
+            thermal_frame: Raw thermal frame
+            colorized_frame: Colorized thermal frame (BGR)
+            detection_result: Threshold detection result with mask
+            viz_mode: Visualization mode
+            anomaly_palette: Optional custom palette for anomaly regions
+
+        Returns:
+            Visualized frame with threshold highlighting
+        """
+        if thermal_frame is None or colorized_frame is None:
+            return colorized_frame
+
+        mask = detection_result.mask
+        output = colorized_frame.copy()
+
+        if viz_mode == ThresholdVisualization.GRAYSCALE_NON_ANOMALY:
+            # Convert non-anomaly regions to grayscale
+            gray = cv2.cvtColor(colorized_frame, cv2.COLOR_BGR2GRAY)
+            gray_3ch = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+
+            # Anomaly regions keep color, non-anomaly regions become grayscale
+            output = np.where(mask[..., np.newaxis] > 0, colorized_frame, gray_3ch)
+
+        elif viz_mode == ThresholdVisualization.COLOR_NON_ANOMALY:
+            # Highlight anomaly regions with different processing
+            # Apply brightness boost to anomaly regions
+            anomaly_boost = colorized_frame.copy()
+            anomaly_boost = cv2.convertScaleAbs(anomaly_boost, alpha=1.3, beta=30)
+
+            output = np.where(mask[..., np.newaxis] > 0, anomaly_boost, colorized_frame)
+
+        elif viz_mode == ThresholdVisualization.BINARY_MASK:
+            # Pure black and white
+            binary_3ch = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+            output = binary_3ch
+
+        elif viz_mode == ThresholdVisualization.GRADIENT_OVERLAY:
+            # Distance-based gradient fade
+            # Compute distance transform from anomaly edges
+            mask_binary = (mask > 0).astype(np.uint8)
+            dist_from_anomaly = cv2.distanceTransform(1 - mask_binary, cv2.DIST_L2, 5)
+            dist_from_anomaly = np.clip(dist_from_anomaly / 50.0, 0, 1)  # Normalize to 0-1
+
+            # Create gradient overlay
+            gradient_alpha = (1 - dist_from_anomaly)[..., np.newaxis]
+            overlay_color = np.array([0, 0, 255], dtype=np.uint8)  # Red overlay
+            overlay = np.ones_like(colorized_frame) * overlay_color
+
+            output = (colorized_frame * (1 - gradient_alpha * 0.5) + overlay * gradient_alpha * 0.5).astype(np.uint8)
+
+        return output
+
+    # ========================================================================
+    # Enhanced Thermal+Edge Fusion Detection
+    # ========================================================================
+
+    def detect_enhanced_fusion_anomalies(
+        self,
+        thermal_frame: np.ndarray,
+        edge_weight: float = 0.5,
+        min_edge_strength: int = 50,
+        thermal_deviation_multiplier: float = 1.5
+    ) -> List[ThermalAnomaly]:
+        """
+        Detect anomalies using enhanced thermal+edge fusion.
+        Combines temperature analysis with edge detection for intelligent anomaly detection.
+
+        Args:
+            thermal_frame: Thermal image (raw 14-bit or normalized)
+            edge_weight: Balance between thermal (0.0) and edge (1.0) importance
+            min_edge_strength: Minimum edge strength to consider
+            thermal_deviation_multiplier: Multiplier for thermal statistical deviation
+
+        Returns:
+            List of ThermalAnomaly objects
+        """
+        if thermal_frame is None or thermal_frame.size == 0:
+            return []
+
+        anomalies = []
+
+        # 1. Compute thermal statistics
+        stats = self.compute_statistics(thermal_frame)
+        thermal_threshold = stats.mean_temp + (stats.std_temp * thermal_deviation_multiplier)
+
+        # 2. Normalize thermal frame for edge detection
+        thermal_norm = cv2.normalize(thermal_frame.astype(np.float32), None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+
+        # 3. Compute thermal gradient magnitude
+        grad_x = cv2.Sobel(thermal_norm, cv2.CV_64F, 1, 0, ksize=3)
+        grad_y = cv2.Sobel(thermal_norm, cv2.CV_64F, 0, 1, ksize=3)
+        gradient_magnitude = np.sqrt(grad_x**2 + grad_y**2)
+        gradient_magnitude = cv2.normalize(gradient_magnitude, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+
+        # 4. Run Canny edge detection
+        edges = cv2.Canny(thermal_norm, min_edge_strength, min_edge_strength * 2)
+
+        # 5. Identify thermal anomalies (hot regions)
+        thermal_anomaly_mask = (thermal_frame > thermal_threshold).astype(np.uint8) * 255
+
+        # 6. Combine thermal anomalies with edge information
+        # Weight: edge_weight controls balance between thermal and edges
+        thermal_component = thermal_anomaly_mask * (1 - edge_weight)
+        edge_component = gradient_magnitude * edge_weight
+        combined_score = (thermal_component + edge_component).astype(np.uint8)
+
+        # 7. Threshold combined score
+        _, combined_mask = cv2.threshold(combined_score, 100, 255, cv2.THRESH_BINARY)
+
+        # 8. Find contours in combined mask
+        contours, _ = cv2.findContours(combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # 9. Filter and create anomaly objects
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if area < 400:  # Min size filter
+                continue
+
+            # Get bounding box
+            x, y, w, h = cv2.boundingRect(contour)
+            bbox = (x, y, x + w, y + h)
+
+            # Calculate centroid
+            M = cv2.moments(contour)
+            if M['m00'] > 0:
+                cx = int(M['m10'] / M['m00'])
+                cy = int(M['m01'] / M['m00'])
+            else:
+                cx, cy = x + w//2, y + h//2
+
+            # Calculate severity (based on both thermal and edge strength)
+            roi_thermal = thermal_frame[y:y+h, x:x+w]
+            roi_edges = edges[y:y+h, x:x+w]
+
+            thermal_score = (np.mean(roi_thermal) - stats.mean_temp) / (stats.std_temp + 1e-6)
+            edge_score = np.mean(roi_edges) / 255.0
+
+            severity = (thermal_score * (1 - edge_weight) + edge_score * edge_weight)
+            severity = np.clip(severity, 0.0, 1.0)
+
+            anomaly = ThermalAnomaly(
+                anomaly_type=AnomalyType.GRADIENT_ANOMALY,
+                location=(cx, cy),
+                bbox=bbox,
+                severity=severity,
+                description=f"Thermal+Edge fusion anomaly (thermal:{thermal_score:.2f}, edge:{edge_score:.2f})",
+                metadata={
+                    'area': area,
+                    'thermal_score': thermal_score,
+                    'edge_score': edge_score,
+                    'edge_weight': edge_weight
+                }
+            )
+            anomalies.append(anomaly)
+
+        return anomalies
 
     def set_calibration(self, offset: float, scale: float = 1.0):
         """

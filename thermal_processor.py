@@ -10,6 +10,7 @@ import time
 from typing import List, Tuple, Optional, Dict
 from dataclasses import dataclass
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 try:
     import vpi
@@ -97,6 +98,16 @@ class ThermalProcessor:
         self.anomaly_fade_strength = self.config.get("anomaly_fade_strength", 1.0)  # Gradient steepness (0.5-2.0)
         self.anomaly_max_distance = self.config.get("anomaly_max_distance", 100)  # Max pixel distance for gradient
         self.min_edge_cluster_area = self.config.get("min_edge_cluster_area", 500)
+
+        # Parallel processing (Phase 1 optimization)
+        self.enable_parallel_processing = self.config.get("enable_parallel", True)
+        if self.enable_parallel_processing:
+            self.detection_executor = ThreadPoolExecutor(
+                max_workers=2,
+                thread_name_prefix="thermal_proc"
+            )
+        else:
+            self.detection_executor = None
 
         # Legacy palette support (for backward compatibility)
         # New code should use palette_manager instead
@@ -414,6 +425,14 @@ class ThermalProcessor:
             min_area = self.min_edge_cluster_area
             max_area = (frame_w * frame_h) * 0.3
 
+            # Debug logging (only log occasionally to avoid spam)
+            if not hasattr(self, '_edge_debug_counter'):
+                self._edge_debug_counter = 0
+            if len(contours) > 0:
+                self._edge_debug_counter += 1
+                if self._edge_debug_counter % 100 == 0:
+                    logger.info(f"Edge detection: {len(contours)} contours found, min_area={min_area}, max_area={max_area}")
+
             for contour in contours:
                 area = cv2.contourArea(contour)
 
@@ -473,11 +492,29 @@ class ThermalProcessor:
 
         start_time = time.time()
 
-        # Detect motion
-        motion_detections = self.detect_motion(frame) if self.motion_enabled else []
+        # OPTIMIZATION: Parallel motion + edge detection (Phase 1)
+        if self.enable_parallel_processing and self.detection_executor and (self.motion_enabled or self.edge_enabled):
+            # Submit tasks in parallel
+            future_motion = None
+            future_edges = None
 
-        # Detect edges
-        edge_image, edge_clusters = self.detect_edges(frame) if self.edge_enabled else (None, [])
+            if self.motion_enabled:
+                future_motion = self.detection_executor.submit(self.detect_motion, frame)
+
+            if self.edge_enabled:
+                future_edges = self.detection_executor.submit(self.detect_edges, frame)
+
+            # Collect results
+            motion_detections = future_motion.result() if future_motion else []
+            if future_edges:
+                edge_image, edge_clusters = future_edges.result()
+            else:
+                edge_image, edge_clusters = None, []
+
+        else:
+            # FALLBACK: Sequential execution
+            motion_detections = self.detect_motion(frame) if self.motion_enabled else []
+            edge_image, edge_clusters = self.detect_edges(frame) if self.edge_enabled else (None, [])
 
         # Calculate performance metrics
         processing_time = time.time() - start_time
@@ -652,6 +689,12 @@ class ThermalProcessor:
 
     def release(self):
         """Release resources."""
+        # Shutdown thread pool executor (Phase 1 optimization)
+        if hasattr(self, 'detection_executor') and self.detection_executor:
+            logger.info("Shutting down thermal processor executor...")
+            self.detection_executor.shutdown(wait=True, cancel_futures=True)
+            logger.info("Thermal processor executor shutdown complete")
+
         self.is_initialized = False
         self.prev_frame = None
         self.motion_history.clear()

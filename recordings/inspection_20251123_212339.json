@@ -1,0 +1,1751 @@
+{
+  "start_time": "2025-11-23T21:23:39.718109",
+  "fps": 30,
+  "frame_shape": [
+    512,
+    640
+  ],
+  "codec": "mp4v",
+  "frames": [
+    {
+      "frame_number": 0,
+      "timestamp": 0.007002,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 1,
+      "timestamp": 0.038994,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 2,
+      "timestamp": 0.069121,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 3,
+      "timestamp": 0.099657,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 4,
+      "timestamp": 0.125656,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 5,
+      "timestamp": 0.15527,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 6,
+      "timestamp": 0.179779,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 7,
+      "timestamp": 0.206831,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 8,
+      "timestamp": 0.233832,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 9,
+      "timestamp": 0.258623,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 10,
+      "timestamp": 0.28394,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 11,
+      "timestamp": 0.309011,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 12,
+      "timestamp": 0.336926,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 13,
+      "timestamp": 0.362479,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 14,
+      "timestamp": 0.387692,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 15,
+      "timestamp": 0.412605,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 16,
+      "timestamp": 0.439605,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 17,
+      "timestamp": 0.466118,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 18,
+      "timestamp": 0.49427,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 19,
+      "timestamp": 0.520707,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 20,
+      "timestamp": 0.546807,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 21,
+      "timestamp": 0.572494,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 22,
+      "timestamp": 0.598847,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 23,
+      "timestamp": 0.624729,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 24,
+      "timestamp": 0.649798,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 25,
+      "timestamp": 0.676257,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 26,
+      "timestamp": 0.702639,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 27,
+      "timestamp": 0.727638,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 28,
+      "timestamp": 0.754655,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 29,
+      "timestamp": 0.780932,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 30,
+      "timestamp": 0.80744,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 31,
+      "timestamp": 0.832846,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 32,
+      "timestamp": 0.861103,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 33,
+      "timestamp": 0.887304,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 34,
+      "timestamp": 0.913813,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 35,
+      "timestamp": 0.941591,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 36,
+      "timestamp": 0.968609,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 37,
+      "timestamp": 0.995609,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 38,
+      "timestamp": 1.020616,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 39,
+      "timestamp": 1.049494,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 40,
+      "timestamp": 1.078003,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 41,
+      "timestamp": 1.104011,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 42,
+      "timestamp": 1.130007,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 43,
+      "timestamp": 1.158656,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 44,
+      "timestamp": 1.18666,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 45,
+      "timestamp": 1.212667,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 46,
+      "timestamp": 1.23866,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 47,
+      "timestamp": 1.268193,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 48,
+      "timestamp": 1.296012,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 49,
+      "timestamp": 1.323013,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 50,
+      "timestamp": 1.350522,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 51,
+      "timestamp": 1.38054,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 52,
+      "timestamp": 1.40454,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 53,
+      "timestamp": 1.43454,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 54,
+      "timestamp": 1.462591,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 55,
+      "timestamp": 1.489854,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 56,
+      "timestamp": 1.517777,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 57,
+      "timestamp": 1.543858,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 58,
+      "timestamp": 1.569546,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 59,
+      "timestamp": 1.596192,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 60,
+      "timestamp": 1.620603,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 61,
+      "timestamp": 1.6477,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 62,
+      "timestamp": 1.67545,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 63,
+      "timestamp": 1.703347,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 64,
+      "timestamp": 1.728331,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 65,
+      "timestamp": 1.756397,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 66,
+      "timestamp": 1.782781,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 67,
+      "timestamp": 1.809072,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 68,
+      "timestamp": 1.835173,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 69,
+      "timestamp": 1.861898,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 70,
+      "timestamp": 1.887904,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 71,
+      "timestamp": 1.91528,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 72,
+      "timestamp": 1.941539,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 73,
+      "timestamp": 1.969274,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 74,
+      "timestamp": 1.998214,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 75,
+      "timestamp": 2.023443,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 76,
+      "timestamp": 2.048008,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 77,
+      "timestamp": 2.078719,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 78,
+      "timestamp": 2.104786,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 79,
+      "timestamp": 2.132975,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 80,
+      "timestamp": 2.161936,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 81,
+      "timestamp": 2.187983,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 82,
+      "timestamp": 2.216011,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 83,
+      "timestamp": 2.243373,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 84,
+      "timestamp": 2.270289,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 85,
+      "timestamp": 2.298241,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 86,
+      "timestamp": 2.327935,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 87,
+      "timestamp": 2.354499,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 88,
+      "timestamp": 2.381518,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 89,
+      "timestamp": 2.408446,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 90,
+      "timestamp": 2.436222,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 91,
+      "timestamp": 2.464486,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 92,
+      "timestamp": 2.491485,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 93,
+      "timestamp": 2.520262,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 94,
+      "timestamp": 2.546724,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 95,
+      "timestamp": 2.574775,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 96,
+      "timestamp": 2.601804,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 97,
+      "timestamp": 2.628031,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 98,
+      "timestamp": 2.656801,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 99,
+      "timestamp": 2.681583,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 100,
+      "timestamp": 2.706884,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 101,
+      "timestamp": 2.732884,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 102,
+      "timestamp": 2.761924,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 103,
+      "timestamp": 2.789332,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 104,
+      "timestamp": 2.815678,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 105,
+      "timestamp": 2.843219,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 106,
+      "timestamp": 2.871863,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 107,
+      "timestamp": 2.898528,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 108,
+      "timestamp": 2.928527,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 109,
+      "timestamp": 2.957151,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 110,
+      "timestamp": 2.984082,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 111,
+      "timestamp": 3.0116,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 112,
+      "timestamp": 3.038595,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 113,
+      "timestamp": 3.068203,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 114,
+      "timestamp": 3.096419,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 115,
+      "timestamp": 3.125696,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 116,
+      "timestamp": 3.15161,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 117,
+      "timestamp": 3.179404,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 118,
+      "timestamp": 3.211343,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 119,
+      "timestamp": 3.24335,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 120,
+      "timestamp": 3.273267,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 121,
+      "timestamp": 3.304776,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 122,
+      "timestamp": 3.330926,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 123,
+      "timestamp": 3.360037,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 124,
+      "timestamp": 3.388999,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 125,
+      "timestamp": 3.417732,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 126,
+      "timestamp": 3.447605,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 127,
+      "timestamp": 3.473333,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 128,
+      "timestamp": 3.502085,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 129,
+      "timestamp": 3.529581,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 130,
+      "timestamp": 3.556443,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 131,
+      "timestamp": 3.584143,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 132,
+      "timestamp": 3.6118,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 133,
+      "timestamp": 3.640987,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 134,
+      "timestamp": 3.669929,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 135,
+      "timestamp": 3.697925,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 136,
+      "timestamp": 3.725884,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 137,
+      "timestamp": 3.753548,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 138,
+      "timestamp": 3.781393,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 139,
+      "timestamp": 3.81051,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 140,
+      "timestamp": 3.839959,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 141,
+      "timestamp": 3.866959,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 142,
+      "timestamp": 3.895458,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 143,
+      "timestamp": 3.921967,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 144,
+      "timestamp": 3.950131,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 145,
+      "timestamp": 3.976063,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 146,
+      "timestamp": 4.002824,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 147,
+      "timestamp": 4.029824,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 148,
+      "timestamp": 4.057899,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 149,
+      "timestamp": 4.10292,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 150,
+      "timestamp": 4.14192,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 151,
+      "timestamp": 4.178836,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 152,
+      "timestamp": 4.217344,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 153,
+      "timestamp": 4.261091,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 154,
+      "timestamp": 4.298307,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 155,
+      "timestamp": 4.332353,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 156,
+      "timestamp": 4.371497,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 157,
+      "timestamp": 4.407456,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 158,
+      "timestamp": 4.458459,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 159,
+      "timestamp": 4.495178,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 160,
+      "timestamp": 4.53826,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 161,
+      "timestamp": 4.57568,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 162,
+      "timestamp": 4.609682,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 163,
+      "timestamp": 4.637691,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 164,
+      "timestamp": 4.674216,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 165,
+      "timestamp": 4.715209,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 166,
+      "timestamp": 4.747261,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 167,
+      "timestamp": 4.778414,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 168,
+      "timestamp": 4.806412,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 169,
+      "timestamp": 4.834915,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 170,
+      "timestamp": 4.873485,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 171,
+      "timestamp": 4.905486,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 172,
+      "timestamp": 4.934486,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 173,
+      "timestamp": 4.962682,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 174,
+      "timestamp": 4.99427,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 175,
+      "timestamp": 5.033323,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 176,
+      "timestamp": 5.067899,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 177,
+      "timestamp": 5.104901,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 178,
+      "timestamp": 5.137898,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 179,
+      "timestamp": 5.173764,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 180,
+      "timestamp": 5.204292,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 181,
+      "timestamp": 5.230305,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 182,
+      "timestamp": 5.257299,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 183,
+      "timestamp": 5.289179,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 184,
+      "timestamp": 5.317178,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 185,
+      "timestamp": 5.34818,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 186,
+      "timestamp": 5.377363,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 187,
+      "timestamp": 5.408243,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 188,
+      "timestamp": 5.43624,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 189,
+      "timestamp": 5.461172,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 190,
+      "timestamp": 5.489509,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 191,
+      "timestamp": 5.514023,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    },
+    {
+      "frame_number": 192,
+      "timestamp": 5.542874,
+      "thermal_stats": {
+        "min_temp": null,
+        "max_temp": null,
+        "mean_temp": null
+      }
+    }
+  ],
+  "end_time": "2025-11-23T21:23:45.287783",
+  "total_frames": 193,
+  "duration": 5.569674
+}

@@ -40,7 +40,10 @@
       "Bash(powershell -Command \"Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force\")",
       "Bash(timeout 120 python:*)",
       "Bash(tee:*)",
-      "Bash(timeout 35 python inspection_main.py:*)"
+      "Bash(timeout 35 python inspection_main.py:*)",
+      "Bash(dir /b /od *.log *.txt *.dump 2)",
+      "Bash(timeout 20 python:*)",
+      "Bash(timeout 60 python:*)"
     ],
     "deny": [],
     "ask": []

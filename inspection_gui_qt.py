@@ -554,6 +554,9 @@ class InspectionOverlayWidget(QWidget):
         self.anomalies: List[ThermalAnomaly] = []
         self.selected_roi_id: Optional[str] = None
 
+        # Multi-select support
+        self.selected_roi_ids: set = set()  # Set of selected ROI IDs
+
         # ROI drawing state
         self.drawing_mode = False
         self.drawing_type = ROIType.RECTANGLE  # Default
@@ -636,8 +639,10 @@ class InspectionOverlayWidget(QWidget):
 
         # Draw ROIs
         for roi in self.rois:
-            # Determine color and thickness
-            if roi.roi_id == self.selected_roi_id:
+            # Determine color and thickness based on selection state
+            is_selected = roi.roi_id in self.selected_roi_ids or roi.roi_id == self.selected_roi_id
+
+            if is_selected:
                 color = QColor(0, 255, 255)  # Cyan for selected
                 thickness = 3
             elif roi.roi_type == ROIType.RECTANGLE:
@@ -657,6 +662,11 @@ class InspectionOverlayWidget(QWidget):
                 thickness = 2
 
             pen = QPen(color, thickness)
+
+            # Add dashed line style for multi-selected ROIs (not the primary selected one)
+            if is_selected and roi.roi_id != self.selected_roi_id:
+                pen.setStyle(Qt.PenStyle.DashLine)
+
             painter.setPen(pen)
 
             # Draw based on ROI type (with coordinate transformation)
@@ -780,17 +790,72 @@ class InspectionOverlayWidget(QWidget):
         logger.info("Drawing mode disabled")
 
     def mousePressEvent(self, event):
-        """Handle mouse press for ROI drawing."""
+        """Handle mouse press for ROI drawing and selection."""
         if not self.drawing_mode:
             # Check if clicking on existing ROI for selection
             # Transform click to frame coordinates
             click_x, click_y = self.widget_to_frame(event.pos().x(), event.pos().y())
-            
+
+            # Check modifiers for multi-select
+            modifiers = event.modifiers()
+            ctrl_pressed = modifiers & Qt.KeyboardModifier.ControlModifier
+            shift_pressed = modifiers & Qt.KeyboardModifier.ShiftModifier
+
+            clicked_roi = None
             for roi in self.rois:
                 if roi.contains_point((click_x, click_y)):
-                    self.set_selected_roi(roi.roi_id)
-                    self.roi_selected.emit(roi.roi_id)
+                    clicked_roi = roi
                     break
+
+            if clicked_roi:
+                if ctrl_pressed:
+                    # Ctrl+Click: Toggle selection
+                    if clicked_roi.roi_id in self.selected_roi_ids:
+                        self.selected_roi_ids.remove(clicked_roi.roi_id)
+                        logger.info(f"ROI {clicked_roi.roi_id} deselected (multi-select)")
+                    else:
+                        self.selected_roi_ids.add(clicked_roi.roi_id)
+                        logger.info(f"ROI {clicked_roi.roi_id} added to selection (multi-select)")
+
+                    # Set primary selection to clicked ROI
+                    self.set_selected_roi(clicked_roi.roi_id)
+                    self.roi_selected.emit(clicked_roi.roi_id)
+
+                elif shift_pressed:
+                    # Shift+Click: Select range (from last selected to current)
+                    if self.selected_roi_id:
+                        # Find indices of last selected and current
+                        try:
+                            start_idx = next(i for i, r in enumerate(self.rois) if r.roi_id == self.selected_roi_id)
+                            end_idx = next(i for i, r in enumerate(self.rois) if r.roi_id == clicked_roi.roi_id)
+
+                            # Select all ROIs in range
+                            start, end = min(start_idx, end_idx), max(start_idx, end_idx)
+                            for i in range(start, end + 1):
+                                self.selected_roi_ids.add(self.rois[i].roi_id)
+
+                            logger.info(f"Selected ROI range: {end - start + 1} ROIs")
+                        except StopIteration:
+                            pass
+
+                    self.set_selected_roi(clicked_roi.roi_id)
+                    self.roi_selected.emit(clicked_roi.roi_id)
+
+                else:
+                    # Normal click: Single selection (clear others)
+                    self.selected_roi_ids.clear()
+                    self.selected_roi_ids.add(clicked_roi.roi_id)
+                    self.set_selected_roi(clicked_roi.roi_id)
+                    self.roi_selected.emit(clicked_roi.roi_id)
+
+                self.update()  # Redraw to show selection changes
+            else:
+                # Clicked on empty space - clear selection
+                if not ctrl_pressed and not shift_pressed:
+                    self.selected_roi_ids.clear()
+                    self.set_selected_roi(None)
+                    self.update()
+
             return
 
         if self.drawing_type == ROIType.POLYGON:
@@ -960,6 +1025,115 @@ class InspectionOverlayWidget(QWidget):
                     
                 except Exception as e:
                     logger.error(f"Error creating polygon ROI: {e}", exc_info=True)
+
+    def contextMenuEvent(self, event):
+        """Show context menu for ROI operations."""
+        if not self.selected_roi_id:
+            return
+
+        # Find selected ROI
+        selected_roi = None
+        for roi in self.rois:
+            if roi.roi_id == self.selected_roi_id:
+                selected_roi = roi
+                break
+
+        if not selected_roi:
+            return
+
+        menu = QMenu(self)
+
+        # Get total number of selected ROIs
+        num_selected = len(self.selected_roi_ids) if self.selected_roi_ids else 1
+
+        # Set Palette submenu
+        if num_selected > 1:
+            palette_menu = menu.addMenu(f"Set Palette ({num_selected} ROIs)")
+        else:
+            palette_menu = menu.addMenu("Set Palette")
+
+        # Add all available palettes
+        palettes = [
+            ("white_hot", "White Hot"),
+            ("black_hot", "Black Hot"),
+            ("ironbow", "Ironbow"),
+            ("rainbow", "Rainbow"),
+            ("lava", "Lava"),
+            ("arctic", "Arctic"),
+            ("medical", "Medical"),
+            ("plasma", "Plasma"),
+            ("amber", "Amber"),
+            ("gray", "Gray")
+        ]
+
+        for palette_id, palette_name in palettes:
+            action = palette_menu.addAction(palette_name)
+            action.triggered.connect(lambda checked, p=palette_id: self._set_roi_palette(p))
+
+        # Clear palette option
+        clear_action = palette_menu.addAction("Clear Custom Palette")
+        clear_action.triggered.connect(self._clear_roi_palette)
+
+        menu.addSeparator()
+
+        # Delete ROI option
+        if num_selected > 1:
+            delete_action = menu.addAction(f"Delete {num_selected} ROIs")
+        else:
+            delete_action = menu.addAction("Delete ROI")
+        delete_action.triggered.connect(self._delete_selected_roi)
+
+        menu.exec(event.globalPos())
+
+    def _set_roi_palette(self, palette_name: str):
+        """Set palette for all selected ROIs."""
+        parent_window = self.window()
+        if not hasattr(parent_window, '_on_roi_palette_changed'):
+            return
+
+        # Get all ROI IDs to update (multi-select or just primary)
+        roi_ids = list(self.selected_roi_ids) if self.selected_roi_ids else [self.selected_roi_id]
+
+        for roi_id in roi_ids:
+            if roi_id:
+                parent_window._on_roi_palette_changed(roi_id, palette_name)
+
+        logger.info(f"Setting palette '{palette_name}' for {len(roi_ids)} ROI(s)")
+
+    def _clear_roi_palette(self):
+        """Clear custom palette for all selected ROIs."""
+        parent_window = self.window()
+        if not hasattr(parent_window, '_on_roi_palette_cleared'):
+            return
+
+        # Get all ROI IDs to update (multi-select or just primary)
+        roi_ids = list(self.selected_roi_ids) if self.selected_roi_ids else [self.selected_roi_id]
+
+        for roi_id in roi_ids:
+            if roi_id:
+                parent_window._on_roi_palette_cleared(roi_id)
+
+        logger.info(f"Clearing custom palette for {len(roi_ids)} ROI(s)")
+
+    def _delete_selected_roi(self):
+        """Delete all selected ROIs."""
+        parent_window = self.window()
+        if not hasattr(parent_window, '_on_roi_delete'):
+            return
+
+        # Get all ROI IDs to delete (multi-select or just primary)
+        roi_ids = list(self.selected_roi_ids) if self.selected_roi_ids else [self.selected_roi_id]
+
+        for roi_id in roi_ids:
+            if roi_id:
+                parent_window._on_roi_delete(roi_id)
+
+        logger.info(f"Deleting {len(roi_ids)} ROI(s)")
+
+        # Clear multi-select after deletion
+        self.selected_roi_ids.clear()
+        self.selected_roi_id = None
+        self.update()
 
 class VideoWidget(QLabel):
     """
@@ -1355,8 +1529,9 @@ class ThermalAnalysisPanel(QWidget):
     Right sidebar panel for thermal analysis display.
     Shows temperature statistics, hot/cold spots, trends, and anomalies.
     """
-    
+
     baseline_toggled = pyqtSignal(bool)
+    global_palette_changed = pyqtSignal(str)  # Emits palette name
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1395,9 +1570,29 @@ class ThermalAnalysisPanel(QWidget):
             line.setPalette(palette)
             return line
 
+        # === Global Palette Selection ===
+        self.content_layout.addWidget(create_section_header("🎨 Palette"))
+
+        global_palette_layout = QHBoxLayout()
+        global_palette_layout.setSpacing(8)
+        palette_label = QLabel("Global:")
+        font = QFont()
+        font.setPointSize(10)
+        palette_label.setFont(font)
+        global_palette_layout.addWidget(palette_label)
+
+        self.global_palette_combo = QComboBox()
+        self.global_palette_combo.setMinimumHeight(28)
+        # Populate with categorized palettes
+        self._populate_palette_combo(self.global_palette_combo)
+        global_palette_layout.addWidget(self.global_palette_combo, 1)
+        self.content_layout.addLayout(global_palette_layout)
+
+        self.content_layout.addWidget(create_separator())
+
         # === Temperature Statistics ===
         self.content_layout.addWidget(create_section_header("📊 Temperature Statistics"))
-        
+
         self.stats_label = QLabel("No data")
         self.stats_label.setWordWrap(True)
         font = QFont("Consolas", 10)  # Larger, more readable font
@@ -1471,9 +1666,8 @@ class ThermalAnalysisPanel(QWidget):
         
         self.roi_palette_combo = QComboBox()
         self.roi_palette_combo.setMinimumHeight(28)
-        # Populate with all 45 palettes
-        for palette in PaletteType:
-            self.roi_palette_combo.addItem(palette.value.replace('_', ' ').title(), palette.value)
+        # Populate with categorized palettes (same as global)
+        self._populate_palette_combo(self.roi_palette_combo)
         roi_palette_layout.addWidget(self.roi_palette_combo, 1)
         self.content_layout.addLayout(roi_palette_layout)
         
@@ -1493,8 +1687,69 @@ class ThermalAnalysisPanel(QWidget):
 
         scroll.setWidget(content)
         main_layout.addWidget(scroll)
-        
+
         self.baseline_btn.toggled.connect(self.baseline_toggled.emit)
+        self.global_palette_combo.currentTextChanged.connect(self._on_global_palette_changed)
+
+    def _populate_palette_combo(self, combo: QComboBox):
+        """Populate a combo box with categorized palettes."""
+        palette_categories = [
+            ("GRAYSCALE", [
+                PaletteType.WHITE_HOT, PaletteType.BLACK_HOT,
+                PaletteType.GRAY, PaletteType.SEPIA
+            ]),
+            ("IRON/FIRE", [
+                PaletteType.IRONBOW, PaletteType.LAVA, PaletteType.GRADEDFIRE,
+                PaletteType.HOTTEST, PaletteType.AMBER, PaletteType.INFERNO
+            ]),
+            ("RAINBOW", [
+                PaletteType.RAINBOW, PaletteType.RAINBOW_HC, PaletteType.RAINBOW_REVERSED,
+                PaletteType.SPECTRAL, PaletteType.COOL_HOT
+            ]),
+            ("COLD/ARCTIC", [
+                PaletteType.ARCTIC, PaletteType.ICE,
+                PaletteType.WINTER, PaletteType.OCEAN
+            ]),
+            ("SCIENTIFIC", [
+                PaletteType.VIRIDIS, PaletteType.PLASMA, PaletteType.MAGMA,
+                PaletteType.CIVIDIS, PaletteType.TURBO
+            ]),
+            ("DIVERGING", [
+                PaletteType.BLUE_RED, PaletteType.COOL_WARM, PaletteType.PURPLE_ORANGE,
+                PaletteType.GREEN_RED, PaletteType.BLUE_YELLOW, PaletteType.PINK_GREEN
+            ]),
+            ("SEQUENTIAL", [
+                PaletteType.GLOBOW, PaletteType.MEDICAL, PaletteType.THERMAL,
+                PaletteType.HELIX, PaletteType.CUBEHELIX, PaletteType.TWILIGHT, PaletteType.DUSK
+            ]),
+            ("SPECIALIZED", [
+                PaletteType.FUSION, PaletteType.PRISM, PaletteType.ALARM,
+                PaletteType.LAPLACIAN, PaletteType.ISOTHERM, PaletteType.VELOCITY,
+                PaletteType.TERRAIN, PaletteType.DEPTH
+            ])
+        ]
+
+        for category_name, palettes in palette_categories:
+            # Add category header (non-selectable)
+            combo.addItem(f"──── {category_name} ────")
+            category_index = combo.count() - 1
+            combo.model().item(category_index).setEnabled(False)
+            # Style the header
+            font = QFont()
+            font.setBold(True)
+            font.setPointSize(9)
+            combo.model().item(category_index).setFont(font)
+
+            # Add palettes in this category
+            for palette in palettes:
+                display_name = "  " + palette.value.replace('_', ' ').title()
+                combo.addItem(display_name, palette.value)
+
+    def _on_global_palette_changed(self, text: str):
+        """Handle global palette selection change."""
+        palette_name = self.global_palette_combo.currentData()
+        if palette_name:
+            self.global_palette_changed.emit(palette_name)
 
     def update_rois(self, rois: List[ROI]):
         """Update ROI list."""
@@ -1556,6 +1811,236 @@ class ThermalAnalysisPanel(QWidget):
 
 
 # ============================================================================
+# Manual Threshold Widget
+# ============================================================================
+
+class ManualThresholdWidget(QWidget):
+    """Manual threshold-based anomaly detection widget."""
+
+    # Signals
+    threshold_mode_changed = pyqtSignal(str)  # "above", "below", "between", "outside"
+    min_threshold_changed = pyqtSignal(float)
+    max_threshold_changed = pyqtSignal(float)
+    visualization_mode_changed = pyqtSignal(str)
+    use_raw_values_changed = pyqtSignal(bool)
+    enabled_changed = pyqtSignal(bool)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        # State
+        self.enabled = False
+
+        self._init_ui()
+        self._connect_signals()
+
+    def _init_ui(self):
+        """Initialize widget UI components."""
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(5, 5, 5, 5)
+        main_layout.setSpacing(10)
+
+        # Enable/Disable toggle
+        enable_group = QGroupBox("MANUAL THRESHOLD MODE")
+        enable_layout = QVBoxLayout(enable_group)
+
+        self.enable_toggle = QPushButton("Manual Mode: OFF")
+        self.enable_toggle.setCheckable(True)
+        self.enable_toggle.setMinimumHeight(35)
+        self.enable_toggle.setToolTip("Enable manual threshold-based anomaly detection")
+        enable_layout.addWidget(self.enable_toggle)
+
+        main_layout.addWidget(enable_group)
+
+        # Threshold configuration (initially hidden)
+        self.config_widget = QWidget()
+        config_layout = QVBoxLayout(self.config_widget)
+        config_layout.setContentsMargins(0, 0, 0, 0)
+        config_layout.setSpacing(10)
+
+        # Value type selection
+        value_type_group = QGroupBox("VALUE TYPE")
+        value_type_layout = QHBoxLayout(value_type_group)
+
+        self.percent_radio = QPushButton("Percentage")
+        self.percent_radio.setCheckable(True)
+        self.percent_radio.setChecked(True)
+        self.percent_radio.setToolTip("Use percentage values (0-100%)")
+
+        self.advanced_radio = QPushButton("Advanced (Raw)")
+        self.advanced_radio.setCheckable(True)
+        self.advanced_radio.setToolTip("Use raw 14-bit thermal values (0-16383) - Advanced users only")
+
+        value_type_layout.addWidget(self.percent_radio)
+        value_type_layout.addWidget(self.advanced_radio)
+        config_layout.addWidget(value_type_group)
+
+        # Threshold mode selection
+        mode_group = QGroupBox("THRESHOLD MODE")
+        mode_layout = QVBoxLayout(mode_group)
+
+        mode_label = QLabel("Detection Mode:")
+        mode_layout.addWidget(mode_label)
+
+        self.threshold_mode_combo = QComboBox()
+        self.threshold_mode_combo.addItems([
+            "Above Threshold",
+            "Below Threshold",
+            "Between Thresholds",
+            "Outside Thresholds"
+        ])
+        self.threshold_mode_combo.setToolTip("Select how to detect anomalies")
+        mode_layout.addWidget(self.threshold_mode_combo)
+
+        config_layout.addWidget(mode_group)
+
+        # Threshold values
+        threshold_group = QGroupBox("THRESHOLD VALUES")
+        threshold_layout = QVBoxLayout(threshold_group)
+
+        # Min threshold
+        min_layout = QHBoxLayout()
+        min_layout.addWidget(QLabel("Min Threshold:"))
+        self.min_threshold_spin = QSpinBox()
+        self.min_threshold_spin.setRange(0, 100)
+        self.min_threshold_spin.setValue(50)
+        self.min_threshold_spin.setSuffix("%")
+        self.min_threshold_spin.setToolTip("Minimum threshold percentage")
+        min_layout.addWidget(self.min_threshold_spin)
+        threshold_layout.addLayout(min_layout)
+
+        # Max threshold
+        max_layout = QHBoxLayout()
+        max_layout.addWidget(QLabel("Max Threshold:"))
+        self.max_threshold_spin = QSpinBox()
+        self.max_threshold_spin.setRange(0, 100)
+        self.max_threshold_spin.setValue(75)
+        self.max_threshold_spin.setSuffix("%")
+        self.max_threshold_spin.setToolTip("Maximum threshold percentage (for BETWEEN/OUTSIDE modes)")
+        max_layout.addWidget(self.max_threshold_spin)
+        threshold_layout.addLayout(max_layout)
+
+        self.threshold_hint = QLabel("Using percentage (0-100%)")
+        self.threshold_hint.setStyleSheet("font-size: 9px; color: #888;")
+        threshold_layout.addWidget(self.threshold_hint)
+
+        config_layout.addWidget(threshold_group)
+
+        # Visualization mode
+        viz_group = QGroupBox("VISUALIZATION")
+        viz_layout = QVBoxLayout(viz_group)
+
+        viz_label = QLabel("Display Mode:")
+        viz_layout.addWidget(viz_label)
+
+        self.viz_mode_combo = QComboBox()
+        self.viz_mode_combo.addItems([
+            "Grayscale Non-Anomalies",
+            "Highlight Anomalies",
+            "Binary Mask",
+            "Gradient Overlay"
+        ])
+        self.viz_mode_combo.setToolTip("Choose how to visualize detected anomalies")
+        viz_layout.addWidget(self.viz_mode_combo)
+
+        config_layout.addWidget(viz_group)
+
+        # Statistics display
+        stats_group = QGroupBox("DETECTION STATISTICS")
+        stats_layout = QVBoxLayout(stats_group)
+
+        self.anomaly_percentage_label = QLabel("Anomalies: 0.0%")
+        self.anomaly_percentage_label.setStyleSheet("font-size: 12px; font-weight: bold;")
+        stats_layout.addWidget(self.anomaly_percentage_label)
+
+        self.anomaly_count_label = QLabel("0 / 0 pixels")
+        self.anomaly_count_label.setStyleSheet("font-size: 10px; color: #888;")
+        stats_layout.addWidget(self.anomaly_count_label)
+
+        config_layout.addWidget(stats_group)
+
+        main_layout.addWidget(self.config_widget)
+        self.config_widget.setVisible(False)
+
+        main_layout.addStretch()
+
+    def _connect_signals(self):
+        """Connect internal signals."""
+        self.enable_toggle.toggled.connect(self._on_enable_toggled)
+        self.percent_radio.clicked.connect(lambda: self._on_value_type_changed(False))
+        self.advanced_radio.clicked.connect(lambda: self._on_value_type_changed(True))
+        self.threshold_mode_combo.currentTextChanged.connect(self._on_threshold_mode_changed)
+        self.min_threshold_spin.valueChanged.connect(self.min_threshold_changed.emit)
+        self.max_threshold_spin.valueChanged.connect(self.max_threshold_changed.emit)
+        self.viz_mode_combo.currentTextChanged.connect(self._on_viz_mode_changed)
+
+    def _on_enable_toggled(self, checked: bool):
+        """Handle enable/disable toggle."""
+        self.enabled = checked
+        self.enable_toggle.setText(f"Manual Mode: {'ON' if checked else 'OFF'}")
+        self.config_widget.setVisible(checked)
+        self.enabled_changed.emit(checked)
+
+    def _on_value_type_changed(self, use_raw: bool):
+        """Handle value type radio button change."""
+        self.percent_radio.setChecked(not use_raw)
+        self.advanced_radio.setChecked(use_raw)
+
+        if use_raw:
+            # Advanced mode: Raw values
+            self.min_threshold_spin.setRange(0, 16383)
+            self.max_threshold_spin.setRange(0, 16383)
+            self.min_threshold_spin.setSuffix("")
+            self.max_threshold_spin.setSuffix("")
+            self.min_threshold_spin.setValue(8000)
+            self.max_threshold_spin.setValue(12000)
+            self.threshold_hint.setText("Using raw values (0-16383) - Advanced mode")
+        else:
+            # Default mode: Percentage
+            self.min_threshold_spin.setRange(0, 100)
+            self.max_threshold_spin.setRange(0, 100)
+            self.min_threshold_spin.setSuffix("%")
+            self.max_threshold_spin.setSuffix("%")
+            self.min_threshold_spin.setValue(50)
+            self.max_threshold_spin.setValue(75)
+            self.threshold_hint.setText("Using percentage (0-100%)")
+
+        self.use_raw_values_changed.emit(use_raw)
+
+    def _on_threshold_mode_changed(self, text: str):
+        """Handle threshold mode combo change."""
+        mode_map = {
+            "Above Threshold": "above",
+            "Below Threshold": "below",
+            "Between Thresholds": "between",
+            "Outside Thresholds": "outside"
+        }
+        mode = mode_map.get(text, "above")
+
+        # Enable/disable max threshold based on mode
+        needs_max = mode in ["between", "outside"]
+        self.max_threshold_spin.setEnabled(needs_max)
+
+        self.threshold_mode_changed.emit(mode)
+
+    def _on_viz_mode_changed(self, text: str):
+        """Handle visualization mode combo change."""
+        viz_map = {
+            "Grayscale Non-Anomalies": "grayscale_non_anomaly",
+            "Highlight Anomalies": "color_non_anomaly",
+            "Binary Mask": "binary_mask",
+            "Gradient Overlay": "gradient_overlay"
+        }
+        mode = viz_map.get(text, "grayscale_non_anomaly")
+        self.visualization_mode_changed.emit(mode)
+
+    def update_statistics(self, anomaly_percentage: float, anomaly_count: int, total_pixels: int):
+        """Update detection statistics display."""
+        self.anomaly_percentage_label.setText(f"Anomalies: {anomaly_percentage:.2f}%")
+        self.anomaly_count_label.setText(f"{anomaly_count:,} / {total_pixels:,} pixels")
+
+
+# ============================================================================
 # Anomaly Priority Control Widget
 # ============================================================================
 
@@ -1583,7 +2068,8 @@ class AnomalyWidget(QWidget):
             "edges": True,
             "hot_spots": True,
             "cold_spots": True,
-            "thermal_anomalies": True
+            "thermal_anomalies": True,
+            "enhanced_fusion": False  # Off by default
         }
 
         self.anomaly_counts = {
@@ -1591,7 +2077,8 @@ class AnomalyWidget(QWidget):
             "edges": 0,
             "hot_spots": 0,
             "cold_spots": 0,
-            "thermal_anomalies": 0
+            "thermal_anomalies": 0,
+            "enhanced_fusion": 0
         }
 
         self._init_ui()
@@ -1665,7 +2152,8 @@ class AnomalyWidget(QWidget):
             ("edges", "Edge Clusters", "Thermal boundary edges"),
             ("hot_spots", "Hot Spots", "95th percentile temperature"),
             ("cold_spots", "Cold Spots", "5th percentile temperature"),
-            ("thermal_anomalies", "Thermal Anomalies", "Statistical outliers")
+            ("thermal_anomalies", "Thermal Anomalies", "Statistical outliers"),
+            ("enhanced_fusion", "Enhanced Thermal+Edge Fusion", "Intelligent thermal and edge combination")
         ]
 
         for key, label, tooltip in anomaly_type_configs:
@@ -2241,6 +2729,43 @@ class BosonControlPanel(QWidget):
         self.ffc_status_label.setStyleSheet(f"font-size: 10px; color: {color};")
 
 
+# ============================================================================
+# Combined Anomaly Control Widget (Automatic + Manual)
+# ============================================================================
+
+class CombinedAnomalyWidget(QWidget):
+    """
+    Combined anomaly detection widget with automatic and manual modes.
+    Uses tabs to switch between automatic (image analysis) and manual (threshold) modes.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedWidth(380)
+
+        self._init_ui()
+
+    def _init_ui(self):
+        """Initialize widget UI components."""
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Create tab widget for mode switching
+        self.mode_tabs = QTabWidget()
+        self.mode_tabs.setDocumentMode(False)
+
+        # Automatic mode (existing anomaly widget)
+        self.automatic_widget = AnomalyWidget()
+        self.mode_tabs.addTab(self.automatic_widget, "Automatic")
+
+        # Manual threshold mode
+        self.manual_widget = ManualThresholdWidget()
+        self.mode_tabs.addTab(self.manual_widget, "Manual")
+
+        main_layout.addWidget(self.mode_tabs)
+
+
 class InspectionAppWindow(QMainWindow):
     """
     Main inspection application window.
@@ -2301,9 +2826,13 @@ class InspectionAppWindow(QMainWindow):
         self.analysis_panel = ThermalAnalysisPanel()
         self.right_panel_tabs.addTab(self.analysis_panel, "Analysis")
 
-        # Add Anomaly Widget tab
-        self.anomaly_widget = AnomalyWidget()
-        self.right_panel_tabs.addTab(self.anomaly_widget, "Anomaly")
+        # Add Combined Anomaly Widget tab (Automatic + Manual modes)
+        self.combined_anomaly_widget = CombinedAnomalyWidget()
+        self.right_panel_tabs.addTab(self.combined_anomaly_widget, "Anomaly")
+
+        # Keep reference to individual widgets for signal connections
+        self.anomaly_widget = self.combined_anomaly_widget.automatic_widget
+        self.manual_threshold_widget = self.combined_anomaly_widget.manual_widget
 
         # Add Boson Control Panel tab
         self.boson_panel = BosonControlPanel()
@@ -2351,6 +2880,7 @@ class InspectionAppWindow(QMainWindow):
         
         # Analysis
         self.analysis_panel.baseline_toggled.connect(self._on_baseline_toggle)
+        self.analysis_panel.global_palette_changed.connect(self._on_global_palette_changed)
 
         # Boson Control Panel
         self.boson_panel.ffc_triggered.connect(self._on_boson_ffc)
@@ -2367,6 +2897,14 @@ class InspectionAppWindow(QMainWindow):
         self.anomaly_widget.hot_spot_percentile_changed.connect(self._on_hot_spot_percentile_changed)
         self.anomaly_widget.cold_spot_percentile_changed.connect(self._on_cold_spot_percentile_changed)
         self.anomaly_widget.min_anomaly_size_changed.connect(self._on_min_anomaly_size_changed)
+
+        # Manual Threshold Widget
+        self.manual_threshold_widget.enabled_changed.connect(self._on_manual_threshold_enabled)
+        self.manual_threshold_widget.threshold_mode_changed.connect(self._on_manual_threshold_mode_changed)
+        self.manual_threshold_widget.min_threshold_changed.connect(self._on_manual_min_threshold_changed)
+        self.manual_threshold_widget.max_threshold_changed.connect(self._on_manual_max_threshold_changed)
+        self.manual_threshold_widget.use_raw_values_changed.connect(self._on_manual_use_raw_changed)
+        self.manual_threshold_widget.visualization_mode_changed.connect(self._on_manual_viz_mode_changed)
 
         # ROI Overlay signals
         if hasattr(self.video_widget, 'overlay'):
@@ -2615,6 +3153,42 @@ class InspectionAppWindow(QMainWindow):
             self.app.thermal_analyzer.min_anomaly_size = value
         logger.info(f"Min anomaly size: {value}px²")
 
+    def _on_manual_threshold_enabled(self, enabled: bool):
+        """Handle manual threshold enable/disable."""
+        if self.app:
+            self.app.set_manual_threshold_enabled(enabled)
+        logger.info(f"Manual threshold: {'ENABLED' if enabled else 'DISABLED'}")
+
+    def _on_manual_threshold_mode_changed(self, mode: str):
+        """Handle manual threshold mode changes."""
+        if self.app:
+            self.app.set_manual_threshold_mode(mode)
+        logger.info(f"Manual threshold mode: {mode}")
+
+    def _on_manual_min_threshold_changed(self, value: float):
+        """Handle manual minimum threshold changes."""
+        if self.app:
+            self.app.set_manual_min_threshold(value)
+        logger.info(f"Manual min threshold: {value}")
+
+    def _on_manual_max_threshold_changed(self, value: float):
+        """Handle manual maximum threshold changes."""
+        if self.app:
+            self.app.set_manual_max_threshold(value)
+        logger.info(f"Manual max threshold: {value}")
+
+    def _on_manual_use_raw_changed(self, use_raw: bool):
+        """Handle manual threshold raw values toggle."""
+        if self.app:
+            self.app.set_manual_use_raw_values(use_raw)
+        logger.info(f"Manual threshold using: {'RAW values' if use_raw else 'Temperature (°C)'}")
+
+    def _on_manual_viz_mode_changed(self, mode: str):
+        """Handle manual threshold visualization mode changes."""
+        if self.app:
+            self.app.set_manual_viz_mode(mode)
+        logger.info(f"Manual threshold viz mode: {mode}")
+
     def _on_fusion_mode_cycle(self):
         """Cycle fusion mode."""
         if self.app:
@@ -2640,6 +3214,12 @@ class InspectionAppWindow(QMainWindow):
             if hasattr(self.app, 'lock_baseline'):
                 self.app.lock_baseline(enabled)
         logger.info(f"Baseline lock: {'ON' if enabled else 'OFF'}")
+
+    def _on_global_palette_changed(self, palette_name: str):
+        """Handle global palette selection from analysis panel."""
+        if self.app:
+            self.app.set_palette(palette_name)
+        logger.info(f"Global palette changed: {palette_name}")
 
     def _on_boson_ffc(self):
         """Handle FFC trigger from Boson panel."""
@@ -2686,6 +3266,30 @@ class InspectionAppWindow(QMainWindow):
             if roi:
                 # Could update a detail panel here
                 pass
+
+    def _on_roi_palette_changed(self, roi_id: str, palette_name: str):
+        """Handle ROI palette change."""
+        if self.app and hasattr(self.app, 'palette_manager'):
+            from palette_manager import PaletteType
+            try:
+                # Convert string name to PaletteType enum
+                palette_type = PaletteType[palette_name.upper()]
+                self.app.palette_manager.set_roi_palette(roi_id, palette_type)
+                logger.info(f"ROI {roi_id} palette set to: {palette_name}")
+            except KeyError:
+                logger.error(f"Unknown palette: {palette_name}")
+
+    def _on_roi_palette_cleared(self, roi_id: str):
+        """Handle ROI palette clear."""
+        if self.app and hasattr(self.app, 'palette_manager'):
+            self.app.palette_manager.clear_roi_palette(roi_id)
+            logger.info(f"ROI {roi_id} palette cleared (using global)")
+
+    def _on_roi_delete(self, roi_id: str):
+        """Handle ROI deletion."""
+        if self.app and hasattr(self.app, 'roi_manager'):
+            self.app.roi_manager.delete_roi(roi_id)
+            logger.info(f"ROI {roi_id} deleted")
 
     def update_frame(self, frame: np.ndarray):
         """Update video display."""

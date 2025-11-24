@@ -244,12 +244,12 @@ class PaletteManager:
 
         # SEPIA - warm sepia tones (cold=dark brown, hot=light beige)
         self.palette_cache[PaletteType.SEPIA] = self._create_gradient_palette([
-            (20, 15, 10),    # Very dark brown (BGR)
-            (60, 50, 40),    # Dark brown (BGR)
-            (112, 66, 20),   # Sepia brown (BGR)
-            (156, 102, 50),  # Light sepia (BGR)
-            (204, 160, 116), # Beige (BGR)
-            (240, 220, 195)  # Light beige (BGR)
+            (10, 15, 20),    # Very dark brown (BGR: low blue, low green, low red)
+            (40, 50, 60),    # Dark brown (BGR)
+            (20, 66, 112),   # Sepia brown (BGR: low blue, moderate green, high red)
+            (50, 102, 156),  # Light sepia (BGR)
+            (116, 160, 204), # Beige (BGR)
+            (195, 220, 240)  # Light beige (BGR)
         ])
 
         # ===== NEW FIRE/HEAT PALETTES =====
