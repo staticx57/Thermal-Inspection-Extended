@@ -4118,17 +4118,20 @@ class CameraManagerDialog(QDialog):
         
     def _init_ui(self):
         layout = QVBoxLayout(self)
-        
+
         # Camera Status Group
         status_group = QGroupBox("Current Assignment")
         status_layout = QGridLayout()
-        
+
         status_layout.addWidget(QLabel("Thermal Camera:"), 0, 0)
-        self.thermal_label = QLabel(f"Device {getattr(self.app.args, 'thermal_device', 0)}")
+        args_obj = getattr(self.app, 'args', None)
+        thermal_dev = getattr(args_obj, 'thermal_device', 0) if args_obj is not None else 0
+        if thermal_dev is None: thermal_dev = 0
+        self.thermal_label = QLabel(f"Device {thermal_dev}")
         status_layout.addWidget(self.thermal_label, 0, 1)
-        
+
         status_layout.addWidget(QLabel("RGB Camera:"), 1, 0)
-        rgb_dev = getattr(self.app.args, 'rgb_device', None)
+        rgb_dev = getattr(args_obj, 'rgb_device', None) if args_obj is not None else None
         self.rgb_label = QLabel(f"Device {rgb_dev if rgb_dev is not None else 'Auto'}")
         status_layout.addWidget(self.rgb_label, 1, 1)
         
@@ -4157,13 +4160,16 @@ class CameraManagerDialog(QDialog):
         manual_layout.addWidget(QLabel("Thermal Device ID:"), 0, 0)
         self.thermal_spin = QSpinBox()
         self.thermal_spin.setRange(0, 10)
-        self.thermal_spin.setValue(getattr(self.app.args, 'thermal_device', 0))
+        args_obj = getattr(self.app, 'args', None)
+        thermal_dev = getattr(args_obj, 'thermal_device', 0) if args_obj is not None else 0
+        if thermal_dev is None: thermal_dev = 0
+        self.thermal_spin.setValue(thermal_dev)
         manual_layout.addWidget(self.thermal_spin, 0, 1)
-        
+
         manual_layout.addWidget(QLabel("RGB Device ID:"), 1, 0)
         self.rgb_spin = QSpinBox()
         self.rgb_spin.setRange(0, 10)
-        val = getattr(self.app.args, 'rgb_device', 0)
+        val = getattr(args_obj, 'rgb_device', 0) if args_obj is not None else 0
         if val is None: val = 0
         self.rgb_spin.setValue(val)
         manual_layout.addWidget(self.rgb_spin, 1, 1)
@@ -4246,12 +4252,14 @@ class CameraManagerDialog(QDialog):
             QMessageBox.information(self, "Success", "Cameras reassigned successfully.")
 
     def _update_labels(self):
-        self.thermal_label.setText(f"Device {getattr(self.app.args, 'thermal_device', 0)}")
-        rgb_dev = getattr(self.app.args, 'rgb_device', None)
+        args_obj = getattr(self.app, 'args', None)
+        thermal_dev = getattr(args_obj, 'thermal_device', 0) if args_obj is not None else 0
+        if thermal_dev is None: thermal_dev = 0
+        self.thermal_label.setText(f"Device {thermal_dev}")
+        rgb_dev = getattr(args_obj, 'rgb_device', None) if args_obj is not None else None
         self.rgb_label.setText(f"Device {rgb_dev if rgb_dev is not None else 'Auto'}")
-        self.thermal_spin.setValue(getattr(self.app.args, 'thermal_device', 0))
-        val = getattr(self.app.args, 'rgb_device', 0)
-        if val is None: val = 0
+        self.thermal_spin.setValue(thermal_dev)
+        val = rgb_dev if rgb_dev is not None else 0
         self.rgb_spin.setValue(val)
 
 
@@ -5117,8 +5125,12 @@ class InspectionAppWindow(QMainWindow):
         """Handle camera manager button click."""
         if not self.app:
             return
-        dialog = CameraManagerDialog(self.app, self)
-        dialog.exec()
+        try:
+            dialog = CameraManagerDialog(self.app, self)
+            dialog.exec()
+        except Exception as e:
+            logger.error(f"Camera manager dialog error: {e}", exc_info=True)
+            QMessageBox.critical(self, "Error", f"Failed to open camera manager: {e}")
     
     # ==========================================================================
     # Firefly Camera Control Handlers
