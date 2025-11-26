@@ -1,18 +1,6 @@
 {
   "cameras": [
     {
-      "device_id": 0,
-      "name": "FLIR Boson 640x512 (Camera 1)",
-      "resolution": [
-        640,
-        512
-      ],
-      "driver": "DSHOW/MSMF",
-      "role": "thermal",
-      "is_connected": true,
-      "manual_override": false
-    },
-    {
       "device_id": 2,
       "name": "Camera 2 (DSHOW)",
       "resolution": [
@@ -23,6 +11,30 @@
       "role": "rgb",
       "is_connected": true,
       "manual_override": true
+    },
+    {
+      "device_id": -1,
+      "name": "Firefly FFY-U3-16S2C-DL",
+      "resolution": [
+        640,
+        480
+      ],
+      "driver": "spinnaker",
+      "role": "rgb",
+      "is_connected": true,
+      "manual_override": false
+    },
+    {
+      "device_id": 0,
+      "name": "FLIR Boson 640x512 (Camera 0)",
+      "resolution": [
+        640,
+        512
+      ],
+      "driver": "DSHOW/MSMF",
+      "role": "thermal",
+      "is_connected": true,
+      "manual_override": false
     },
     {
       "device_id": 1,

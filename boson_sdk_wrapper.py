@@ -386,6 +386,288 @@ class BosonSDK:
             return None
 
     # ========================================================================
+    # RADIOMETRY - Temperature Measurement & Calibration (Phase 1)
+    # ========================================================================
+
+    def enable_radiometry(self) -> bool:
+        """Enable radiometric temperature measurement."""
+        if not self.connected or not self.camera:
+            return False
+
+        try:
+            result = self.camera.radiometrySetTempStableEnable(1)
+            if result.value == 0:
+                logger.info("Radiometry enabled")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to enable radiometry: {e}")
+            return False
+
+    def get_lens_temperature(self) -> Optional[float]:
+        """Get lens housing temperature in Celsius."""
+        if not self.connected or not self.camera:
+            return None
+
+        try:
+            result, temp_k = self.camera.radiometryGetTempLensHousing()
+            if result.value == 0:
+                return (temp_k / 10.0) - 273.15
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get lens temperature: {e}")
+            return None
+
+    def get_shutter_temperature(self) -> Optional[float]:
+        """Get shutter housing temperature in Celsius."""
+        if not self.connected or not self.camera:
+            return None
+
+        try:
+            result, temp_k = self.camera.radiometryGetTempShutterHousing()
+            if result.value == 0:
+                return (temp_k / 10.0) - 273.15
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get shutter temperature: {e}")
+            return None
+
+    def set_lens_parameters(self, f_number: float, transmission: float) -> bool:
+        """
+        Set lens optical parameters for accurate temperature calculation.
+
+        Args:
+            f_number: Lens F-number (e.g., 1.0, 1.4, 2.0)
+            transmission: Lens transmission coefficient (0.0-1.0)
+
+        Returns:
+            True if successful
+        """
+        if not self.connected or not self.camera:
+            return False
+
+        try:
+            # SDK expects f_number * 100 and transmission * 8192
+            result1 = self.camera.radiometrySetFNumberLens0(int(f_number * 100))
+            result2 = self.camera.radiometrySetTauLens0(int(transmission * 8192))
+
+            if result1.value == 0 and result2.value == 0:
+                logger.info(f"Lens parameters set: F/{f_number:.1f}, T={transmission:.2f}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to set lens parameters: {e}")
+            return False
+
+    def get_calibration_info(self) -> dict:
+        """Get all radiometric calibration parameters."""
+        info = {}
+
+        if not self.connected or not self.camera:
+            return info
+
+        try:
+            # Gain and offset
+            result, gain = self.camera.radiometryGetGlobalGainDesired()
+            if result.value == 0:
+                info['global_gain'] = gain
+
+            result, offset = self.camera.radiometryGetGlobalOffsetDesired()
+            if result.value == 0:
+                info['global_offset'] = offset
+
+            # Lens parameters
+            result, f_num = self.camera.radiometryGetFNumberLens0()
+            if result.value == 0:
+                info['f_number'] = f_num / 100.0
+
+            result, tau = self.camera.radiometryGetTauLens0()
+            if result.value == 0:
+                info['transmission'] = tau / 8192.0
+
+            # Temperatures
+            info['lens_temp_c'] = self.get_lens_temperature()
+            info['shutter_temp_c'] = self.get_shutter_temperature()
+            info['fpa_temp_c'] = self.get_fpa_temperature()[1] if self.get_fpa_temperature() else None
+
+        except Exception as e:
+            logger.warning(f"Could not read full calibration info: {e}")
+
+        return info
+
+    # ========================================================================
+    # AGC - Automatic Gain Control (Phase 1)
+    # ========================================================================
+
+    def set_agc_max_gain(self, gain: float) -> bool:
+        """
+        Set maximum AGC gain (contrast limit).
+
+        Args:
+            gain: Max gain (1.0 = no limit, 2.0 = 2x max contrast, etc.)
+
+        Returns:
+            True if successful
+        """
+        if not self.connected or not self.camera:
+            return False
+
+        try:
+            result = self.camera.agcSetMaxGain(gain)
+            if result.value == 0:
+                logger.info(f"AGC max gain set to {gain:.1f}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to set AGC max gain: {e}")
+            return False
+
+    def set_agc_gamma(self, gamma: float) -> bool:
+        """
+        Set gamma correction (ACE - Automatic Contrast Enhancement).
+
+        Args:
+            gamma: Gamma value (0.5-2.0, default 1.0)
+                   - <1.0 = more contrast in hot areas
+                   - >1.0 = more contrast in cold areas
+
+        Returns:
+            True if successful
+        """
+        if not self.connected or not self.camera:
+            return False
+
+        try:
+            result = self.camera.agcSetGamma(gamma)
+            if result.value == 0:
+                logger.info(f"AGC gamma set to {gamma:.2f}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to set AGC gamma: {e}")
+            return False
+
+    def set_agc_linearity(self, percent: float) -> bool:
+        """
+        Set AGC linearity (histogram vs. linear mapping).
+
+        Args:
+            percent: Linearity (0-100%)
+                     - 0% = fully adaptive (histogram-based)
+                     - 100% = fully linear (no adaptation)
+
+        Returns:
+            True if successful
+        """
+        if not self.connected or not self.camera:
+            return False
+
+        try:
+            result = self.camera.agcSetLinearPercent(percent)
+            if result.value == 0:
+                logger.info(f"AGC linearity set to {percent:.0f}%")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to set AGC linearity: {e}")
+            return False
+
+    def set_detail_enhancement(self, dde_ratio: float) -> bool:
+        """
+        Set DDE (Digital Detail Enhancement).
+
+        Args:
+            dde_ratio: Detail-to-background ratio (0.0-3.0, typical 1.3)
+                       - Higher = sharper edges, more detail
+
+        Returns:
+            True if successful
+        """
+        if not self.connected or not self.camera:
+            return False
+
+        try:
+            result = self.camera.agcSetd2br(dde_ratio)
+            if result.value == 0:
+                logger.info(f"DDE ratio set to {dde_ratio:.2f}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to set DDE: {e}")
+            return False
+
+    def set_agc_roi(self, x_start: int, y_start: int, x_stop: int, y_stop: int) -> bool:
+        """
+        Set AGC region of interest.
+        AGC will optimize contrast based on this region.
+
+        Args:
+            x_start, y_start: Top-left corner
+            x_stop, y_stop: Bottom-right corner
+
+        Returns:
+            True if successful
+        """
+        if not self.connected or not self.camera:
+            return False
+
+        try:
+            # Create ROI struct
+            from ctypes import Structure, c_uint16
+
+            class FLR_ROI_T(Structure):
+                _fields_ = [
+                    ("rowStart", c_uint16),
+                    ("rowStop", c_uint16),
+                    ("colStart", c_uint16),
+                    ("colStop", c_uint16)
+                ]
+
+            roi = FLR_ROI_T()
+            roi.rowStart = y_start
+            roi.rowStop = y_stop
+            roi.colStart = x_start
+            roi.colStop = x_stop
+
+            result = self.camera.agcSetROI(roi)
+            if result.value == 0:
+                logger.info(f"AGC ROI set to ({x_start},{y_start})-({x_stop},{y_stop})")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to set AGC ROI: {e}")
+            return False
+
+    def get_agc_settings(self) -> dict:
+        """Get all AGC settings."""
+        settings = {}
+
+        if not self.connected or not self.camera:
+            return settings
+
+        try:
+            result, gain = self.camera.agcGetMaxGain()
+            if result.value == 0:
+                settings['max_gain'] = gain
+
+            result, gamma = self.camera.agcGetGamma()
+            if result.value == 0:
+                settings['gamma'] = gamma
+
+            result, linear = self.camera.agcGetLinearPercent()
+            if result.value == 0:
+                settings['linearity_percent'] = linear
+
+            result, dde = self.camera.agcGetd2br()
+            if result.value == 0:
+                settings['dde_ratio'] = dde
+
+        except Exception as e:
+            logger.warning(f"Could not read full AGC settings: {e}")
+
+        return settings
+
+    # ========================================================================
     # Info Methods
     # ========================================================================
 

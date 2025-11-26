@@ -29,6 +29,7 @@ from view_mode import ViewMode
 from palette_manager import PaletteType
 from roi_manager import ROI, ROIType
 from thermal_analyzer import ThermalStatistics, HotSpot, ColdSpot, ThermalAnomaly, TemperatureTrend
+from firefly_control_panel import FireflyControlPanel
 
 logger = logging.getLogger(__name__)
 
@@ -691,7 +692,7 @@ class InspectionOverlayWidget(QWidget):
         self.cold_spots: List[ColdSpot] = []
         self.anomalies: List[ThermalAnomaly] = []
         self.selected_roi_id: Optional[str] = None
-        self.show_detection_info = True  # Toggle for showing detection info
+        self.show_detection_info = False  # Toggle for showing detection info (default: hidden)
 
         # Multi-select support
         self.selected_roi_ids: set = set()  # Set of selected ROI IDs
@@ -1605,19 +1606,13 @@ class ThermalAnalysisPanel(QWidget):
         self.current_rois = []  # Store ROI list
         self.selected_roi_index = -1  # Track selected ROI
 
-        # Main layout with scroll area
+        # Main layout with tabs
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(8, 8, 8, 8)
+        main_layout.setContentsMargins(0, 0, 0, 0)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)  # Remove frame for cleaner look
-
-        content = QWidget()
-        self.content_layout = QVBoxLayout(content)
-        self.content_layout.setSpacing(12)  # Standardized spacing
-        self.content_layout.setContentsMargins(8, 8, 8, 8)
+        # Create tab widget
+        self.analysis_tabs = QTabWidget()
+        main_layout.addWidget(self.analysis_tabs)
 
         # Helper function to create section headers
         def create_section_header(text):
@@ -1638,60 +1633,54 @@ class ThermalAnalysisPanel(QWidget):
             line.setPalette(palette)
             return line
 
-        # === Palette Selection ===
-        self.content_layout.addWidget(create_section_header("🎨 Palette"))
+        # ===================================================================
+        # GENERAL TAB
+        # ===================================================================
+        general_tab = QWidget()
+        general_scroll = QScrollArea()
+        general_scroll.setWidgetResizable(True)
+        general_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        general_scroll.setFrameShape(QFrame.Shape.NoFrame)
 
-        palette_layout = QHBoxLayout()
-        palette_layout.setSpacing(8)
-        palette_label = QLabel("Global:")
-        font = QFont()
-        font.setPointSize(10)
-        palette_label.setFont(font)
-        palette_layout.addWidget(palette_label)
-
-        self.global_palette_combo = QComboBox()
-        self.global_palette_combo.setMinimumHeight(28)
-        self.global_palette_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        self._populate_palette_combo(self.global_palette_combo)
-        palette_layout.addWidget(self.global_palette_combo, 1)
-        self.content_layout.addLayout(palette_layout)
-
-        self.content_layout.addWidget(create_separator())
+        general_content = QWidget()
+        self.general_layout = QVBoxLayout(general_content)
+        self.general_layout.setSpacing(8)  # Reduced from 12
+        self.general_layout.setContentsMargins(6, 6, 6, 6)  # Reduced from 8
 
         # === Overlay Display ===
-        self.content_layout.addWidget(create_section_header("👁 Overlay Display"))
+        self.general_layout.addWidget(create_section_header("👁 Overlay Display"))
 
         self.overlay_info_checkbox = QCheckBox("Show Detection Info")
-        self.overlay_info_checkbox.setChecked(True)
+        self.overlay_info_checkbox.setChecked(False)  # Unchecked by default
         self.overlay_info_checkbox.setToolTip("Show/hide hot spots, cold spots, and anomalies on video")
         self.overlay_info_checkbox.setMinimumHeight(28)
-        self.content_layout.addWidget(self.overlay_info_checkbox)
+        self.general_layout.addWidget(self.overlay_info_checkbox)
 
-        self.content_layout.addWidget(create_separator())
+        self.general_layout.addWidget(create_separator())
 
         # === Detection Results ===
-        self.content_layout.addWidget(create_section_header("🎯 Detection Results"))
+        self.general_layout.addWidget(create_section_header("🎯 Detection Results"))
 
         self.detection_label = QLabel("No detections")
         self.detection_label.setWordWrap(True)
         font = QFont("Consolas", 10)
         self.detection_label.setFont(font)
-        self.content_layout.addWidget(self.detection_label)
+        self.general_layout.addWidget(self.detection_label)
 
-        self.content_layout.addWidget(create_separator())
+        self.general_layout.addWidget(create_separator())
 
         # === ROI Summary ===
-        self.content_layout.addWidget(create_section_header("📍 ROI Summary"))
-        
+        self.general_layout.addWidget(create_section_header("📍 ROI Summary"))
+
         self.roi_summary_label = QLabel("No active ROIs")
         self.roi_summary_label.setWordWrap(True)
         self.roi_summary_label.setFont(font)
-        self.content_layout.addWidget(self.roi_summary_label)
-        
-        self.content_layout.addWidget(create_separator())
+        self.general_layout.addWidget(self.roi_summary_label)
+
+        self.general_layout.addWidget(create_separator())
 
         # === Temperature Statistics ===
-        self.content_layout.addWidget(create_section_header("📊 Temperature Statistics"))
+        self.general_layout.addWidget(create_section_header("📊 Temperature Statistics"))
 
         self.stats_label = QLabel("No data")
         self.stats_label.setWordWrap(True)
@@ -1699,66 +1688,66 @@ class ThermalAnalysisPanel(QWidget):
         font = QFont("Consolas", 10)  # Larger, more readable font
         self.stats_label.setFont(font)
         self.stats_label.setStyleSheet("padding: 8px;")
-        self.content_layout.addWidget(self.stats_label)
-        
+        self.general_layout.addWidget(self.stats_label)
+
         # Baseline control
         self.baseline_btn = QPushButton("🔒 Lock Baseline")
         self.baseline_btn.setCheckable(True)
         self.baseline_btn.setToolTip("Lock current mean temperature as baseline for relative measurements")
         self.baseline_btn.setMinimumHeight(32)
-        self.content_layout.addWidget(self.baseline_btn)
-        
-        self.content_layout.addWidget(create_separator())
+        self.general_layout.addWidget(self.baseline_btn)
+
+        self.general_layout.addWidget(create_separator())
 
         # === Hot Spots ===
-        self.content_layout.addWidget(create_section_header("🔥 Hot Spots"))
-        
+        self.general_layout.addWidget(create_section_header("🔥 Hot Spots"))
+
         self.hotspot_list = QListWidget()
         self.hotspot_list.setMaximumHeight(90)  # Increased to show more items
         self.hotspot_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         font = QFont()
         font.setPointSize(10)
         self.hotspot_list.setFont(font)
-        self.content_layout.addWidget(self.hotspot_list)
-        
-        self.content_layout.addWidget(create_separator())
+        self.general_layout.addWidget(self.hotspot_list)
+
+        self.general_layout.addWidget(create_separator())
 
         # === Cold Spots ===
-        self.content_layout.addWidget(create_section_header("❄️ Cold Spots"))
-        
+        self.general_layout.addWidget(create_section_header("❄️ Cold Spots"))
+
         self.coldspot_list = QListWidget()
         self.coldspot_list.setMaximumHeight(90)  # Increased to show more items
         self.coldspot_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         font = QFont()
         font.setPointSize(10)
         self.coldspot_list.setFont(font)
-        self.content_layout.addWidget(self.coldspot_list)
-        
-        self.content_layout.addWidget(create_separator())
+        self.general_layout.addWidget(self.coldspot_list)
+
+        self.general_layout.addWidget(create_separator())
 
         # === Thermal Anomalies ===
-        self.content_layout.addWidget(create_section_header("⚠️ Thermal Anomalies"))
-        
+        self.general_layout.addWidget(create_section_header("⚠️ Thermal Anomalies"))
+
         self.anomaly_list = QListWidget()
         self.anomaly_list.setMaximumHeight(90)  # Increased to show more items
         self.anomaly_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         font = QFont()
         font.setPointSize(10)
         self.anomaly_list.setFont(font)
-        self.content_layout.addWidget(self.anomaly_list)
-        
-        self.content_layout.addWidget(create_separator())
+        self.general_layout.addWidget(self.anomaly_list)
+
+        self.general_layout.addWidget(create_separator())
 
         # === Regions of Interest ===
-        self.content_layout.addWidget(create_section_header("📍 Regions of Interest"))
-        
+        self.general_layout.addWidget(create_section_header("📍 Regions of Interest"))
+
         self.roi_list = QListWidget()
         self.roi_list.setMaximumHeight(100)  # Increased to show more items
         self.roi_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         font = QFont()
         font.setPointSize(10)
         self.roi_list.setFont(font)
-        self.content_layout.addWidget(self.roi_list)
+        self.general_layout.addWidget(self.roi_list)
 
         # ROI palette selector (compact horizontal layout)
         roi_palette_layout = QHBoxLayout()
@@ -1768,35 +1757,71 @@ class ThermalAnalysisPanel(QWidget):
         font.setPointSize(10)
         roi_label.setFont(font)
         roi_palette_layout.addWidget(roi_label)
-        
+
         self.roi_palette_combo = QComboBox()
-        self.roi_palette_combo.setMinimumHeight(28)
+        self.roi_palette_combo.setMinimumHeight(32)
         self.roi_palette_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         # Populate with categorized palettes (same as global)
         self._populate_palette_combo(self.roi_palette_combo)
         roi_palette_layout.addWidget(self.roi_palette_combo, 1)
-        self.content_layout.addLayout(roi_palette_layout)
-        
-        self.content_layout.addWidget(create_separator())
+        self.general_layout.addLayout(roi_palette_layout)
+
+        self.general_layout.addWidget(create_separator())
 
         # === Temperature Trend ===
-        self.content_layout.addWidget(create_section_header("📈 Temperature Trend"))
-        
+        self.general_layout.addWidget(create_section_header("📈 Temperature Trend"))
+
         self.trend_label = QLabel("No trend data")
         self.trend_label.setWordWrap(True)
         self.trend_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         font = QFont("Consolas", 10)
         self.trend_label.setFont(font)
         self.trend_label.setStyleSheet("padding: 8px;")
-        self.content_layout.addWidget(self.trend_label)
+        self.general_layout.addWidget(self.trend_label)
 
-        self.content_layout.addStretch()
+        self.general_layout.addStretch()
 
-        scroll.setWidget(content)
-        main_layout.addWidget(scroll)
+        general_scroll.setWidget(general_content)
+        general_tab_layout = QVBoxLayout(general_tab)
+        general_tab_layout.setContentsMargins(0, 0, 0, 0)
+        general_tab_layout.addWidget(general_scroll)
 
+        self.analysis_tabs.addTab(general_tab, "General")
+
+        # ===================================================================
+        # RADIOMETRIC TAB (Placeholder for future radiometric analysis)
+        # ===================================================================
+        radiometric_tab = QWidget()
+        radiometric_scroll = QScrollArea()
+        radiometric_scroll.setWidgetResizable(True)
+        radiometric_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        radiometric_scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        radiometric_content = QWidget()
+        radiometric_layout = QVBoxLayout(radiometric_content)
+        radiometric_layout.setSpacing(8)  # Reduced from 12
+        radiometric_layout.setContentsMargins(6, 6, 6, 6)  # Reduced from 8
+
+        # Placeholder content
+        radiometric_layout.addWidget(create_section_header("🌡️ Radiometric Analysis"))
+
+        placeholder_label = QLabel("Radiometric analysis features coming soon.\n\nThis will include:\n• Emissivity corrections\n• Atmospheric compensation\n• Distance-based corrections\n• Material-specific calibrations\n• Advanced temperature accuracy")
+        placeholder_label.setWordWrap(True)
+        placeholder_label.setAlignment(Qt.AlignmentFlag.AlignTop)
+        placeholder_label.setStyleSheet("padding: 20px; color: gray;")
+        radiometric_layout.addWidget(placeholder_label)
+
+        radiometric_layout.addStretch()
+
+        radiometric_scroll.setWidget(radiometric_content)
+        radiometric_tab_layout = QVBoxLayout(radiometric_tab)
+        radiometric_tab_layout.setContentsMargins(0, 0, 0, 0)
+        radiometric_tab_layout.addWidget(radiometric_scroll)
+
+        self.analysis_tabs.addTab(radiometric_tab, "Radiometric")
+
+        # Connect signals
         self.baseline_btn.toggled.connect(self.baseline_toggled.emit)
-        self.global_palette_combo.currentTextChanged.connect(self._on_global_palette_changed)
         self.roi_list.currentRowChanged.connect(self._on_roi_selected)
         self.roi_palette_combo.currentTextChanged.connect(self._on_roi_palette_combo_changed)
         self.overlay_info_checkbox.toggled.connect(self.overlay_info_toggled.emit)
@@ -2663,76 +2688,181 @@ class BosonControlPanel(QWidget):
     gain_mode_changed = pyqtSignal(str)  # 'high', 'low', 'auto'
     ffc_mode_changed = pyqtSignal(str)  # 'manual', 'auto', 'external'
     color_lut_changed = pyqtSignal(str)  # LUT name
+    # AGC signals (Universal - ALL Boson cameras)
+    agc_max_gain_changed = pyqtSignal(float)  # Max gain (1.0-4.0)
+    agc_gamma_changed = pyqtSignal(float)  # Gamma (0.5-2.0)
+    agc_linearity_changed = pyqtSignal(float)  # Linearity (0-100%)
+    agc_dde_changed = pyqtSignal(float)  # DDE ratio (0.0-3.0)
+    agc_reset_requested = pyqtSignal()  # Reset to defaults
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedWidth(420)  # Increased from 380 to match ThermalAnalysisPanel
+        # Remove fixed width to allow flexible sizing within tab
         self._init_ui()
         self._connect_signals()
 
     def _init_ui(self):
-        """Initialize widget UI components."""
+        """Initialize widget UI components with tabbed submenus."""
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(8, 8, 8, 8)
-        main_layout.setSpacing(12)  # Standardized spacing
+        main_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Scroll area for content
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        # Create tab widget for organization
+        self.boson_tabs = QTabWidget()
+        main_layout.addWidget(self.boson_tabs)
 
-        content = QWidget()
-        content_layout = QVBoxLayout(content)
-        content_layout.setSpacing(12)  # Standardized spacing
-        content_layout.setContentsMargins(8, 8, 8, 8)  # Standardized margins
+        # ===================================================================
+        # CONNECTION TAB
+        # ===================================================================
+        connection_tab = QWidget()
+        connection_scroll = QScrollArea()
+        connection_scroll.setWidgetResizable(True)
+        connection_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        connection_scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        connection_content = QWidget()
+        connection_layout = QVBoxLayout(connection_content)
+        connection_layout.setSpacing(8)  # Reduced from 12
+        connection_layout.setContentsMargins(6, 6, 6, 6)  # Reduced from 8
 
         # SDK Connection Status
-        self._create_connection_status(content_layout)
+        self._create_connection_status(connection_layout)
 
         # Camera Info
-        self._create_camera_info(content_layout)
+        self._create_camera_info(connection_layout)
+
+        connection_layout.addStretch()
+        connection_scroll.setWidget(connection_content)
+        connection_tab_layout = QVBoxLayout(connection_tab)
+        connection_tab_layout.setContentsMargins(0, 0, 0, 0)
+        connection_tab_layout.addWidget(connection_scroll)
+
+        self.boson_tabs.addTab(connection_tab, "Connection")
+
+        # ===================================================================
+        # SIMPLE CONTROLS TAB
+        # ===================================================================
+        simple_tab = QWidget()
+        simple_scroll = QScrollArea()
+        simple_scroll.setWidgetResizable(True)
+        simple_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        simple_scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        simple_content = QWidget()
+        simple_layout = QVBoxLayout(simple_content)
+        simple_layout.setSpacing(8)  # Reduced from 12
+        simple_layout.setContentsMargins(6, 6, 6, 6)  # Reduced from 8
 
         # FFC Controls
-        self._create_ffc_controls(content_layout)
+        self._create_ffc_controls(simple_layout)
 
         # Gain Controls
-        self._create_gain_controls(content_layout)
+        self._create_gain_controls(simple_layout)
 
         # Color LUT Controls
-        self._create_color_lut_controls(content_layout)
+        self._create_color_lut_controls(simple_layout)
+
+        simple_layout.addStretch()
+        simple_scroll.setWidget(simple_content)
+        simple_tab_layout = QVBoxLayout(simple_tab)
+        simple_tab_layout.setContentsMargins(0, 0, 0, 0)
+        simple_tab_layout.addWidget(simple_scroll)
+
+        self.boson_tabs.addTab(simple_tab, "Simple Controls")
+
+        # ===================================================================
+        # ADVANCED CONTROLS TAB (AGC)
+        # ===================================================================
+        advanced_tab = QWidget()
+        advanced_scroll = QScrollArea()
+        advanced_scroll.setWidgetResizable(True)
+        advanced_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        advanced_scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        advanced_content = QWidget()
+        advanced_layout = QVBoxLayout(advanced_content)
+        advanced_layout.setSpacing(8)  # Reduced from 12
+        advanced_layout.setContentsMargins(6, 6, 6, 6)  # Reduced from 8
+
+        # AGC Controls (Universal Feature - ALL Bosons)
+        self._create_agc_controls(advanced_layout)
 
         # Temperature Display
-        self._create_temperature_display(content_layout)
+        self._create_temperature_display(advanced_layout)
 
-        content_layout.addStretch()
-        scroll.setWidget(content)
-        main_layout.addWidget(scroll)
+        advanced_layout.addStretch()
+        advanced_scroll.setWidget(advanced_content)
+        advanced_tab_layout = QVBoxLayout(advanced_tab)
+        advanced_tab_layout.setContentsMargins(0, 0, 0, 0)
+        advanced_tab_layout.addWidget(advanced_scroll)
+
+        self.boson_tabs.addTab(advanced_tab, "Advanced Controls")
+
+        # ===================================================================
+        # RADIOMETRIC CONTROLS TAB (Placeholder)
+        # ===================================================================
+        radiometric_tab = QWidget()
+        radiometric_scroll = QScrollArea()
+        radiometric_scroll.setWidgetResizable(True)
+        radiometric_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        radiometric_scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        radiometric_content = QWidget()
+        radiometric_layout = QVBoxLayout(radiometric_content)
+        radiometric_layout.setSpacing(8)  # Reduced from 12
+        radiometric_layout.setContentsMargins(6, 6, 6, 6)  # Reduced from 8
+
+        # Placeholder
+        radiometric_group = QGroupBox("RADIOMETRIC CONTROLS")
+        radiometric_group_layout = QVBoxLayout(radiometric_group)
+
+        placeholder_label = QLabel("Radiometric controls coming soon.\n\nThis will include:\n• Temperature measurement modes\n• Emissivity settings\n• Atmospheric corrections\n• Calibration controls\n• Spotmeter configuration\n\nNote: Only available on Boson radiometric models (640R/320R)")
+        placeholder_label.setWordWrap(True)
+        placeholder_label.setStyleSheet("padding: 20px; color: gray;")
+        radiometric_group_layout.addWidget(placeholder_label)
+
+        radiometric_layout.addWidget(radiometric_group)
+        radiometric_layout.addStretch()
+        radiometric_scroll.setWidget(radiometric_content)
+        radiometric_tab_layout = QVBoxLayout(radiometric_tab)
+        radiometric_tab_layout.setContentsMargins(0, 0, 0, 0)
+        radiometric_tab_layout.addWidget(radiometric_scroll)
+
+        self.boson_tabs.addTab(radiometric_tab, "Radiometric")
 
     def _create_connection_status(self, layout):
         """Create SDK connection status display and controls."""
         status_group = QGroupBox("SDK CONNECTION")
+        status_group.setMaximumWidth(400)  # Limit group box width
         status_layout = QVBoxLayout(status_group)
 
         # Connection status
+        status_label_layout = QHBoxLayout()
         self.connection_status_label = QLabel("● Disconnected")
         self.connection_status_label.setStyleSheet("color: #ff4444; font-weight: bold;")
-        status_layout.addWidget(self.connection_status_label)
+        self.connection_status_label.setMaximumWidth(200)
+        status_label_layout.addWidget(self.connection_status_label)
+        status_label_layout.addStretch()
+        status_layout.addLayout(status_label_layout)
 
         # COM port selection
         port_layout = QHBoxLayout()
-        port_layout.addWidget(QLabel("COM Port:"))
+        port_label = QLabel("COM Port:")
+        port_label.setFixedWidth(80)  # Fixed label width for alignment
+        port_layout.addWidget(port_label)
 
         self.com_port_combo = QComboBox()
         self.com_port_combo.setEditable(True)
-        self.com_port_combo.setPlaceholderText("Auto-detect or enter manually")
+        self.com_port_combo.setPlaceholderText("COM Port")
         self.com_port_combo.setToolTip("Select COM port or enter manually (e.g., COM6)")
-        port_layout.addWidget(self.com_port_combo, stretch=1)
+        self.com_port_combo.setMaximumWidth(150)
+        port_layout.addWidget(self.com_port_combo)
 
         self.scan_ports_button = QPushButton("🔄")
         self.scan_ports_button.setFixedWidth(35)
         self.scan_ports_button.setToolTip("Scan for available COM ports")
         port_layout.addWidget(self.scan_ports_button)
+
+        port_layout.addStretch()  # Push elements to left, prevent expansion
 
         status_layout.addLayout(port_layout)
 
@@ -2741,15 +2871,19 @@ class BosonControlPanel(QWidget):
 
         self.connect_button = QPushButton("Connect")
         self.connect_button.setMinimumHeight(35)
+        self.connect_button.setMaximumWidth(150)  # Limit button width
         self.connect_button.setStyleSheet("background-color: #4CAF50;")
         self.connect_button.setToolTip("Connect to Boson camera via SDK")
         button_layout.addWidget(self.connect_button)
 
         self.disconnect_button = QPushButton("Disconnect")
         self.disconnect_button.setMinimumHeight(35)
+        self.disconnect_button.setMaximumWidth(150)  # Limit button width
         self.disconnect_button.setEnabled(False)
         self.disconnect_button.setToolTip("Disconnect from SDK")
         button_layout.addWidget(self.disconnect_button)
+
+        button_layout.addStretch()  # Push buttons to left
 
         status_layout.addLayout(button_layout)
 
@@ -2757,6 +2891,7 @@ class BosonControlPanel(QWidget):
         self.connection_hint = QLabel("Connect via COM port or use --enable-boson-sdk flag")
         self.connection_hint.setStyleSheet("font-size: 10px; color: #888;")
         self.connection_hint.setWordWrap(True)
+        self.connection_hint.setMaximumWidth(350)  # Limit label width
         status_layout.addWidget(self.connection_hint)
 
         layout.addWidget(status_group)
@@ -2764,6 +2899,7 @@ class BosonControlPanel(QWidget):
     def _create_camera_info(self, layout):
         """Create camera info display."""
         info_group = QGroupBox("CAMERA INFORMATION")
+        info_group.setMaximumWidth(400)  # Limit group box width
         info_layout = QVBoxLayout(info_group)
 
         self.info_labels = {}
@@ -2779,13 +2915,16 @@ class BosonControlPanel(QWidget):
         for key, label_text in info_fields:
             row = QHBoxLayout()
             label = QLabel(label_text)
-            label.setStyleSheet("font-weight: bold; min-width: 120px;")
+            label.setFixedWidth(120)  # Fixed width instead of min-width
+            label.setStyleSheet("font-weight: bold;")
             value = QLabel("N/A")
             value.setStyleSheet("color: #888;")
             value.setWordWrap(True)
+            value.setMaximumWidth(200)  # Limit value label width
 
             row.addWidget(label)
-            row.addWidget(value, stretch=1)
+            row.addWidget(value)
+            row.addStretch()  # Add stretch at end to push everything left
 
             self.info_labels[key] = value
             info_layout.addLayout(row)
@@ -2805,12 +2944,18 @@ class BosonControlPanel(QWidget):
 
         # FFC Mode selection
         ffc_mode_layout = QHBoxLayout()
-        ffc_mode_layout.addWidget(QLabel("FFC Mode:"))
+        ffc_label = QLabel("FFC Mode:")
+        ffc_label.setFixedWidth(80)  # Fixed label width for alignment
+        ffc_mode_layout.addWidget(ffc_label)
 
         self.ffc_mode_combo = QComboBox()
         self.ffc_mode_combo.addItems(['Manual', 'Auto', 'External'])
         self.ffc_mode_combo.setToolTip("FFC mode: Manual, Auto, or External trigger")
-        ffc_mode_layout.addWidget(self.ffc_mode_combo, stretch=1)
+        self.ffc_mode_combo.setMinimumHeight(28)  # Consistent combo height
+        self.ffc_mode_combo.setMaximumWidth(150)  # Limit horizontal expansion
+        ffc_mode_layout.addWidget(self.ffc_mode_combo)
+
+        ffc_mode_layout.addStretch()  # Push elements to left
 
         ffc_layout.addLayout(ffc_mode_layout)
 
@@ -2826,10 +2971,15 @@ class BosonControlPanel(QWidget):
         gain_group = QGroupBox("GAIN MODE")
         gain_layout = QVBoxLayout(gain_group)
 
+        combo_layout = QHBoxLayout()
         self.gain_mode_combo = QComboBox()
         self.gain_mode_combo.addItems(['High', 'Low', 'Auto'])
         self.gain_mode_combo.setToolTip("Sensor gain mode:\n• High: Optimal for low temps\n• Low: Optimal for high temps\n• Auto: Automatic switching")
-        gain_layout.addWidget(self.gain_mode_combo)
+        self.gain_mode_combo.setMinimumHeight(28)
+        self.gain_mode_combo.setMaximumWidth(150)
+        combo_layout.addWidget(self.gain_mode_combo)
+        combo_layout.addStretch()
+        gain_layout.addLayout(combo_layout)
 
         # Current gain display
         self.current_gain_label = QLabel("Current: Auto")
@@ -2843,6 +2993,7 @@ class BosonControlPanel(QWidget):
         lut_group = QGroupBox("COLOR LOOKUP TABLE (LUT)")
         lut_layout = QVBoxLayout(lut_group)
 
+        combo_layout = QHBoxLayout()
         self.color_lut_combo = QComboBox()
         self.color_lut_combo.addItems([
             'White Hot', 'Black Hot', 'Rainbow', 'Rainbow HC',
@@ -2850,7 +3001,11 @@ class BosonControlPanel(QWidget):
             'Graded Fire', 'Hottest'
         ])
         self.color_lut_combo.setToolTip("Hardware color palette (applies on-camera)")
-        lut_layout.addWidget(self.color_lut_combo)
+        self.color_lut_combo.setMinimumHeight(28)
+        self.color_lut_combo.setMaximumWidth(180)
+        combo_layout.addWidget(self.color_lut_combo)
+        combo_layout.addStretch()
+        lut_layout.addLayout(combo_layout)
 
         hint = QLabel("Note: Hardware LUT applies before software processing")
         hint.setStyleSheet("font-size: 9px; color: #888;")
@@ -2858,6 +3013,123 @@ class BosonControlPanel(QWidget):
         lut_layout.addWidget(hint)
 
         layout.addWidget(lut_group)
+
+    def _create_agc_controls(self, layout):
+        """Create AGC (Automatic Gain Control) controls - Universal feature for ALL Bosons."""
+        agc_group = QGroupBox("IMAGE ENHANCEMENT (AGC)")
+        agc_layout = QVBoxLayout(agc_group)
+
+        # Info label
+        info_label = QLabel("✓ Works on ALL Boson cameras (radiometric and non-radiometric)")
+        info_label.setStyleSheet("font-size: 9px; color: #0a0; font-weight: bold;")
+        info_label.setWordWrap(True)
+        agc_layout.addWidget(info_label)
+
+        # Max Gain slider
+        max_gain_layout = QVBoxLayout()
+        max_gain_header = QHBoxLayout()
+        max_gain_header.addWidget(QLabel("Max Gain (Contrast):"))
+        self.agc_max_gain_value = QLabel("2.0x")
+        self.agc_max_gain_value.setStyleSheet("font-weight: bold; color: #00aaff;")
+        max_gain_header.addWidget(self.agc_max_gain_value)
+        max_gain_header.addStretch()
+        max_gain_layout.addLayout(max_gain_header)
+
+        self.agc_max_gain_slider = QSlider(Qt.Orientation.Horizontal)
+        self.agc_max_gain_slider.setRange(10, 40)  # 1.0 to 4.0 (x10)
+        self.agc_max_gain_slider.setValue(20)  # Default 2.0
+        self.agc_max_gain_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.agc_max_gain_slider.setTickInterval(5)
+        self.agc_max_gain_slider.setToolTip("Limit maximum contrast enhancement (1.0-4.0x)")
+        max_gain_layout.addWidget(self.agc_max_gain_slider)
+
+        range_label = QLabel("Less Contrast                More Contrast")
+        range_label.setStyleSheet("font-size: 9px; color: #888;")
+        max_gain_layout.addWidget(range_label)
+        agc_layout.addLayout(max_gain_layout)
+
+        # Gamma slider
+        gamma_layout = QVBoxLayout()
+        gamma_header = QHBoxLayout()
+        gamma_header.addWidget(QLabel("Gamma (ACE):"))
+        self.agc_gamma_value = QLabel("1.0")
+        self.agc_gamma_value.setStyleSheet("font-weight: bold; color: #00aaff;")
+        gamma_header.addWidget(self.agc_gamma_value)
+        gamma_header.addStretch()
+        gamma_layout.addLayout(gamma_header)
+
+        self.agc_gamma_slider = QSlider(Qt.Orientation.Horizontal)
+        self.agc_gamma_slider.setRange(5, 20)  # 0.5 to 2.0 (x10)
+        self.agc_gamma_slider.setValue(10)  # Default 1.0
+        self.agc_gamma_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.agc_gamma_slider.setTickInterval(5)
+        self.agc_gamma_slider.setToolTip("Gamma correction: <1.0 = more hot contrast, >1.0 = more cold contrast")
+        gamma_layout.addWidget(self.agc_gamma_slider)
+
+        range_label = QLabel("Hot Contrast               Cold Contrast")
+        range_label.setStyleSheet("font-size: 9px; color: #888;")
+        gamma_layout.addWidget(range_label)
+        agc_layout.addLayout(gamma_layout)
+
+        # Linearity slider
+        linearity_layout = QVBoxLayout()
+        linearity_header = QHBoxLayout()
+        linearity_header.addWidget(QLabel("Linearity:"))
+        self.agc_linearity_value = QLabel("50%")
+        self.agc_linearity_value.setStyleSheet("font-weight: bold; color: #00aaff;")
+        linearity_header.addWidget(self.agc_linearity_value)
+        linearity_header.addStretch()
+        linearity_layout.addLayout(linearity_header)
+
+        self.agc_linearity_slider = QSlider(Qt.Orientation.Horizontal)
+        self.agc_linearity_slider.setRange(0, 100)  # 0-100%
+        self.agc_linearity_slider.setValue(50)  # Default 50%
+        self.agc_linearity_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.agc_linearity_slider.setTickInterval(20)
+        self.agc_linearity_slider.setToolTip("Histogram vs. linear: 0% = adaptive, 100% = linear")
+        linearity_layout.addWidget(self.agc_linearity_slider)
+
+        range_label = QLabel("Adaptive (Histogram)          Linear")
+        range_label.setStyleSheet("font-size: 9px; color: #888;")
+        linearity_layout.addWidget(range_label)
+        agc_layout.addLayout(linearity_layout)
+
+        # DDE (Digital Detail Enhancement) slider
+        dde_layout = QVBoxLayout()
+        dde_header = QHBoxLayout()
+        dde_header.addWidget(QLabel("Detail (DDE):"))
+        self.agc_dde_value = QLabel("1.3")
+        self.agc_dde_value.setStyleSheet("font-weight: bold; color: #00aaff;")
+        dde_header.addWidget(self.agc_dde_value)
+        dde_header.addStretch()
+        dde_layout.addLayout(dde_header)
+
+        self.agc_dde_slider = QSlider(Qt.Orientation.Horizontal)
+        self.agc_dde_slider.setRange(0, 30)  # 0.0 to 3.0 (x10)
+        self.agc_dde_slider.setValue(13)  # Default 1.3
+        self.agc_dde_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.agc_dde_slider.setTickInterval(5)
+        self.agc_dde_slider.setToolTip("Detail enhancement: higher = sharper edges")
+        dde_layout.addWidget(self.agc_dde_slider)
+
+        range_label = QLabel("Soft Edges                 Sharp Edges")
+        range_label.setStyleSheet("font-size: 9px; color: #888;")
+        dde_layout.addWidget(range_label)
+        agc_layout.addLayout(dde_layout)
+
+        # Reset button
+        self.agc_reset_button = QPushButton("Reset to Defaults")
+        self.agc_reset_button.setMinimumHeight(30)
+        self.agc_reset_button.setToolTip("Reset all AGC settings to defaults")
+        agc_layout.addWidget(self.agc_reset_button)
+
+        # Status hint
+        status_hint = QLabel("AGC enhances image quality for better defect detection")
+        status_hint.setStyleSheet("font-size: 9px; color: #888; font-style: italic;")
+        status_hint.setWordWrap(True)
+        agc_layout.addWidget(status_hint)
+
+        layout.addWidget(agc_group)
 
     def _create_temperature_display(self, layout):
         """Create FPA temperature display."""
@@ -2904,6 +3176,13 @@ class BosonControlPanel(QWidget):
             lambda text: self.color_lut_changed.emit(text.lower().replace(' ', '_'))
         )
 
+        # AGC controls
+        self.agc_max_gain_slider.valueChanged.connect(self._on_agc_max_gain_changed)
+        self.agc_gamma_slider.valueChanged.connect(self._on_agc_gamma_changed)
+        self.agc_linearity_slider.valueChanged.connect(self._on_agc_linearity_changed)
+        self.agc_dde_slider.valueChanged.connect(self._on_agc_dde_changed)
+        self.agc_reset_button.clicked.connect(self._on_agc_reset_clicked)
+
     def _on_connect_clicked(self):
         """Handle connect button click."""
         com_port = self.com_port_combo.currentText().strip()
@@ -2916,6 +3195,37 @@ class BosonControlPanel(QWidget):
     def _on_scan_ports_clicked(self):
         """Handle scan ports button click."""
         self.sdk_scan_ports_requested.emit()
+
+    def _on_agc_max_gain_changed(self, value: int):
+        """Handle max gain slider change."""
+        gain = value / 10.0  # Convert to 1.0-4.0 range
+        self.agc_max_gain_value.setText(f"{gain:.1f}x")
+        self.agc_max_gain_changed.emit(gain)
+
+    def _on_agc_gamma_changed(self, value: int):
+        """Handle gamma slider change."""
+        gamma = value / 10.0  # Convert to 0.5-2.0 range
+        self.agc_gamma_value.setText(f"{gamma:.1f}")
+        self.agc_gamma_changed.emit(gamma)
+
+    def _on_agc_linearity_changed(self, value: int):
+        """Handle linearity slider change."""
+        self.agc_linearity_value.setText(f"{value}%")
+        self.agc_linearity_changed.emit(float(value))
+
+    def _on_agc_dde_changed(self, value: int):
+        """Handle DDE slider change."""
+        dde = value / 10.0  # Convert to 0.0-3.0 range
+        self.agc_dde_value.setText(f"{dde:.1f}")
+        self.agc_dde_changed.emit(dde)
+
+    def _on_agc_reset_clicked(self):
+        """Reset AGC controls to defaults."""
+        self.agc_max_gain_slider.setValue(20)  # 2.0x
+        self.agc_gamma_slider.setValue(10)  # 1.0
+        self.agc_linearity_slider.setValue(50)  # 50%
+        self.agc_dde_slider.setValue(13)  # 1.3
+        self.agc_reset_requested.emit()
 
     def update_connection_status(self, connected: bool):
         """Update SDK connection status and button states."""
@@ -2935,6 +3245,12 @@ class BosonControlPanel(QWidget):
             self.gain_mode_combo.setEnabled(True)
             self.ffc_mode_combo.setEnabled(True)
             self.color_lut_combo.setEnabled(True)
+            # Enable AGC controls
+            self.agc_max_gain_slider.setEnabled(True)
+            self.agc_gamma_slider.setEnabled(True)
+            self.agc_linearity_slider.setEnabled(True)
+            self.agc_dde_slider.setEnabled(True)
+            self.agc_reset_button.setEnabled(True)
         else:
             self.connection_status_label.setText("● Disconnected")
             self.connection_status_label.setStyleSheet("color: #ff4444; font-weight: bold;")
@@ -2951,6 +3267,12 @@ class BosonControlPanel(QWidget):
             self.gain_mode_combo.setEnabled(False)
             self.ffc_mode_combo.setEnabled(False)
             self.color_lut_combo.setEnabled(False)
+            # Disable AGC controls
+            self.agc_max_gain_slider.setEnabled(False)
+            self.agc_gamma_slider.setEnabled(False)
+            self.agc_linearity_slider.setEnabled(False)
+            self.agc_dde_slider.setEnabled(False)
+            self.agc_reset_button.setEnabled(False)
 
     def update_com_ports(self, ports: list):
         """Update COM port dropdown with available ports."""
@@ -2964,15 +3286,15 @@ class BosonControlPanel(QWidget):
     def update_camera_info(self, info):
         """Update camera information display."""
         if hasattr(info, 'serial_number') and info.serial_number:
-            self.info_labels['serial'].setText(info.serial_number)
+            self.info_labels['serial'].setText(str(info.serial_number))
             self.info_labels['serial'].setStyleSheet("color: #e0e0e0;")
 
         if hasattr(info, 'camera_part_number') and info.camera_part_number:
-            self.info_labels['part_number'].setText(info.camera_part_number)
+            self.info_labels['part_number'].setText(str(info.camera_part_number))
             self.info_labels['part_number'].setStyleSheet("color: #e0e0e0;")
 
         if hasattr(info, 'software_version') and info.software_version:
-            self.info_labels['software'].setText(info.software_version)
+            self.info_labels['software'].setText(str(info.software_version))
             self.info_labels['software'].setStyleSheet("color: #e0e0e0;")
 
         if hasattr(info, 'lens_number') and info.lens_number is not None:
@@ -2998,6 +3320,40 @@ class BosonControlPanel(QWidget):
         color = "#ff4444" if is_error else "#44ff44"
         self.ffc_status_label.setText(f"Status: {message}")
         self.ffc_status_label.setStyleSheet(f"font-size: 10px; color: {color};")
+
+    def update_connection_status(self, connected: bool):
+        """Update SDK connection status in UI."""
+        if connected:
+            self.connection_status_label.setText("● Connected")
+            self.connection_status_label.setStyleSheet("color: #44ff44; font-weight: bold;")
+            self.connect_button.setEnabled(False)
+            self.disconnect_button.setEnabled(True)
+            self.com_port_combo.setEnabled(False)
+            self.scan_ports_button.setEnabled(False)
+        else:
+            self.connection_status_label.setText("● Disconnected")
+            self.connection_status_label.setStyleSheet("color: #ff4444; font-weight: bold;")
+            self.connect_button.setEnabled(True)
+            self.disconnect_button.setEnabled(False)
+            self.com_port_combo.setEnabled(True)
+            self.scan_ports_button.setEnabled(True)
+
+    def set_status(self, message: str, is_error: bool = False):
+        """Update connection hint/status message."""
+        color = "#ff4444" if is_error else "#44ff44"
+        self.connection_hint.setText(message)
+        self.connection_hint.setStyleSheet(f"font-size: 10px; color: {color};")
+
+    def update_ports(self, ports: list):
+        """Update COM port dropdown with scanned ports."""
+        current = self.com_port_combo.currentText()
+        self.com_port_combo.clear()
+        if ports:
+            self.com_port_combo.addItems(ports)
+            if current in ports:
+                self.com_port_combo.setCurrentText(current)
+        else:
+            self.com_port_combo.setPlaceholderText("No ports found")
 
 
 # ============================================================================
@@ -3050,6 +3406,14 @@ class SettingsPanel(QGroupBox):
     fusion_mode_changed = pyqtSignal(str)
     fusion_alpha_changed = pyqtSignal(float)
     fusion_priority_changed = pyqtSignal(str)
+    fusion_strength_changed = pyqtSignal(float)
+    fusion_fuzziness_changed = pyqtSignal(float)
+    fusion_color_mode_changed = pyqtSignal(str)  # "color" or "grayscale"
+    edge_strength_changed = pyqtSignal(float)
+    edge_fuzziness_changed = pyqtSignal(float)
+    edge_color_changed = pyqtSignal(str)  # Color for edge overlay
+    msx_strength_changed = pyqtSignal(float)  # MSX detail overlay strength
+    msx_quality_changed = pyqtSignal(float)   # MSX quality/detail level
     save_rois_clicked = pyqtSignal()
     load_rois_clicked = pyqtSignal()
     overlay_info_toggled = pyqtSignal(bool)
@@ -3064,16 +3428,19 @@ class SettingsPanel(QGroupBox):
 
     def _init_ui(self):
         layout = QVBoxLayout()
-        layout.setSpacing(12)
+        layout.setSpacing(12)  # Space between group boxes to prevent overlap
 
         # Processing Settings
         proc_group = QGroupBox("Processing")
         proc_layout = QVBoxLayout(proc_group)
-        
+        proc_layout.setSpacing(10)  # Consistent spacing for all elements
+        proc_layout.setContentsMargins(8, 8, 8, 8)  # Add padding inside group
+
         # Device Selection
         device_layout = QHBoxLayout()
         device_layout.addWidget(QLabel("Device:"))
         self.device_combo = QComboBox()
+        self.device_combo.setMinimumHeight(28)  # Taller for full text visibility
         self.device_combo.addItems(["CPU", "CUDA"])
         self.device_combo.currentTextChanged.connect(self.device_changed.emit)
         device_layout.addWidget(self.device_combo)
@@ -3083,11 +3450,13 @@ class SettingsPanel(QGroupBox):
         palette_layout = QHBoxLayout()
         palette_layout.addWidget(QLabel("Palette:"))
         self.palette_combo = QComboBox()
-        self.palette_combo.addItems([
-            "Ironbow", "Rainbow", "White Hot", "Black Hot", 
-            "Arctic", "Lava", "Medical"
-        ])
-        self.palette_combo.currentTextChanged.connect(self.palette_changed.emit)
+        self.palette_combo.setMinimumHeight(28)  # Taller for full text visibility
+        self.palette_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        # Block signals during population to avoid triggering changes
+        self.palette_combo.blockSignals(True)
+        self._populate_palette_combo(self.palette_combo)
+        self.palette_combo.blockSignals(False)
+        self.palette_combo.currentTextChanged.connect(self._on_palette_changed)
         palette_layout.addWidget(self.palette_combo)
         proc_layout.addLayout(palette_layout)
 
@@ -3101,13 +3470,18 @@ class SettingsPanel(QGroupBox):
         # Fusion Settings
         fusion_group = QGroupBox("Fusion")
         fusion_layout = QVBoxLayout(fusion_group)
+        fusion_layout.setSpacing(10)  # Consistent spacing for all elements
+        fusion_layout.setContentsMargins(8, 8, 8, 8)  # Add padding inside group
 
         # Mode
         mode_layout = QHBoxLayout()
         mode_layout.addWidget(QLabel("Mode:"))
         self.fusion_mode_combo = QComboBox()
+        self.fusion_mode_combo.setMinimumHeight(28)  # Taller for full text visibility
         self.fusion_mode_combo.addItems([
-            "alpha_blend", "thermal_only", "rgb_only", "edge_enhanced"
+            "alpha_blend", "msx", "msx_emboss", "edge_enhanced", "thermal_overlay",
+            "side_by_side", "picture_in_picture", "max_intensity",
+            "feature_weighted"
         ])
         self.fusion_mode_combo.currentTextChanged.connect(self.fusion_mode_changed.emit)
         mode_layout.addWidget(self.fusion_mode_combo)
@@ -3129,16 +3503,175 @@ class SettingsPanel(QGroupBox):
         priority_layout = QHBoxLayout()
         priority_layout.addWidget(QLabel("Priority:"))
         self.priority_combo = QComboBox()
+        self.priority_combo.setMinimumHeight(28)  # Taller for full text visibility
         self.priority_combo.addItems(["Thermal", "RGB", "Balanced"])
         self.priority_combo.currentTextChanged.connect(self.fusion_priority_changed.emit)
         priority_layout.addWidget(self.priority_combo)
         fusion_layout.addLayout(priority_layout)
 
+        # RGB Color Mode (Grayscale vs Color)
+        color_mode_layout = QHBoxLayout()
+        color_mode_layout.addWidget(QLabel("RGB Mode:"))
+        self.fusion_color_mode_combo = QComboBox()
+        self.fusion_color_mode_combo.setMinimumHeight(28)  # Taller for full text visibility
+        self.fusion_color_mode_combo.addItems(["Color", "Grayscale"])
+        self.fusion_color_mode_combo.setToolTip("Use color or grayscale from RGB camera for fusion")
+        self.fusion_color_mode_combo.currentTextChanged.connect(
+            lambda v: self.fusion_color_mode_changed.emit(v.lower())
+        )
+        color_mode_layout.addWidget(self.fusion_color_mode_combo)
+        fusion_layout.addLayout(color_mode_layout)
+
+        # Fusion Strength
+        strength_layout = QHBoxLayout()
+        strength_label = QLabel("Strength:")
+        strength_layout.addWidget(strength_label)
+        self.fusion_strength_slider = QSlider(Qt.Orientation.Horizontal)
+        self.fusion_strength_slider.setRange(0, 100)
+        self.fusion_strength_slider.setValue(70)
+        self.fusion_strength_slider.setToolTip("Fusion blending strength (0-100)")
+        self.fusion_strength_value = QLabel("70")
+        self.fusion_strength_slider.valueChanged.connect(
+            lambda v: [self.fusion_strength_value.setText(str(v)),
+                      self.fusion_strength_changed.emit(v / 100.0)]
+        )
+        strength_layout.addWidget(self.fusion_strength_slider)
+        strength_layout.addWidget(self.fusion_strength_value)
+        fusion_layout.addLayout(strength_layout)
+
+        # Fusion Fuzziness
+        fuzz_layout = QHBoxLayout()
+        fuzz_label = QLabel("Fuzziness:")
+        fuzz_layout.addWidget(fuzz_label)
+        self.fusion_fuzziness_slider = QSlider(Qt.Orientation.Horizontal)
+        self.fusion_fuzziness_slider.setRange(0, 100)
+        self.fusion_fuzziness_slider.setValue(30)
+        self.fusion_fuzziness_slider.setToolTip("Edge blending smoothness (0-100)")
+        self.fusion_fuzziness_value = QLabel("30")
+        self.fusion_fuzziness_slider.valueChanged.connect(
+            lambda v: [self.fusion_fuzziness_value.setText(str(v)),
+                      self.fusion_fuzziness_changed.emit(v / 100.0)]
+        )
+        fuzz_layout.addWidget(self.fusion_fuzziness_slider)
+        fuzz_layout.addWidget(self.fusion_fuzziness_value)
+        fusion_layout.addLayout(fuzz_layout)
+
         layout.addWidget(fusion_group)
+
+        # Adaptive Fusion Settings (changes based on selected fusion mode)
+        self.fusion_settings_group = QGroupBox("Fusion Settings")
+        self.fusion_settings_layout = QVBoxLayout(self.fusion_settings_group)
+        self.fusion_settings_layout.setSpacing(10)
+        self.fusion_settings_layout.setContentsMargins(8, 8, 8, 8)
+
+        # Edge Enhanced Settings (initially visible)
+        self.edge_settings_widget = QWidget()
+        edge_settings_layout = QVBoxLayout(self.edge_settings_widget)
+        edge_settings_layout.setContentsMargins(0, 0, 0, 0)
+        edge_settings_layout.setSpacing(10)
+
+        # Edge Strength
+        edge_strength_layout = QHBoxLayout()
+        edge_strength_label = QLabel("Strength:")
+        edge_strength_layout.addWidget(edge_strength_label)
+        self.edge_strength_slider = QSlider(Qt.Orientation.Horizontal)
+        self.edge_strength_slider.setRange(0, 100)
+        self.edge_strength_slider.setValue(50)
+        self.edge_strength_slider.setToolTip("How many edges to detect (higher = more edges shown)")
+        self.edge_strength_value = QLabel("50")
+        self.edge_strength_slider.valueChanged.connect(
+            lambda v: [self.edge_strength_value.setText(str(v)),
+                      self.edge_strength_changed.emit(v / 100.0)]
+        )
+        edge_strength_layout.addWidget(self.edge_strength_slider)
+        edge_strength_layout.addWidget(self.edge_strength_value)
+        edge_settings_layout.addLayout(edge_strength_layout)
+
+        # Edge Fuzziness
+        edge_fuzz_layout = QHBoxLayout()
+        edge_fuzz_label = QLabel("Fuzziness:")
+        edge_fuzz_layout.addWidget(edge_fuzz_label)
+        self.edge_fuzziness_slider = QSlider(Qt.Orientation.Horizontal)
+        self.edge_fuzziness_slider.setRange(0, 100)
+        self.edge_fuzziness_slider.setValue(20)
+        self.edge_fuzziness_slider.setToolTip("Edge sharpness (lower = sharper edges, more detail; higher = softer edges)")
+        self.edge_fuzziness_value = QLabel("20")
+        self.edge_fuzziness_slider.valueChanged.connect(
+            lambda v: [self.edge_fuzziness_value.setText(str(v)),
+                      self.edge_fuzziness_changed.emit(v / 100.0)]
+        )
+        edge_fuzz_layout.addWidget(self.edge_fuzziness_slider)
+        edge_fuzz_layout.addWidget(self.edge_fuzziness_value)
+        edge_settings_layout.addLayout(edge_fuzz_layout)
+
+        # Edge Color
+        edge_color_layout = QHBoxLayout()
+        edge_color_layout.addWidget(QLabel("Edge Color:"))
+        self.edge_color_combo = QComboBox()
+        self.edge_color_combo.setMinimumHeight(28)
+        self.edge_color_combo.addItems(["White", "Cyan", "Green", "Yellow", "Red", "Magenta"])
+        self.edge_color_combo.setToolTip("Color for edge overlay visualization")
+        self.edge_color_combo.currentTextChanged.connect(
+            lambda v: self.edge_color_changed.emit(v.lower())
+        )
+        edge_color_layout.addWidget(self.edge_color_combo)
+        edge_settings_layout.addLayout(edge_color_layout)
+
+        # MSX Settings (initially hidden)
+        self.msx_settings_widget = QWidget()
+        msx_settings_layout = QVBoxLayout(self.msx_settings_widget)
+        msx_settings_layout.setContentsMargins(0, 0, 0, 0)
+        msx_settings_layout.setSpacing(10)
+
+        # MSX Strength
+        msx_strength_layout = QHBoxLayout()
+        msx_strength_label = QLabel("Strength:")
+        msx_strength_layout.addWidget(msx_strength_label)
+        self.msx_strength_slider = QSlider(Qt.Orientation.Horizontal)
+        self.msx_strength_slider.setRange(0, 100)
+        self.msx_strength_slider.setValue(70)
+        self.msx_strength_slider.setToolTip("MSX detail overlay strength (higher = more visible structure)")
+        self.msx_strength_value = QLabel("70")
+        self.msx_strength_slider.valueChanged.connect(
+            lambda v: [self.msx_strength_value.setText(str(v)),
+                      self.msx_strength_changed.emit(v / 100.0)]
+        )
+        msx_strength_layout.addWidget(self.msx_strength_slider)
+        msx_strength_layout.addWidget(self.msx_strength_value)
+        msx_settings_layout.addLayout(msx_strength_layout)
+
+        # MSX Quality
+        msx_quality_layout = QHBoxLayout()
+        msx_quality_label = QLabel("Quality:")
+        msx_quality_layout.addWidget(msx_quality_label)
+        self.msx_quality_slider = QSlider(Qt.Orientation.Horizontal)
+        self.msx_quality_slider.setRange(0, 100)
+        self.msx_quality_slider.setValue(50)
+        self.msx_quality_slider.setToolTip("MSX quality/detail level (higher = more detail extraction)")
+        self.msx_quality_value = QLabel("50")
+        self.msx_quality_slider.valueChanged.connect(
+            lambda v: [self.msx_quality_value.setText(str(v)),
+                      self.msx_quality_changed.emit(v / 100.0)]
+        )
+        msx_quality_layout.addWidget(self.msx_quality_slider)
+        msx_quality_layout.addWidget(self.msx_quality_value)
+        msx_settings_layout.addLayout(msx_quality_layout)
+
+        # Add widgets to fusion settings group
+        self.fusion_settings_layout.addWidget(self.edge_settings_widget)
+        self.fusion_settings_layout.addWidget(self.msx_settings_widget)
+        self.msx_settings_widget.hide()  # Initially hidden
+
+        # Connect fusion mode change to update visible settings
+        self.fusion_mode_combo.currentTextChanged.connect(self._update_fusion_settings)
+
+        layout.addWidget(self.fusion_settings_group)
 
         # ROI Settings
         roi_group = QGroupBox("ROI Management")
         roi_layout = QVBoxLayout(roi_group)
+        roi_layout.setSpacing(10)  # Consistent spacing
+        roi_layout.setContentsMargins(8, 8, 8, 8)  # Add padding inside group
 
         btn_layout = QHBoxLayout()
         self.save_btn = QPushButton("💾 Save")
@@ -3159,13 +3692,16 @@ class SettingsPanel(QGroupBox):
         # Display Settings
         display_group = QGroupBox("Display Options")
         display_layout = QVBoxLayout(display_group)
+        display_layout.setSpacing(10)  # Consistent spacing
+        display_layout.setContentsMargins(8, 8, 8, 8)  # Add padding inside group
 
         # View Mode
         view_layout = QHBoxLayout()
         view_layout.addWidget(QLabel("View Mode:"))
         self.view_mode_combo = QComboBox()
+        self.view_mode_combo.setMinimumHeight(28)  # Taller for full text visibility
         self.view_mode_combo.addItems([
-            "Thermal Only", "RGB Only", "Fusion", 
+            "Thermal Only", "RGB Only", "Fusion",
             "Side-by-Side", "Picture-in-Picture"
         ])
         self.view_mode_combo.currentTextChanged.connect(self.view_mode_changed.emit)
@@ -3183,14 +3719,90 @@ class SettingsPanel(QGroupBox):
         display_layout.addWidget(self.show_trends_check)
 
         self.show_detections_check = QCheckBox("Show Detections")
-        self.show_detections_check.setChecked(True)
+        self.show_detections_check.setChecked(False)  # Unchecked by default
         self.show_detections_check.toggled.connect(self.show_detections_toggled.emit)
         display_layout.addWidget(self.show_detections_check)
 
         layout.addWidget(display_group)
         layout.addStretch()
-        
+
         self.setLayout(layout)
+
+    def _populate_palette_combo(self, combo: QComboBox):
+        """Populate a combo box with categorized palettes."""
+        palette_categories = [
+            ("GRAYSCALE", [
+                PaletteType.WHITE_HOT, PaletteType.BLACK_HOT,
+                PaletteType.GRAY, PaletteType.SEPIA
+            ]),
+            ("IRON/FIRE", [
+                PaletteType.IRONBOW, PaletteType.LAVA, PaletteType.GRADEDFIRE,
+                PaletteType.HOTTEST, PaletteType.AMBER, PaletteType.INFERNO
+            ]),
+            ("RAINBOW", [
+                PaletteType.RAINBOW, PaletteType.RAINBOW_HC, PaletteType.RAINBOW_REVERSED,
+                PaletteType.SPECTRAL, PaletteType.COOL_HOT
+            ]),
+            ("COLD/ARCTIC", [
+                PaletteType.ARCTIC, PaletteType.ICE,
+                PaletteType.WINTER, PaletteType.OCEAN
+            ]),
+            ("SCIENTIFIC", [
+                PaletteType.VIRIDIS, PaletteType.PLASMA, PaletteType.MAGMA,
+                PaletteType.CIVIDIS, PaletteType.TURBO
+            ]),
+            ("DIVERGING", [
+                PaletteType.BLUE_RED, PaletteType.COOL_WARM, PaletteType.PURPLE_ORANGE,
+                PaletteType.GREEN_RED, PaletteType.BLUE_YELLOW, PaletteType.PINK_GREEN
+            ]),
+            ("SEQUENTIAL", [
+                PaletteType.GLOBOW, PaletteType.MEDICAL, PaletteType.THERMAL,
+                PaletteType.HELIX, PaletteType.CUBEHELIX, PaletteType.TWILIGHT, PaletteType.DUSK
+            ]),
+            ("SPECIALIZED", [
+                PaletteType.FUSION, PaletteType.PRISM, PaletteType.ALARM,
+                PaletteType.LAPLACIAN, PaletteType.ISOTHERM, PaletteType.VELOCITY,
+                PaletteType.TERRAIN, PaletteType.DEPTH
+            ])
+        ]
+
+        # Populate combo box with categorized palettes
+        for category_name, palettes in palette_categories:
+            # Add category header (bold, disabled)
+            combo.addItem(f"─── {category_name} ───")
+            idx = combo.count() - 1
+            item = combo.model().item(idx)
+            font = QFont()
+            font.setBold(True)
+            item.setFont(font)
+            item.setEnabled(False)
+
+            # Add palette items (indented)
+            for palette in palettes:
+                combo.addItem(f"  {palette.value}")
+
+    def _on_palette_changed(self, palette_name: str):
+        """Handle palette change, cleaning category headers."""
+        # Skip category headers (they start with ───)
+        if palette_name.startswith("───"):
+            return
+        # Remove leading/trailing spaces and indentation
+        clean_name = palette_name.strip()
+        if clean_name:
+            self.palette_changed.emit(clean_name)
+
+    def _update_fusion_settings(self, fusion_mode: str):
+        """Update visible fusion settings based on selected fusion mode."""
+        # Hide all settings first
+        self.edge_settings_widget.hide()
+        self.msx_settings_widget.hide()
+
+        # Show appropriate settings based on mode
+        if fusion_mode == "edge_enhanced":
+            self.edge_settings_widget.show()
+        elif fusion_mode in ["msx", "msx_emboss"]:
+            self.msx_settings_widget.show()
+        # Other modes don't need specific settings widgets (use global fusion controls)
 
 # ============================================================================
 # Boson SDK Panel
@@ -3590,9 +4202,13 @@ class InspectionAppWindow(QMainWindow):
         self.anomaly_widget = self.combined_anomaly_widget.automatic_widget
         self.manual_threshold_widget = self.combined_anomaly_widget.manual_widget
 
-        # Add Boson SDK Panel tab
-        self.boson_panel = BosonSDKPanel()
-        self.right_panel_tabs.addTab(self.boson_panel, "Boson SDK")
+        # Add Boson Control Panel tab
+        self.boson_panel = BosonControlPanel()
+        self.right_panel_tabs.addTab(self.boson_panel, "Boson Control")
+
+        # Add Firefly Control Panel tab
+        self.firefly_panel = FireflyControlPanel()
+        self.right_panel_tabs.addTab(self.firefly_panel, "Firefly Camera")
 
         main_layout.addWidget(self.right_panel_tabs, stretch=0) # Fixed width
 
@@ -3638,6 +4254,14 @@ class InspectionAppWindow(QMainWindow):
         self.settings_panel.fusion_mode_changed.connect(self._on_fusion_mode_changed)
         self.settings_panel.fusion_alpha_changed.connect(self._on_fusion_alpha_changed)
         self.settings_panel.fusion_priority_changed.connect(self._on_fusion_priority_changed)
+        self.settings_panel.fusion_strength_changed.connect(self._on_fusion_strength_changed)
+        self.settings_panel.fusion_fuzziness_changed.connect(self._on_fusion_fuzziness_changed)
+        self.settings_panel.fusion_color_mode_changed.connect(self._on_fusion_color_mode_changed)
+        self.settings_panel.edge_strength_changed.connect(self._on_edge_strength_changed)
+        self.settings_panel.edge_fuzziness_changed.connect(self._on_edge_fuzziness_changed)
+        self.settings_panel.edge_color_changed.connect(self._on_edge_color_changed)
+        self.settings_panel.msx_strength_changed.connect(self._on_msx_strength_changed)
+        self.settings_panel.msx_quality_changed.connect(self._on_msx_quality_changed)
         self.settings_panel.save_rois_clicked.connect(self._on_save_rois)
         self.settings_panel.load_rois_clicked.connect(self._on_load_rois)
         self.settings_panel.overlay_info_toggled.connect(self._on_overlay_info_toggle)
@@ -3651,20 +4275,49 @@ class InspectionAppWindow(QMainWindow):
         self.anomaly_widget.motion_threshold_changed.connect(self._on_motion_threshold_changed)
         # Connect other anomaly signals as needed...
 
-        # Boson SDK Signals
-        self.boson_panel.connect_clicked.connect(self._on_boson_connect)
-        self.boson_panel.disconnect_clicked.connect(self._on_boson_disconnect)
-        self.boson_panel.ffc_clicked.connect(self._on_boson_ffc)
-        self.boson_panel.scan_ports_clicked.connect(self._on_boson_scan_ports)
+        # Boson SDK Panel - Connection and basic controls
+        self.boson_panel.sdk_connect_requested.connect(self._on_boson_connect)
+        self.boson_panel.sdk_disconnect_requested.connect(self._on_boson_disconnect)
+        self.boson_panel.ffc_triggered.connect(self._on_boson_ffc)
+        self.boson_panel.sdk_scan_ports_requested.connect(self._on_boson_scan_ports)
+        
+        # Boson SDK Panel - Camera controls (quick wins)
+        self.boson_panel.gain_mode_changed.connect(self._on_boson_gain_mode)
+        self.boson_panel.ffc_mode_changed.connect(self._on_boson_ffc_mode)
+        self.boson_panel.color_lut_changed.connect(self._on_boson_color_lut)
+
+        # Boson SDK Panel - AGC controls (Universal - ALL Boson cameras)
+        self.boson_panel.agc_max_gain_changed.connect(self._on_agc_max_gain_changed)
+        self.boson_panel.agc_gamma_changed.connect(self._on_agc_gamma_changed)
+        self.boson_panel.agc_linearity_changed.connect(self._on_agc_linearity_changed)
+        self.boson_panel.agc_dde_changed.connect(self._on_agc_dde_changed)
+        self.boson_panel.agc_reset_requested.connect(self._on_agc_reset)
+        
+        # Firefly Camera Panel - Exposure controls
+        self.firefly_panel.exposure_mode_changed.connect(self._on_firefly_exposure_mode)
+        self.firefly_panel.exposure_time_changed.connect(self._on_firefly_exposure_time)
+        
+        # Firefly Camera Panel - Gain controls
+        self.firefly_panel.gain_mode_changed.connect(self._on_firefly_gain_mode)
+        self.firefly_panel.gain_changed.connect(self._on_firefly_gain)
+        
+        # Firefly Camera Panel - White Balance controls
+        self.firefly_panel.white_balance_mode_changed.connect(self._on_firefly_white_balance_mode)
+        self.firefly_panel.white_balance_calibrate.connect(self._on_firefly_white_balance_calibrate)
+        self.firefly_panel.white_balance_ratio_changed.connect(self._on_firefly_white_balance_ratio)
+        
+        # Firefly Camera Panel - Trigger controls
+        self.firefly_panel.trigger_mode_changed.connect(self._on_firefly_trigger_mode)
+        self.firefly_panel.trigger_fire.connect(self._on_firefly_trigger_fire)
+        
+        # Firefly Camera Panel - Image settings
+        self.firefly_panel.gamma_changed.connect(self._on_firefly_gamma)
+        self.firefly_panel.sharpness_changed.connect(self._on_firefly_sharpness)
+        
+        # Analysis panel signals
         self.analysis_panel.roi_palette_changed.connect(self._on_roi_palette_changed)
         self.analysis_panel.roi_palette_cleared.connect(self._on_roi_palette_cleared)
         self.analysis_panel.overlay_info_toggled.connect(self._on_overlay_info_toggle)
-
-        # Boson SDK Panel
-        self.boson_panel.connect_clicked.connect(self._on_boson_connect)
-        self.boson_panel.disconnect_clicked.connect(self._on_boson_disconnect)
-        self.boson_panel.ffc_clicked.connect(self._on_boson_ffc)
-        self.boson_panel.scan_ports_clicked.connect(self._on_boson_scan_ports)
 
         # Anomaly Widget
         self.anomaly_widget.anomaly_priority_toggled.connect(self._on_anomaly_priority_toggle)
@@ -3885,6 +4538,54 @@ class InspectionAppWindow(QMainWindow):
             self.app.set_fusion_priority(priority)
         logger.info(f"Fusion priority changed to: {priority}")
 
+    def _on_fusion_strength_changed(self, strength: float):
+        """Handle fusion strength change."""
+        if self.app and hasattr(self.app, 'set_fusion_strength'):
+            self.app.set_fusion_strength(strength)
+        logger.info(f"Fusion strength changed to: {strength:.2f}")
+
+    def _on_fusion_fuzziness_changed(self, fuzziness: float):
+        """Handle fusion fuzziness change."""
+        if self.app and hasattr(self.app, 'set_fusion_fuzziness'):
+            self.app.set_fusion_fuzziness(fuzziness)
+        logger.info(f"Fusion fuzziness changed to: {fuzziness:.2f}")
+
+    def _on_fusion_color_mode_changed(self, mode: str):
+        """Handle RGB fusion color mode change (color vs grayscale)."""
+        if self.app and hasattr(self.app, 'set_fusion_color_mode'):
+            self.app.set_fusion_color_mode(mode)
+        logger.info(f"Fusion color mode changed to: {mode}")
+
+    def _on_edge_strength_changed(self, strength: float):
+        """Handle edge detection strength change."""
+        if self.app and hasattr(self.app, 'set_edge_strength'):
+            self.app.set_edge_strength(strength)
+        logger.info(f"Edge detection strength changed to: {strength:.2f}")
+
+    def _on_edge_fuzziness_changed(self, fuzziness: float):
+        """Handle edge detection fuzziness change."""
+        if self.app and hasattr(self.app, 'set_edge_fuzziness'):
+            self.app.set_edge_fuzziness(fuzziness)
+        logger.info(f"Edge detection fuzziness changed to: {fuzziness:.2f}")
+
+    def _on_edge_color_changed(self, color: str):
+        """Handle edge overlay color change."""
+        if self.app and hasattr(self.app, 'set_edge_color'):
+            self.app.set_edge_color(color)
+        logger.info(f"Edge color changed to: {color}")
+
+    def _on_msx_strength_changed(self, strength: float):
+        """Handle MSX strength change."""
+        if self.app and hasattr(self.app, 'set_msx_strength'):
+            self.app.set_msx_strength(strength)
+        logger.info(f"MSX strength changed to: {strength:.2f}")
+
+    def _on_msx_quality_changed(self, quality: float):
+        """Handle MSX quality change."""
+        if self.app and hasattr(self.app, 'set_msx_quality'):
+            self.app.set_msx_quality(quality)
+        logger.info(f"MSX quality changed to: {quality:.2f}")
+
     def _on_show_stats_toggle(self, checked: bool):
         """Toggle statistics display."""
         if hasattr(self.analysis_panel, 'stats_label'):
@@ -4024,22 +4725,31 @@ class InspectionAppWindow(QMainWindow):
 
     def _on_global_palette_changed(self, palette_name: str):
         """Handle global palette selection from analysis panel."""
-        if self.app:
-            self.app.set_palette(palette_name)
-        logger.info(f"Global palette changed: {palette_name}")
+        try:
+            logger.info(f"Attempting to change palette to: '{palette_name}' (type: {type(palette_name)})")
+            if self.app:
+                self.app.set_palette(palette_name)
+            logger.info(f"Global palette changed successfully: {palette_name}")
+        except Exception as e:
+            logger.error(f"CRASH in _on_global_palette_changed with palette '{palette_name}': {e}", exc_info=True)
+            # Show error to user
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Palette Error", f"Failed to change palette to '{palette_name}':\n{e}")
 
     def _on_boson_connect(self, com_port: str):
         """Handle SDK connection request from Boson panel."""
         if self.app and hasattr(self.app, 'connect_boson_sdk'):
             success = self.app.connect_boson_sdk(com_port)
             if success:
-                self.boson_panel.set_connected(True)
+                self.boson_panel.update_connection_status(True)
                 logger.info(f"Boson SDK connected on {com_port}")
                 # Get camera info and display
                 if hasattr(self.app.thermal_camera, 'get_camera_info'):
                     info = self.app.thermal_camera.get_camera_info()
                     if info:
                         self.boson_panel.set_status(f"SN: {info.serial_number}")
+                        # Update all camera info fields
+                        self.boson_panel.update_camera_info(info)
             else:
                 self.boson_panel.set_status("Connection failed", is_error=True)
                 logger.error(f"Boson SDK connection failed on {com_port}")
@@ -4050,7 +4760,7 @@ class InspectionAppWindow(QMainWindow):
         """Handle SDK disconnection request from Boson panel."""
         if self.app and hasattr(self.app, 'disconnect_boson_sdk'):
             self.app.disconnect_boson_sdk()
-            self.boson_panel.set_connected(False)
+            self.boson_panel.update_connection_status(False)
             self.boson_panel.set_status("Disconnected")
             logger.info("Boson SDK disconnected")
 
@@ -4086,6 +4796,52 @@ class InspectionAppWindow(QMainWindow):
         """Handle FFC mode change from Boson panel."""
         if self.app and hasattr(self.app, 'set_boson_ffc_mode'):
             self.app.set_boson_ffc_mode(mode)
+
+    def _on_boson_color_lut(self, lut_name: str):
+        """Handle color LUT change from Boson panel."""
+        if self.app and hasattr(self.app, 'set_boson_color_lut'):
+            self.app.set_boson_color_lut(lut_name)
+            logger.info(f"Boson color LUT set to: {lut_name}")
+
+    def _on_agc_max_gain_changed(self, gain: float):
+        """Handle AGC max gain change."""
+        if self.app and hasattr(self.app, 'set_agc_max_gain'):
+            if self.app.set_agc_max_gain(gain):
+                logger.info(f"AGC max gain set to {gain:.1f}x")
+            else:
+                logger.warning(f"Failed to set AGC max gain to {gain:.1f}x")
+
+    def _on_agc_gamma_changed(self, gamma: float):
+        """Handle AGC gamma change."""
+        if self.app and hasattr(self.app, 'set_agc_gamma'):
+            if self.app.set_agc_gamma(gamma):
+                logger.info(f"AGC gamma set to {gamma:.2f}")
+            else:
+                logger.warning(f"Failed to set AGC gamma to {gamma:.2f}")
+
+    def _on_agc_linearity_changed(self, percent: float):
+        """Handle AGC linearity change."""
+        if self.app and hasattr(self.app, 'set_agc_linearity'):
+            if self.app.set_agc_linearity(percent):
+                logger.info(f"AGC linearity set to {percent:.0f}%")
+            else:
+                logger.warning(f"Failed to set AGC linearity to {percent:.0f}%")
+
+    def _on_agc_dde_changed(self, dde: float):
+        """Handle AGC DDE (Detail Enhancement) change."""
+        if self.app and hasattr(self.app, 'set_agc_dde'):
+            if self.app.set_agc_dde(dde):
+                logger.info(f"AGC DDE set to {dde:.2f}")
+            else:
+                logger.warning(f"Failed to set AGC DDE to {dde:.2f}")
+
+    def _on_agc_reset(self):
+        """Reset AGC settings to defaults."""
+        if self.app and hasattr(self.app, 'reset_agc_settings'):
+            if self.app.reset_agc_settings():
+                logger.info("AGC settings reset to defaults")
+            else:
+                logger.warning("Failed to reset AGC settings")
 
     def _on_overlay_info_toggle(self, show: bool):
         """Handle overlay detection info toggle."""
@@ -4192,6 +4948,78 @@ class InspectionAppWindow(QMainWindow):
             return
         dialog = CameraManagerDialog(self.app, self)
         dialog.exec()
+    
+    # ==========================================================================
+    # Firefly Camera Control Handlers
+    # ==========================================================================
+    
+    def _on_firefly_exposure_mode(self, mode: str):
+        """Handle Firefly exposure mode change."""
+        if self.app:
+            self.app.set_firefly_exposure_mode(mode)
+            logger.info(f"Firefly exposure mode: {mode}")
+    
+    def _on_firefly_exposure_time(self, time_us: float):
+        """Handle Firefly exposure time change."""
+        if self.app:
+            self.app.set_firefly_exposure_time(time_us)
+            logger.debug(f"Firefly exposure time: {time_us} µs")
+    
+    def _on_firefly_gain_mode(self, mode: str):
+        """Handle Firefly gain mode change."""
+        if self.app:
+            self.app.set_firefly_gain_mode(mode)
+            logger.info(f"Firefly gain mode: {mode}")
+    
+    def _on_firefly_gain(self, gain_db: float):
+        """Handle Firefly gain change."""
+        if self.app:
+            self.app.set_firefly_gain(gain_db)
+            logger.debug(f"Firefly gain: {gain_db} dB")
+    
+    def _on_firefly_white_balance_mode(self, mode: str):
+        """Handle Firefly white balance mode change."""
+        if self.app:
+            self.app.set_firefly_white_balance_mode(mode)
+            logger.info(f"Firefly white balance mode: {mode}")
+    
+    def _on_firefly_white_balance_calibrate(self):
+        """Handle Firefly white balance calibration."""
+        if self.app:
+            self.app.calibrate_firefly_white_balance()
+            logger.info("Firefly white balance calibration triggered")
+    
+    def _on_firefly_white_balance_ratio(self, color: str, ratio: float):
+        """Handle Firefly white balance ratio change."""
+        if self.app:
+            self.app.set_firefly_white_balance_ratio(color, ratio)
+            logger.debug(f"Firefly {color} balance ratio: {ratio}")
+    
+    def _on_firefly_trigger_mode(self, enabled: bool, source: str):
+        """Handle Firefly trigger mode change."""
+        if self.app:
+            self.app.set_firefly_trigger_mode(enabled, source)
+            mode_str = f"{source} trigger" if enabled else "Free-run"
+            logger.info(f"Firefly trigger mode: {mode_str}")
+    
+    def _on_firefly_trigger_fire(self):
+        """Handle Firefly software trigger."""
+        if self.app:
+            self.app.fire_firefly_software_trigger()
+            logger.info("Firefly software trigger fired")
+    
+    def _on_firefly_gamma(self, gamma: float):
+        """Handle Firefly gamma change."""
+        if self.app:
+            self.app.set_firefly_gamma(gamma)
+            logger.debug(f"Firefly gamma: {gamma}")
+    
+    def _on_firefly_sharpness(self, enabled: bool, value: float):
+        """Handle Firefly sharpness change."""
+        if self.app:
+            self.app.set_firefly_sharpness(enabled, value)
+            logger.debug(f"Firefly sharpness: {'ON' if enabled else 'OFF'} ({value})")
+
 # ============================================================================
 # Standalone Test
 # ============================================================================

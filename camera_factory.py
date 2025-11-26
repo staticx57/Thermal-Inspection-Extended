@@ -81,12 +81,13 @@ def detect_all_rgb_cameras() -> dict:
     return cameras
 
 
-def create_rgb_camera(resolution: Tuple[int, int] = (640, 480),
+def create_rgb_camera(resolution: Tuple[int, int] = (0, 0),
                       fps: int = 30,
                       camera_type: Optional[str] = None,
                       camera_index: int = 0,
                       use_gstreamer: bool = False,
-                      thermal_device_id: Optional[int] = None):
+                      thermal_device_id: Optional[int] = None,
+                      use_max_resolution: bool = True):
     """
     Create RGB camera instance with auto-detection
 
@@ -96,12 +97,14 @@ def create_rgb_camera(resolution: Tuple[int, int] = (640, 480),
     3. Original RGBCamera class (legacy fallback)
 
     Args:
-        resolution: Desired resolution (width, height)
+        resolution: Desired resolution (width, height). Use (0, 0) for maximum available.
         fps: Target frame rate
         camera_type: Force specific camera type ("firefly", "uvc", "auto")
         camera_index: Camera index (0 for first detected, or next available if thermal_device_id provided)
         use_gstreamer: Use GStreamer for CSI cameras (Jetson only)
         thermal_device_id: Device ID of thermal camera to skip (prevents opening same device)
+        use_max_resolution: If True and resolution is (0,0), use camera's maximum resolution
+                           to preserve detail before downstream resizing (default: True)
 
     Returns:
         Camera instance (RGBCameraFirefly, RGBCameraUVC, or RGBCamera)

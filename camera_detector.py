@@ -1,6 +1,15 @@
 """
 Camera Detection Utility
-Automatically detect and identify FLIR Boson cameras
+Automatically detect and identify thermal and RGB cameras with proper prioritization
+
+THERMAL CAMERA PRIORITY:
+1. FLIR Boson (via Spinnaker SDK or UVC) - 640x512 or 320x256
+2. Generic USB UVC thermal cameras - low saturation, grayscale
+
+RGB CAMERA PRIORITY:
+1. FLIR Firefly (via Spinnaker SDK) - Global shutter, best quality
+2. External USB UVC cameras
+3. Built-in laptop webcams
 """
 import cv2
 import subprocess
@@ -18,6 +27,14 @@ from camera_registry import get_camera_registry, CameraRole
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Try importing Spinnaker/PySpin for FLIR Firefly
+try:
+    import PySpin
+    PYSPIN_AVAILABLE = True
+except ImportError:
+    PYSPIN_AVAILABLE = False
+    logger.debug("PySpin not available - Firefly detection disabled")
+
 # FLIR Systems vendor ID
 FLIR_USB_VENDOR_ID = "09CB"
 
@@ -32,22 +49,38 @@ class CameraType(Enum):
 class CameraInfo:
     """Information about a detected camera"""
 
-    def __init__(self, device_id: int, name: str, driver: str, resolution: tuple):
+    def __init__(self, device_id: int, name: str, driver: str, resolution: tuple,
+                 interface: str = "opencv", serial: Optional[str] = None,
+                 spinnaker_index: Optional[int] = None):
+        """
+        Args:
+            device_id: OpenCV VideoCapture device ID (for UVC cameras)
+            name: Camera model/name
+            driver: Driver name (v4l2, DSHOW, MSMF, spinnaker)
+            resolution: (width, height) tuple
+            interface: 'opencv' or 'spinnaker'
+            serial: Serial number (for Spinnaker cameras)
+            spinnaker_index: Spinnaker camera index (if using PySpin)
+        """
         self.device_id = device_id
         self.name = name
         self.driver = driver
         self.resolution = resolution
+        self.interface = interface
+        self.serial = serial
+        self.spinnaker_index = spinnaker_index
         self.is_flir = 'flir' in name.lower() or 'boson' in name.lower()
         self.camera_type = self._detect_camera_type()
+        self.priority = self._calculate_priority()
 
     def _detect_camera_type(self) -> CameraType:
         """
-        Detect camera type based on resolution and name
+        Detect camera type based on resolution, name, and interface
 
         Returns:
             CameraType enum
         """
-        # FLIR Boson thermal camera resolutions
+        # FLIR Boson thermal camera resolutions (HIGHEST PRIORITY)
         thermal_resolutions = [
             (640, 512),  # Boson 640
             (320, 256),  # Boson 320
@@ -55,18 +88,27 @@ class CameraInfo:
             (256, 320),  # Boson 320 (rotated)
         ]
 
-        # Check resolution first (most reliable)
+        # Check resolution first (most reliable for thermal)
         if self.resolution in thermal_resolutions:
             return CameraType.THERMAL
 
         # Check name for thermal keywords
-        thermal_keywords = ['flir', 'boson', 'thermal', 'radiometric', 'lwir']
+        thermal_keywords = ['boson', 'thermal', 'radiometric', 'lwir', 'tau']
         name_lower = self.name.lower()
         if any(keyword in name_lower for keyword in thermal_keywords):
             return CameraType.THERMAL
 
+        # Firefly is RGB (global shutter camera)
+        if 'firefly' in name_lower or 'blackfly' in name_lower:
+            return CameraType.RGB
+
+        # Generic FLIR cameras via Spinnaker are usually RGB (Firefly/Blackfly)
+        # UNLESS they have thermal resolution or keywords
+        if self.interface == 'spinnaker':
+            return CameraType.RGB
+
         # RGB camera indicators
-        rgb_keywords = ['rgb', 'webcam', 'usb', 'hd', 'firefly', 'color']
+        rgb_keywords = ['rgb', 'webcam', 'usb', 'hd', 'color', 'camera']
         if any(keyword in name_lower for keyword in rgb_keywords):
             return CameraType.RGB
 
@@ -83,6 +125,60 @@ class CameraInfo:
 
         # Unknown type
         return CameraType.UNKNOWN
+
+    def _calculate_priority(self) -> int:
+        """
+        Calculate camera priority for selection
+
+        IMPORTANT: Thermal and RGB cameras are graded SEPARATELY with COEQUAL importance.
+        Priorities are separate within each category.
+
+        THERMAL PRIORITY (0-99):
+        0: FLIR Boson (via any interface)
+        1: Generic thermal (low saturation, thermal res)
+
+        RGB PRIORITY (0-99):
+        0: FLIR Firefly (Spinnaker SDK) - Global shutter, best
+        1: External USB UVC camera
+        2: Built-in laptop webcam
+
+        Lower number = higher priority WITHIN ITS CATEGORY
+
+        Returns:
+            Priority value (int) - only meaningful within camera type
+        """
+        name_lower = self.name.lower()
+
+        # THERMAL CAMERAS (graded separately)
+        if self.camera_type == CameraType.THERMAL:
+            if 'boson' in name_lower:
+                return 0  # Highest thermal priority
+            return 1  # Generic thermal
+
+        # RGB CAMERAS (graded separately)
+        if self.camera_type == CameraType.RGB:
+            # Firefly/Blackfly via Spinnaker = highest RGB priority
+            if self.interface == 'spinnaker':
+                return 0  # CHANGED: Highest RGB priority (was 10)
+
+            # External USB camera heuristic
+            # Device 0 with VGA (640x480) is likely built-in on laptops
+            if self.device_id == 0 and self.resolution == (640, 480):
+                return 2  # CHANGED: Built-in laptop webcam (was 30)
+
+            # Higher resolution cameras are likely external
+            width, height = self.resolution
+            if width >= 1280 or height >= 720:
+                return 1  # CHANGED: External USB camera (was 20)
+
+            # Lower resolution non-Firefly cameras
+            if self.device_id == 0:
+                return 2  # CHANGED: Likely built-in (was 30)
+            else:
+                return 1  # CHANGED: Likely external (was 20)
+
+        # Unknown type
+        return 999
 
     def is_thermal(self) -> bool:
         """Check if this camera is a thermal camera"""
@@ -105,12 +201,16 @@ class CameraDetector:
         """
         Detect all available cameras (cross-platform: Linux/Windows/macOS)
 
+        Detection order:
+        1. Spinnaker cameras (FLIR Firefly RGB, possibly Boson thermal)
+        2. UVC cameras (thermal Boson, generic USB, built-in webcams)
+
         Args:
             skip_device_ids: List of device IDs to skip during detection (already in use)
             register_cameras: Whether to register detected cameras with the registry (default: True)
 
         Returns:
-            List of CameraInfo objects
+            List of CameraInfo objects sorted by priority
         """
         import platform
         cameras = []
@@ -119,6 +219,16 @@ class CameraDetector:
         if skip_device_ids is None:
             skip_device_ids = []
 
+        logger.info("="*70)
+        logger.info("COMPREHENSIVE CAMERA DETECTION")
+        logger.info("="*70)
+
+        # STEP 1: Detect Spinnaker cameras (FLIR Firefly RGB only)
+        # Note: Boson thermal uses its own SDK or UVC, NOT Spinnaker
+        spinnaker_cameras = CameraDetector._detect_spinnaker_cameras()
+        cameras.extend(spinnaker_cameras)
+
+        # STEP 2: Detect UVC cameras (Boson thermal, generic USB, built-in)
         if system == "Linux":
             # Try v4l2-ctl first (Linux)
             v4l2_cameras = CameraDetector._detect_v4l2(skip_device_ids=skip_device_ids)
@@ -126,15 +236,24 @@ class CameraDetector:
                 cameras.extend(v4l2_cameras)
             else:
                 # Fallback: probe video devices directly
-                cameras = CameraDetector._probe_video_devices(skip_device_ids=skip_device_ids)
+                uvc_cameras = CameraDetector._probe_video_devices(skip_device_ids=skip_device_ids)
+                cameras.extend(uvc_cameras)
         elif system == "Windows":
             # Windows: probe cameras using DirectShow/MSMF
-            cameras = CameraDetector._probe_windows_cameras(skip_device_ids=skip_device_ids)
+            uvc_cameras = CameraDetector._probe_windows_cameras(skip_device_ids=skip_device_ids)
+            cameras.extend(uvc_cameras)
         else:
             # macOS or other: probe using default backend
-            cameras = CameraDetector._probe_video_devices(skip_device_ids=skip_device_ids)
+            uvc_cameras = CameraDetector._probe_video_devices(skip_device_ids=skip_device_ids)
+            cameras.extend(uvc_cameras)
 
-        # Register cameras with the registry if requested
+        # STEP 3: Sort cameras by priority (lower = better)
+        cameras.sort(key=lambda cam: cam.priority)
+
+        # STEP 4: Print detection summary
+        CameraDetector._print_detection_summary(cameras)
+
+        # STEP 5: Register cameras with the registry if requested
         if register_cameras:
             registry = get_camera_registry()
             for cam in cameras:
@@ -145,7 +264,7 @@ class CameraDetector:
                     detected_role = CameraRole.RGB
                 else:
                     detected_role = CameraRole.UNASSIGNED
-                
+
                 # Register camera with registry
                 registry.register_camera(
                     device_id=cam.device_id,
@@ -156,6 +275,139 @@ class CameraDetector:
                 )
 
         return cameras
+
+    @staticmethod
+    def _detect_spinnaker_cameras() -> List[CameraInfo]:
+        """
+        Detect FLIR cameras via Spinnaker SDK (Firefly RGB)
+
+        Note: Boson thermal cameras do NOT use Spinnaker
+
+        Returns:
+            List of CameraInfo for Spinnaker cameras
+        """
+        if not PYSPIN_AVAILABLE:
+            logger.info("[STEP 1] Spinnaker: Not available (PySpin not installed)")
+            return []
+
+        logger.info("[STEP 1] Scanning for Spinnaker cameras (Firefly RGB)...")
+
+        cameras = []
+        system = None
+        cam_list = None
+
+        try:
+            system = PySpin.System.GetInstance()
+            cam_list = system.GetCameras()
+            num_cameras = cam_list.GetSize()
+
+            logger.info(f"  Found {num_cameras} Spinnaker camera(s)")
+
+            for i in range(num_cameras):
+                try:
+                    cam = cam_list.GetByIndex(i)
+                    nodemap_tldevice = cam.GetTLDeviceNodeMap()
+
+                    # Get model name
+                    node_model = PySpin.CStringPtr(nodemap_tldevice.GetNode('DeviceModelName'))
+                    model = node_model.GetValue() if PySpin.IsReadable(node_model) else "Unknown"
+
+                    # Get serial number
+                    node_serial = PySpin.CStringPtr(nodemap_tldevice.GetNode('DeviceSerialNumber'))
+                    serial = node_serial.GetValue() if PySpin.IsReadable(node_serial) else "Unknown"
+
+                    # Determine if this is a Firefly/Blackfly (RGB) or something else
+                    model_lower = model.lower()
+                    is_firefly = 'firefly' in model_lower or 'blackfly' in model_lower
+
+                    # Log detection
+                    if is_firefly:
+                        logger.info(f"  [OK] Firefly RGB Camera: {model} (S/N: {serial})")
+                    else:
+                        logger.info(f"  [?] Spinnaker camera: {model} (not Firefly/Blackfly)")
+
+                    # Create CameraInfo
+                    # Note: Spinnaker cameras don't use OpenCV VideoCapture device IDs
+                    # We store the Spinnaker index separately
+                    cameras.append(CameraInfo(
+                        device_id=-1,  # Not applicable for Spinnaker cameras
+                        name=model,
+                        driver='spinnaker',
+                        resolution=(640, 480),  # Will be set when opened
+                        interface='spinnaker',
+                        serial=serial,
+                        spinnaker_index=i
+                    ))
+
+                    # Clean up camera reference
+                    del cam
+
+                except Exception as e:
+                    logger.warning(f"  Error reading Spinnaker camera {i}: {e}")
+
+        except Exception as e:
+            logger.error(f"  Spinnaker detection error: {e}")
+        finally:
+            if cam_list is not None:
+                del cam_list
+            # Don't release system instance - let it persist
+
+        if cameras:
+            logger.info(f"  Spinnaker detection complete: {len(cameras)} camera(s)")
+        else:
+            logger.info("  No Spinnaker cameras detected")
+
+        return cameras
+
+    @staticmethod
+    def _print_detection_summary(cameras: List[CameraInfo]):
+        """
+        Print comprehensive camera detection summary
+
+        Args:
+            cameras: List of detected cameras (sorted by priority)
+        """
+        logger.info("\n" + "="*70)
+        logger.info("DETECTION SUMMARY")
+        logger.info("="*70)
+
+        thermal_cams = [c for c in cameras if c.is_thermal()]
+        rgb_cams = [c for c in cameras if c.is_rgb()]
+        unknown_cams = [c for c in cameras if c.camera_type == CameraType.UNKNOWN]
+
+        logger.info(f"\nTotal cameras: {len(cameras)}")
+        logger.info(f"  Thermal: {len(thermal_cams)}")
+        logger.info(f"  RGB: {len(rgb_cams)}")
+        if unknown_cams:
+            logger.info(f"  Unknown: {len(unknown_cams)}")
+
+        if thermal_cams:
+            logger.info("\nTHERMAL CAMERAS (by priority):")
+            for i, cam in enumerate(thermal_cams, 1):
+                interface_str = f"[{cam.interface.upper()}]"
+                logger.info(f"  {i}. {cam.name} {interface_str}")
+                if cam.interface == 'spinnaker':
+                    logger.info(f"     Spinnaker Index: {cam.spinnaker_index}, S/N: {cam.serial}")
+                else:
+                    logger.info(f"     Device ID: {cam.device_id}, Resolution: {cam.resolution}")
+
+        if rgb_cams:
+            logger.info("\nRGB CAMERAS (by priority - graded separately from thermal):")
+            for i, cam in enumerate(rgb_cams, 1):
+                priority_label = {
+                    0: "BEST - Firefly (Spinnaker)",
+                    1: "GOOD - External USB",
+                    2: "OK - Built-in webcam"
+                }.get(cam.priority, f"Unknown (priority={cam.priority})")
+
+                interface_str = f"[{cam.interface.upper()}]"
+                logger.info(f"  {i}. [{priority_label}] {cam.name} {interface_str}")
+                if cam.interface == 'spinnaker':
+                    logger.info(f"     Spinnaker Index: {cam.spinnaker_index}, S/N: {cam.serial}")
+                else:
+                    logger.info(f"     Device ID: {cam.device_id}, Resolution: {cam.resolution}")
+
+        logger.info("="*70 + "\n")
 
     @staticmethod
     def _detect_v4l2(skip_device_ids: Optional[List[int]] = None) -> List[CameraInfo]:
@@ -346,7 +598,7 @@ class CameraDetector:
         return None
 
     @staticmethod
-    def _probe_windows_cameras(max_devices: int = 5, skip_device_ids: Optional[List[int]] = None) -> List[CameraInfo]:
+    def _probe_windows_cameras(max_devices: int = 2, skip_device_ids: Optional[List[int]] = None) -> List[CameraInfo]:
         """
         Probe cameras on Windows using DirectShow/MSMF with ROBUST frame-based detection
         
@@ -408,7 +660,7 @@ class CameraDetector:
                     # Update name if thermal
                     if is_thermal:
                         name = f"FLIR Boson {resolution[0]}x{resolution[1]} (Camera {device_id})"
-                        logger.info(f"✓ Thermal camera identified via frame analysis: {name}")
+                        logger.info(f"[OK] Thermal camera identified via frame analysis: {name}")
                     
                     cap.release()
                     cap = None
@@ -566,7 +818,7 @@ class CameraDetector:
             is_thermal = thermal_score >= 60
             
             if is_thermal:
-                logger.info(f"✓ Device {device_id}: Identified as THERMAL (score={thermal_score}): {', '.join(reasons)}")
+                logger.info(f"[OK] Device {device_id}: Identified as THERMAL (score={thermal_score}): {', '.join(reasons)}")
             else:
                 logger.debug(f"Device {device_id}: Identified as RGB (score={thermal_score})")
             
@@ -582,10 +834,14 @@ class CameraDetector:
     @staticmethod
     def find_thermal_camera() -> Optional[CameraInfo]:
         """
-        Find thermal camera automatically
+        Find best thermal camera automatically (by priority)
+
+        Priority:
+        0: FLIR Boson (via any interface)
+        1: Generic thermal camera
 
         Returns:
-            CameraInfo for thermal camera or None if not found
+            CameraInfo for best thermal camera or None if not found
         """
         import time
         cameras = CameraDetector.detect_all_cameras()
@@ -593,29 +849,39 @@ class CameraDetector:
         # Give cameras time to fully release after detection scan
         time.sleep(0.3)
 
-        # First priority: cameras identified as thermal
-        for cam in cameras:
-            if cam.is_thermal():
-                logger.info(f"Found thermal camera: {cam}")
-                return cam
+        # Get all thermal cameras (already sorted by priority)
+        thermal_cameras = [cam for cam in cameras if cam.is_thermal()]
 
-        # Second priority: cameras with FLIR/Boson in name
+        if thermal_cameras:
+            best_thermal = thermal_cameras[0]  # Already sorted, first is best
+            logger.info(f"[OK] Selected thermal camera: {best_thermal.name} (priority={best_thermal.priority})")
+            return best_thermal
+
+        # Fallback: cameras with FLIR/Boson in name (might be misidentified)
         for cam in cameras:
-            if cam.is_flir:
-                logger.info(f"Found FLIR camera (assumed thermal): {cam}")
+            if cam.is_flir and not cam.is_rgb():
+                logger.warning(f"Found FLIR camera (assumed thermal): {cam}")
                 return cam
 
         # No thermal camera detected
-        logger.warning("No thermal camera detected")
+        logger.warning("✗ No thermal camera detected")
         return None
 
     @staticmethod
-    def find_rgb_camera() -> Optional[CameraInfo]:
+    def find_rgb_camera(exclude_thermal_devices: bool = True) -> Optional[CameraInfo]:
         """
-        Find RGB camera automatically
+        Find best RGB camera automatically (by priority)
+
+        Priority:
+        10: FLIR Firefly (Spinnaker SDK) - Global shutter, best
+        20: External USB UVC camera
+        30: Built-in laptop webcam
+
+        Args:
+            exclude_thermal_devices: If True, exclude devices already assigned as thermal
 
         Returns:
-            CameraInfo for RGB camera or None if not found
+            CameraInfo for best RGB camera or None if not found
         """
         import time
         cameras = CameraDetector.detect_all_cameras()
@@ -623,20 +889,28 @@ class CameraDetector:
         # Give cameras time to fully release after detection scan
         time.sleep(0.3)
 
-        # First priority: cameras identified as RGB
-        for cam in cameras:
-            if cam.is_rgb():
-                logger.info(f"Found RGB camera: {cam}")
-                return cam
+        # Get all RGB cameras (already sorted by priority)
+        rgb_cameras = [cam for cam in cameras if cam.is_rgb()]
 
-        # Second priority: any non-thermal camera
+        if rgb_cameras:
+            best_rgb = rgb_cameras[0]  # Already sorted, first is best
+            priority_label = {
+                0: "Firefly (Spinnaker) - BEST",
+                1: "External USB - GOOD",
+                2: "Built-in webcam - OK"
+            }.get(best_rgb.priority, f"priority={best_rgb.priority}")
+
+            logger.info(f"[OK] Selected RGB camera: {best_rgb.name} [{priority_label}]")
+            return best_rgb
+
+        # Fallback: any non-thermal camera
         for cam in cameras:
             if not cam.is_thermal() and cam.camera_type != CameraType.UNKNOWN:
-                logger.info(f"Found camera (assumed RGB): {cam}")
+                logger.warning(f"Found camera (assumed RGB): {cam}")
                 return cam
 
         # No RGB camera detected
-        logger.warning("No RGB camera detected")
+        logger.warning("✗ No RGB camera detected")
         return None
 
     @staticmethod

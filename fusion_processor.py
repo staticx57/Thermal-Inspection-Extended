@@ -28,7 +28,9 @@ class FusionProcessor:
         Args:
             fusion_mode: Fusion strategy
                 - 'alpha_blend': Simple weighted average of thermal + RGB
-                - 'edge_enhanced': RGB base with thermal edges overlaid
+                - 'msx': FLIR MSX-style - overlays grayscale high-frequency detail from RGB
+                - 'msx_emboss': MSX with embossing filter (3D bas-relief effect)
+                - 'edge_enhanced': RGB base with thermal edges overlaid (prominent colored edges)
                 - 'thermal_overlay': Thermal hotspots overlaid on RGB
                 - 'side_by_side': Concatenate thermal and RGB horizontally
                 - 'picture_in_picture': Thermal in corner of RGB (or vice versa)
@@ -55,6 +57,15 @@ class FusionProcessor:
         self.rgb_priority_edge_color = tuple(config.get('fusion.edge_enhanced.rgb_priority_edge_color', [0, 0, 255]))
         # Fusion intensity: controls overlay strength (0.0 = minimal, 1.0 = maximum)
         self.fusion_intensity = float(config.get('fusion.intensity', 0.5))
+
+        # Edge detection parameters (NEW)
+        self.edge_threshold_low = 50   # Canny low threshold (more edges = lower value)
+        self.edge_threshold_high = 150  # Canny high threshold (more edges = lower value)
+        self.edge_blur_kernel = 0      # Gaussian blur kernel size for edge sharpness (0 = sharp edges, >0 = softer edges)
+
+        # MSX-specific parameters
+        self.msx_strength = 0.7        # MSX detail overlay strength (0.0 = subtle, 1.0 = strong)
+        self.msx_quality = 0.5         # MSX quality/detail level (0.0 = less detail, 1.0 = maximum detail)
 
         # Load calibration if available
         if calibration_file and os.path.exists(calibration_file):
@@ -125,7 +136,7 @@ class FusionProcessor:
         Args:
             fusion_mode: New fusion mode to use
         """
-        valid_modes = ['alpha_blend', 'edge_enhanced', 'thermal_overlay',
+        valid_modes = ['alpha_blend', 'msx', 'msx_emboss', 'edge_enhanced', 'thermal_overlay',
                        'side_by_side', 'picture_in_picture', 'max_intensity', 'feature_weighted', 'anomaly_priority']
 
         if fusion_mode in valid_modes:
@@ -173,6 +184,66 @@ class FusionProcessor:
             logger.info(f"Fusion intensity set to: {intensity:.2f}")
         else:
             logger.warning(f"Invalid intensity value {intensity}, must be between 0.0 and 1.0")
+
+    def set_edge_color(self, color: Tuple[int, int, int], priority: str = None):
+        """
+        Set edge color for edge-enhanced fusion mode
+
+        Args:
+            color: BGR color tuple (0-255 for each channel)
+            priority: Which priority mode this color applies to ('thermal' or 'rgb')
+                     If None, applies to current priority
+        """
+        if priority is None:
+            priority = self.fusion_priority
+
+        if priority == 'thermal':
+            self.thermal_priority_edge_color = tuple(color)
+            logger.info(f"Thermal priority edge color set to: {color}")
+        elif priority == 'rgb':
+            self.rgb_priority_edge_color = tuple(color)
+            logger.info(f"RGB priority edge color set to: {color}")
+        else:
+            logger.warning(f"Invalid priority '{priority}', must be 'thermal' or 'rgb'")
+
+    def set_edge_strength(self, threshold_low: int, threshold_high: int = None):
+        """
+        Set edge detection strength (Canny thresholds)
+        Lower values = more edges detected, Higher values = fewer edges
+
+        Args:
+            threshold_low: Lower threshold for Canny edge detection (10-100 typical)
+            threshold_high: Upper threshold (if None, automatically set to 3x low threshold)
+        """
+        threshold_low = max(1, min(200, threshold_low))  # Clamp to reasonable range
+        if threshold_high is None:
+            threshold_high = threshold_low * 3
+        else:
+            threshold_high = max(threshold_low, min(300, threshold_high))
+
+        self.edge_threshold_low = threshold_low
+        self.edge_threshold_high = threshold_high
+        logger.info(f"Edge thresholds set to: low={threshold_low}, high={threshold_high}")
+
+    def set_edge_blur(self, kernel_size: int):
+        """
+        Set edge fuzziness (Gaussian blur applied to edge mask after detection)
+        Controls edge sharpness without affecting which edges are detected.
+
+        Lower values = sharp, crisp edges (more detail visible)
+        Higher values = soft, blurred edges (smoother appearance)
+
+        Args:
+            kernel_size: Gaussian blur kernel size (0 = no blur/sharp, 1-15 typical for soft)
+                        Will be converted to odd number for cv2.GaussianBlur
+        """
+        if kernel_size < 0:
+            kernel_size = 0
+        elif kernel_size > 0 and kernel_size % 2 == 0:
+            kernel_size += 1  # Ensure odd number
+
+        self.edge_blur_kernel = min(15, kernel_size)
+        logger.info(f"Edge blur kernel size set to: {self.edge_blur_kernel}")
 
     def align_rgb_to_thermal(self, rgb: np.ndarray, thermal_shape: Tuple[int, int]) -> np.ndarray:
         """
@@ -234,6 +305,10 @@ class FusionProcessor:
         # Apply fusion strategy
         if self.fusion_mode == 'alpha_blend':
             return self._alpha_blend(thermal, rgb_aligned)
+        elif self.fusion_mode == 'msx':
+            return self._msx(thermal, rgb_aligned)
+        elif self.fusion_mode == 'msx_emboss':
+            return self._msx_emboss(thermal, rgb_aligned)
         elif self.fusion_mode == 'edge_enhanced':
             return self._edge_enhanced(thermal, rgb_aligned)
         elif self.fusion_mode == 'thermal_overlay':
@@ -272,11 +347,126 @@ class FusionProcessor:
             logger.error(f"Alpha blend error: {e}")
             return thermal
 
+    def _msx(self, thermal: np.ndarray, rgb: np.ndarray) -> np.ndarray:
+        """
+        MSX (Multi-Spectral Dynamic Imaging) fusion - FLIR-style
+        Overlays grayscale high-frequency spatial detail from RGB onto thermal
+        Adds visible structure (edges, text, outlines) as grayscale information
+
+        Key insight: MSX extracts sharp GRAYSCALE detail (not binary edges, not embossing)
+        from the visible camera and overlays it on thermal to add spatial context
+        while preserving thermal radiometric data.
+
+        Args:
+            thermal: Thermal frame (BGR, colorized)
+            rgb: RGB frame (BGR, aligned)
+
+        Returns:
+            MSX-enhanced thermal frame (thermal + grayscale RGB detail)
+        """
+        try:
+            # Convert RGB to grayscale to extract spatial detail
+            rgb_gray = cv2.cvtColor(rgb, cv2.COLOR_BGR2GRAY)
+
+            # Extract high-frequency detail (edges, texture, structure) from RGB
+            # Use high-pass filter to isolate sharp features
+            # Quality controls blur kernel size (higher quality = larger kernel = more detail isolation)
+            kernel_size = int(3 + self.msx_quality * 8)  # Range: 3 to 11
+            if kernel_size % 2 == 0:  # Ensure odd kernel size
+                kernel_size += 1
+            blurred = cv2.GaussianBlur(rgb_gray, (kernel_size, kernel_size), 0)
+
+            # Subtract to get high-frequency detail (edges/structure)
+            detail = cv2.subtract(rgb_gray, blurred)
+
+            # Enhance the detail contrast based on quality setting
+            # Higher quality = more aggressive contrast enhancement
+            contrast_alpha = 2.0 + self.msx_quality * 4.0  # Range: 2.0 to 6.0
+            detail = cv2.convertScaleAbs(detail, alpha=contrast_alpha, beta=0)
+
+            # Normalize to full range for better visibility
+            if detail.max() > 0:
+                detail = cv2.normalize(detail, None, 0, 255, cv2.NORM_MINMAX)
+
+            # Convert detail to BGR for overlay
+            detail_bgr = cv2.cvtColor(detail, cv2.COLOR_GRAY2BGR)
+
+            # Overlay grayscale detail onto thermal with strength-controlled blending
+            # Higher strength = more visible RGB structure
+            blend_strength = self.fusion_intensity * self.msx_strength
+            result = cv2.addWeighted(
+                thermal, 1.0 - blend_strength * 0.3,  # Slightly reduce thermal
+                detail_bgr, blend_strength * 0.7,      # Strength-controlled detail overlay
+                0
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"MSX fusion error: {e}")
+            return thermal
+
+    def _msx_emboss(self, thermal: np.ndarray, rgb: np.ndarray) -> np.ndarray:
+        """
+        MSX with traditional embossing filter - Alternative approach
+        Creates 3D bas-relief appearance with highlights/shadows from RGB structure
+
+        Uses convolution with emboss kernel to create raised/recessed appearance
+        based on edges and gradients in the visible light image.
+
+        Args:
+            thermal: Thermal frame (BGR, colorized)
+            rgb: RGB frame (BGR, aligned)
+
+        Returns:
+            MSX-enhanced thermal frame (thermal + embossed RGB structure)
+        """
+        try:
+            # Convert RGB to grayscale for embossing
+            rgb_gray = cv2.cvtColor(rgb, cv2.COLOR_BGR2GRAY)
+
+            # Apply emboss filter using convolution kernel
+            # Creates highlights (bright) on top/left edges, shadows (dark) on bottom/right
+            # Quality controls emboss kernel strength
+            kernel_strength = 1.0 + self.msx_quality * 2.0  # Range: 1.0 to 3.0
+            emboss_kernel = np.array([
+                [-2, -1,  0],
+                [-1,  1,  1],
+                [ 0,  1,  2]
+            ], dtype=np.float32) * kernel_strength
+
+            # Apply emboss convolution
+            embossed = cv2.filter2D(rgb_gray, -1, emboss_kernel)
+
+            # Normalize and add gray offset to center around 128
+            # This creates the highlight/shadow effect for 3D appearance
+            embossed = embossed.astype(np.float32)
+            embossed = embossed + 128.0  # Center at mid-gray
+            embossed = np.clip(embossed, 0, 255).astype(np.uint8)
+
+            # Convert embossed grayscale to BGR for blending
+            embossed_bgr = cv2.cvtColor(embossed, cv2.COLOR_GRAY2BGR)
+
+            # Blend embossed details onto thermal
+            # Use fusion_intensity and msx_strength to control how strong the embossing appears
+            blend_strength = self.fusion_intensity * self.msx_strength
+            result = cv2.addWeighted(
+                thermal, 1.0 - blend_strength * 0.5,  # Thermal base
+                embossed_bgr, blend_strength * 0.5,     # Strength-controlled embossed structure
+                0
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"MSX emboss fusion error: {e}")
+            return thermal
+
     def _edge_enhanced(self, thermal: np.ndarray, rgb: np.ndarray) -> np.ndarray:
         """
         Edge-enhanced fusion with priority control
         Extracts edges from one source and overlays on the other
-        Uses configurable edge colors from config.json
+        Uses configurable edge colors, strength, and fuzziness
 
         Args:
             thermal: Thermal frame (BGR)
@@ -290,28 +480,62 @@ class FusionProcessor:
                 # RGB base + thermal edges
                 # Extract edges from thermal
                 thermal_gray = cv2.cvtColor(thermal, cv2.COLOR_BGR2GRAY)
-                edges = cv2.Canny(thermal_gray, 50, 150)
 
-                # Create colored edge overlay (configurable color)
-                edge_color = np.zeros_like(thermal)
-                edge_color[edges > 0] = self.rgb_priority_edge_color  # Configurable (default: red)
+                # Extract edges with configurable thresholds (no pre-blur)
+                edges = cv2.Canny(thermal_gray,
+                                 self.edge_threshold_low,
+                                 self.edge_threshold_high)
 
-                # Blend: RGB base + thermal edges (use configurable intensity)
-                result = rgb.copy()
-                result = cv2.addWeighted(result, 1.0, edge_color, self.fusion_intensity, 0)
+                # Apply Gaussian blur to edges if configured (for softer edge appearance)
+                # This creates smooth gradients around edges instead of sharp lines
+                if self.edge_blur_kernel > 0:
+                    edges = cv2.GaussianBlur(edges,
+                                            (self.edge_blur_kernel, self.edge_blur_kernel),
+                                            0)
+
+                # Normalize edges to 0.0-1.0 for alpha blending
+                edges_normalized = edges.astype(np.float32) / 255.0
+
+                # Create colored edge overlay using edge values as alpha
+                result = rgb.copy().astype(np.float32)
+                edge_color_rgb = np.array(self.rgb_priority_edge_color, dtype=np.float32)
+
+                # Blend edges with intensity: result = rgb * (1 - alpha) + edge_color * alpha
+                for c in range(3):
+                    alpha_channel = edges_normalized * self.fusion_intensity
+                    result[:, :, c] = result[:, :, c] * (1 - alpha_channel) + edge_color_rgb[c] * alpha_channel
+
+                result = np.clip(result, 0, 255).astype(np.uint8)
             else:
                 # Thermal base + RGB edges (inverted priority)
                 # Extract edges from RGB
                 rgb_gray = cv2.cvtColor(rgb, cv2.COLOR_BGR2GRAY)
-                edges = cv2.Canny(rgb_gray, 50, 150)
 
-                # Create colored edge overlay (configurable color)
-                edge_color = np.zeros_like(rgb)
-                edge_color[edges > 0] = self.thermal_priority_edge_color  # Configurable (default: cyan)
+                # Extract edges with configurable thresholds (no pre-blur)
+                edges = cv2.Canny(rgb_gray,
+                                 self.edge_threshold_low,
+                                 self.edge_threshold_high)
 
-                # Blend: Thermal base + RGB edges (use configurable intensity)
-                result = thermal.copy()
-                result = cv2.addWeighted(result, 1.0, edge_color, self.fusion_intensity, 0)
+                # Apply Gaussian blur to edges if configured (for softer edge appearance)
+                # This creates smooth gradients around edges instead of sharp lines
+                if self.edge_blur_kernel > 0:
+                    edges = cv2.GaussianBlur(edges,
+                                            (self.edge_blur_kernel, self.edge_blur_kernel),
+                                            0)
+
+                # Normalize edges to 0.0-1.0 for alpha blending
+                edges_normalized = edges.astype(np.float32) / 255.0
+
+                # Create colored edge overlay using edge values as alpha
+                result = thermal.copy().astype(np.float32)
+                edge_color_rgb = np.array(self.thermal_priority_edge_color, dtype=np.float32)
+
+                # Blend edges with intensity: result = thermal * (1 - alpha) + edge_color * alpha
+                for c in range(3):
+                    alpha_channel = edges_normalized * self.fusion_intensity
+                    result[:, :, c] = result[:, :, c] * (1 - alpha_channel) + edge_color_rgb[c] * alpha_channel
+
+                result = np.clip(result, 0, 255).astype(np.uint8)
 
             return result
 

@@ -27,7 +27,7 @@ import cv2
 import os
 import numpy as np
 import faulthandler
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Tuple
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -37,6 +37,8 @@ faulthandler.enable()
 # Camera modules
 from flir_camera import FLIRBosonCamera
 from camera_factory import create_rgb_camera, autodetect_camera_types
+from camera_detector import CameraDetector
+from camera_initializer import CameraInitializer
 from placeholder_frames import create_thermal_placeholder, create_rgb_placeholder
 
 # Processing modules (NEW - Inspection focused)
@@ -151,13 +153,16 @@ class ThermalInspectionFusion:
         should_autodetect = getattr(args, 'auto_detect_cameras', True)
         thermal_specified = getattr(args, 'thermal_device', None) is not None
         rgb_specified = getattr(args, 'rgb_device', None) is not None
-        
-        if should_autodetect and (not thermal_specified or not rgb_specified):
+
+        # Skip legacy auto-detection if using robust init (it will handle detection)
+        use_robust_init = getattr(args, 'use_robust_camera_init', True)
+
+        if should_autodetect and (not thermal_specified or not rgb_specified) and not use_robust_init:
             try:
                 logger.info("=" * 60)
-                logger.info("AUTO-DETECTING CAMERAS")
+                logger.info("AUTO-DETECTING CAMERAS (LEGACY)")
                 logger.info("=" * 60)
-                
+
                 t_id, r_id = autodetect_camera_types()
                 
                 # Assign thermal camera
@@ -255,6 +260,8 @@ class ThermalInspectionFusion:
         # Fusion settings (PRESERVED!)
         self.fusion_mode = getattr(args, 'fusion_mode', 'thermal_overlay')
         self.fusion_alpha = getattr(args, 'fusion_alpha', 0.5)
+        self.fusion_priority = 'thermal'  # Default fusion priority
+        self.rgb_fusion_color_mode = 'color'  # Default RGB mode: color or grayscale
         self.available_fusion_modes = [
             'alpha_blend', 'edge_enhanced', 'thermal_overlay',
             'side_by_side', 'picture_in_picture', 'max_intensity',
@@ -334,6 +341,66 @@ class ThermalInspectionFusion:
             self.detection_executor = None
             self.roi_executor = None
             logger.info("Parallel processing disabled (sequential mode)")
+
+    def _init_cameras_robust(self) -> Tuple[bool, bool]:
+        """
+        Initialize cameras using robust detection with timeout protection
+
+        Uses the enhanced CameraInitializer which:
+        - Auto-detects Firefly (Spinnaker) vs UVC cameras
+        - Uses maximum resolution for RGB
+        - Has timeout protection to prevent hanging
+        - Handles thermal first (priority for inspection)
+
+        Returns:
+            (thermal_success, rgb_success) tuple
+        """
+        logger.info("="*70)
+        logger.info("INITIALIZING CAMERAS (ROBUST MODE)")
+        logger.info("="*70)
+
+        # Use robust initializer with thermal-first priority
+        thermal_cam, rgb_cam = CameraInitializer.init_cameras_prioritized(thermal_first=True)
+
+        # Handle thermal camera
+        thermal_success = False
+        if thermal_cam:
+            self.thermal_camera = thermal_cam
+            self.thermal_connected = True
+            self.is_flir_boson = True  # Assuming Boson if thermal detected
+            thermal_success = True
+
+            # Log SDK status if enabled
+            if hasattr(thermal_cam, 'is_sdk_connected') and thermal_cam.is_sdk_connected():
+                logger.info("=" * 60)
+                logger.info("[OK] Boson SDK connected - serial control enabled")
+                info = thermal_cam.get_camera_info()
+                if info:
+                    logger.info(f"  Camera SN: {info.serial_number}")
+                logger.info("=" * 60)
+
+            # Auto-enable radiometric if available
+            if hasattr(thermal_cam, 'enable_radiometric_mode'):
+                try:
+                    if thermal_cam.enable_radiometric_mode():
+                        logger.info("Auto-enabled radiometric mode")
+                except:
+                    pass
+        else:
+            logger.warning("Thermal camera initialization failed - using placeholder")
+
+        # Handle RGB camera
+        rgb_success = False
+        if rgb_cam and not getattr(self.args, 'disable_rgb', False):
+            self.rgb_camera = rgb_cam
+            self.rgb_available = True
+            rgb_success = True
+        else:
+            if not getattr(self.args, 'disable_rgb', False):
+                logger.warning("RGB camera initialization failed - thermal-only mode")
+
+        logger.info("="*70)
+        return (thermal_success, rgb_success)
 
     def _try_connect_thermal(self) -> bool:
         """
@@ -503,14 +570,26 @@ class ThermalInspectionFusion:
         logger.info(f"Device: {self.device}")
 
         try:
-            # 1. Connect thermal camera (optional at startup - hot-plug support)
-            thermal_connected = self._try_connect_thermal()
+            # 1. Connect cameras using robust auto-detection
+            # Uses enhanced detection with timeout protection
+            use_robust_init = getattr(self.args, 'use_robust_camera_init', True)
 
-            if not thermal_connected:
-                logger.warning("=" * 60)
-                logger.warning("NO THERMAL CAMERA DETECTED")
-                logger.warning("System will wait for thermal camera connection...")
-                logger.warning("=" * 60)
+            if use_robust_init:
+                # NEW: Robust initialization with auto-detection
+                thermal_connected, rgb_connected = self._init_cameras_robust()
+            else:
+                # LEGACY: Manual device ID initialization
+                thermal_connected = self._try_connect_thermal()
+
+                if not thermal_connected:
+                    logger.warning("=" * 60)
+                    logger.warning("NO THERMAL CAMERA DETECTED")
+                    logger.warning("System will wait for thermal camera connection...")
+                    logger.warning("=" * 60)
+
+                # 3. Connect RGB camera (optional)
+                if not self.args.disable_rgb:
+                    self._try_connect_rgb()
 
             # 2. Determine resolution
             if self.thermal_connected and self.thermal_camera:
@@ -518,10 +597,6 @@ class ThermalInspectionFusion:
             else:
                 actual_res = (self.args.width, self.args.height)
                 logger.info(f"Using default resolution: {actual_res[0]}x{actual_res[1]}")
-
-            # 3. Connect RGB camera (optional)
-            if not self.args.disable_rgb:
-                self._try_connect_rgb()
 
             # 4. Initialize fusion processor (PARAMOUNT!)
             if self.rgb_available:
@@ -645,6 +720,10 @@ class ThermalInspectionFusion:
                     self.gui_type = 'qt'
                     self.gui = InspectionAppWindow(self)
                     logger.info("Qt GUI created successfully")
+
+                    # Update camera panel statuses
+                    self.update_firefly_gui()
+                    self.update_boson_gui()
                 except ImportError as e:
                     logger.error(f"Failed to import Qt GUI: {e}")
                     self.gui_type = 'opencv'
@@ -934,7 +1013,13 @@ class ThermalInspectionFusion:
             t_prof['before_fusion'] = time.time()
             if rgb_frame is not None and self.fusion_processor:
                 try:
-                    fused_frame = self.fusion_processor.fuse_frames(thermal_colorized, rgb_frame)
+                    # Apply RGB color mode (convert to grayscale if requested)
+                    rgb_for_fusion = rgb_frame
+                    if self.rgb_fusion_color_mode == 'grayscale':
+                        rgb_gray = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2GRAY)
+                        rgb_for_fusion = cv2.cvtColor(rgb_gray, cv2.COLOR_GRAY2BGR)  # Convert back to 3-channel for fusion
+
+                    fused_frame = self.fusion_processor.fuse_frames(thermal_colorized, rgb_for_fusion)
                     result['fused_frame'] = fused_frame
                 except Exception as e:
                     logger.debug(f"Fusion processing error: {e}")
@@ -1289,7 +1374,7 @@ class ThermalInspectionFusion:
         if self.palette_manager:
             try:
                 self.palette_manager.set_global_palette(PaletteType(palette_name))
-                if self.gui and hasattr(self.gui, 'control_panel'):
+                if self.gui and hasattr(self.gui, 'control_panel') and hasattr(self.gui.control_panel, 'update_palette_button'):
                     self.gui.control_panel.update_palette_button(palette_name)
                 logger.info(f"Switched to palette: {palette_name}")
             except (ValueError, KeyError) as e:
@@ -1322,17 +1407,102 @@ class ThermalInspectionFusion:
     def set_fusion_mode(self, mode: str):
         """Set fusion mode."""
         self.fusion_mode = mode.lower()
+        if self.fusion_processor:
+            self.fusion_processor.set_mode(self.fusion_mode)
         logger.info(f"Fusion mode set to: {self.fusion_mode}")
 
     def set_fusion_alpha(self, alpha: float):
         """Set fusion alpha blending factor."""
         self.fusion_alpha = max(0.0, min(1.0, alpha))
+        if self.fusion_processor:
+            self.fusion_processor.set_alpha(self.fusion_alpha)
         # logger.info(f"Fusion alpha set to: {self.fusion_alpha}")
 
     def set_fusion_priority(self, priority: str):
         """Set fusion priority."""
         self.fusion_priority = priority.lower()
+        if self.fusion_processor:
+            self.fusion_processor.set_priority(self.fusion_priority)
         logger.info(f"Fusion priority set to: {self.fusion_priority}")
+
+    def set_fusion_strength(self, strength: float):
+        """Set fusion strength (intensity)."""
+        if self.fusion_processor:
+            self.fusion_processor.set_intensity(strength)
+            logger.info(f"Fusion strength set to: {strength:.2f}")
+
+    def set_fusion_fuzziness(self, fuzziness: float):
+        """Set fusion fuzziness (edge blur for blending)."""
+        if self.fusion_processor:
+            # Convert 0.0-1.0 to kernel size (0-15)
+            kernel_size = int(fuzziness * 15)
+            # Ensure odd number for Gaussian blur
+            if kernel_size > 0 and kernel_size % 2 == 0:
+                kernel_size += 1
+            self.fusion_processor.set_edge_blur(kernel_size)
+            logger.info(f"Fusion fuzziness set to: {fuzziness:.2f} (kernel={kernel_size})")
+
+    def set_fusion_color_mode(self, mode: str):
+        """Set RGB fusion color mode (color vs grayscale)."""
+        # Store the mode for use during RGB processing
+        self.rgb_fusion_color_mode = mode.lower()
+        logger.info(f"Fusion RGB color mode set to: {self.rgb_fusion_color_mode}")
+
+    def set_edge_strength(self, strength: float):
+        """Set edge detection strength (how many edges to detect)."""
+        if self.fusion_processor:
+            # Convert 0.0-1.0 to Canny threshold range
+            # Higher strength = more edges = LOWER thresholds (detect more)
+            # Lower strength = fewer edges = HIGHER thresholds (detect less)
+            # Formula: strength 0.0 → threshold 100, strength 1.0 → threshold 10
+            threshold_low = int(100 - (strength * 90))  # Range: 100→10
+            self.fusion_processor.set_edge_strength(threshold_low)
+            logger.info(f"Edge strength set to: {strength:.2f} (threshold={threshold_low})")
+
+    def set_edge_fuzziness(self, fuzziness: float):
+        """Set edge fuzziness (edge sharpness/softness).
+
+        Lower fuzziness = sharper edges (more detail shows through)
+        Higher fuzziness = softer edges (less sharp, more blended)
+        """
+        if self.fusion_processor:
+            # Convert 0.0-1.0 to kernel size (0-15)
+            # Lower fuzziness = smaller kernel = sharper edges
+            # Higher fuzziness = larger kernel = softer edges
+            kernel_size = int(fuzziness * 15)
+            # Ensure odd number for Gaussian blur
+            if kernel_size > 0 and kernel_size % 2 == 0:
+                kernel_size += 1
+            self.fusion_processor.set_edge_blur(kernel_size)
+            logger.info(f"Edge fuzziness set to: {fuzziness:.2f} (kernel={kernel_size}, sharpness={'sharp' if fuzziness < 0.3 else 'medium' if fuzziness < 0.7 else 'soft'})")
+
+    def set_edge_color(self, color: str):
+        """Set edge overlay color."""
+        if self.fusion_processor:
+            # Map color names to BGR tuples
+            color_map = {
+                'white': (255, 255, 255),
+                'cyan': (255, 255, 0),
+                'green': (0, 255, 0),
+                'yellow': (0, 255, 255),
+                'red': (0, 0, 255),
+                'magenta': (255, 0, 255)
+            }
+            bgr_color = color_map.get(color.lower(), (255, 255, 0))  # Default to cyan
+            self.fusion_processor.set_edge_color(bgr_color)
+            logger.info(f"Edge color set to: {color} (BGR={bgr_color})")
+
+    def set_msx_strength(self, strength: float):
+        """Set MSX detail overlay strength."""
+        if self.fusion_processor:
+            self.fusion_processor.msx_strength = strength
+            logger.info(f"MSX strength set to: {strength:.2f}")
+
+    def set_msx_quality(self, quality: float):
+        """Set MSX quality/detail level."""
+        if self.fusion_processor:
+            self.fusion_processor.msx_quality = quality
+            logger.info(f"MSX quality set to: {quality:.2f}")
 
     def set_view_mode(self, mode: str):
         """Set view mode."""
@@ -1679,6 +1849,78 @@ class ThermalInspectionFusion:
                     return False
         return False
 
+    def set_boson_color_lut(self, lut_name: str):
+        """Set Boson color LUT (palette)."""
+        if self.thermal_camera and self.thermal_camera.is_sdk_connected():
+            # Map string to enum value
+            lut_map = {
+                'white_hot': 0,
+                'black_hot': 1,
+                'rainbow': 2,
+                'rainbow_hc': 3,
+                'ironbow': 4,
+                'lava': 5,
+                'arctic': 6,
+                'globow': 7,
+                'graded_fire': 8,
+                'gradedfire': 8,
+                'hottest': 9
+            }
+            if lut_name.lower() in lut_map:
+                if self.thermal_camera.set_color_lut(lut_map[lut_name.lower()]):
+                    logger.info(f"Color LUT set to {lut_name}")
+                    return True
+                else:
+                    logger.error(f"Failed to set color LUT to {lut_name}")
+                    return False
+        return False
+
+    # ========================================================================
+    # AGC (Automatic Gain Control) Methods - Universal (ALL Boson cameras)
+    # ========================================================================
+
+    def set_agc_max_gain(self, gain: float) -> bool:
+        """Set AGC maximum gain (contrast limit)."""
+        if self.thermal_camera and self.thermal_camera.is_sdk_connected():
+            if hasattr(self.thermal_camera, 'set_agc_max_gain'):
+                return self.thermal_camera.set_agc_max_gain(gain)
+        return False
+
+    def set_agc_gamma(self, gamma: float) -> bool:
+        """Set AGC gamma correction (ACE - Automatic Contrast Enhancement)."""
+        if self.thermal_camera and self.thermal_camera.is_sdk_connected():
+            if hasattr(self.thermal_camera, 'set_agc_gamma'):
+                return self.thermal_camera.set_agc_gamma(gamma)
+        return False
+
+    def set_agc_linearity(self, percent: float) -> bool:
+        """Set AGC linearity (histogram vs. linear mapping)."""
+        if self.thermal_camera and self.thermal_camera.is_sdk_connected():
+            if hasattr(self.thermal_camera, 'set_agc_linearity'):
+                return self.thermal_camera.set_agc_linearity(percent)
+        return False
+
+    def set_agc_dde(self, dde: float) -> bool:
+        """Set AGC DDE (Digital Detail Enhancement)."""
+        if self.thermal_camera and self.thermal_camera.is_sdk_connected():
+            if hasattr(self.thermal_camera, 'set_detail_enhancement'):
+                return self.thermal_camera.set_detail_enhancement(dde)
+        return False
+
+    def reset_agc_settings(self) -> bool:
+        """Reset AGC settings to defaults."""
+        if self.thermal_camera and self.thermal_camera.is_sdk_connected():
+            # Reset to defaults: max_gain=2.0, gamma=1.0, linearity=50%, dde=1.3
+            success = True
+            success &= self.set_agc_max_gain(2.0)
+            success &= self.set_agc_gamma(1.0)
+            success &= self.set_agc_linearity(50.0)
+            success &= self.set_agc_dde(1.3)
+            if success:
+                logger.info("AGC settings reset to defaults")
+            return success
+        return False
+
     def connect_boson_sdk(self, com_port: str) -> bool:
         """
         Connect to Boson SDK.
@@ -1853,7 +2095,7 @@ class ThermalInspectionFusion:
                           self.thermal_camera.is_sdk_connected())
             
             # Update connection status
-            self.gui.boson_panel.set_connected(is_connected)
+            self.gui.boson_panel.update_connection_status(is_connected)
             
             # Update camera info if connected
             if is_connected and hasattr(self.thermal_camera, 'get_camera_info'):
@@ -1870,6 +2112,39 @@ class ThermalInspectionFusion:
         except Exception as e:
             logger.debug(f"Error updating Boson GUI: {e}")
 
+    def update_firefly_gui(self):
+        """Update Firefly camera panel GUI state."""
+        if not self.gui or not hasattr(self.gui, 'firefly_panel'):
+            return
+
+        try:
+            is_connected = (self.rgb_camera and
+                          self.rgb_available and
+                          hasattr(self.rgb_camera, 'is_open') and
+                          self.rgb_camera.is_open)
+
+            if is_connected:
+                # Get camera info for display
+                info = {}
+                if hasattr(self.rgb_camera, 'get_camera_info'):
+                    camera_info = self.rgb_camera.get_camera_info()
+                    if camera_info:
+                        info = camera_info
+                else:
+                    # Build info dict from camera properties
+                    info['model'] = getattr(self.rgb_camera, 'camera_model', 'Firefly')
+                    info['serial'] = getattr(self.rgb_camera, 'serial_number', 'Unknown')
+                    info['width'] = getattr(self.rgb_camera, 'width', 0)
+                    info['height'] = getattr(self.rgb_camera, 'height', 0)
+                    info['fps'] = getattr(self.rgb_camera, 'fps', 0)
+                    info['pixel_format'] = getattr(self.rgb_camera, 'pixel_format', 'BGR8')
+
+                self.gui.firefly_panel.set_camera_connected(True, info)
+            else:
+                self.gui.firefly_panel.set_camera_connected(False)
+
+        except Exception as e:
+            logger.debug(f"Error updating Firefly GUI: {e}")
 
     def cleanup(self):
         """Clean up resources."""
@@ -1913,6 +2188,93 @@ class ThermalInspectionFusion:
 
         cv2.destroyAllWindows()
         logger.info("Cleanup complete")
+    
+    # ==========================================================================
+    # Firefly Camera Control Methods
+    # ==========================================================================
+    
+    def set_firefly_exposure_mode(self, mode: str) -> bool:
+        """Set Firefly camera exposure mode."""
+        from rgb_camera_firefly import RGBCameraFirefly
+        if isinstance(self.rgb_camera, RGBCameraFirefly):
+            return self.rgb_camera.set_exposure_mode(mode)
+        logger.warning("RGB camera is not a Firefly camera")
+        return False
+    
+    def set_firefly_exposure_time(self, time_us: float) -> bool:
+        """Set Firefly camera exposure time in microseconds."""
+        from rgb_camera_firefly import RGBCameraFirefly
+        if isinstance(self.rgb_camera, RGBCameraFirefly):
+            return self.rgb_camera.set_exposure_time(time_us)
+        return False
+    
+    def set_firefly_gain_mode(self, mode: str) -> bool:
+        """Set Firefly camera gain mode."""
+        from rgb_camera_firefly import RGBCameraFirefly
+        if isinstance(self.rgb_camera, RGBCameraFirefly):
+            return self.rgb_camera.set_gain_mode(mode)
+        logger.warning("RGB camera is not a Firefly camera")
+        return False
+    
+    def set_firefly_gain(self, gain_db: float) -> bool:
+        """Set Firefly camera gain in dB."""
+        from rgb_camera_firefly import RGBCameraFirefly
+        if isinstance(self.rgb_camera, RGBCameraFirefly):
+            return self.rgb_camera.set_gain(gain_db)
+        return False
+    
+    def set_firefly_white_balance_mode(self, mode: str) -> bool:
+        """Set Firefly camera white balance mode."""
+        from rgb_camera_firefly import RGBCameraFirefly
+        if isinstance(self.rgb_camera, RGBCameraFirefly):
+            return self.rgb_camera.set_white_balance_mode(mode)
+        logger.warning("RGB camera is not a Firefly camera")
+        return False
+    
+    def calibrate_firefly_white_balance(self) -> bool:
+        """Calibrate Firefly camera white balance (one-shot)."""
+        from rgb_camera_firefly import RGBCameraFirefly
+        if isinstance(self.rgb_camera, RGBCameraFirefly):
+            return self.rgb_camera.calibrate_white_balance()
+        logger.warning("RGB camera is not a Firefly camera")
+        return False
+    
+    def set_firefly_white_balance_ratio(self, color: str, ratio: float) -> bool:
+        """Set Firefly camera white balance ratio for red or blue channel."""
+        from rgb_camera_firefly import RGBCameraFirefly
+        if isinstance(self.rgb_camera, RGBCameraFirefly):
+            return self.rgb_camera.set_white_balance_ratio(color, ratio)
+        return False
+    
+    def set_firefly_trigger_mode(self, enabled: bool, source: str = 'Software') -> bool:
+        """Set Firefly camera trigger mode."""
+        from rgb_camera_firefly import RGBCameraFirefly
+        if isinstance(self.rgb_camera, RGBCameraFirefly):
+            return self.rgb_camera.set_trigger_mode(enabled, source)
+        logger.warning("RGB camera is not a Firefly camera")
+        return False
+    
+    def fire_firefly_software_trigger(self) -> bool:
+        """Fire Firefly camera software trigger."""
+        from rgb_camera_firefly import RGBCameraFirefly
+        if isinstance(self.rgb_camera, RGBCameraFirefly):
+            return self.rgb_camera.execute_software_trigger()
+        logger.warning("RGB camera is not a Firefly camera")
+        return False
+    
+    def set_firefly_gamma(self, gamma: float) -> bool:
+        """Set Firefly camera gamma correction."""
+        from rgb_camera_firefly import RGBCameraFirefly
+        if isinstance(self.rgb_camera, RGBCameraFirefly):
+            return self.rgb_camera.set_gamma(gamma)
+        return False
+    
+    def set_firefly_sharpness(self, enabled: bool, value: float = 1.0) -> bool:
+        """Set Firefly camera sharpness."""
+        from rgb_camera_firefly import RGBCameraFirefly
+        if isinstance(self.rgb_camera, RGBCameraFirefly):
+            return self.rgb_camera.set_sharpness(enabled, value)
+        return False
 
 
 def parse_arguments():

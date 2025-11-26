@@ -307,10 +307,37 @@ class FLIRBosonCamera:
         Returns:
             BosonInfo object or None (requires SDK)
         """
-        if not self.sdk_connected or not self.sdk:
-            return None
+        if self.sdk and self.sdk_connected:
+            return self.sdk.get_info()
+        return None
 
-        return self.sdk.get_info()
+    # ========================================================================
+    # AGC (Automatic Gain Control) - Universal (ALL Boson cameras)
+    # ========================================================================
+
+    def set_agc_max_gain(self, gain: float) -> bool:
+        """Set AGC maximum gain (contrast limit). Works on ALL Boson cameras."""
+        if self.sdk and self.sdk_connected:
+            return self.sdk.set_agc_max_gain(gain)
+        return False
+
+    def set_agc_gamma(self, gamma: float) -> bool:
+        """Set AGC gamma correction. Works on ALL Boson cameras."""
+        if self.sdk and self.sdk_connected:
+            return self.sdk.set_agc_gamma(gamma)
+        return False
+
+    def set_agc_linearity(self, percent: float) -> bool:
+        """Set AGC linearity (histogram vs. linear). Works on ALL Boson cameras."""
+        if self.sdk and self.sdk_connected:
+            return self.sdk.set_agc_linearity(percent)
+        return False
+
+    def set_detail_enhancement(self, dde: float) -> bool:
+        """Set DDE (Digital Detail Enhancement). Works on ALL Boson cameras."""
+        if self.sdk and self.sdk_connected:
+            return self.sdk.set_detail_enhancement(dde)
+        return False
 
     def is_sdk_connected(self) -> bool:
         """Check if SDK is connected for serial control."""
@@ -340,6 +367,16 @@ class FLIRBosonCamera:
 
         try:
             logger.info(f"Attempting to connect Boson SDK{f' on {com_port}' if com_port else ' (auto-detect)'}...")
+
+            # Normalize COM port input (handle "6" -> "COM6")
+            if com_port:
+                com_port = com_port.strip().upper()
+                # If user typed just a number, prepend "COM"
+                if com_port.isdigit():
+                    com_port = f"COM{com_port}"
+                # Ensure it starts with "COM"
+                elif not com_port.startswith("COM"):
+                    com_port = f"COM{com_port}"
 
             # Create SDK instance
             self.sdk = BosonSDK(com_port=com_port or 'COM6')

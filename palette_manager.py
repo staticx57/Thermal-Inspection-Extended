@@ -277,14 +277,14 @@ class PaletteManager:
         ])
 
         # ===== NEW RAINBOW PALETTES =====
-        # RAINBOW_REVERSED - hot to cold (red to blue)
+        # RAINBOW_REVERSED - hot to cold (red to blue) - REVERSED order
         self.palette_cache[PaletteType.RAINBOW_REVERSED] = self._create_gradient_palette([
-            (255, 0, 0),     # Blue (cold) (BGR)
-            (255, 255, 0),   # Cyan (BGR)
-            (0, 255, 0),     # Green (BGR)
-            (0, 255, 255),   # Yellow (BGR)
+            (0, 0, 255),     # Red (hot) (BGR)
             (0, 128, 255),   # Orange (BGR)
-            (0, 0, 255)      # Red (hot) (BGR)
+            (0, 255, 255),   # Yellow (BGR)
+            (0, 255, 0),     # Green (BGR)
+            (255, 255, 0),   # Cyan (BGR)
+            (255, 0, 0)      # Blue (cold) (BGR)
         ])
 
         # SPECTRAL - spectral colors
@@ -435,11 +435,11 @@ class PaletteManager:
 
         # BLUE_YELLOW - blue-white-yellow
         self.palette_cache[PaletteType.BLUE_YELLOW] = self._create_gradient_palette([
-            (0, 0, 255),     # Blue (BGR!) (BGR)
-            (128, 128, 255), # Light blue (BGR)
+            (255, 0, 0),     # Blue (BGR)
+            (255, 128, 128), # Light blue (BGR)
             (255, 255, 255), # White (BGR)
-            (255, 255, 128), # Light yellow (BGR)
-            (255, 255, 0)    # Yellow (BGR)
+            (128, 255, 255), # Light yellow (BGR)
+            (0, 255, 255)    # Yellow (BGR)
         ])
 
         # PINK_GREEN - pink-white-green

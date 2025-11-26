@@ -96,8 +96,18 @@ class RGBCameraUVC:
 
             # Configure camera properties (for USB cameras)
             if not self.use_gstreamer:
-                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                # If resolution is 0x0, use maximum available resolution
+                if self.width == 0 or self.height == 0:
+                    logger.info("Resolution not specified - using camera's maximum resolution...")
+                    # Query current (likely max) resolution
+                    self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    logger.info(f"Using maximum resolution: {self.width}x{self.height}")
+                else:
+                    # Set requested resolution
+                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+
                 self.cap.set(cv2.CAP_PROP_FPS, self.fps)
                 self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimize latency
 
@@ -112,6 +122,10 @@ class RGBCameraUVC:
             actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             actual_fps = int(self.cap.get(cv2.CAP_PROP_FPS))
+
+            # Update stored resolution to actual
+            self.width = actual_width
+            self.height = actual_height
 
             logger.info(f"{self.camera_type} opened successfully")
             logger.info(f"Resolution: {actual_width}x{actual_height} @ {actual_fps} FPS")

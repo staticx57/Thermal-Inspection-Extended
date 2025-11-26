@@ -109,15 +109,24 @@ class RGBCameraFirefly:
             # Initialize camera
             self.cam.Init()
 
-            # Get device info
-            nodemap = self.cam.GetTLDeviceNodeMap()
-            node_device_info = PySpin.CCategoryPtr(nodemap.GetNode('DeviceInformation'))
+            # Get device info (log only essential info to avoid access exceptions)
+            nodemap_tldevice = self.cam.GetTLDeviceNodeMap()
 
-            if PySpin.IsAvailable(node_device_info) and PySpin.IsReadable(node_device_info):
-                features = node_device_info.GetFeatures()
-                for feature in features:
-                    node_feature = PySpin.CValuePtr(feature)
-                    logger.info(f'{node_feature.GetName()}: {node_feature.ToString()}')
+            try:
+                # Get essential camera info
+                node_model = PySpin.CStringPtr(nodemap_tldevice.GetNode('DeviceModelName'))
+                if PySpin.IsReadable(node_model):
+                    logger.info(f'Model: {node_model.GetValue()}')
+
+                node_serial = PySpin.CStringPtr(nodemap_tldevice.GetNode('DeviceSerialNumber'))
+                if PySpin.IsReadable(node_serial):
+                    logger.info(f'Serial: {node_serial.GetValue()}')
+
+                node_vendor = PySpin.CStringPtr(nodemap_tldevice.GetNode('DeviceVendorName'))
+                if PySpin.IsReadable(node_vendor):
+                    logger.info(f'Vendor: {node_vendor.GetValue()}')
+            except:
+                logger.debug("Could not read all device info properties")
 
             # Configure camera settings
             self._configure_camera()
@@ -151,15 +160,59 @@ class RGBCameraFirefly:
             logger.error(f'Failed to open Firefly camera: {e}')
             return False
 
+    def get_max_resolution(self) -> Tuple[int, int]:
+        """
+        Get maximum supported resolution of the camera
+
+        Returns:
+            (max_width, max_height) tuple
+        """
+        if self.cam is None:
+            return (0, 0)
+
+        try:
+            nodemap = self.cam.GetNodeMap()
+
+            # Get max width
+            node_width = PySpin.CIntegerPtr(nodemap.GetNode('Width'))
+            if PySpin.IsAvailable(node_width) and PySpin.IsReadable(node_width):
+                max_width = node_width.GetMax()
+            else:
+                max_width = self.width
+
+            # Get max height
+            node_height = PySpin.CIntegerPtr(nodemap.GetNode('Height'))
+            if PySpin.IsAvailable(node_height) and PySpin.IsReadable(node_height):
+                max_height = node_height.GetMax()
+            else:
+                max_height = self.height
+
+            return (max_width, max_height)
+
+        except Exception as e:
+            logger.warning(f"Could not get max resolution: {e}")
+            return (self.width, self.height)
+
     def _configure_camera(self):
         """
         Configure camera settings (resolution, FPS, pixel format)
+
+        IMPORTANT: If resolution is not specified (0x0), uses maximum available resolution
+        to preserve detail before any downstream resizing.
         """
         if self.cam is None:
             return
 
         try:
             nodemap = self.cam.GetNodeMap()
+
+            # Auto-detect max resolution if not specified
+            if self.width == 0 or self.height == 0:
+                logger.info("Resolution not specified - detecting maximum available resolution...")
+                max_width, max_height = self.get_max_resolution()
+                self.width = max_width
+                self.height = max_height
+                logger.info(f"Using maximum resolution: {self.width}x{self.height}")
 
             # Set pixel format
             node_pixel_format = PySpin.CEnumerationPtr(nodemap.GetNode('PixelFormat'))
@@ -390,6 +443,432 @@ class RGBCameraFirefly:
             logger.error(f'Error getting property {prop_name}: {ex}')
             return None
 
+    # ========================================================================
+    # Advanced Camera Controls - Exposure
+    # ========================================================================
+
+    def set_exposure_mode(self, mode: str) -> bool:
+        """
+        Set exposure control mode
+        
+        Args:
+            mode: 'Off' (manual), 'Once' (single auto), or 'Continuous' (continuous auto)
+        
+        Returns:
+            True if successful
+        """
+        if not self.is_open or self.cam is None:
+            return False
+        
+        try:
+            nodemap = self.cam.GetNodeMap()
+            node_exposure_auto = PySpin.CEnumerationPtr(nodemap.GetNode('ExposureAuto'))
+            
+            if PySpin.IsAvailable(node_exposure_auto) and PySpin.IsWritable(node_exposure_auto):
+                mode_entry = node_exposure_auto.GetEntryByName(mode)
+                if PySpin.IsAvailable(mode_entry) and PySpin.IsReadable(mode_entry):
+                    node_exposure_auto.SetIntValue(mode_entry.GetValue())
+                    logger.info(f'Exposure mode set to: {mode}')
+                    return True
+            return False
+        except PySpin.SpinnakerException as ex:
+            logger.error(f'Error setting exposure mode: {ex}')
+            return False
+
+    def set_exposure_time(self, time_us: float) -> bool:
+        """
+        Set manual exposure time in microseconds
+        
+        Args:
+            time_us: Exposure time (e.g., 5000 = 5ms)
+        
+        Returns:
+            True if successful
+        """
+        if not self.is_open or self.cam is None:
+            return False
+        
+        try:
+            # First set mode to manual
+            self.set_exposure_mode('Off')
+            
+            nodemap = self.cam.GetNodeMap()
+            node_exposure_time = PySpin.CFloatPtr(nodemap.GetNode('ExposureTime'))
+            
+            if PySpin.IsAvailable(node_exposure_time) and PySpin.IsWritable(node_exposure_time):
+                # Clamp to valid range
+                min_exp = node_exposure_time.GetMin()
+                max_exp = node_exposure_time.GetMax()
+                clamped_time = max(min_exp, min(time_us, max_exp))
+                
+                node_exposure_time.SetValue(clamped_time)
+                logger.info(f'Exposure time set to: {clamped_time} µs')
+                return True
+            return False
+        except PySpin.SpinnakerException as ex:
+            logger.error(f'Error setting exposure time: {ex}')
+            return False
+
+    def get_exposure_time(self) -> float:
+        """Get current exposure time in microseconds"""
+        return self.get_property('ExposureTime') or 0.0
+
+    def get_exposure_range(self) -> Tuple[float, float]:
+        """
+        Get valid exposure time range
+        
+        Returns:
+            (min_us, max_us) tuple
+        """
+        if not self.is_open or self.cam is None:
+            return (0.0, 0.0)
+        
+        try:
+            nodemap = self.cam.GetNodeMap()
+            node_exposure_time = PySpin.CFloatPtr(nodemap.GetNode('ExposureTime'))
+            
+            if PySpin.IsAvailable(node_exposure_time) and PySpin.IsReadable(node_exposure_time):
+                return (node_exposure_time.GetMin(), node_exposure_time.GetMax())
+        except:
+            pass
+        return (0.0, 0.0)
+
+    # ========================================================================
+    # Advanced Camera Controls - Gain
+    # ========================================================================
+
+    def set_gain_mode(self, mode: str) -> bool:
+        """
+        Set gain control mode
+        
+        Args:
+            mode: 'Off' (manual), 'Once' (single auto), or 'Continuous' (continuous auto)
+        
+        Returns:
+            True if successful
+        """
+        if not self.is_open or self.cam is None:
+            return False
+        
+        try:
+            nodemap = self.cam.GetNodeMap()
+            node_gain_auto = PySpin.CEnumerationPtr(nodemap.GetNode('GainAuto'))
+            
+            if PySpin.IsAvailable(node_gain_auto) and PySpin.IsWritable(node_gain_auto):
+                mode_entry = node_gain_auto.GetEntryByName(mode)
+                if PySpin.IsAvailable(mode_entry) and PySpin.IsReadable(mode_entry):
+                    node_gain_auto.SetIntValue(mode_entry.GetValue())
+                    logger.info(f'Gain mode set to: {mode}')
+                    return True
+            return False
+        except PySpin.SpinnakerException as ex:
+            logger.error(f'Error setting gain mode: {ex}')
+            return False
+
+    def set_gain(self, gain_db: float) -> bool:
+        """
+        Set manual gain in decibels
+        
+        Args:
+            gain_db: Gain value (0.0 - 18.0 dB typical)
+        
+        Returns:
+            True if successful
+        """
+        if not self.is_open or self.cam is None:
+            return False
+        
+        try:
+            # First set mode to manual
+            self.set_gain_mode('Off')
+            
+            nodemap = self.cam.GetNodeMap()
+            node_gain = PySpin.CFloatPtr(nodemap.GetNode('Gain'))
+            
+            if PySpin.IsAvailable(node_gain) and PySpin.IsWritable(node_gain):
+                min_gain = node_gain.GetMin()
+                max_gain = node_gain.GetMax()
+                clamped_gain = max(min_gain, min(gain_db, max_gain))
+                
+                node_gain.SetValue(clamped_gain)
+                logger.info(f'Gain set to: {clamped_gain} dB')
+                return True
+            return False
+        except PySpin.SpinnakerException as ex:
+            logger.error(f'Error setting gain: {ex}')
+            return False
+
+    def get_gain(self) -> float:
+        """Get current gain in dB"""
+        return self.get_property('Gain') or 0.0
+
+    def get_gain_range(self) -> Tuple[float, float]:
+        """
+        Get valid gain range
+        
+        Returns:
+            (min_db, max_db) tuple
+        """
+        if not self.is_open or self.cam is None:
+            return (0.0, 0.0)
+        
+        try:
+            nodemap = self.cam.GetNodeMap()
+            node_gain = PySpin.CFloatPtr(nodemap.GetNode('Gain'))
+            
+            if PySpin.IsAvailable(node_gain) and PySpin.IsReadable(node_gain):
+                return (node_gain.GetMin(), node_gain.GetMax())
+        except:
+            pass
+        return (0.0, 0.0)
+
+    # ========================================================================
+    # Advanced Camera Controls - White Balance
+    # ========================================================================
+
+    def set_white_balance_mode(self, mode: str) -> bool:
+        """
+        Set white balance mode
+        
+        Args:
+            mode: 'Off' (manual), 'Once' (single calibration), or 'Continuous' (auto)
+        
+        Returns:
+            True if successful
+        """
+        if not self.is_open or self.cam is None:
+            return False
+        
+        try:
+            nodemap = self.cam.GetNodeMap()
+            node_wb_auto = PySpin.CEnumerationPtr(nodemap.GetNode('BalanceWhiteAuto'))
+            
+            if PySpin.IsAvailable(node_wb_auto) and PySpin.IsWritable(node_wb_auto):
+                mode_entry = node_wb_auto.GetEntryByName(mode)
+                if PySpin.IsAvailable(mode_entry) and PySpin.IsReadable(mode_entry):
+                    node_wb_auto.SetIntValue(mode_entry.GetValue())
+                    logger.info(f'White balance mode set to: {mode}')
+                    return True
+            return False
+        except PySpin.SpinnakerException as ex:
+            logger.error(f'Error setting white balance mode: {ex}')
+            return False
+
+    def calibrate_white_balance(self) -> bool:
+        """
+        Perform one-shot white balance calibration
+        Point camera at white surface before calling
+        
+        Returns:
+            True if successful
+        """
+        logger.info("Performing white balance calibration...")
+        return self.set_white_balance_mode('Once')
+
+    def set_white_balance_ratio(self, color: str, ratio: float) -> bool:
+        """
+        Set manual white balance ratio for specific color
+        
+        Args:
+            color: 'Red' or 'Blue'
+            ratio: Balance ratio (typically 0.5 - 3.0)
+        
+        Returns:
+            True if successful
+        """
+        if not self.is_open or self.cam is None:
+            return False
+        
+        try:
+            # First set mode to manual
+            self.set_white_balance_mode('Off')
+            
+            nodemap = self.cam.GetNodeMap()
+            
+            # Select color channel
+            node_selector = PySpin.CEnumerationPtr(nodemap.GetNode('BalanceRatioSelector'))
+            if PySpin.IsAvailable(node_selector) and PySpin.IsWritable(node_selector):
+                color_entry = node_selector.GetEntryByName(color)
+                if PySpin.IsAvailable(color_entry):
+                    node_selector.SetIntValue(color_entry.GetValue())
+                    
+                    # Set ratio
+                    node_ratio = PySpin.CFloatPtr(nodemap.GetNode('BalanceRatio'))
+                    if PySpin.IsAvailable(node_ratio) and PySpin.IsWritable(node_ratio):
+                        min_ratio = node_ratio.GetMin()
+                        max_ratio = node_ratio.GetMax()
+                        clamped_ratio = max(min_ratio, min(ratio, max_ratio))
+                        
+                        node_ratio.SetValue(clamped_ratio)
+                        logger.info(f'{color} balance ratio set to: {clamped_ratio}')
+                        return True
+            return False
+        except PySpin.SpinnakerException as ex:
+            logger.error(f'Error setting white balance ratio: {ex}')
+            return False
+
+    # ========================================================================
+    # Advanced Camera Controls - Trigger
+    # ========================================================================
+
+    def set_trigger_mode(self, enabled: bool, source: str = 'Software') -> bool:
+        """
+        Configure trigger mode
+        
+        Args:
+            enabled: True to enable triggering, False for free-run
+            source: 'Software', 'Line0', 'Line1', 'Line2', etc.
+        
+        Returns:
+            True if successful
+        """
+        if not self.is_open or self.cam is None:
+            return False
+        
+        try:
+            nodemap = self.cam.GetNodeMap()
+            
+            # Stop acquisition for trigger mode change
+            was_streaming = self.cam.IsStreaming()
+            if was_streaming:
+                self.cam.EndAcquisition()
+            
+            # Set trigger mode
+            node_trigger_mode = PySpin.CEnumerationPtr(nodemap.GetNode('TriggerMode'))
+            if PySpin.IsAvailable(node_trigger_mode) and PySpin.IsWritable(node_trigger_mode):
+                mode_value = 'On' if enabled else 'Off'
+                mode_entry = node_trigger_mode.GetEntryByName(mode_value)
+                if PySpin.IsAvailable(mode_entry):
+                    node_trigger_mode.SetIntValue(mode_entry.GetValue())
+            
+            if enabled:
+                # Set trigger source
+                node_trigger_source = PySpin.CEnumerationPtr(nodemap.GetNode('TriggerSource'))
+                if PySpin.IsAvailable(node_trigger_source) and PySpin.IsWritable(node_trigger_source):
+                    source_entry = node_trigger_source.GetEntryByName(source)
+                    if PySpin.IsAvailable(source_entry):
+                        node_trigger_source.SetIntValue(source_entry.GetValue())
+            
+            # Restart acquisition if it was running
+            if was_streaming:
+                self.cam.BeginAcquisition()
+            
+            logger.info(f'Trigger mode: {enabled}, source: {source}')
+            return True
+        except PySpin.SpinnakerException as ex:
+            logger.error(f'Error setting trigger mode: {ex}')
+            return False
+
+    def execute_software_trigger(self) -> bool:
+        """
+        Fire software trigger to capture next frame
+        Only works if trigger mode is enabled with source='Software'
+        
+        Returns:
+            True if successful
+        """
+        if not self.is_open or self.cam is None:
+            return False
+        
+        try:
+            nodemap = self.cam.GetNodeMap()
+            node_trigger_software = PySpin.CCommandPtr(nodemap.GetNode('TriggerSoftware'))
+            
+            if PySpin.IsAvailable(node_trigger_software) and PySpin.IsWritable(node_trigger_software):
+                node_trigger_software.Execute()
+                return True
+            return False
+        except PySpin.SpinnakerException as ex:
+            logger.error(f'Error executing software trigger: {ex}')
+            return False
+
+    # ========================================================================
+    # Advanced Camera Controls - Image Settings
+    # ========================================================================
+
+    def set_gamma(self, gamma: float) -> bool:
+        """
+        Set gamma correction
+        
+        Args:
+            gamma: Gamma value (typically 0.5 - 4.0, default 1.0)
+                   < 1.0 = darker, > 1.0 = brighter
+        
+        Returns:
+            True if successful
+        """
+        if not self.is_open or self.cam is None:
+            return False
+        
+        try:
+            # First ensure gamma is enabled
+            enable_result = self.set_property('GammaEnable', True)
+            
+            if enable_result:
+                return self.set_property('Gamma', gamma)
+            return False
+        except Exception as e:
+            logger.error(f'Error setting gamma: {e}')
+            return False
+
+    def set_sharpness(self, enabled: bool, value: float = 1.0) -> bool:
+        """
+        Set sharpness/edge enhancement
+        
+        Args:
+            enabled: Enable sharpness control
+            value: Sharpness value (camera-dependent, typically 0.0 - 4.0)
+        
+        Returns:
+            True if successful
+        """
+        if not self.is_open or self.cam is None:
+            return False
+        
+        try:
+            enable_result = self.set_property('SharpnessEnable', enabled)
+            
+            if enabled and enable_result:
+                return self.set_property('Sharpness', value)
+            return enable_result
+        except Exception as e:
+            logger.error(f'Error setting sharpness: {e}')
+            return False
+
+    def get_camera_info(self) -> dict:
+        """
+        Get camera information for GUI display
+
+        Returns:
+            Dict with keys: model, serial, width, height, fps, pixel_format
+        """
+        info = {
+            'model': self.camera_type,
+            'serial': 'Unknown',
+            'width': self.width,
+            'height': self.height,
+            'fps': self.fps,
+            'pixel_format': self.pixel_format
+        }
+
+        if self.cam is not None and self.is_open:
+            try:
+                nodemap_tldevice = self.cam.GetTLDeviceNodeMap()
+
+                # Get model name
+                node_model = PySpin.CStringPtr(nodemap_tldevice.GetNode('DeviceModelName'))
+                if PySpin.IsReadable(node_model):
+                    info['model'] = node_model.GetValue()
+
+                # Get serial number
+                node_serial = PySpin.CStringPtr(nodemap_tldevice.GetNode('DeviceSerialNumber'))
+                if PySpin.IsReadable(node_serial):
+                    info['serial'] = node_serial.GetValue()
+            except Exception as e:
+                logger.debug(f"Could not read camera info: {e}")
+
+        return info
+
     def release(self):
         """Release camera resources"""
         if self.cam is not None:
@@ -424,67 +903,76 @@ class RGBCameraFirefly:
         self.release()
 
 
-def detect_firefly_cameras() -> list:
+def detect_firefly_cameras():
     """
-    Detect available FLIR Firefly cameras on the system
-
+    Detect all connected FLIR Firefly cameras
+    
     Returns:
-        List of available cameras with metadata
+        List of camera info dicts with keys: index, model, serial
     """
     if not PYSPIN_AVAILABLE:
-        logger.warning("PySpin not available. Cannot detect Firefly cameras.")
         return []
-
-    available_cameras = []
-
+    
+    cameras_found = []
+    system = None
+    cam_list = None
+    
     try:
-        # Retrieve singleton reference to system object
         system = PySpin.System.GetInstance()
-
-        # Retrieve list of cameras from the system
         cam_list = system.GetCameras()
-
         num_cameras = cam_list.GetSize()
+        
         logger.info(f'Number of FLIR cameras detected: {num_cameras}')
-
+        
         for i in range(num_cameras):
-            cam = cam_list[i]
-
-            # Get device info
-            nodemap_tldevice = cam.GetTLDeviceNodeMap()
-
-            # Get camera serial number
-            node_serial = PySpin.CStringPtr(nodemap_tldevice.GetNode('DeviceSerialNumber'))
-            serial = "Unknown"
-            if PySpin.IsAvailable(node_serial) and PySpin.IsReadable(node_serial):
-                serial = node_serial.GetValue()
-
-            # Get camera model name
-            node_model = PySpin.CStringPtr(nodemap_tldevice.GetNode('DeviceModelName'))
-            model = "FLIR Camera"
-            if PySpin.IsAvailable(node_model) and PySpin.IsReadable(node_model):
-                model = node_model.GetValue()
-
-            logger.info(f'Found FLIR camera {i}: {model} (S/N: {serial})')
-
-            available_cameras.append({
-                'id': i,
-                'type': 'FLIR Firefly',
-                'model': model,
-                'serial': serial,
-                'resolution': (1920, 1200)  # Typical Firefly resolution (varies by model)
-            })
-
-        # Clear camera list
-        cam_list.Clear()
-
-        # Release system instance
-        system.ReleaseInstance()
-
-    except PySpin.SpinnakerException as ex:
-        logger.error(f'Spinnaker error during detection: {ex}')
-
-    return available_cameras
+            try:
+                cam = cam_list.GetByIndex(i)
+                
+                # Get camera info without initializing
+                nodemap_tldevice = cam.GetTLDeviceNodeMap()
+                
+                # Get model name
+                node_device_model = PySpin.CStringPtr(nodemap_tldevice.GetNode('DeviceModelName'))
+                if PySpin.IsAvailable(node_device_model) and PySpin.IsReadable(node_device_model):
+                    model_name = node_device_model.GetValue()
+                else:
+                    model_name = "Unknown"
+                
+                # Get serial number
+                node_device_serial = PySpin.CStringPtr(nodemap_tldevice.GetNode('DeviceSerialNumber'))
+                if PySpin.IsAvailable(node_device_serial) and PySpin.IsReadable(node_device_serial):
+                    serial_number = node_device_serial.GetValue()
+                else:
+                    serial_number = "Unknown"
+                
+                logger.info(f'Found FLIR camera {i}: {model_name} (S/N: {serial_number})')
+                
+                cameras_found.append({
+                    'index': i,
+                    'model': model_name,
+                    'serial': serial_number
+                })
+                
+                # Important: Delete camera reference immediately
+                del cam
+                
+            except PySpin.SpinnakerException as ex:
+                logger.error(f'Spinnaker error during detection: {ex}')
+                continue
+        
+    except Exception as e:
+        logger.error(f'Error detecting cameras: {e}')
+    finally:
+        # Clean up - DON'T call Clear() as it can cause reference issues
+        # Just delete the list object and let Python GC handle it
+        if cam_list is not None:
+            del cam_list
+        
+        # Don't release system instance here - let it persist
+        # This prevents "can't clear camera" errors
+        # system will be cleaned up when process exits
+    
+    return cameras_found
 
 
 if __name__ == "__main__":
