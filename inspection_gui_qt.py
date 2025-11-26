@@ -3575,8 +3575,8 @@ class SettingsPanel(QGroupBox):
     edge_strength_changed = pyqtSignal(float)
     edge_fuzziness_changed = pyqtSignal(float)
     edge_color_changed = pyqtSignal(str)  # Color for edge overlay
-    msx_strength_changed = pyqtSignal(float)  # MSX detail overlay strength
-    msx_quality_changed = pyqtSignal(float)   # MSX quality/detail level
+    detail_strength_changed = pyqtSignal(float)  # Detail Injection/Relief Fusion strength
+    detail_quality_changed = pyqtSignal(float)   # Detail Injection/Relief Fusion quality level
     save_rois_clicked = pyqtSignal()
     load_rois_clicked = pyqtSignal()
     overlay_info_toggled = pyqtSignal(bool)
@@ -3642,7 +3642,7 @@ class SettingsPanel(QGroupBox):
         self.fusion_mode_combo = QComboBox()
         self.fusion_mode_combo.setMinimumHeight(28)  # Taller for full text visibility
         self.fusion_mode_combo.addItems([
-            "alpha_blend", "msx", "msx_emboss", "edge_enhanced", "thermal_overlay",
+            "alpha_blend", "detail_inject", "relief_fusion", "edge_enhanced", "thermal_overlay",
             "side_by_side", "picture_in_picture", "max_intensity",
             "feature_weighted"
         ])
@@ -3780,50 +3780,50 @@ class SettingsPanel(QGroupBox):
         edge_color_layout.addWidget(self.edge_color_combo)
         edge_settings_layout.addLayout(edge_color_layout)
 
-        # MSX Settings (initially hidden)
-        self.msx_settings_widget = QWidget()
-        msx_settings_layout = QVBoxLayout(self.msx_settings_widget)
-        msx_settings_layout.setContentsMargins(0, 0, 0, 0)
-        msx_settings_layout.setSpacing(10)
+        # Detail Injection/Relief Fusion Settings (initially hidden)
+        self.detail_settings_widget = QWidget()
+        detail_settings_layout = QVBoxLayout(self.detail_settings_widget)
+        detail_settings_layout.setContentsMargins(0, 0, 0, 0)
+        detail_settings_layout.setSpacing(10)
 
-        # MSX Strength
-        msx_strength_layout = QHBoxLayout()
-        msx_strength_label = QLabel("Strength:")
-        msx_strength_layout.addWidget(msx_strength_label)
-        self.msx_strength_slider = QSlider(Qt.Orientation.Horizontal)
-        self.msx_strength_slider.setRange(0, 100)
-        self.msx_strength_slider.setValue(70)
-        self.msx_strength_slider.setToolTip("MSX detail overlay strength (higher = more visible structure)")
-        self.msx_strength_value = QLabel("70")
-        self.msx_strength_slider.valueChanged.connect(
-            lambda v: [self.msx_strength_value.setText(str(v)),
-                      self.msx_strength_changed.emit(v / 100.0)]
+        # Detail Strength
+        detail_strength_layout = QHBoxLayout()
+        detail_strength_label = QLabel("Strength:")
+        detail_strength_layout.addWidget(detail_strength_label)
+        self.detail_strength_slider = QSlider(Qt.Orientation.Horizontal)
+        self.detail_strength_slider.setRange(0, 100)
+        self.detail_strength_slider.setValue(70)
+        self.detail_strength_slider.setToolTip("Detail overlay strength (higher = more visible structure)")
+        self.detail_strength_value = QLabel("70")
+        self.detail_strength_slider.valueChanged.connect(
+            lambda v: [self.detail_strength_value.setText(str(v)),
+                      self.detail_strength_changed.emit(v / 100.0)]
         )
-        msx_strength_layout.addWidget(self.msx_strength_slider)
-        msx_strength_layout.addWidget(self.msx_strength_value)
-        msx_settings_layout.addLayout(msx_strength_layout)
+        detail_strength_layout.addWidget(self.detail_strength_slider)
+        detail_strength_layout.addWidget(self.detail_strength_value)
+        detail_settings_layout.addLayout(detail_strength_layout)
 
-        # MSX Quality
-        msx_quality_layout = QHBoxLayout()
-        msx_quality_label = QLabel("Quality:")
-        msx_quality_layout.addWidget(msx_quality_label)
-        self.msx_quality_slider = QSlider(Qt.Orientation.Horizontal)
-        self.msx_quality_slider.setRange(0, 100)
-        self.msx_quality_slider.setValue(50)
-        self.msx_quality_slider.setToolTip("MSX quality/detail level (higher = more detail extraction)")
-        self.msx_quality_value = QLabel("50")
-        self.msx_quality_slider.valueChanged.connect(
-            lambda v: [self.msx_quality_value.setText(str(v)),
-                      self.msx_quality_changed.emit(v / 100.0)]
+        # Detail Quality
+        detail_quality_layout = QHBoxLayout()
+        detail_quality_label = QLabel("Quality:")
+        detail_quality_layout.addWidget(detail_quality_label)
+        self.detail_quality_slider = QSlider(Qt.Orientation.Horizontal)
+        self.detail_quality_slider.setRange(0, 100)
+        self.detail_quality_slider.setValue(50)
+        self.detail_quality_slider.setToolTip("Detail quality/level (higher = more detail extraction)")
+        self.detail_quality_value = QLabel("50")
+        self.detail_quality_slider.valueChanged.connect(
+            lambda v: [self.detail_quality_value.setText(str(v)),
+                      self.detail_quality_changed.emit(v / 100.0)]
         )
-        msx_quality_layout.addWidget(self.msx_quality_slider)
-        msx_quality_layout.addWidget(self.msx_quality_value)
-        msx_settings_layout.addLayout(msx_quality_layout)
+        detail_quality_layout.addWidget(self.detail_quality_slider)
+        detail_quality_layout.addWidget(self.detail_quality_value)
+        detail_settings_layout.addLayout(detail_quality_layout)
 
         # Add widgets to fusion settings group
         self.fusion_settings_layout.addWidget(self.edge_settings_widget)
-        self.fusion_settings_layout.addWidget(self.msx_settings_widget)
-        self.msx_settings_widget.hide()  # Initially hidden
+        self.fusion_settings_layout.addWidget(self.detail_settings_widget)
+        self.detail_settings_widget.hide()  # Initially hidden
 
         # Connect fusion mode change to update visible settings
         self.fusion_mode_combo.currentTextChanged.connect(self._update_fusion_settings)
@@ -3958,13 +3958,13 @@ class SettingsPanel(QGroupBox):
         """Update visible fusion settings based on selected fusion mode."""
         # Hide all settings first
         self.edge_settings_widget.hide()
-        self.msx_settings_widget.hide()
+        self.detail_settings_widget.hide()
 
         # Show appropriate settings based on mode
         if fusion_mode == "edge_enhanced":
             self.edge_settings_widget.show()
-        elif fusion_mode in ["msx", "msx_emboss"]:
-            self.msx_settings_widget.show()
+        elif fusion_mode in ["detail_inject", "relief_fusion"]:
+            self.detail_settings_widget.show()
         # Other modes don't need specific settings widgets (use global fusion controls)
 
 # ============================================================================
@@ -4427,8 +4427,8 @@ class InspectionAppWindow(QMainWindow):
         self.settings_panel.edge_strength_changed.connect(self._on_edge_strength_changed)
         self.settings_panel.edge_fuzziness_changed.connect(self._on_edge_fuzziness_changed)
         self.settings_panel.edge_color_changed.connect(self._on_edge_color_changed)
-        self.settings_panel.msx_strength_changed.connect(self._on_msx_strength_changed)
-        self.settings_panel.msx_quality_changed.connect(self._on_msx_quality_changed)
+        self.settings_panel.detail_strength_changed.connect(self._on_detail_strength_changed)
+        self.settings_panel.detail_quality_changed.connect(self._on_detail_quality_changed)
         self.settings_panel.save_rois_clicked.connect(self._on_save_rois)
         self.settings_panel.load_rois_clicked.connect(self._on_load_rois)
         self.settings_panel.overlay_info_toggled.connect(self._on_overlay_info_toggle)
@@ -4745,17 +4745,17 @@ class InspectionAppWindow(QMainWindow):
             self.app.set_edge_color(color)
         logger.info(f"Edge color changed to: {color}")
 
-    def _on_msx_strength_changed(self, strength: float):
-        """Handle MSX strength change."""
-        if self.app and hasattr(self.app, 'set_msx_strength'):
-            self.app.set_msx_strength(strength)
-        logger.info(f"MSX strength changed to: {strength:.2f}")
+    def _on_detail_strength_changed(self, strength: float):
+        """Handle Detail Injection/Relief Fusion strength change."""
+        if self.app and hasattr(self.app, 'set_detail_strength'):
+            self.app.set_detail_strength(strength)
+        logger.info(f"Detail strength changed to: {strength:.2f}")
 
-    def _on_msx_quality_changed(self, quality: float):
-        """Handle MSX quality change."""
-        if self.app and hasattr(self.app, 'set_msx_quality'):
-            self.app.set_msx_quality(quality)
-        logger.info(f"MSX quality changed to: {quality:.2f}")
+    def _on_detail_quality_changed(self, quality: float):
+        """Handle Detail Injection/Relief Fusion quality change."""
+        if self.app and hasattr(self.app, 'set_detail_quality'):
+            self.app.set_detail_quality(quality)
+        logger.info(f"Detail quality changed to: {quality:.2f}")
 
     def _on_show_stats_toggle(self, checked: bool):
         """Toggle statistics display."""

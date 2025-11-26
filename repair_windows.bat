@@ -1,5 +1,5 @@
 @echo off
-REM ThermalFusionDrivingAssist - Windows Repair/Update Script
+REM Thermal Inspection Fusion Tool - Windows Repair/Update Script
 REM Brings existing installation up to date with latest requirements
 REM
 REM Usage: repair_windows.bat
@@ -14,15 +14,16 @@ set "YELLOW=[93m"
 set "RED=[91m"
 set "NC=[0m"
 
-echo %BLUE%========================================%NC%
-echo %BLUE%ThermalFusionDrivingAssist Repair%NC%
-echo %BLUE%========================================%NC%
+echo %BLUE%============================================%NC%
+echo %BLUE%Thermal Inspection Fusion Tool Repair%NC%
+echo %BLUE%Version 3.0.0%NC%
+echo %BLUE%============================================%NC%
 echo.
 
 REM Check if we're in the right directory
-if not exist main.py (
-    echo %RED%Error: main.py not found%NC%
-    echo %YELLOW%Please run this script from the ThermalFusionDrivingAssist directory%NC%
+if not exist inspection_main.py (
+    echo %RED%Error: inspection_main.py not found%NC%
+    echo %YELLOW%Please run this script from the Thermal-Inspection directory%NC%
     pause
     exit /b 1
 )
@@ -47,17 +48,17 @@ REM Step 1: Update pip
 echo %BLUE%[1/4] Updating pip...%NC%
 python -m pip install --upgrade pip
 
-REM Step 2: Install/update PyQt5
-echo %BLUE%[2/4] Installing/updating PyQt5...%NC%
-python -m pip install --upgrade PyQt5
+REM Step 2: Install/update PyQt6
+echo %BLUE%[2/4] Installing/updating PyQt6...%NC%
+python -m pip install --upgrade PyQt6
 
-REM Verify PyQt5
-python -c "from PyQt5.QtWidgets import QApplication; print('OK PyQt5 verified')" 2>nul
+REM Verify PyQt6
+python -c "from PyQt6.QtWidgets import QApplication; print('OK PyQt6 verified')" 2>nul
 if errorlevel 1 (
-    echo %RED%PyQt5 installation failed%NC%
+    echo %RED%PyQt6 installation failed%NC%
     echo %YELLOW%Please check your Python installation%NC%
 ) else (
-    echo %GREEN%PyQt5 verified%NC%
+    echo %GREEN%PyQt6 verified%NC%
 )
 
 REM Step 3: Update requirements
@@ -67,7 +68,7 @@ if exist requirements.txt (
     python -m pip install --upgrade -r requirements.txt
 ) else (
     echo %YELLOW%requirements.txt not found. Updating core packages...%NC%
-    python -m pip install --upgrade numpy opencv-python ultralytics supervision torch torchvision
+    python -m pip install --upgrade numpy opencv-python opencv-contrib-python PyQt6 psutil pyserial
 )
 
 REM Step 4: Verify installation
@@ -77,33 +78,38 @@ echo.
 echo %BLUE%Testing Python modules...%NC%
 python -c "import numpy; print('  ✓ NumPy')" 2>nul || echo   ✗ NumPy - FAILED
 python -c "import cv2; print('  ✓ OpenCV')" 2>nul || echo   ✗ OpenCV - FAILED
-python -c "import PyQt5.QtWidgets; print('  ✓ PyQt5')" 2>nul || echo   ✗ PyQt5 - FAILED
-python -c "import ultralytics; print('  ✓ Ultralytics YOLO')" 2>nul || echo   ✗ Ultralytics - FAILED
+python -c "import PyQt6.QtWidgets; print('  ✓ PyQt6')" 2>nul || echo   ✗ PyQt6 - FAILED
+python -c "import serial; print('  ✓ PySerial')" 2>nul || echo   ✗ PySerial - FAILED
+python -c "import psutil; print('  ✓ psutil')" 2>nul || echo   ✗ psutil - FAILED
 
 echo.
 echo %BLUE%Checking project files...%NC%
-if exist main.py (echo   ✓ main.py) else echo   ✗ main.py - MISSING
-if exist driver_gui_qt.py (echo   ✓ driver_gui_qt.py) else echo   ✗ driver_gui_qt.py - MISSING
-if exist video_worker.py (echo   ✓ video_worker.py) else echo   ✗ video_worker.py - MISSING
-if exist developer_panel.py (echo   ✓ developer_panel.py) else echo   ✗ developer_panel.py - MISSING
-if exist alert_overlay.py (echo   ✓ alert_overlay.py) else echo   ✗ alert_overlay.py - MISSING
-if exist config.py (echo   ✓ config.py) else echo   ✗ config.py - MISSING
+if exist inspection_main.py (echo   ✓ inspection_main.py) else echo   ✗ inspection_main.py - MISSING
+if exist inspection_gui_qt.py (echo   ✓ inspection_gui_qt.py) else echo   ✗ inspection_gui_qt.py - MISSING
+if exist flir_camera.py (echo   ✓ flir_camera.py) else echo   ✗ flir_camera.py - MISSING
+if exist fusion_processor.py (echo   ✓ fusion_processor.py) else echo   ✗ fusion_processor.py - MISSING
+if exist palette_manager.py (echo   ✓ palette_manager.py) else echo   ✗ palette_manager.py - MISSING
+if exist boson_sdk_wrapper.py (echo   ✓ boson_sdk_wrapper.py) else echo   ✗ boson_sdk_wrapper.py - MISSING
+if exist config.json (echo   ✓ config.json) else echo   ✗ config.json - MISSING
 
 echo.
-echo %GREEN%========================================%NC%
+echo %GREEN%============================================%NC%
 echo %GREEN%Repair Complete ^& Verified!%NC%
-echo %GREEN%========================================%NC%
+echo %GREEN%============================================%NC%
 echo.
-echo %BLUE%Latest Features ^(v3.x^):%NC%
-echo   • Qt GUI ^(replaces OpenCV GUI^)
-echo   • Multithreaded video processing
-echo   • Developer mode ^(Ctrl+D^) with 9 controls
-echo   • ADAS-compliant alert overlays
-echo   • Custom model support ^(see CUSTOM_MODELS.md^)
-echo   • Simulated thermal camera ^(debug mode^)
-echo   • Light/Dark theme auto-switching
+echo %BLUE%Current Features (v3.0):%NC%
+echo   • PyQt6 GUI (modern Qt6 framework)
+echo   • 7 Fusion algorithms (thermal/RGB fusion)
+echo   • 45 Thermal palettes (7 categories)
+echo   • ROI management (auto-detection + manual)
+echo   • Temperature analysis (spot, trend, anomaly)
+echo   • Boson SDK integration (FFC, AGC, radiometric)
+echo   • Camera auto-detection
+echo   • Media recording (video + snapshots)
 echo.
-echo %GREEN%Ready to run: python main.py%NC%
+echo %GREEN%Ready to run:%NC%
+echo   python inspection_main.py
+echo   python inspection_main.py --enable-boson-sdk
 echo.
 echo %YELLOW%Press any key to exit...%NC%
 pause >nul

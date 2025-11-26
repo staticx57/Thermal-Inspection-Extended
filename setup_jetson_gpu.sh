@@ -2,7 +2,8 @@
 # Setup script for GPU acceleration on Jetson Orin
 
 echo "========================================"
-echo "Jetson Orin GPU Setup for Thermal Monitor"
+echo "Jetson Orin GPU Setup for Thermal Inspection Fusion Tool"
+echo "Version 3.0.0"
 echo "========================================"
 echo ""
 

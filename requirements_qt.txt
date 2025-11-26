@@ -1,11 +1,19 @@
-# Qt GUI Requirements for Thermal Inspection Fusion Tool
-# Install with: pip3 install -r requirements_qt.txt
+# Qt GUI Requirements for Thermal Inspection Fusion Tool v3.0
+# Install with: pip install -r requirements_qt.txt
 
-# PyQt6 - Qt6 bindings for Python (modern, actively developed)
+# PyQt6 - Qt6 bindings for Python (current GUI implementation)
 PyQt6>=6.0.0
 
-# Backup: PyQt5 (fallback for older systems)
-# Uncomment to use PyQt5 instead of PyQt6:
-# PyQt5>=5.15.0
+# Note: The current GUI (inspection_gui_qt.py) uses PyQt6
+# PyQt6 is modern, actively developed, and recommended for new projects
 
-# Note: Choose ONE of PyQt5 or PyQt6, not both
+# Fallback: PyQt5 (for compatibility with older systems)
+# Uncomment to use PyQt5 instead (requires GUI code changes):
+# PyQt5>=5.15.0
+# PyQt5-Qt5>=5.15.0
+# PyQt5-sip>=12.11.0
+
+# Platform Notes:
+# - Windows: pip install PyQt6 works directly
+# - Linux: pip install PyQt6 or sudo apt install python3-pyqt6
+# - Jetson: pip install PyQt6 (system packages may be older)

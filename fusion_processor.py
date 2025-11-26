@@ -28,8 +28,8 @@ class FusionProcessor:
         Args:
             fusion_mode: Fusion strategy
                 - 'alpha_blend': Simple weighted average of thermal + RGB
-                - 'msx': FLIR MSX-style - overlays grayscale high-frequency detail from RGB
-                - 'msx_emboss': MSX with embossing filter (3D bas-relief effect)
+                - 'detail_inject': Detail Injection - overlays grayscale high-frequency detail from RGB
+                - 'relief_fusion': Relief Fusion - embossing filter (3D bas-relief effect)
                 - 'edge_enhanced': RGB base with thermal edges overlaid (prominent colored edges)
                 - 'thermal_overlay': Thermal hotspots overlaid on RGB
                 - 'side_by_side': Concatenate thermal and RGB horizontally
@@ -63,9 +63,9 @@ class FusionProcessor:
         self.edge_threshold_high = 150  # Canny high threshold (more edges = lower value)
         self.edge_blur_kernel = 0      # Gaussian blur kernel size for edge sharpness (0 = sharp edges, >0 = softer edges)
 
-        # MSX-specific parameters
-        self.msx_strength = 0.7        # MSX detail overlay strength (0.0 = subtle, 1.0 = strong)
-        self.msx_quality = 0.5         # MSX quality/detail level (0.0 = less detail, 1.0 = maximum detail)
+        # Detail Injection / Relief Fusion parameters
+        self.detail_strength = 0.7     # Detail overlay strength (0.0 = subtle, 1.0 = strong)
+        self.detail_quality = 0.5      # Detail quality/level (0.0 = less detail, 1.0 = maximum detail)
 
         # Load calibration if available
         if calibration_file and os.path.exists(calibration_file):
@@ -136,7 +136,7 @@ class FusionProcessor:
         Args:
             fusion_mode: New fusion mode to use
         """
-        valid_modes = ['alpha_blend', 'msx', 'msx_emboss', 'edge_enhanced', 'thermal_overlay',
+        valid_modes = ['alpha_blend', 'detail_inject', 'relief_fusion', 'edge_enhanced', 'thermal_overlay',
                        'side_by_side', 'picture_in_picture', 'max_intensity', 'feature_weighted', 'anomaly_priority']
 
         if fusion_mode in valid_modes:
@@ -305,10 +305,10 @@ class FusionProcessor:
         # Apply fusion strategy
         if self.fusion_mode == 'alpha_blend':
             return self._alpha_blend(thermal, rgb_aligned)
-        elif self.fusion_mode == 'msx':
-            return self._msx(thermal, rgb_aligned)
-        elif self.fusion_mode == 'msx_emboss':
-            return self._msx_emboss(thermal, rgb_aligned)
+        elif self.fusion_mode == 'detail_inject':
+            return self._detail_inject(thermal, rgb_aligned)
+        elif self.fusion_mode == 'relief_fusion':
+            return self._relief_fusion(thermal, rgb_aligned)
         elif self.fusion_mode == 'edge_enhanced':
             return self._edge_enhanced(thermal, rgb_aligned)
         elif self.fusion_mode == 'thermal_overlay':
@@ -347,9 +347,9 @@ class FusionProcessor:
             logger.error(f"Alpha blend error: {e}")
             return thermal
 
-    def _msx(self, thermal: np.ndarray, rgb: np.ndarray) -> np.ndarray:
+    def _detail_inject(self, thermal: np.ndarray, rgb: np.ndarray) -> np.ndarray:
         """
-        MSX (Multi-Spectral Dynamic Imaging) fusion - FLIR-style
+        Detail Injection fusion - FLIR MSX-style (Multi-Spectral Dynamic Imaging)
         Overlays grayscale high-frequency spatial detail from RGB onto thermal
         Adds visible structure (edges, text, outlines) as grayscale information
 
@@ -362,7 +362,7 @@ class FusionProcessor:
             rgb: RGB frame (BGR, aligned)
 
         Returns:
-            MSX-enhanced thermal frame (thermal + grayscale RGB detail)
+            Detail-injected thermal frame (thermal + grayscale RGB detail)
         """
         try:
             # Convert RGB to grayscale to extract spatial detail
@@ -371,7 +371,7 @@ class FusionProcessor:
             # Extract high-frequency detail (edges, texture, structure) from RGB
             # Use high-pass filter to isolate sharp features
             # Quality controls blur kernel size (higher quality = larger kernel = more detail isolation)
-            kernel_size = int(3 + self.msx_quality * 8)  # Range: 3 to 11
+            kernel_size = int(3 + self.detail_quality * 8)  # Range: 3 to 11
             if kernel_size % 2 == 0:  # Ensure odd kernel size
                 kernel_size += 1
             blurred = cv2.GaussianBlur(rgb_gray, (kernel_size, kernel_size), 0)
@@ -381,7 +381,7 @@ class FusionProcessor:
 
             # Enhance the detail contrast based on quality setting
             # Higher quality = more aggressive contrast enhancement
-            contrast_alpha = 2.0 + self.msx_quality * 4.0  # Range: 2.0 to 6.0
+            contrast_alpha = 2.0 + self.detail_quality * 4.0  # Range: 2.0 to 6.0
             detail = cv2.convertScaleAbs(detail, alpha=contrast_alpha, beta=0)
 
             # Normalize to full range for better visibility
@@ -393,7 +393,7 @@ class FusionProcessor:
 
             # Overlay grayscale detail onto thermal with strength-controlled blending
             # Higher strength = more visible RGB structure
-            blend_strength = self.fusion_intensity * self.msx_strength
+            blend_strength = self.fusion_intensity * self.detail_strength
             result = cv2.addWeighted(
                 thermal, 1.0 - blend_strength * 0.3,  # Slightly reduce thermal
                 detail_bgr, blend_strength * 0.7,      # Strength-controlled detail overlay
@@ -403,12 +403,12 @@ class FusionProcessor:
             return result
 
         except Exception as e:
-            logger.error(f"MSX fusion error: {e}")
+            logger.error(f"Detail Injection fusion error: {e}")
             return thermal
 
-    def _msx_emboss(self, thermal: np.ndarray, rgb: np.ndarray) -> np.ndarray:
+    def _relief_fusion(self, thermal: np.ndarray, rgb: np.ndarray) -> np.ndarray:
         """
-        MSX with traditional embossing filter - Alternative approach
+        Relief Fusion - Embossing filter for 3D bas-relief effect
         Creates 3D bas-relief appearance with highlights/shadows from RGB structure
 
         Uses convolution with emboss kernel to create raised/recessed appearance
@@ -419,7 +419,7 @@ class FusionProcessor:
             rgb: RGB frame (BGR, aligned)
 
         Returns:
-            MSX-enhanced thermal frame (thermal + embossed RGB structure)
+            Relief-fused thermal frame (thermal + embossed RGB structure)
         """
         try:
             # Convert RGB to grayscale for embossing
@@ -428,7 +428,7 @@ class FusionProcessor:
             # Apply emboss filter using convolution kernel
             # Creates highlights (bright) on top/left edges, shadows (dark) on bottom/right
             # Quality controls emboss kernel strength
-            kernel_strength = 1.0 + self.msx_quality * 2.0  # Range: 1.0 to 3.0
+            kernel_strength = 1.0 + self.detail_quality * 2.0  # Range: 1.0 to 3.0
             emboss_kernel = np.array([
                 [-2, -1,  0],
                 [-1,  1,  1],
@@ -448,8 +448,8 @@ class FusionProcessor:
             embossed_bgr = cv2.cvtColor(embossed, cv2.COLOR_GRAY2BGR)
 
             # Blend embossed details onto thermal
-            # Use fusion_intensity and msx_strength to control how strong the embossing appears
-            blend_strength = self.fusion_intensity * self.msx_strength
+            # Use fusion_intensity and detail_strength to control how strong the embossing appears
+            blend_strength = self.fusion_intensity * self.detail_strength
             result = cv2.addWeighted(
                 thermal, 1.0 - blend_strength * 0.5,  # Thermal base
                 embossed_bgr, blend_strength * 0.5,     # Strength-controlled embossed structure
@@ -459,7 +459,7 @@ class FusionProcessor:
             return result
 
         except Exception as e:
-            logger.error(f"MSX emboss fusion error: {e}")
+            logger.error(f"Relief Fusion error: {e}")
             return thermal
 
     def _edge_enhanced(self, thermal: np.ndarray, rgb: np.ndarray) -> np.ndarray:

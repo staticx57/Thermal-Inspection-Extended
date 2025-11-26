@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# ThermalFusionDrivingAssist - Linux Repair/Update Script
+# Thermal Inspection Fusion Tool - Linux Repair/Update Script
 # Brings existing installation up to date with latest requirements
 #
 # Usage:
@@ -18,14 +18,15 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}ThermalFusionDrivingAssist Repair${NC}"
+echo -e "${BLUE}Thermal Inspection Fusion Tool Repair${NC}"
+echo -e "${BLUE}Version 3.0.0${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 
 # Check if we're in the right directory
-if [ ! -f "main.py" ]; then
-    echo -e "${RED}✗ Error: main.py not found${NC}"
-    echo -e "${YELLOW}Please run this script from the ThermalFusionDrivingAssist directory${NC}"
+if [ ! -f "inspection_main.py" ]; then
+    echo -e "${RED}✗ Error: inspection_main.py not found${NC}"
+    echo -e "${YELLOW}Please run this script from the Thermal Inspection Fusion Tool directory${NC}"
     exit 1
 fi
 
@@ -36,15 +37,15 @@ echo ""
 echo -e "${BLUE}[1/4] Updating Python packages...${NC}"
 pip3 install --user --upgrade pip
 
-# Step 2: Install/update PyQt5 (required for v3.x Qt GUI)
-echo -e "${BLUE}[2/4] Installing/updating PyQt5...${NC}"
-pip3 install --user --upgrade PyQt5
+# Step 2: Install/update PyQt6 (required for v3.x Qt GUI)
+echo -e "${BLUE}[2/4] Installing/updating PyQt6...${NC}"
+pip3 install --user --upgrade PyQt6
 
-# Verify PyQt5
-python3 -c "from PyQt5.QtWidgets import QApplication; print('✓ PyQt5 verified')" || {
-    echo -e "${RED}✗ PyQt5 installation failed${NC}"
+# Verify PyQt6
+python3 -c "from PyQt6.QtWidgets import QApplication; print('✓ PyQt6 verified')" || {
+    echo -e "${RED}✗ PyQt6 installation failed${NC}"
     echo -e "${YELLOW}Trying system package...${NC}"
-    sudo apt-get install -y python3-pyqt5 python3-pyqt5.qtsvg python3-pyqt5.qtopengl
+    sudo apt-get install -y python3-pyqt6 python3-pyqt6.qtsvg python3-pyqt6.qtopengl
 }
 
 # Step 3: Update requirements
@@ -71,7 +72,7 @@ exit_code = 0
 modules = [
     ('numpy', 'NumPy'),
     ('cv2', 'OpenCV'),
-    ('PyQt5.QtWidgets', 'PyQt5'),
+    ('PyQt6.QtWidgets', 'PyQt6'),
     ('ultralytics', 'Ultralytics YOLO'),
 ]
 
@@ -99,9 +100,9 @@ echo -e "${BLUE}Testing Qt GUI components...${NC}"
 python3 << 'EOF'
 import sys
 try:
-    from PyQt5.QtWidgets import QApplication, QPushButton, QMainWindow
-    from PyQt5.QtCore import QThread, pyqtSignal
-    from PyQt5.QtGui import QImage, QPixmap
+    from PyQt6.QtWidgets import QApplication, QPushButton, QMainWindow
+    from PyQt6.QtCore import QThread, pyqtSignal
+    from PyQt6.QtGui import QImage, QPixmap
     print('  ✓ Qt GUI components')
     sys.exit(0)
 except Exception as e:
@@ -120,8 +121,8 @@ fi
 echo ""
 echo -e "${BLUE}Checking project files...${NC}"
 required_files=(
-    "main.py"
-    "driver_gui_qt.py"
+    "inspection_main.py"
+    "inspection_gui_qt.py"
     "video_worker.py"
     "developer_panel.py"
     "alert_overlay.py"
@@ -163,5 +164,5 @@ echo -e "  • Custom model support (see CUSTOM_MODELS.md)"
 echo -e "  • Simulated thermal camera (debug mode)"
 echo -e "  • Light/Dark theme auto-switching"
 echo ""
-echo -e "${GREEN}Ready to run: python3 main.py${NC}"
+echo -e "${GREEN}Ready to run: python3 inspection_main.py${NC}"
 echo ""

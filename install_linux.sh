@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# ThermalFusionDrivingAssist - Linux Installation Script
+# Thermal Inspection Fusion Tool - Linux Installation Script
 # For Jetson Orin Nano (ARM64) and x86-64 Linux systems
 #
 # This script installs:
@@ -32,7 +32,8 @@ if [ -f /etc/nv_tegra_release ]; then
 fi
 
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}ThermalFusionDrivingAssist Installation${NC}"
+echo -e "${BLUE}Thermal Inspection Fusion Tool Installation${NC}"
+echo -e "${BLUE}Version 3.0.0${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 echo -e "Architecture: ${GREEN}${ARCH}${NC}"
@@ -103,24 +104,24 @@ else
     pip3 install --user numpy ultralytics supervision torch torchvision
 fi
 
-# Step 5.5: Install PyQt5 for Qt GUI
-echo -e "${BLUE}[5.5/7] Installing PyQt5 for Qt GUI (v3.x)...${NC}"
+# Step 5.5: Install PyQt6 for Qt GUI
+echo -e "${BLUE}[5.5/7] Installing PyQt6 for Qt GUI (v3.x)...${NC}"
 if [ "$IS_JETSON" = true ]; then
     # Jetson: Try system package first (better performance)
-    echo -e "${YELLOW}Attempting system PyQt5 installation...${NC}"
-    sudo apt-get install -y python3-pyqt5 python3-pyqt5.qtsvg python3-pyqt5.qtopengl || {
-        echo -e "${YELLOW}⚠ System PyQt5 failed. Installing via pip...${NC}"
-        pip3 install --user PyQt5
+    echo -e "${YELLOW}Attempting system PyQt6 installation...${NC}"
+    sudo apt-get install -y python3-pyqt6 python3-pyqt6.qtsvg python3-pyqt6.qtopengl || {
+        echo -e "${YELLOW}⚠ System PyQt6 failed. Installing via pip...${NC}"
+        pip3 install --user PyQt6
     }
 else
     # Generic Linux: pip installation
-    pip3 install --user PyQt5
+    pip3 install --user PyQt6
 fi
 
-# Verify PyQt5
-python3 -c "from PyQt5.QtWidgets import QApplication; print('✓ PyQt5 installed successfully')" || {
-    echo -e "${RED}✗ PyQt5 installation failed${NC}"
-    echo -e "${YELLOW}⚠ Qt GUI may not work. Try: pip3 install --user PyQt5${NC}"
+# Verify PyQt6
+python3 -c "from PyQt6.QtWidgets import QApplication; print('✓ PyQt6 installed successfully')" || {
+    echo -e "${RED}✗ PyQt6 installation failed${NC}"
+    echo -e "${YELLOW}⚠ Qt GUI may not work. Try: pip3 install --user PyQt6${NC}"
 }
 
 # Step 6: OPTIONAL - Install FLIR Firefly Spinnaker SDK
@@ -234,7 +235,7 @@ exit_code = 0
 modules = [
     ('numpy', 'NumPy'),
     ('cv2', 'OpenCV'),
-    ('PyQt5.QtWidgets', 'PyQt5'),
+    ('PyQt6.QtWidgets', 'PyQt6'),
     ('ultralytics', 'Ultralytics YOLO'),
 ]
 
@@ -262,9 +263,9 @@ echo -e "${BLUE}Testing Qt GUI components...${NC}"
 python3 << 'EOF'
 import sys
 try:
-    from PyQt5.QtWidgets import QApplication, QPushButton, QLabel, QMainWindow
-    from PyQt5.QtCore import QThread, pyqtSignal
-    from PyQt5.QtGui import QImage, QPixmap
+    from PyQt6.QtWidgets import QApplication, QPushButton, QLabel, QMainWindow
+    from PyQt6.QtCore import QThread, pyqtSignal
+    from PyQt6.QtGui import QImage, QPixmap
     print('  ✓ Qt GUI components')
     sys.exit(0)
 except Exception as e:
@@ -283,8 +284,8 @@ fi
 echo ""
 echo -e "${BLUE}Checking project files...${NC}"
 required_files=(
-    "main.py"
-    "driver_gui_qt.py"
+    "inspection_main.py"
+    "inspection_gui_qt.py"
     "video_worker.py"
     "developer_panel.py"
     "alert_overlay.py"
@@ -317,7 +318,7 @@ echo ""
 echo -e "${BLUE}System Status:${NC}"
 echo -e "  ${GREEN}✓ Python 3 & dependencies${NC}"
 echo -e "  ${GREEN}✓ OpenCV (computer vision)${NC}"
-echo -e "  ${GREEN}✓ PyQt5 (Qt GUI v3.x)${NC}"
+echo -e "  ${GREEN}✓ PyQt6 (Qt GUI v3.x)${NC}"
 echo -e "  ${GREEN}✓ UVC webcam support${NC}"
 if [ "$INSTALL_FIREFLY" = true ] && [ -f "${SPINNAKER_VERSION}" ]; then
     echo -e "  ${GREEN}✓ FLIR Firefly support${NC}"
@@ -338,13 +339,13 @@ echo ""
 echo -e "${BLUE}Next Steps:${NC}"
 echo -e "  ${BLUE}1.${NC} Connect RGB camera (UVC webcam or FLIR Firefly)"
 echo -e "  ${BLUE}2.${NC} (Optional) Add custom models to config.json"
-echo -e "  ${BLUE}3.${NC} Run system: ${GREEN}python3 main.py${NC}"
+echo -e "  ${BLUE}3.${NC} Run system: ${GREEN}python3 inspection_main.py${NC}"
 echo -e "  ${BLUE}4.${NC} Press ${GREEN}Ctrl+D${NC} to toggle developer mode"
 echo ""
 echo -e "${BLUE}Testing Commands:${NC}"
 echo -e "  • List cameras: ${GREEN}v4l2-ctl --list-devices${NC}"
 echo -e "  • Test camera: ${GREEN}python3 camera_factory.py${NC}"
-echo -e "  • Verify modules: ${GREEN}python3 -c 'import PyQt5; import cv2; print(\"OK\")'${NC}"
+echo -e "  • Verify modules: ${GREEN}python3 -c 'import PyQt6; import cv2; print(\"OK\")'${NC}"
 echo ""
 echo -e "${BLUE}Documentation:${NC}"
 echo -e "  • Main guide: ${GREEN}README.md${NC}"

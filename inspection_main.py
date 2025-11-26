@@ -1497,17 +1497,17 @@ class ThermalInspectionFusion:
             self.fusion_processor.set_edge_color(bgr_color)
             logger.info(f"Edge color set to: {color} (BGR={bgr_color})")
 
-    def set_msx_strength(self, strength: float):
-        """Set MSX detail overlay strength."""
+    def set_detail_strength(self, strength: float):
+        """Set Detail Injection/Relief Fusion strength."""
         if self.fusion_processor:
-            self.fusion_processor.msx_strength = strength
-            logger.info(f"MSX strength set to: {strength:.2f}")
+            self.fusion_processor.detail_strength = strength
+            logger.info(f"Detail strength set to: {strength:.2f}")
 
-    def set_msx_quality(self, quality: float):
-        """Set MSX quality/detail level."""
+    def set_detail_quality(self, quality: float):
+        """Set Detail Injection/Relief Fusion quality/detail level."""
         if self.fusion_processor:
-            self.fusion_processor.msx_quality = quality
-            logger.info(f"MSX quality set to: {quality:.2f}")
+            self.fusion_processor.detail_quality = quality
+            logger.info(f"Detail quality set to: {quality:.2f}")
 
     def set_view_mode(self, mode: str):
         """Set view mode."""
@@ -2412,7 +2412,8 @@ def parse_arguments():
     
     # GUI options settings (PARAMOUNT!)
     parser.add_argument('--fusion-mode', type=str, default='thermal_overlay',
-                       choices=['alpha_blend', 'edge_enhanced', 'thermal_overlay',
+                       choices=['alpha_blend', 'detail_inject', 'relief_fusion',
+                               'edge_enhanced', 'thermal_overlay',
                                'side_by_side', 'picture_in_picture', 'max_intensity',
                                'feature_weighted'],
                        help='Fusion mode (default: thermal_overlay)')

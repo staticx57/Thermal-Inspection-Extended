@@ -71,6 +71,8 @@ python inspection_main.py --enable-boson-sdk --boson-com-port COM6
 
 **7 Fusion Algorithms:**
 - Alpha Blend - Weighted overlay of thermal and RGB
+- Detail Injection - FLIR MSX-style grayscale detail overlay from RGB
+- Relief Fusion - 3D bas-relief embossed effect
 - Edge Enhanced - RGB edges with thermal color
 - Thermal Overlay - Thermal colormap over RGB base
 - Side-by-Side - Synchronized dual view

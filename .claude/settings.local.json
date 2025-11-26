@@ -4,7 +4,11 @@
       "Bash(powershell:*)",
       "Bash(mkdir:*)",
       "Bash(mv:*)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(python inspection_main.py:*)",
+      "Bash(python -c:*)",
+      "Bash(timeout 3 powershell:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []
