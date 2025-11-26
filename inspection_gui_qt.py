@@ -30,6 +30,7 @@ from palette_manager import PaletteType
 from roi_manager import ROI, ROIType
 from thermal_analyzer import ThermalStatistics, HotSpot, ColdSpot, ThermalAnomaly, TemperatureTrend
 from firefly_control_panel import FireflyControlPanel
+from radiometric_panel import RadiometricPanel
 
 logger = logging.getLogger(__name__)
 
@@ -2829,6 +2830,108 @@ class BosonControlPanel(QWidget):
 
         self.boson_tabs.addTab(radiometric_tab, "Radiometric")
 
+        # ===================================================================
+        # DIAGNOSTICS TAB (Phase 10)
+        # ===================================================================
+        diagnostics_tab = QWidget()
+        diagnostics_scroll = QScrollArea()
+        diagnostics_scroll.setWidgetResizable(True)
+        diagnostics_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        diagnostics_scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        diagnostics_content = QWidget()
+        diagnostics_layout = QVBoxLayout(diagnostics_content)
+        diagnostics_layout.setSpacing(8)
+        diagnostics_layout.setContentsMargins(6, 6, 6, 6)
+
+        # System Status Group
+        system_group = QGroupBox("SYSTEM STATUS")
+        system_layout = QVBoxLayout(system_group)
+
+        # Frame count
+        frame_layout = QHBoxLayout()
+        frame_layout.addWidget(QLabel("Frame Count:"))
+        self.diag_frame_count_label = QLabel("--")
+        self.diag_frame_count_label.setStyleSheet("font-weight: bold;")
+        frame_layout.addWidget(self.diag_frame_count_label)
+        frame_layout.addStretch()
+        system_layout.addLayout(frame_layout)
+
+        # Board temperature
+        board_temp_layout = QHBoxLayout()
+        board_temp_layout.addWidget(QLabel("Board Temp:"))
+        self.diag_board_temp_label = QLabel("--")
+        self.diag_board_temp_label.setStyleSheet("font-weight: bold;")
+        board_temp_layout.addWidget(self.diag_board_temp_label)
+        board_temp_layout.addStretch()
+        system_layout.addLayout(board_temp_layout)
+
+        # FPA temperature
+        fpa_temp_layout = QHBoxLayout()
+        fpa_temp_layout.addWidget(QLabel("FPA Temp:"))
+        self.diag_fpa_temp_label = QLabel("--")
+        self.diag_fpa_temp_label.setStyleSheet("font-weight: bold;")
+        fpa_temp_layout.addWidget(self.diag_fpa_temp_label)
+        fpa_temp_layout.addStretch()
+        system_layout.addLayout(fpa_temp_layout)
+
+        diagnostics_layout.addWidget(system_group)
+
+        # FFC Status Group
+        ffc_status_group = QGroupBox("FFC STATUS")
+        ffc_status_layout = QVBoxLayout(ffc_status_group)
+
+        # Last FFC frame
+        last_ffc_frame_layout = QHBoxLayout()
+        last_ffc_frame_layout.addWidget(QLabel("Last FFC Frame:"))
+        self.diag_last_ffc_frame_label = QLabel("--")
+        self.diag_last_ffc_frame_label.setStyleSheet("font-weight: bold;")
+        last_ffc_frame_layout.addWidget(self.diag_last_ffc_frame_label)
+        last_ffc_frame_layout.addStretch()
+        ffc_status_layout.addLayout(last_ffc_frame_layout)
+
+        # Frames since FFC
+        frames_since_layout = QHBoxLayout()
+        frames_since_layout.addWidget(QLabel("Frames Since FFC:"))
+        self.diag_frames_since_ffc_label = QLabel("--")
+        self.diag_frames_since_ffc_label.setStyleSheet("font-weight: bold;")
+        frames_since_layout.addWidget(self.diag_frames_since_ffc_label)
+        frames_since_layout.addStretch()
+        ffc_status_layout.addLayout(frames_since_layout)
+
+        # Last FFC temp
+        last_ffc_temp_layout = QHBoxLayout()
+        last_ffc_temp_layout.addWidget(QLabel("Last FFC Temp:"))
+        self.diag_last_ffc_temp_label = QLabel("--")
+        self.diag_last_ffc_temp_label.setStyleSheet("font-weight: bold;")
+        last_ffc_temp_layout.addWidget(self.diag_last_ffc_temp_label)
+        last_ffc_temp_layout.addStretch()
+        ffc_status_layout.addLayout(last_ffc_temp_layout)
+
+        # Auto FFC threshold
+        ffc_threshold_layout = QHBoxLayout()
+        ffc_threshold_layout.addWidget(QLabel("Auto FFC Threshold:"))
+        self.diag_ffc_threshold_label = QLabel("--")
+        self.diag_ffc_threshold_label.setStyleSheet("font-weight: bold;")
+        ffc_threshold_layout.addWidget(self.diag_ffc_threshold_label)
+        ffc_threshold_layout.addStretch()
+        ffc_status_layout.addLayout(ffc_threshold_layout)
+
+        diagnostics_layout.addWidget(ffc_status_group)
+
+        # Refresh button
+        refresh_btn = QPushButton("Refresh Diagnostics")
+        refresh_btn.clicked.connect(self._on_refresh_diagnostics)
+        diagnostics_layout.addWidget(refresh_btn)
+
+        diagnostics_layout.addStretch()
+        diagnostics_scroll.setWidget(diagnostics_content)
+        diagnostics_tab_layout = QVBoxLayout(diagnostics_tab)
+        diagnostics_tab_layout.setContentsMargins(0, 0, 0, 0)
+        diagnostics_tab_layout.addWidget(diagnostics_scroll)
+
+        self.boson_tabs.addTab(diagnostics_tab, "Diagnostics")
+
     def _create_connection_status(self, layout):
         """Create SDK connection status display and controls."""
         status_group = QGroupBox("SDK CONNECTION")
@@ -3354,6 +3457,66 @@ class BosonControlPanel(QWidget):
                 self.com_port_combo.setCurrentText(current)
         else:
             self.com_port_combo.setPlaceholderText("No ports found")
+
+    # ========================================================================
+    # Diagnostics Panel Methods (Phase 10)
+    # ========================================================================
+
+    def _on_refresh_diagnostics(self):
+        """Signal to refresh diagnostics data from application."""
+        # This will be connected to application's refresh_boson_diagnostics method
+        pass
+
+    def update_diagnostics(self, diagnostics: dict):
+        """
+        Update diagnostics panel with camera status data.
+
+        Args:
+            diagnostics: Dictionary with keys:
+                - frame_count: int
+                - board_temp_c: float
+                - fpa_temp_c: float
+                - last_ffc_frame: int
+                - frames_since_ffc: int
+                - last_ffc_temp_c: float
+                - ffc_temp_delta_c: float
+        """
+        # System status
+        if 'frame_count' in diagnostics and diagnostics['frame_count'] is not None:
+            self.diag_frame_count_label.setText(f"{diagnostics['frame_count']:,}")
+        else:
+            self.diag_frame_count_label.setText("--")
+
+        if 'board_temp_c' in diagnostics and diagnostics['board_temp_c'] is not None:
+            self.diag_board_temp_label.setText(f"{diagnostics['board_temp_c']:.1f}°C")
+        else:
+            self.diag_board_temp_label.setText("--")
+
+        if 'fpa_temp_c' in diagnostics and diagnostics['fpa_temp_c'] is not None:
+            self.diag_fpa_temp_label.setText(f"{diagnostics['fpa_temp_c']:.1f}°C")
+        else:
+            self.diag_fpa_temp_label.setText("--")
+
+        # FFC status
+        if 'last_ffc_frame' in diagnostics and diagnostics['last_ffc_frame'] is not None:
+            self.diag_last_ffc_frame_label.setText(f"{diagnostics['last_ffc_frame']:,}")
+        else:
+            self.diag_last_ffc_frame_label.setText("--")
+
+        if 'frames_since_ffc' in diagnostics and diagnostics['frames_since_ffc'] is not None:
+            self.diag_frames_since_ffc_label.setText(f"{diagnostics['frames_since_ffc']:,}")
+        else:
+            self.diag_frames_since_ffc_label.setText("--")
+
+        if 'last_ffc_temp_c' in diagnostics and diagnostics['last_ffc_temp_c'] is not None:
+            self.diag_last_ffc_temp_label.setText(f"{diagnostics['last_ffc_temp_c']:.1f}°C")
+        else:
+            self.diag_last_ffc_temp_label.setText("--")
+
+        if 'ffc_temp_delta_c' in diagnostics and diagnostics['ffc_temp_delta_c'] is not None:
+            self.diag_ffc_threshold_label.setText(f"{diagnostics['ffc_temp_delta_c']:.1f}°C")
+        else:
+            self.diag_ffc_threshold_label.setText("--")
 
 
 # ============================================================================
@@ -4210,6 +4373,10 @@ class InspectionAppWindow(QMainWindow):
         self.firefly_panel = FireflyControlPanel()
         self.right_panel_tabs.addTab(self.firefly_panel, "Firefly Camera")
 
+        # Add Radiometric Panel tab
+        self.radiometric_panel = RadiometricPanel()
+        self.right_panel_tabs.addTab(self.radiometric_panel, "Radiometric")
+
         main_layout.addWidget(self.right_panel_tabs, stretch=0) # Fixed width
 
         # Info panel (overlay on video widget)
@@ -4313,7 +4480,11 @@ class InspectionAppWindow(QMainWindow):
         # Firefly Camera Panel - Image settings
         self.firefly_panel.gamma_changed.connect(self._on_firefly_gamma)
         self.firefly_panel.sharpness_changed.connect(self._on_firefly_sharpness)
-        
+
+        # Radiometric Panel - Enable/disable and temperature range
+        self.radiometric_panel.enable_checkbox.stateChanged.connect(self._on_radiometric_enable_changed)
+        self.radiometric_panel.apply_range_btn.clicked.connect(self._on_radiometric_range_apply)
+
         # Analysis panel signals
         self.analysis_panel.roi_palette_changed.connect(self._on_roi_palette_changed)
         self.analysis_panel.roi_palette_cleared.connect(self._on_roi_palette_cleared)
@@ -5019,6 +5190,24 @@ class InspectionAppWindow(QMainWindow):
         if self.app:
             self.app.set_firefly_sharpness(enabled, value)
             logger.debug(f"Firefly sharpness: {'ON' if enabled else 'OFF'} ({value})")
+
+    # ========================================================================
+    # Radiometric Panel Handlers
+    # ========================================================================
+
+    def _on_radiometric_enable_changed(self, state: int):
+        """Handle radiometric enable/disable toggle."""
+        enabled = (state == Qt.CheckState.Checked.value)
+        if self.app:
+            self.app.enable_radiometric(enabled)
+            logger.info(f"Radiometric conversion: {'ENABLED' if enabled else 'DISABLED'}")
+
+    def _on_radiometric_range_apply(self):
+        """Handle temperature range apply button."""
+        min_temp, max_temp = self.radiometric_panel.get_temperature_range()
+        if self.app:
+            self.app.set_radiometric_temperature_range(min_temp, max_temp)
+            logger.info(f"Radiometric temperature range: {min_temp}°C - {max_temp}°C")
 
 # ============================================================================
 # Standalone Test

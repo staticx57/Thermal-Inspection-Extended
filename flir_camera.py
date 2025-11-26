@@ -19,6 +19,14 @@ except ImportError:
     SDK_AVAILABLE = False
     logger.info("Boson SDK not available - serial control disabled (video-only mode)")
 
+# Optional: Radiometric temperature conversion
+try:
+    from radiometric_converter import TLinearConverter
+    RADIOMETRIC_AVAILABLE = True
+except ImportError:
+    RADIOMETRIC_AVAILABLE = False
+    logger.info("Radiometric converter not available")
+
 
 class FLIRBosonCamera:
     """
@@ -53,6 +61,17 @@ class FLIRBosonCamera:
 
         if enable_sdk and not SDK_AVAILABLE:
             logger.warning("SDK requested but not available - continuing in video-only mode")
+
+        # Radiometric support
+        self.radiometric_converter: Optional[TLinearConverter] = None
+        self.radiometric_enabled = False
+        self.radiometric_capable = False
+        self.last_frame_16bit: Optional[np.ndarray] = None  # Store raw 16-bit frame
+
+        if RADIOMETRIC_AVAILABLE:
+            self.radiometric_converter = TLinearConverter(method="linear")
+            # Set default temperature range for Boson
+            self.radiometric_converter.set_temperature_range(-40.0, 550.0)
 
     def open(self) -> bool:
         """Open camera connection (cross-platform: Linux/Windows)"""
@@ -128,7 +147,7 @@ class FLIRBosonCamera:
             flush_buffer: If True, grab and drop old frames to get the freshest frame
 
         Returns:
-            Tuple of (success, frame) where frame is BGR format
+            Tuple of (success, frame) where frame is BGR format (8-bit normalized)
         """
         if not self.is_opened or self.cap is None:
             return False, None
@@ -150,10 +169,14 @@ class FLIRBosonCamera:
             # Keep as grayscale for thermal processing pipeline
             if len(frame.shape) == 3:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            
-            # Ensure 8-bit depth (convert 16-bit to 8-bit if needed)
+
+            # Check if this is 16-bit radiometric data
             if frame.dtype == np.uint16:
-                # Normalize to 0-255 range and convert to uint8
+                # Store raw 16-bit frame for radiometric conversion
+                self.last_frame_16bit = frame.copy()
+                self.radiometric_capable = True
+
+                # Normalize to 0-255 range and convert to uint8 for display
                 frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
                 frame = frame.astype(np.uint8)
             elif frame.dtype != np.uint8:
@@ -165,10 +188,12 @@ class FLIRBosonCamera:
 
     def read_thermal(self) -> Tuple[bool, Optional[np.ndarray]]:
         """
-        Read raw thermal frame (grayscale)
+        Read raw thermal frame (grayscale, preserves 16-bit if available)
 
         Returns:
             Tuple of (success, frame) where frame is grayscale thermal data
+            - 16-bit uint16 if radiometric camera
+            - 8-bit uint8 if standard camera
         """
         if not self.is_opened or self.cap is None:
             return False, None
@@ -182,14 +207,22 @@ class FLIRBosonCamera:
                 logger.info(f"  Frame dtype: {frame.dtype}")
                 logger.info(f"  Frame shape: {frame.shape}")
                 if frame.dtype == np.uint16:
-                    logger.info(f"  -> RAW THERMAL MODE (16-bit radiometric data)")
+                    logger.info(f"  -> RADIOMETRIC MODE (16-bit absolute temperature data)")
+                    logger.info(f"  -> Radiometric features ENABLED")
+                    self.radiometric_capable = True
                 elif frame.dtype == np.uint8:
-                    logger.info(f"  -> UVC MODE (8-bit YUV/RGB converted)")
+                    logger.info(f"  -> UVC MODE (8-bit AGC-processed data)")
+                    logger.info(f"  -> Radiometric features NOT available")
+                    self.radiometric_capable = False
                 self._mode_logged = True
-            
+
             if len(frame.shape) == 3:
                 # Convert to grayscale if needed
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+            # Store 16-bit frame for radiometric conversion
+            if frame.dtype == np.uint16:
+                self.last_frame_16bit = frame.copy()
 
         return ret, frame
 
@@ -342,6 +375,157 @@ class FLIRBosonCamera:
     def is_sdk_connected(self) -> bool:
         """Check if SDK is connected for serial control."""
         return self.sdk_connected
+
+    # ========================================================================
+    # Radiometric Temperature Measurement (Phase 9)
+    # ========================================================================
+
+    def is_radiometric_capable(self) -> bool:
+        """
+        Check if camera supports radiometric temperature measurement.
+
+        Returns:
+            True if camera outputs 16-bit radiometric data
+        """
+        return self.radiometric_capable
+
+    def is_radiometric_enabled(self) -> bool:
+        """
+        Check if radiometric features are currently enabled.
+
+        Returns:
+            True if radiometric conversion is active
+        """
+        return self.radiometric_enabled and self.radiometric_capable and RADIOMETRIC_AVAILABLE
+
+    def enable_radiometric(self, enable: bool = True):
+        """
+        Enable/disable radiometric temperature conversion.
+
+        Args:
+            enable: True to enable, False to disable
+        """
+        if not RADIOMETRIC_AVAILABLE:
+            logger.warning("Cannot enable radiometric - converter not available")
+            return
+
+        if not self.radiometric_capable:
+            logger.warning("Cannot enable radiometric - camera does not output 16-bit data")
+            return
+
+        self.radiometric_enabled = enable
+        logger.info(f"Radiometric conversion {'enabled' if enable else 'disabled'}")
+
+    def get_spot_temperature(self, x: int, y: int) -> Optional[float]:
+        """
+        Get temperature at a specific pixel coordinate.
+
+        Args:
+            x: X coordinate
+            y: Y coordinate
+
+        Returns:
+            Temperature in Celsius, or None if not available
+        """
+        if not self.is_radiometric_enabled() or self.last_frame_16bit is None:
+            return None
+
+        if not self.radiometric_converter:
+            return None
+
+        try:
+            return self.radiometric_converter.get_spot_temperature(self.last_frame_16bit, x, y)
+        except Exception as e:
+            logger.debug(f"Error getting spot temperature: {e}")
+            return None
+
+    def get_temperature_frame(self) -> Optional[np.ndarray]:
+        """
+        Convert the last captured frame to temperature values.
+
+        Returns:
+            Temperature array (H, W) in Celsius (float32), or None if not available
+        """
+        if not self.is_radiometric_enabled() or self.last_frame_16bit is None:
+            return None
+
+        if not self.radiometric_converter:
+            return None
+
+        try:
+            return self.radiometric_converter.convert_frame(self.last_frame_16bit)
+        except Exception as e:
+            logger.error(f"Error converting temperature frame: {e}")
+            return None
+
+    def get_roi_temperature_stats(self, roi_mask: np.ndarray) -> Optional[dict]:
+        """
+        Get temperature statistics for a region of interest.
+
+        Args:
+            roi_mask: Boolean mask (H, W) where True = inside ROI
+
+        Returns:
+            Dictionary with keys: min_temp, max_temp, mean_temp, median_temp, std_temp,
+            min_location, max_location, or None if not available
+        """
+        if not self.is_radiometric_enabled() or self.last_frame_16bit is None:
+            return None
+
+        if not self.radiometric_converter:
+            return None
+
+        try:
+            return self.radiometric_converter.get_roi_temperature_stats(self.last_frame_16bit, roi_mask)
+        except Exception as e:
+            logger.error(f"Error computing ROI temperature stats: {e}")
+            return None
+
+    def get_frame_temperature_stats(self) -> Optional[dict]:
+        """
+        Get temperature statistics for the entire frame.
+
+        Returns:
+            Dictionary with keys: min_temp, max_temp, mean_temp, median_temp, std_temp,
+            min_location, max_location, or None if not available
+        """
+        if not self.is_radiometric_enabled() or self.last_frame_16bit is None:
+            return None
+
+        if not self.radiometric_converter:
+            return None
+
+        try:
+            # Create full-frame mask
+            h, w = self.last_frame_16bit.shape
+            full_mask = np.ones((h, w), dtype=bool)
+            return self.radiometric_converter.get_roi_temperature_stats(self.last_frame_16bit, full_mask)
+        except Exception as e:
+            logger.error(f"Error computing frame temperature stats: {e}")
+            return None
+
+    def set_temperature_range(self, min_celsius: float, max_celsius: float) -> bool:
+        """
+        Set expected temperature range for linear conversion.
+
+        Args:
+            min_celsius: Minimum expected temperature (°C)
+            max_celsius: Maximum expected temperature (°C)
+
+        Returns:
+            True if successful
+        """
+        if not self.radiometric_converter:
+            logger.warning("No radiometric converter available")
+            return False
+
+        try:
+            self.radiometric_converter.set_temperature_range(min_celsius, max_celsius)
+            logger.info(f"Temperature range set to {min_celsius}°C - {max_celsius}°C")
+            return True
+        except Exception as e:
+            logger.error(f"Error setting temperature range: {e}")
+            return False
 
     # ========================================================================
     # Runtime SDK Connection (Phase 7 Enhancement - v2.7.0)

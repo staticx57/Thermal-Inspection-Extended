@@ -1,5 +1,172 @@
 # Thermal Inspection Fusion Tool - Changelog
 
+## [3.0.0] - 2025-11-26 - Documentation Overhaul & Radiometric Completion 📚
+
+### 🎯 Overview
+Major documentation reorganization and completion of radiometric temperature measurement system. Project documentation now accurately reflects current state as a production-ready thermal inspection tool rather than historical ADAS transformation narrative.
+
+**Project Status**: Production-ready with full radiometric support, 45 thermal palettes, comprehensive camera management.
+
+---
+
+### ✅ IMPLEMENTED - Full Radiometric System
+
+#### Radiometric Temperature Conversion
+- **Created**: `radiometric_converter.py` - Complete 16-bit to temperature conversion
+- **Features**:
+  - Kelvin to Celsius/Fahrenheit conversion
+  - Temperature range mapping and calibration
+  - Spot temperature measurement
+  - Area temperature statistics
+  - Integration with Boson SDK
+
+#### Radiometric GUI Panel
+- **Created**: `radiometric_panel.py` - User interface for temperature measurement
+- **Features**:
+  - Temperature unit selection (°C/°F)
+  - Spot measurement cursor
+  - Area statistics display
+  - Real-time temperature readout
+  - Integration with main GUI
+
+**Location**: `radiometric_converter.py`, `radiometric_panel.py`
+
+---
+
+### ✅ COMPLETED - Documentation Reorganization
+
+#### Archive Structure Created
+Organized all historical documentation into unified archive with logical categories:
+- **session-summaries/** - Development session summaries and progress reports
+- **sdk-docs/** - FLIR Boson SDK integration documentation
+- **implementation-docs/** - Feature implementation guides (camera detection, Firefly, parallax, cross-platform)
+- **fix-reports/** - Bug fix reports and issue resolution (UI/UX, palettes, fusion, edge detection)
+- **ui-docs/** - UI/UX design documentation and test results
+- **deprecated-code/** - ADAS legacy code and transformation documentation
+- **logs/** - Historical runtime logs, debug outputs, test results
+- **test-scripts/** - Archived test and debug scripts from development
+
+#### README Complete Rewrite
+- **Removed**: Historical ADAS transformation narrative (moved to CHANGELOG)
+- **Added**: Clear focus on current project capabilities
+- **Updated**: Palette count (14 → 45 thermal palettes)
+- **Enhanced**: Feature descriptions with accurate categorization
+- **Added**: Radiometric features and capabilities
+- **Improved**: Project structure documentation
+- **Clarified**: Use cases and hardware requirements
+
+**Result**: Main directory now clean with only active code and primary documentation
+
+---
+
+### 📋 Palette System Expansion
+
+#### Complete Palette Inventory
+**45 Thermal Palettes** organized by category:
+- **Grayscale** (7): white_hot, black_hot, grayscale variants
+- **Rainbow** (8): rainbow, rainbow_hc, jet, turbo variants
+- **Iron/Fire** (6): ironbow, lava, hot, copper variants
+- **Arctic/Cool** (5): arctic, ice, ocean, cool variants
+- **Medical** (5): medical, viridis, inferno, plasma, cividis
+- **Industrial** (8): metal, sepia, autumn, bone, and specialized variants
+- **High Contrast** (6): Enhanced versions of popular palettes
+
+**Location**: `palette_manager.py`
+
+---
+
+### 🔧 Camera Management System
+
+#### Phase 8 Completion
+All camera detection and management features from Phase 8 fully documented:
+- Robust auto-detection with Spinnaker SDK support
+- FLIR Firefly RGB camera integration
+- Priority-based camera selection (Spinnaker > USB UVC > Built-in)
+- Frame-based thermal camera identification
+- Maximum resolution auto-detection
+- Timeout-protected initialization
+- Camera registry with persistent assignments
+- Firefly control panel with connection status
+
+**Modules**: `camera_detector.py`, `camera_initializer.py`, `camera_registry.py`, `firefly_control_panel.py`
+
+---
+
+### 📝 Project History (Preserved in CHANGELOG)
+
+#### Transformation from ADAS System
+**Original System**: Advanced Driver Assistance System (ADAS)
+**Transformation Date**: 2025-11-20
+**Preserved Features**:
+- 7 fusion algorithms (100% preserved)
+- Motion detection
+- Edge detection
+- Multi-palette system
+
+**Removed ADAS Features**:
+- YOLO object detection
+- Distance estimation
+- Road analysis
+- Audio alerts
+- LiDAR integration
+
+**Added Inspection Features**:
+- Thermal analyzer with temperature measurement
+- ROI manager with 4 auto-detection methods
+- 45 thermal palettes (expanded from 14)
+- FLIR Boson SDK integration
+- Radiometric temperature conversion
+- Advanced camera management
+- Firefly RGB camera support
+
+**Statistics**:
+- Files Deleted: 6 (driving modules)
+- Files Created: 12+ (inspection modules)
+- Lines Removed: ~1,442 (driving + YOLO)
+- Lines Added: ~5,000+ (inspection features)
+- Net Change: +3,500+ lines
+
+---
+
+### 🎯 Development Phases Summary
+
+#### Completed Phases
+- ✅ **Phase 1-3**: Core transformation (thermal analyzer, ROI manager, palette manager)
+- ✅ **Phase 4**: GUI transformation (Qt-based interface, 1333+ lines)
+- ✅ **Phase 5**: Configuration (inspection-focused config)
+- ✅ **Phase 6**: Media recording (video, snapshot, playback, metadata)
+- ✅ **Phase 7**: FLIR Boson SDK integration (VPC, serial control, FFC, AGC)
+- ✅ **Phase 8**: Camera detection & management (Firefly support, auto-detection)
+- ✅ **Phase 9**: Radiometric implementation (16-bit temperature, calibration)
+- ✅ **Phase 10**: Documentation & organization (this release)
+
+#### Future Phases
+- 📋 **Phase 11**: Software parallax compensation (plan ready in archive)
+- 📋 **Phase 12**: Advanced features (AI anomaly detection, multi-session comparison)
+
+---
+
+### 🔄 Migration Notes
+
+#### Documentation Location Changes
+If you're looking for historical documentation:
+- Session summaries → `archive/session-summaries/`
+- SDK documentation → `archive/sdk-docs/`
+- Implementation guides → `archive/implementation-docs/`
+- Fix reports → `archive/fix-reports/`
+- Test scripts → `archive/test-scripts/`
+- Logs → `archive/logs/`
+
+#### Active Documentation
+Main directory now contains only:
+- **README.md** - Current project overview and features
+- **CHANGELOG.md** - Version history (this file)
+- **config.json** - Configuration file
+- **requirements.txt** - Python dependencies
+- **archive/** - Historical documentation (see archive/README.md)
+
+---
+
 ## [2.8.0] - 2025-11-24 - SDK Integration Phase 1 🌡️
 
 ### 🎯 Overview

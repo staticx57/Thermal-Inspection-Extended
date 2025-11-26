@@ -675,6 +675,222 @@ class BosonSDK:
         """Get camera information."""
         return self.info
 
+    # ========================================================================
+    # Radiometric Support
+    # ========================================================================
+
+    def is_radiometric_capable(self) -> bool:
+        """
+        Check if camera supports radiometric mode (16-bit absolute temperature output)
+
+        Radiometric Boson cameras have 'R' in their part number (e.g., 640-R)
+
+        Returns:
+            True if camera supports radiometric mode
+        """
+        if not self.is_connected():
+            return False
+
+        try:
+            info = self.get_info()
+            if info and info.camera_part_number:
+                # Radiometric Bosons have 'R' in part number
+                is_radiometric = 'R' in info.camera_part_number.upper()
+                logger.info(f"Radiometric check: {'YES' if is_radiometric else 'NO'} (PN: {info.camera_part_number})")
+                return is_radiometric
+            return False
+        except Exception as e:
+            logger.error(f"Error checking radiometric capability: {e}")
+            return False
+
+    def get_radiometric_status(self) -> dict:
+        """
+        Get radiometric mode status and information
+
+        Returns:
+            Dictionary with:
+            {
+                'capable': bool - Camera supports radiometric
+                'enabled': bool - Radiometric currently active
+                'mode': str - Current output mode
+                'bit_depth': int - 8 or 16
+            }
+        """
+        status = {
+            'capable': self.is_radiometric_capable(),
+            'enabled': False,
+            'mode': 'Unknown',
+            'bit_depth': 8
+        }
+
+        if not self.is_connected():
+            return status
+
+        # Try to detect if currently in 16-bit mode
+        # This would require frame analysis or SDK query
+        # For now, mark as unknown
+        status['mode'] = 'UVC' if not status['capable'] else 'Unknown'
+
+        return status
+
+    # ========================================================================
+    # Extended BOSON Module Functions (Phase 10)
+    # ========================================================================
+
+    def get_frame_count(self) -> Optional[int]:
+        """
+        Get current frame count since camera boot.
+
+        Returns:
+            Frame count or None if error
+        """
+        if not self.is_connected():
+            return None
+
+        try:
+            frame_count = Client_API.bosonGetISPFrameCount(self.camera_handle)
+            return frame_count[1] if frame_count[0] == Client_API.FLR_OK else None
+        except Exception as e:
+            logger.error(f"Error getting frame count: {e}")
+            return None
+
+    def get_board_temperature(self) -> Optional[float]:
+        """
+        Get camera board temperature (Myriad processor).
+
+        Returns:
+            Temperature in Celsius or None if error
+        """
+        if not self.is_connected():
+            return None
+
+        try:
+            # Myriad temp is returned in degrees C x10
+            temp_result = Client_API.bosonGetMyriadTemp(self.camera_handle)
+            if temp_result[0] == Client_API.FLR_OK:
+                temp_cx10 = temp_result[1]
+                return temp_cx10 / 10.0  # Convert to Celsius
+            return None
+        except Exception as e:
+            logger.error(f"Error getting board temperature: {e}")
+            return None
+
+    def get_ffc_temp_delta(self) -> Optional[float]:
+        """
+        Get temperature change threshold for automatic FFC.
+
+        Returns:
+            Temperature delta in Celsius or None if error
+        """
+        if not self.is_connected():
+            return None
+
+        try:
+            result = Client_API.bosonGetFFCTempThreshold(self.camera_handle)
+            if result[0] == Client_API.FLR_OK:
+                # Threshold is in Kelvin x100
+                delta_kx100 = result[1]
+                return delta_kx100 / 100.0  # Convert to Celsius
+            return None
+        except Exception as e:
+            logger.error(f"Error getting FFC temp delta: {e}")
+            return None
+
+    def set_ffc_temp_delta(self, delta_celsius: float) -> bool:
+        """
+        Set temperature change threshold for automatic FFC.
+
+        Args:
+            delta_celsius: Temperature change in Celsius to trigger auto-FFC (e.g., 3.0)
+
+        Returns:
+            True if successful
+        """
+        if not self.is_connected():
+            return False
+
+        try:
+            # Convert Celsius to Kelvin x100
+            delta_kx100 = int(delta_celsius * 100)
+            result = Client_API.bosonSetFFCTempThreshold(self.camera_handle, delta_kx100)
+            success = (result == Client_API.FLR_OK)
+            if success:
+                logger.info(f"Set FFC temp delta: {delta_celsius}°C")
+            return success
+        except Exception as e:
+            logger.error(f"Error setting FFC temp delta: {e}")
+            return False
+
+    def get_last_ffc_frame_count(self) -> Optional[int]:
+        """
+        Get frame count when last FFC was performed.
+
+        Returns:
+            Frame count at last FFC or None if error
+        """
+        if not self.is_connected():
+            return None
+
+        try:
+            result = Client_API.bosonGetLastFFCFrameCount(self.camera_handle)
+            return result[1] if result[0] == Client_API.FLR_OK else None
+        except Exception as e:
+            logger.error(f"Error getting last FFC frame count: {e}")
+            return None
+
+    def get_last_ffc_temp(self) -> Optional[float]:
+        """
+        Get FPA temperature when last FFC was performed.
+
+        Returns:
+            Temperature in Celsius or None if error
+        """
+        if not self.is_connected():
+            return None
+
+        try:
+            result = Client_API.bosonGetLastFFCTempDegKx10(self.camera_handle)
+            if result[0] == Client_API.FLR_OK:
+                temp_kx10 = result[1]
+                return (temp_kx10 / 10.0) - 273.15  # Convert to Celsius
+            return None
+        except Exception as e:
+            logger.error(f"Error getting last FFC temperature: {e}")
+            return None
+
+    def get_ffc_statistics(self) -> Optional[dict]:
+        """
+        Get FFC statistics and timing information.
+
+        Returns:
+            Dictionary with:
+            - last_ffc_frame: Frame count at last FFC
+            - last_ffc_temp_c: FPA temperature at last FFC (°C)
+            - frames_since_ffc: Frames elapsed since last FFC
+            - temp_delta_c: Auto-FFC threshold (°C)
+        """
+        if not self.is_connected():
+            return None
+
+        try:
+            current_frame = self.get_frame_count()
+            last_ffc_frame = self.get_last_ffc_frame_count()
+            last_ffc_temp = self.get_last_ffc_temp()
+            temp_delta = self.get_ffc_temp_delta()
+
+            if current_frame is None or last_ffc_frame is None:
+                return None
+
+            return {
+                'last_ffc_frame': last_ffc_frame,
+                'last_ffc_temp_c': last_ffc_temp,
+                'frames_since_ffc': current_frame - last_ffc_frame,
+                'temp_delta_c': temp_delta
+            }
+        except Exception as e:
+            logger.error(f"Error getting FFC statistics: {e}")
+            return None
+
     def is_connected(self) -> bool:
         """Check if connected."""
         return self.connected

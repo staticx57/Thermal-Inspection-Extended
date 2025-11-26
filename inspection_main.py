@@ -724,6 +724,7 @@ class ThermalInspectionFusion:
                     # Update camera panel statuses
                     self.update_firefly_gui()
                     self.update_boson_gui()
+                    self.update_radiometric_gui()
                 except ImportError as e:
                     logger.error(f"Failed to import Qt GUI: {e}")
                     self.gui_type = 'opencv'
@@ -1309,6 +1310,10 @@ class ThermalInspectionFusion:
                     # Update Boson panel (every 60 frames to reduce overhead)
                     if self.frame_count % 60 == 0:
                         self.update_boson_gui()
+
+                    # Update Radiometric panel (every 30 frames for live temperature)
+                    if self.frame_count % 30 == 0:
+                        self.update_radiometric_gui()
 
                     t_markers['before_processEvents'] = time.time()
                     self.qt_app.processEvents()
@@ -2275,6 +2280,100 @@ class ThermalInspectionFusion:
         if isinstance(self.rgb_camera, RGBCameraFirefly):
             return self.rgb_camera.set_sharpness(enabled, value)
         return False
+
+    # ========================================================================
+    # Radiometric Control (Phase 9)
+    # ========================================================================
+
+    def enable_radiometric(self, enable: bool) -> bool:
+        """
+        Enable/disable radiometric temperature conversion.
+
+        Args:
+            enable: True to enable, False to disable
+
+        Returns:
+            True if successful
+        """
+        if not self.thermal_camera:
+            logger.warning("No thermal camera available for radiometric control")
+            return False
+
+        try:
+            self.thermal_camera.enable_radiometric(enable)
+
+            # Update GUI status
+            if self.gui and hasattr(self.gui, 'radiometric_panel'):
+                capable = self.thermal_camera.is_radiometric_capable()
+                enabled = self.thermal_camera.is_radiometric_enabled()
+                mode = "16-bit Radiometric" if capable else "8-bit UVC"
+                self.gui.radiometric_panel.set_radiometric_status(capable, enabled, mode)
+
+                # Clear readings if disabled
+                if not enabled:
+                    self.gui.radiometric_panel.clear_temperature_readings()
+
+            return True
+        except Exception as e:
+            logger.error(f"Error enabling radiometric: {e}")
+            return False
+
+    def set_radiometric_temperature_range(self, min_celsius: float, max_celsius: float) -> bool:
+        """
+        Set expected temperature range for radiometric conversion.
+
+        Args:
+            min_celsius: Minimum expected temperature
+            max_celsius: Maximum expected temperature
+
+        Returns:
+            True if successful
+        """
+        if not self.thermal_camera:
+            logger.warning("No thermal camera available")
+            return False
+
+        try:
+            return self.thermal_camera.set_temperature_range(min_celsius, max_celsius)
+        except Exception as e:
+            logger.error(f"Error setting temperature range: {e}")
+            return False
+
+    def update_radiometric_gui(self):
+        """Update radiometric GUI panel with current status and temperature readings."""
+        if not self.gui or not hasattr(self.gui, 'radiometric_panel'):
+            return
+
+        if not self.thermal_camera:
+            return
+
+        try:
+            # Update status
+            capable = self.thermal_camera.is_radiometric_capable()
+            enabled = self.thermal_camera.is_radiometric_enabled()
+            mode = "16-bit Radiometric" if capable else "8-bit UVC"
+            self.gui.radiometric_panel.set_radiometric_status(capable, enabled, mode)
+
+            # Update temperature readings if enabled
+            if enabled and capable:
+                # Get frame statistics
+                stats = self.thermal_camera.get_frame_temperature_stats()
+                if stats:
+                    self.gui.radiometric_panel.set_frame_statistics(
+                        stats['min_temp'],
+                        stats['max_temp'],
+                        stats['mean_temp']
+                    )
+
+                # Get center temperature
+                if hasattr(self.thermal_camera, 'last_frame_16bit') and self.thermal_camera.last_frame_16bit is not None:
+                    h, w = self.thermal_camera.last_frame_16bit.shape
+                    center_temp = self.thermal_camera.get_spot_temperature(w // 2, h // 2)
+                    if center_temp is not None:
+                        self.gui.radiometric_panel.set_center_temperature(center_temp)
+
+        except Exception as e:
+            logger.debug(f"Error updating radiometric GUI: {e}")
 
 
 def parse_arguments():

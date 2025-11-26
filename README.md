@@ -1,98 +1,32 @@
-# Thermal Inspection Fusion Tool v2.0
-
-> **Transformed from ADAS to Inspection Tool - 2025-11-20**
-> Powerful thermal/RGB fusion system for circuit board and residential house inspection.
+# Thermal Inspection Fusion Tool
 
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20Jetson-blue)]()
 [![Python](https://img.shields.io/badge/python-3.8+-green)]()
 [![OpenCV](https://img.shields.io/badge/opencv-4.5+-green.svg)]()
 
----
-
-## 🎯 Overview
-
-**Thermal Inspection Fusion Tool** is a professional thermal imaging system designed for comprehensive inspection applications:
-
-- 🔬 **Circuit Board Inspection** - Detect overheating components, track temperature trends, identify thermal anomalies
-- 🏠 **Residential House Inspection** - Find thermal leaks, insulation issues, moisture problems
-- 🔍 **General Thermal Analysis** - Multi-palette visualization, ROI management, hot/cold spot detection
-
-### Key Differentiator
-
-This tool combines **thermal + RGB fusion** (7 algorithms) with **smart ROI management** (4 auto-detection methods) and **comprehensive thermal analysis** to provide unmatched inspection capabilities.
+Professional thermal imaging system combining FLIR Boson thermal cameras with RGB imaging for comprehensive inspection and analysis.
 
 ---
 
-## ✨ Key Features
+## Overview
 
-### 🔥 Fusion Engine (PARAMOUNT!)
-- ✅ **7 Fusion Algorithms**: Alpha blend, edge enhanced, thermal overlay, side-by-side, picture-in-picture, max intensity, feature weighted
-- ✅ **Preserved 100%** from original ADAS system
-- ✅ **Hardware-accelerated** alignment and blending
+**Thermal Inspection Fusion Tool** provides advanced thermal/RGB fusion capabilities for:
 
-### 🎯 Smart ROI Management
-- ✅ **4 Automatic Detection Methods**:
-  - Temperature threshold (hot/cold regions)
-  - Temperature gradient (thermal edges)
-  - Motion-triggered (around detected motion)
-  - Edge clustering (dense edge regions)
-- ✅ **Manual ROI Creation**: Rectangle, polygon, ellipse, circle
-- ✅ **ROI Persistence**: Save/load ROI sets to JSON
+- 🔬 **Circuit Board Inspection** - Component temperature monitoring, thermal runaway detection
+- 🏠 **Building Inspection** - Thermal leaks, insulation problems, moisture detection
+- 🔍 **Equipment Analysis** - Hot/cold spot identification, temperature trend tracking
 
-### 🌡️ Comprehensive Thermal Analysis
-- ✅ **Temperature Measurement**: Absolute & relative analysis
-- ✅ **Hot/Cold Spot Detection**: Automatic identification
-- ✅ **Temperature Trends**: Track changes over time with prediction
-- ✅ **Anomaly Detection**: Rapid changes, gradient anomalies, statistical outliers
-- ✅ **Temperature Gradients**: Sobel-based gradient computation
+### Core Capabilities
 
-### 🎨 Multi-Palette System
-- ✅ **14 Thermal Palettes**: From white_hot to medical imaging
-- ✅ **Global + Per-ROI**: Apply different palettes to different ROIs
-- ✅ **Auto-Contrast**: Automatic range stretching
-- ✅ **Gamma Correction**: Adjustable visualization
-
-### 🎥 Motion & Edge Detection
-- ✅ **Motion Detection**: Temporal differencing with persistence tracking
-- ✅ **Edge Detection**: VPI hardware acceleration (Jetson) + OpenCV fallback
-- ✅ **Edge Clustering**: Group dense edge regions
-
-### 📷 Advanced Camera Management (NEW - Phase 8!)
-- ✅ **Robust Auto-Detection**: Automatically identifies thermal and RGB cameras
-- ✅ **Firefly RGB Support**: FLIR Firefly via Spinnaker SDK with advanced controls
-- ✅ **Priority-Based Selection**: Spinnaker > External USB > Built-in webcam
-- ✅ **Frame-Based Thermal ID**: Identifies thermal cameras by resolution + saturation
-- ✅ **Timeout Protection**: Thread-safe initialization prevents hanging
-- ✅ **Max Resolution**: Automatically uses highest available camera resolution
-- ✅ **Camera Registry**: Persistent camera assignments across sessions
-- ✅ **Firefly Control Panel**: Exposure, gain, white balance, trigger, gamma, sharpness
-
-### 🖥️ Cross-Platform
-- ✅ **Windows 10/11** (x86-64)
-- ✅ **Linux** (x86-64 and ARM64)
-- ✅ **NVIDIA Jetson** (Orin, Xavier, Nano) with GPU acceleration
-
-### 🎛️ FLIR Boson SDK Integration (Phase 7 - NEW!)
-- ✅ **Video + Serial Control**: Combined USB interface
-- ✅ **FFC Trigger**: Manual flat field correction (press `f`)
-- ✅ **Temperature Monitoring**: FPA sensor temperature (press `t`)
-- ✅ **Gain Control**: HIGH, LOW, AUTO, MANUAL modes
-- ✅ **Color LUT**: 10+ thermal color palettes
-- ✅ **Camera Info**: Serial number, software version, part numbers
-- ⏳ **Radiometric Support**: 16-bit absolute temperature (pending)
-
-**Keyboard Shortcuts:**
-- `f` - Trigger FFC (Flat Field Correction)
-- `t` - Show FPA temperature
-- `r` - Toggle recording
-- `s` - Capture snapshot
-- `q` - Quit
-
-See [BOSON_SDK_USAGE.md](BOSON_SDK_USAGE.md) for complete documentation.
+- **7 Fusion Algorithms**: Alpha blend, edge enhanced, thermal overlay, side-by-side, picture-in-picture, max intensity, feature weighted
+- **45 Thermal Palettes**: Comprehensive color mapping from grayscale to specialized medical/industrial palettes
+- **Smart ROI Management**: Automatic detection (temperature threshold, gradient, motion, edge clustering) and manual creation
+- **FLIR Boson SDK Integration**: Direct camera control, FFC triggering, radiometric temperature measurement
+- **Radiometric Analysis**: Absolute temperature measurement with calibrated thermal data
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
@@ -117,204 +51,121 @@ python inspection_main.py --auto-roi
 # Run with specific fusion mode and palette
 python inspection_main.py --fusion-mode thermal_overlay --palette ironbow
 
-# Run without RGB camera
-python inspection_main.py --disable-rgb
-
-# Run with Boson SDK for advanced camera control (Phase 7 - NEW!)
-python inspection_main.py --enable-boson-sdk --boson-com-port COM6 --use-opencv-gui
+# Run with Boson SDK for radiometric temperature
+python inspection_main.py --enable-boson-sdk --boson-com-port COM6
 ```
 
----
+### Keyboard Shortcuts
 
-## 📖 Quick Example
-
-### Circuit Board Inspection
-
-```python
-from thermal_analyzer import ThermalAnalyzer
-from roi_manager import ROIManager
-from palette_manager import PaletteManager, PaletteType
-
-# Initialize
-analyzer = ThermalAnalyzer({'hot_spot_threshold': 0.85})
-roi_mgr = ROIManager({'auto_roi_min_area': 500})
-palette_mgr = PaletteManager({'default_palette': 'ironbow'})
-
-# Capture thermal frame
-ret, thermal_frame = thermal_camera.read()
-
-# Auto-detect hot spots
-hot_spots = analyzer.detect_hot_spots(thermal_frame, threshold=80.0)
-print(f"Found {len(hot_spots)} hot spots")
-
-# Create ROI on overheating IC
-ic_roi = roi_mgr.create_rectangle_roi(245, 180, 60, 60, label="IC U7")
-
-# Apply white_hot palette for maximum contrast
-palette_mgr.set_roi_palette(ic_roi.roi_id, PaletteType.WHITE_HOT)
-
-# Track temperature over time
-mask = ic_roi.get_mask(thermal_frame.shape)
-stats = analyzer.analyze_frame(thermal_frame, mask)
-analyzer.update_trend(ic_roi.roi_id, stats.mean_temp)
-
-# Check trend after 60 seconds
-trend = analyzer.get_trend(ic_roi.roi_id)
-if trend.trend_direction == "increasing":
-    print(f"WARNING: Temperature rising at {trend.rate_of_change}°C/s")
-```
+- `f` - Trigger FFC (Flat Field Correction)
+- `t` - Show FPA temperature
+- `r` - Toggle recording
+- `s` - Capture snapshot
+- `q` - Quit
 
 ---
 
-## 🎨 14 Thermal Palettes
+## Features
 
-| Palette | Best For | Description |
-|---------|----------|-------------|
-| WHITE_HOT | General | Hot=white, cold=black |
-| BLACK_HOT | Surveillance | Inverted grayscale |
-| IRONBOW | Circuit boards | Black→purple→red→orange→yellow→white |
-| RAINBOW | General purpose | Standard rainbow |
-| LAVA | Hot objects | Black→red→orange→yellow→white |
-| ARCTIC | Cold objects | White→cyan→blue→dark blue |
-| MEDICAL | Medical imaging | Viridis color scheme |
-| + 7 more | Various | See docs for complete list |
+### Thermal/RGB Fusion Engine
 
----
+**7 Fusion Algorithms:**
+- Alpha Blend - Weighted overlay of thermal and RGB
+- Edge Enhanced - RGB edges with thermal color
+- Thermal Overlay - Thermal colormap over RGB base
+- Side-by-Side - Synchronized dual view
+- Picture-in-Picture - Thermal inset on RGB
+- Max Intensity - Combine brightest pixels
+- Feature Weighted - Adaptive fusion based on content
 
-## 📦 Core Modules
+Hardware-accelerated alignment and blending for real-time performance.
 
-### 1. `thermal_analyzer.py` - Temperature Analysis Engine
-- Temperature measurement (absolute & relative)
-- Hot/cold spot detection
-- Temperature gradient analysis
-- Thermal anomaly detection
-- Temperature trend tracking with prediction
+### Multi-Palette System
 
-### 2. `roi_manager.py` - ROI Management
-- 4 automatic detection methods
-- Manual ROI creation (rectangle, polygon, ellipse, circle)
-- ROI persistence (save/load JSON)
-- ROI visualization
+**45 Thermal Palettes** organized by category:
+- **Grayscale** (7): white_hot, black_hot, grayscale variants
+- **Rainbow** (8): rainbow, rainbow_hc, jet, turbo variants
+- **Iron/Fire** (6): ironbow, lava, hot, copper variants
+- **Arctic/Cool** (5): arctic, ice, ocean, cool variants
+- **Medical** (5): medical, viridis, inferno, plasma, cividis
+- **Industrial** (8): metal, sepia, autumn, bone, and specialized variants
+- **High Contrast** (6): Enhanced versions of popular palettes
 
-### 3. `palette_manager.py` - Multi-Palette System
-- 14 thermal palettes
-- Global + per-ROI palette override
-- Composite rendering
-- Auto-contrast & gamma correction
+Features:
+- Global palette or per-ROI override
+- Auto-contrast and gamma correction
+- Live palette switching
+- Custom palette import
 
-### 4. `thermal_processor.py` - Thermal Processing
-- Motion detection (preserved from ADAS)
-- Edge detection (VPI accelerated)
-- 14 thermal palette application
+### ROI Management
 
-### 5. `fusion_processor.py` - Fusion Engine (PARAMOUNT!)
-- 7 fusion algorithms
-- Hardware-accelerated alignment
-- Priority control (thermal/RGB base)
-- **100% preserved from ADAS system**
+**Automatic Detection:**
+- Temperature threshold - Hot/cold regions above/below threshold
+- Temperature gradient - Areas with high thermal gradients
+- Motion-triggered - ROIs around detected motion
+- Edge clustering - Dense edge regions
 
-### 6. `camera_detector.py` - Robust Camera Detection (NEW!)
-- Spinnaker SDK support for FLIR Firefly cameras
-- Frame-based thermal camera identification
-- Priority-based camera selection
-- Separate thermal/RGB grading system
-- Windows crash mitigation
+**Manual Creation:**
+- Rectangle, polygon, ellipse, circle tools
+- Label and track individual ROIs
+- Save/load ROI sets to JSON
+- Per-ROI palette assignment
 
-### 7. `camera_initializer.py` - Thread-Safe Initialization (NEW!)
-- Timeout-protected camera opening
-- Thread-safe initialization
-- Graceful failure handling
-- Priority-based init (thermal first)
+### Thermal Analysis
 
-### 8. `camera_registry.py` - Persistent Camera Management (NEW!)
-- Save/load camera assignments
+- **Temperature Measurement**: Absolute (°C/°F) and relative analysis
+- **Hot/Cold Spot Detection**: Automatic identification and tracking
+- **Temperature Trends**: Track changes over time with rate prediction
+- **Anomaly Detection**: Rapid changes, gradient anomalies, statistical outliers
+- **Temperature Gradients**: Sobel-based gradient computation
+
+### FLIR Boson SDK Integration
+
+**Direct Camera Control:**
+- FFC (Flat Field Correction) triggering
+- Gain modes: HIGH, LOW, AUTO, MANUAL
+- Color LUT selection (10+ palettes)
+- FPA temperature monitoring
+- Camera info: serial number, software version, part numbers
+
+**Radiometric Support:**
+- 16-bit absolute temperature data
+- Kelvin to Celsius/Fahrenheit conversion
+- Temperature range mapping
+- Spot temperature measurement
+- Area temperature statistics
+
+See `BOSON_SDK_STATUS.md` in archive for implementation details.
+
+### Advanced Camera Management
+
+**Robust Auto-Detection:**
+- Automatically identifies thermal and RGB cameras
+- Frame-based thermal camera identification (resolution + saturation)
+- Priority-based selection: Spinnaker > External USB > Built-in webcam
+- Timeout protection prevents initialization hangs
+
+**FLIR Firefly RGB Support:**
+- Spinnaker SDK integration
+- Advanced controls: exposure, gain, white balance, trigger
+- Image enhancement: gamma, sharpness
+- Max resolution auto-detection
+- Connection status display
+
+**Camera Registry:**
+- Persistent camera assignments across sessions
 - Automatic reconnection
 - Device ID tracking
-- JSON-based persistence
-
-### 9. `firefly_control_panel.py` - Advanced RGB Controls (NEW!)
-- Exposure control (auto/manual)
-- Gain control with live adjustment
-- White balance (auto/manual/calibrate)
-- Trigger configuration (software/hardware)
-- Image enhancement (gamma, sharpness)
-- Preset management
 
 ---
 
-## 🔍 Use Cases
-
-### Circuit Board Inspection
-```
-✓ Detect overheating ICs
-✓ Track component temperature trends
-✓ Identify thermal runaway conditions
-✓ Compare before/after repair
-```
-
-### Residential House Inspection
-```
-✓ Find thermal leaks around windows/doors
-✓ Identify insulation problems
-✓ Detect moisture in walls (cold spots)
-✓ Inspect HVAC system performance
-```
-
-### Equipment Monitoring
-```
-✓ Monitor critical components during stress tests
-✓ Track temperature trends over time
-✓ Alert on anomalies and rapid changes
-✓ Generate inspection reports
-```
-
----
-
-## 📊 Transformation from ADAS
-
-This project was successfully transformed from an Advanced Driver Assistance System (ADAS) to an inspection tool.
-
-### What Changed
-- ❌ **Removed**: YOLO object detection, distance estimation, road analysis, audio alerts, LiDAR
-- ✅ **Added**: Thermal analyzer, ROI manager, palette manager, inspection-focused processing
-- ✅ **Preserved**: Fusion engine (100%), motion detection, edge detection, 14 thermal palettes
-
-### Statistics
-- **Files Deleted**: 6 (driving modules)
-- **Files Created**: 5 (inspection modules)
-- **Lines Removed**: ~1,442 (driving + YOLO)
-- **Lines Added**: ~2,590 (inspection features)
-- **Net Change**: +1,148 lines
-
-See [CHANGELOG.md](CHANGELOG.md) for complete transformation details.
-
----
-
-## 📚 Documentation
-
-### Core Documentation
-- **[CHANGELOG.md](CHANGELOG.md)** - Complete transformation changelog
-- **[INSPECTION_TRANSFORMATION_PLAN.md](INSPECTION_TRANSFORMATION_PLAN.md)** - Transformation plan
-- **[TRANSFORMATION_PROGRESS.md](TRANSFORMATION_PROGRESS.md)** - Progress report
-
-### Feature-Specific Documentation
-- **[BOSON_SDK_USAGE.md](BOSON_SDK_USAGE.md)** - FLIR Boson SDK integration guide
-- **[PARALLAX_COMPENSATION_PLAN.md](PARALLAX_COMPENSATION_PLAN.md)** - Software parallax compensation plan
-- **[INTEGRATION_STATUS.md](INTEGRATION_STATUS.md)** - Camera detection integration status
-
-### Platform Documentation
-- **[CROSS_PLATFORM.md](CROSS_PLATFORM.md)** - Platform support details (from ADAS)
-- **[WINDOWS_SETUP.md](WINDOWS_SETUP.md)** - Windows installation guide (from ADAS)
-
----
-
-## 💻 Hardware Requirements
+## Hardware Requirements
 
 ### Minimum
 - **CPU**: Intel i5 / AMD Ryzen 5 or equivalent
 - **RAM**: 8GB (16GB recommended)
 - **Camera**: FLIR Boson thermal camera (640x512 or 320x256)
-- **GPU**: Optional (CPU mode works)
+- **GPU**: Optional (CPU mode supported)
 
 ### Recommended
 - **CPU**: Intel i7 / AMD Ryzen 7 or NVIDIA Jetson
@@ -324,7 +175,7 @@ See [CHANGELOG.md](CHANGELOG.md) for complete transformation details.
 
 ---
 
-## ⚙️ Command-Line Options
+## Command-Line Options
 
 ```bash
 # Camera settings
@@ -333,7 +184,7 @@ See [CHANGELOG.md](CHANGELOG.md) for complete transformation details.
 --height 512                # Thermal camera height
 --disable-rgb               # Disable RGB camera
 
-# Boson SDK settings (Phase 7 - NEW!)
+# Boson SDK settings
 --enable-boson-sdk          # Enable FLIR Boson SDK for serial control
 --boson-com-port COM6       # Boson COM port (default: COM6)
 
@@ -341,7 +192,7 @@ See [CHANGELOG.md](CHANGELOG.md) for complete transformation details.
 --device cuda               # Processing device (cuda/cpu)
 --palette ironbow           # Default thermal palette
 
-# Fusion settings (PARAMOUNT!)
+# Fusion settings
 --fusion-mode thermal_overlay   # Fusion algorithm
 --fusion-alpha 0.5             # Alpha for alpha_blend
 --calibration-file cal.json    # Camera calibration
@@ -357,177 +208,103 @@ See [CHANGELOG.md](CHANGELOG.md) for complete transformation details.
 
 ---
 
-## 🧪 Testing
+## Project Structure
 
-```bash
-# Test camera detection
-python test_flir_detection.py
+### Core Modules
 
-# Test all modules
-python -c "from thermal_analyzer import ThermalAnalyzer; print('OK')"
-python -c "from roi_manager import ROIManager; print('OK')"
-python -c "from palette_manager import PaletteManager; print('OK')"
-python -c "from thermal_processor import ThermalProcessor; print('OK')"
-python -c "from fusion_processor import FusionProcessor; print('OK')"
-```
+**thermal_analyzer.py** - Temperature analysis engine
+Temperature measurement, hot/cold spot detection, gradient analysis, anomaly detection, trend tracking
 
----
+**roi_manager.py** - ROI management system
+Automatic detection, manual creation, persistence, visualization
 
-## 🐛 Troubleshooting
+**palette_manager.py** - Multi-palette system
+45 thermal palettes, global + per-ROI override, composite rendering
 
-### Thermal Camera Not Detected
-```bash
-# List all cameras
-python test_flir_detection.py --list
+**thermal_processor.py** - Thermal processing
+Motion detection, edge detection, palette application
 
-# Check permissions (Linux)
-sudo usermod -a -G video $USER
-```
+**fusion_processor.py** - Fusion engine
+7 fusion algorithms, hardware-accelerated alignment, priority control
 
-### VPI Not Available
-```
-This is expected on Windows/x86 Linux
-- OpenCV fallback provides good performance
-- All features work correctly
-```
+**radiometric_converter.py** - Radiometric temperature conversion
+16-bit to Kelvin conversion, temperature range mapping, calibration
 
-### Low FPS
-```bash
-# Use GPU acceleration
-python inspection_main.py --device cuda
+**boson_sdk_wrapper.py** - FLIR Boson SDK interface
+Serial communication, camera control, radiometric data extraction
 
-# Disable RGB if not needed
-python inspection_main.py --disable-rgb
-```
+**camera_detector.py** - Camera detection
+Spinnaker SDK support, frame-based thermal ID, priority selection
+
+**camera_initializer.py** - Thread-safe initialization
+Timeout protection, graceful failure handling
+
+**firefly_control_panel.py** - Firefly camera controls
+Exposure, gain, white balance, trigger, image enhancement
+
+**inspection_gui_qt.py** - Qt-based GUI
+Professional interface, ROI visualization, thermal analysis display
+
+**inspection_main.py** - Main application
+Integration of all components, command-line interface
 
 ---
 
-## 🔮 Roadmap
+## Use Cases
 
-### ✅ Phase 1-3: Core Transformation (COMPLETE)
-- Thermal analyzer, ROI manager, palette manager
-- 14 thermal palettes
-- Motion & edge detection
-- Fusion engine preserved
+### Circuit Board Inspection
+- Detect overheating ICs and components
+- Track component temperature trends during operation
+- Identify thermal runaway conditions before failure
+- Compare thermal profiles before/after repair
 
-### ✅ Phase 4: GUI Transformation (COMPLETE)
-- ✅ Created inspection_gui_qt.py (1333 lines)
-- ✅ ROI visualization and management panel
-- ✅ Thermal analysis display panel
-- ✅ Multi-palette controls with live preview
-- ✅ Hot spot / cold spot visualization
-- ✅ Temperature trend graphs
-- ✅ Dual camera view (thermal + RGB + fusion)
-- ✅ Professional Qt-based interface
-- ✅ Dark and light theme support
+### Building Inspection
+- Find thermal leaks around windows and doors
+- Identify insulation problems in walls and attics
+- Detect moisture in walls (appears as cold spots)
+- Inspect HVAC system performance
 
-### ✅ Phase 5: Configuration (COMPLETE)
-- ✅ Updated config.json for inspection use
-- ✅ Removed all ADAS settings
-- ✅ Added thermal analysis parameters
-- ✅ Added ROI configuration
-- ✅ Added palette presets for different inspection scenarios
-- ✅ Added recording and snapshot configuration
-- ✅ Clean, inspection-focused config structure
-
-### ✅ Phase 6: Media Recording (COMPLETE)
-- ✅ Video recording with ROI metadata
-- ✅ Snapshot capture with overlays
-- ✅ Playback mode for recorded sessions
-- ✅ Metadata export (JSON format)
-
-### ✅ Phase 7: FLIR Boson SDK Integration (PARTIAL)
-**Completed:**
-- ✅ VPC (Video over USB) support
-- ✅ Native communication via serial COM over USB
-- ✅ Camera control (FFC, AGC, shutter, gain)
-- ✅ FPA temperature monitoring
-- ✅ Non-radiometric camera support tested and working
-- ✅ Keyboard shortcuts (f=FFC trigger, t=temperature)
-- ✅ GUI controls for SDK features
-
-**Pending:**
-- ⏳ Radiometric camera testing (16-bit absolute temperature)
-- ⏳ Radiometric data extraction and calibration
-- ⏳ Temperature calibration curves
-
-**See:** [BOSON_SDK_USAGE.md](BOSON_SDK_USAGE.md) for complete SDK documentation
-
-### ✅ Phase 8: Camera Detection & Management (COMPLETE)
-**Completed:**
-- ✅ Robust camera auto-detection system
-- ✅ Firefly RGB camera support via Spinnaker SDK
-- ✅ Priority-based camera selection (Spinnaker > USB UVC > Built-in)
-- ✅ Separate thermal/RGB camera grading (coequal importance)
-- ✅ Maximum resolution auto-detection
-- ✅ Timeout-protected camera initialization
-- ✅ Camera registry with persistent assignments
-- ✅ Firefly control panel with connection status display
-- ✅ GUI improvements (fixed overlapping buttons)
-
-**Technical Details:**
-- Created `camera_detector.py` - Comprehensive detection with Spinnaker support
-- Created `camera_initializer.py` - Thread-safe init with timeout protection
-- Created `camera_registry.py` - Persistent camera assignments
-- Created `firefly_control_panel.py` - Advanced Firefly camera controls
-- Frame-based thermal camera identification (resolution + saturation analysis)
-- Windows OpenCV crash mitigation (limited device probing)
-
-### Phase 9 (Current): Software Parallax Compensation
-- 📋 **Planning Complete**: Comprehensive compensation plan created
-- ⏳ Depth estimation integration (MiDaS/DepthAnything)
-- ⏳ Parallax correction implementation
-- ⏳ GUI controls for compensation
-- ⏳ Validation and tuning
-
-**See:** [PARALLAX_COMPENSATION_PLAN.md](PARALLAX_COMPENSATION_PLAN.md) for complete implementation plan
-
-### Phase 10: Stability & Polish
-- ⏳ Add ROI persistence across sessions
-- ⏳ Add export to PDF reports
-- ⏳ Add CSV export for thermal data
-
-### Phase 11 (Future): Advanced Features
-- ⏳ Custom thermal analysis algorithms
-- ⏳ AI-powered anomaly detection
-- ⏳ Multi-session comparison
-- ⏳ Remote monitoring capabilities
+### Equipment Monitoring
+- Monitor critical components during stress tests
+- Track temperature trends over extended operation
+- Alert on anomalies and rapid temperature changes
+- Generate inspection reports with thermal data
 
 ---
 
-## 🤝 Contributing
+## Documentation
 
-Contributions welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+- **README.md** - This file - project overview and quick start
+- **TODO.md** - Prioritized feature roadmap and development tasks
+- **CHANGELOG.md** - Version history and major changes
+- **archive/** - Historical documentation, session summaries, fix reports
+- **archive/sdk-docs/** - Boson SDK integration documentation
+- **archive/implementation-docs/** - Feature implementation guides
 
 ---
 
-## 📄 License
+## Platform Support
+
+- **Windows 10/11** (x86-64)
+- **Linux** (x86-64 and ARM64)
+- **NVIDIA Jetson** (Orin, Xavier, Nano) with GPU acceleration
+
+---
+
+## License
 
 MIT License - See LICENSE file for details
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
-- **Original ADAS System**: staticx57 + Claude
-- **Transformation to Inspection Tool**: Claude Code (Anthropic) - 2025-11-20
-- **FLIR Systems**: For Boson thermal camera SDK
-- **OpenCV**: For image processing
-- **NVIDIA**: For VPI acceleration on Jetson
+- **FLIR Systems** - Boson thermal camera SDK
+- **OpenCV** - Image processing
+- **NVIDIA** - VPI acceleration on Jetson
 
 ---
 
-## 📧 Contact
-
-- **Issues**: [GitHub Issues](https://github.com/yourusername/ThermalInspectionFusion/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/ThermalInspectionFusion/discussions)
-
----
-
-**Version**: 2.8.0
-**Status**: Phases 1-8 complete! Robust camera detection, Firefly support, parallax compensation plan ready. Focus: Parallax implementation.
-**Last Updated**: 2025-11-25
+**Version**: 3.0.0
+**Status**: Production-ready thermal inspection system with full radiometric support
+**Last Updated**: 2025-11-26
