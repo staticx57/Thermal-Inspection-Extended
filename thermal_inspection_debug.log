@@ -10226,3 +10226,514 @@ RGB CAMERAS (by priority - graded separately from thermal):
 2025-11-25 19:24:48,928 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=24.9ms, gui_update=4.0ms, processEvents=3.0ms
 2025-11-25 19:24:48,928 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=2.8ms, palette=2.3ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=12.8ms, anomaly_priority=0.0ms, fusion=7.0ms, display_select=0.0ms, draw_rois=0.0ms
 2025-11-25 19:24:48,928 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 2 edges, 6 hot spots
+2025-11-25 19:24:52,741 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 24 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:24:52,774 - __main__ - INFO - [inspection_main.py:1336] - Frame 400: 24.9 FPS (40.2ms/frame)
+2025-11-25 19:24:52,774 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=27.7ms, gui_update=7.7ms, processEvents=4.6ms
+2025-11-25 19:24:52,775 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.9ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=13.1ms, anomaly_priority=0.0ms, fusion=8.7ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:24:52,775 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 3 edges, 4 hot spots
+2025-11-25 19:24:56,412 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 25 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:24:56,459 - __main__ - INFO - [inspection_main.py:1336] - Frame 500: 26.7 FPS (37.5ms/frame)
+2025-11-25 19:24:56,460 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=40.5ms, gui_update=8.0ms, processEvents=5.0ms
+2025-11-25 19:24:56,460 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=2.0ms, palette=2.5ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=21.0ms, anomaly_priority=0.0ms, fusion=14.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:24:56,460 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 1 motion, 5 edges, 6 hot spots
+2025-11-25 19:24:59,825 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 18 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:24:59,847 - __main__ - INFO - [inspection_main.py:1336] - Frame 600: 30.0 FPS (33.3ms/frame)
+2025-11-25 19:24:59,847 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=0.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=20.0ms, gui_update=4.0ms, processEvents=3.0ms
+2025-11-25 19:24:59,847 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=2.0ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=10.0ms, anomaly_priority=0.0ms, fusion=6.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:24:59,847 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 3 motion, 3 edges, 5 hot spots
+2025-11-25 19:25:02,962 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 13 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:25:02,991 - __main__ - INFO - [inspection_main.py:1336] - Frame 700: 31.4 FPS (31.8ms/frame)
+2025-11-25 19:25:02,992 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=2.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=27.0ms, gui_update=4.9ms, processEvents=2.9ms
+2025-11-25 19:25:02,992 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=4.0ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=13.0ms, anomaly_priority=0.0ms, fusion=8.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:25:02,992 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 4 motion, 4 edges, 1 hot spots
+2025-11-25 19:25:05,857 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 16 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:25:05,885 - __main__ - INFO - [inspection_main.py:1336] - Frame 800: 34.4 FPS (29.1ms/frame)
+2025-11-25 19:25:05,885 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=24.0ms, gui_update=5.9ms, processEvents=3.9ms
+2025-11-25 19:25:05,886 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=1.9ms, palette=2.1ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=11.9ms, anomaly_priority=0.0ms, fusion=8.1ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:25:05,886 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 8 motion, 3 edges, 4 hot spots
+2025-11-25 19:25:08,823 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 23 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:25:08,845 - __main__ - INFO - [inspection_main.py:1336] - Frame 900: 33.8 FPS (29.6ms/frame)
+2025-11-25 19:25:08,845 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=0.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=20.5ms, gui_update=4.0ms, processEvents=3.0ms
+2025-11-25 19:25:08,845 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.0ms, palette=1.9ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=8.5ms, anomaly_priority=0.0ms, fusion=6.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:25:08,845 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 3 edges, 3 hot spots
+2025-11-25 19:25:11,705 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 21 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:25:11,730 - __main__ - INFO - [inspection_main.py:1336] - Frame 1000: 34.3 FPS (29.1ms/frame)
+2025-11-25 19:25:11,730 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=21.0ms, gui_update=6.0ms, processEvents=4.0ms
+2025-11-25 19:25:11,730 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=4.0ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=9.0ms, anomaly_priority=0.0ms, fusion=6.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:25:11,730 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 3 edges, 2 hot spots
+2025-11-25 19:25:14,805 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 19 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:25:14,827 - __main__ - INFO - [inspection_main.py:1336] - Frame 1100: 31.6 FPS (31.7ms/frame)
+2025-11-25 19:25:14,827 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=20.0ms, gui_update=4.0ms, processEvents=3.0ms
+2025-11-25 19:25:14,828 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.0ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=10.0ms, anomaly_priority=0.0ms, fusion=5.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:25:14,828 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 1 motion, 3 edges, 3 hot spots
+2025-11-25 19:25:17,865 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 24 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:25:17,898 - __main__ - INFO - [inspection_main.py:1336] - Frame 1200: 32.7 FPS (30.6ms/frame)
+2025-11-25 19:25:17,898 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=0.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=29.4ms, gui_update=6.0ms, processEvents=4.0ms
+2025-11-25 19:25:17,898 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.4ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=14.9ms, anomaly_priority=0.0ms, fusion=9.1ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:25:17,898 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 4 motion, 4 edges, 4 hot spots
+2025-11-25 19:25:21,221 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 16 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:25:21,245 - __main__ - INFO - [inspection_main.py:1336] - Frame 1300: 29.6 FPS (33.8ms/frame)
+2025-11-25 19:25:21,245 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=20.2ms, gui_update=5.0ms, processEvents=3.0ms
+2025-11-25 19:25:21,245 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=2.0ms, palette=2.2ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=10.0ms, anomaly_priority=0.0ms, fusion=6.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:25:21,245 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 2 motion, 2 edges, 1 hot spots
+2025-11-25 19:25:24,293 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 20 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:25:24,321 - __main__ - INFO - [inspection_main.py:1336] - Frame 1400: 32.0 FPS (31.2ms/frame)
+2025-11-25 19:25:24,322 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=24.7ms, gui_update=4.4ms, processEvents=2.8ms
+2025-11-25 19:25:24,322 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.0ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=12.9ms, anomaly_priority=0.0ms, fusion=5.7ms, display_select=1.1ms, draw_rois=0.0ms
+2025-11-25 19:25:24,322 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 4 edges, 2 hot spots
+2025-11-25 19:25:27,633 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 19 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:25:27,660 - __main__ - INFO - [inspection_main.py:1336] - Frame 1500: 29.9 FPS (33.5ms/frame)
+2025-11-25 19:25:27,660 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=0.9ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=24.7ms, gui_update=5.0ms, processEvents=3.0ms
+2025-11-25 19:25:27,660 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.0ms, palette=3.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=12.3ms, anomaly_priority=0.0ms, fusion=6.4ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:25:27,660 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 3 edges, 2 hot spots
+2025-11-25 19:26:00,269 - root - INFO - [inspection_main.py:105] - [OK] Debug logging: thermal_inspection_debug.log
+2025-11-25 19:26:00,275 - __main__ - INFO - [inspection_main.py:2354] - ================================================================================
+2025-11-25 19:26:00,275 - __main__ - INFO - [inspection_main.py:2355] - Thermal Inspection Fusion Tool
+2025-11-25 19:26:00,275 - __main__ - INFO - [inspection_main.py:2356] - Transformed from ThermalFusionDrivingAssist
+2025-11-25 19:26:00,275 - __main__ - INFO - [inspection_main.py:2357] - ================================================================================
+2025-11-25 19:26:00,305 - __main__ - INFO - [inspection_main.py:2365] - Qt GUI enabled
+2025-11-25 19:26:00,350 - __main__ - INFO - [inspection_main.py:129] - Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-25 19:26:00,350 - __main__ - INFO - [inspection_main.py:339] - Parallel processing enabled: 5 detection workers, 4 ROI workers
+2025-11-25 19:26:00,350 - __main__ - INFO - [inspection_main.py:564] - ================================================================================
+2025-11-25 19:26:00,350 - __main__ - INFO - [inspection_main.py:565] - Initializing Thermal Inspection Fusion Tool
+2025-11-25 19:26:00,350 - __main__ - INFO - [inspection_main.py:566] - ================================================================================
+2025-11-25 19:26:00,350 - __main__ - INFO - [inspection_main.py:567] - Platform: x86-64 (AMD64)
+2025-11-25 19:26:00,350 - __main__ - INFO - [inspection_main.py:569] - Mode: realtime
+2025-11-25 19:26:00,350 - __main__ - INFO - [inspection_main.py:570] - Device: cuda
+2025-11-25 19:26:00,350 - __main__ - INFO - [inspection_main.py:358] - ======================================================================
+2025-11-25 19:26:00,350 - __main__ - INFO - [inspection_main.py:359] - INITIALIZING CAMERAS (ROBUST MODE)
+2025-11-25 19:26:00,350 - __main__ - INFO - [inspection_main.py:360] - ======================================================================
+2025-11-25 19:26:00,350 - camera_initializer - INFO - [camera_initializer.py:227] - ======================================================================
+2025-11-25 19:26:00,350 - camera_initializer - INFO - [camera_initializer.py:228] - PRIORITIZED CAMERA INITIALIZATION
+2025-11-25 19:26:00,356 - camera_initializer - INFO - [camera_initializer.py:229] - ======================================================================
+2025-11-25 19:26:00,356 - camera_detector - INFO - [camera_detector.py:222] - ======================================================================
+2025-11-25 19:26:00,356 - camera_detector - INFO - [camera_detector.py:223] - COMPREHENSIVE CAMERA DETECTION
+2025-11-25 19:26:00,356 - camera_detector - INFO - [camera_detector.py:224] - ======================================================================
+2025-11-25 19:26:00,356 - camera_detector - INFO - [camera_detector.py:293] - [STEP 1] Scanning for Spinnaker cameras (Firefly RGB)...
+2025-11-25 19:26:00,902 - camera_detector - INFO - [camera_detector.py:304] -   Found 1 Spinnaker camera(s)
+2025-11-25 19:26:00,903 - camera_detector - INFO - [camera_detector.py:325] -   [OK] Firefly RGB Camera: Firefly FFY-U3-16S2C-DL (S/N: 21304514)
+2025-11-25 19:26:00,903 - camera_detector - INFO - [camera_detector.py:356] -   Spinnaker detection complete: 1 camera(s)
+2025-11-25 19:26:01,282 - camera_detector - INFO - [camera_detector.py:821] - [OK] Device 0: Identified as THERMAL (score=120): thermal resolution (640, 512), thermal aspect ratio (1.25)
+2025-11-25 19:26:01,282 - camera_detector - INFO - [camera_detector.py:663] - [OK] Thermal camera identified via frame analysis: FLIR Boson 640x512 (Camera 0)
+2025-11-25 19:26:01,552 - camera_detector - INFO - [camera_detector.py:675] - Detected: FLIR Boson 640x512 (Camera 0) at index 0
+2025-11-25 19:26:02,609 - camera_detector - INFO - [camera_detector.py:675] - Detected: Camera 1 (DSHOW) at index 1
+2025-11-25 19:26:02,609 - camera_detector - INFO - [camera_detector.py:696] - Windows camera probe complete: 2 camera(s) found
+2025-11-25 19:26:02,609 - camera_detector - INFO - [camera_detector.py:370] - 
+======================================================================
+2025-11-25 19:26:02,609 - camera_detector - INFO - [camera_detector.py:371] - DETECTION SUMMARY
+2025-11-25 19:26:02,609 - camera_detector - INFO - [camera_detector.py:372] - ======================================================================
+2025-11-25 19:26:02,609 - camera_detector - INFO - [camera_detector.py:378] - 
+Total cameras: 3
+2025-11-25 19:26:02,609 - camera_detector - INFO - [camera_detector.py:379] -   Thermal: 1
+2025-11-25 19:26:02,609 - camera_detector - INFO - [camera_detector.py:380] -   RGB: 2
+2025-11-25 19:26:02,609 - camera_detector - INFO - [camera_detector.py:385] - 
+THERMAL CAMERAS (by priority):
+2025-11-25 19:26:02,609 - camera_detector - INFO - [camera_detector.py:388] -   1. FLIR Boson 640x512 (Camera 0) [OPENCV]
+2025-11-25 19:26:02,609 - camera_detector - INFO - [camera_detector.py:392] -      Device ID: 0, Resolution: (640, 512)
+2025-11-25 19:26:02,609 - camera_detector - INFO - [camera_detector.py:395] - 
+RGB CAMERAS (by priority - graded separately from thermal):
+2025-11-25 19:26:02,609 - camera_detector - INFO - [camera_detector.py:404] -   1. [BEST - Firefly (Spinnaker)] Firefly FFY-U3-16S2C-DL [SPINNAKER]
+2025-11-25 19:26:02,609 - camera_detector - INFO - [camera_detector.py:406] -      Spinnaker Index: 0, S/N: 21304514
+2025-11-25 19:26:02,609 - camera_detector - INFO - [camera_detector.py:404] -   2. [GOOD - External USB] Camera 1 (DSHOW) [OPENCV]
+2025-11-25 19:26:02,609 - camera_detector - INFO - [camera_detector.py:408] -      Device ID: 1, Resolution: (640, 480)
+2025-11-25 19:26:02,609 - camera_detector - INFO - [camera_detector.py:410] - ======================================================================
+
+2025-11-25 19:26:02,609 - camera_registry - INFO - [camera_registry.py:90] - Loaded camera assignment: Camera 2 (DSHOW) -> rgb
+2025-11-25 19:26:02,609 - camera_registry - INFO - [camera_registry.py:90] - Loaded camera assignment: Firefly FFY-U3-16S2C-DL -> rgb
+2025-11-25 19:26:02,609 - camera_registry - INFO - [camera_registry.py:90] - Loaded camera assignment: FLIR Boson 640x512 (Camera 0) -> thermal
+2025-11-25 19:26:02,609 - camera_registry - INFO - [camera_registry.py:90] - Loaded camera assignment: Camera 1 (DSHOW) -> rgb
+2025-11-25 19:26:02,609 - camera_registry - INFO - [camera_registry.py:137] - Known camera reconnected: Firefly FFY-U3-16S2C-DL (was device -1, now device -1)
+2025-11-25 19:26:02,609 - camera_registry - INFO - [camera_registry.py:137] - Known camera reconnected: FLIR Boson 640x512 (Camera 0) (was device 0, now device 0)
+2025-11-25 19:26:02,609 - camera_registry - INFO - [camera_registry.py:137] - Known camera reconnected: Camera 1 (DSHOW) (was device 1, now device 1)
+2025-11-25 19:26:02,912 - camera_detector - INFO - [camera_detector.py:857] - [OK] Selected thermal camera: FLIR Boson 640x512 (Camera 0) (priority=0)
+2025-11-25 19:26:02,912 - camera_detector - INFO - [camera_detector.py:222] - ======================================================================
+2025-11-25 19:26:02,912 - camera_detector - INFO - [camera_detector.py:223] - COMPREHENSIVE CAMERA DETECTION
+2025-11-25 19:26:02,912 - camera_detector - INFO - [camera_detector.py:224] - ======================================================================
+2025-11-25 19:26:02,912 - camera_detector - INFO - [camera_detector.py:293] - [STEP 1] Scanning for Spinnaker cameras (Firefly RGB)...
+2025-11-25 19:26:03,434 - camera_detector - INFO - [camera_detector.py:304] -   Found 1 Spinnaker camera(s)
+2025-11-25 19:26:03,434 - camera_detector - INFO - [camera_detector.py:325] -   [OK] Firefly RGB Camera: Firefly FFY-U3-16S2C-DL (S/N: 21304514)
+2025-11-25 19:26:03,434 - camera_detector - INFO - [camera_detector.py:356] -   Spinnaker detection complete: 1 camera(s)
+2025-11-25 19:26:03,715 - camera_detector - INFO - [camera_detector.py:821] - [OK] Device 0: Identified as THERMAL (score=120): thermal resolution (640, 512), thermal aspect ratio (1.25)
+2025-11-25 19:26:03,716 - camera_detector - INFO - [camera_detector.py:663] - [OK] Thermal camera identified via frame analysis: FLIR Boson 640x512 (Camera 0)
+2025-11-25 19:26:03,980 - camera_detector - INFO - [camera_detector.py:675] - Detected: FLIR Boson 640x512 (Camera 0) at index 0
+2025-11-25 19:26:05,286 - camera_detector - INFO - [camera_detector.py:675] - Detected: Camera 1 (DSHOW) at index 1
+2025-11-25 19:26:05,286 - camera_detector - INFO - [camera_detector.py:696] - Windows camera probe complete: 2 camera(s) found
+2025-11-25 19:26:05,286 - camera_detector - INFO - [camera_detector.py:370] - 
+======================================================================
+2025-11-25 19:26:05,286 - camera_detector - INFO - [camera_detector.py:371] - DETECTION SUMMARY
+2025-11-25 19:26:05,297 - camera_detector - INFO - [camera_detector.py:372] - ======================================================================
+2025-11-25 19:26:05,297 - camera_detector - INFO - [camera_detector.py:378] - 
+Total cameras: 3
+2025-11-25 19:26:05,297 - camera_detector - INFO - [camera_detector.py:379] -   Thermal: 1
+2025-11-25 19:26:05,297 - camera_detector - INFO - [camera_detector.py:380] -   RGB: 2
+2025-11-25 19:26:05,297 - camera_detector - INFO - [camera_detector.py:385] - 
+THERMAL CAMERAS (by priority):
+2025-11-25 19:26:05,297 - camera_detector - INFO - [camera_detector.py:388] -   1. FLIR Boson 640x512 (Camera 0) [OPENCV]
+2025-11-25 19:26:05,297 - camera_detector - INFO - [camera_detector.py:392] -      Device ID: 0, Resolution: (640, 512)
+2025-11-25 19:26:05,297 - camera_detector - INFO - [camera_detector.py:395] - 
+RGB CAMERAS (by priority - graded separately from thermal):
+2025-11-25 19:26:05,297 - camera_detector - INFO - [camera_detector.py:404] -   1. [BEST - Firefly (Spinnaker)] Firefly FFY-U3-16S2C-DL [SPINNAKER]
+2025-11-25 19:26:05,297 - camera_detector - INFO - [camera_detector.py:406] -      Spinnaker Index: 0, S/N: 21304514
+2025-11-25 19:26:05,297 - camera_detector - INFO - [camera_detector.py:404] -   2. [GOOD - External USB] Camera 1 (DSHOW) [OPENCV]
+2025-11-25 19:26:05,297 - camera_detector - INFO - [camera_detector.py:408] -      Device ID: 1, Resolution: (640, 480)
+2025-11-25 19:26:05,297 - camera_detector - INFO - [camera_detector.py:410] - ======================================================================
+
+2025-11-25 19:26:05,297 - camera_registry - INFO - [camera_registry.py:137] - Known camera reconnected: Firefly FFY-U3-16S2C-DL (was device -1, now device -1)
+2025-11-25 19:26:05,297 - camera_registry - INFO - [camera_registry.py:137] - Known camera reconnected: FLIR Boson 640x512 (Camera 0) (was device 0, now device 0)
+2025-11-25 19:26:05,297 - camera_registry - INFO - [camera_registry.py:137] - Known camera reconnected: Camera 1 (DSHOW) (was device 1, now device 1)
+2025-11-25 19:26:05,611 - camera_detector - INFO - [camera_detector.py:903] - [OK] Selected RGB camera: Firefly FFY-U3-16S2C-DL [Firefly (Spinnaker) - BEST]
+2025-11-25 19:26:05,611 - camera_initializer - INFO - [camera_initializer.py:64] - Initializing Thermal Camera (device 0) (timeout: 10.0s)...
+2025-11-25 19:26:05,611 - flir_camera - INFO - [flir_camera.py:70] - Windows detected - trying DirectShow backend
+2025-11-25 19:26:06,816 - flir_camera - INFO - [flir_camera.py:96] - FLIR Boson camera opened successfully on device 0
+2025-11-25 19:26:06,817 - flir_camera - INFO - [flir_camera.py:97] - Resolution: (640, 512)
+2025-11-25 19:26:06,817 - flir_camera - INFO - [flir_camera.py:98] - FPS: 60.000240000960005
+2025-11-25 19:26:07,321 - camera_initializer - INFO - [camera_initializer.py:64] - Initializing Firefly Camera (index 0) (timeout: 15.0s)...
+2025-11-25 19:26:07,846 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:91] - Number of FLIR cameras detected: 1
+2025-11-25 19:26:07,939 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:119] - Model: Firefly FFY-U3-16S2C-DL
+2025-11-25 19:26:07,939 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:123] - Serial: 21304514
+2025-11-25 19:26:07,939 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:127] - Vendor: FLIR
+2025-11-25 19:26:07,939 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:211] - Resolution not specified - detecting maximum available resolution...
+2025-11-25 19:26:07,942 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:215] - Using maximum resolution: 1440x1080
+2025-11-25 19:26:07,944 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:266] - Frame rate set to: 30 FPS
+2025-11-25 19:26:07,945 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:275] - Acquisition mode set to continuous
+2025-11-25 19:26:07,946 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:284] - Auto exposure enabled
+2025-11-25 19:26:07,948 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:293] - Auto gain enabled
+2025-11-25 19:26:07,949 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:302] - Auto white balance enabled
+2025-11-25 19:26:07,966 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:137] - FLIR Firefly opened successfully
+2025-11-25 19:26:07,967 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:138] - Resolution: 1440x1080 @ 30 FPS
+2025-11-25 19:26:07,967 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:139] - Pixel format: BGR8
+2025-11-25 19:26:07,968 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:140] - Global shutter: Motion blur eliminated
+2025-11-25 19:26:08,040 - camera_initializer - INFO - [camera_initializer.py:309] - ======================================================================
+2025-11-25 19:26:08,040 - __main__ - INFO - [inspection_main.py:402] - ======================================================================
+2025-11-25 19:26:08,041 - config - INFO - [config.py:114] - Configuration loaded from config.json
+2025-11-25 19:26:08,042 - fusion_processor - WARNING - [fusion_processor.py:74] - No calibration file provided - using identity transform
+2025-11-25 19:26:08,042 - __main__ - INFO - [inspection_main.py:609] - [OK] Fusion processor initialized (mode: thermal_overlay)
+2025-11-25 19:26:08,042 - __main__ - INFO - [inspection_main.py:610] -      7 fusion algorithms available!
+2025-11-25 19:26:08,042 - __main__ - INFO - [inspection_main.py:617] - ------------------------------------------------------------
+2025-11-25 19:26:08,042 - __main__ - INFO - [inspection_main.py:618] - Initializing inspection modules...
+2025-11-25 19:26:08,043 - thermal_processor - INFO - [thermal_processor.py:77] - VPI not available - using OpenCV fallback
+2025-11-25 19:26:08,045 - thermal_processor - INFO - [thermal_processor.py:173] - VPI not available - using OpenCV fallback
+2025-11-25 19:26:08,045 - __main__ - INFO - [inspection_main.py:632] - [OK] Thermal processor initialized
+2025-11-25 19:26:08,045 - __main__ - INFO - [inspection_main.py:643] - [OK] Thermal analyzer initialized
+2025-11-25 19:26:08,045 - __main__ - INFO - [inspection_main.py:653] - [OK] ROI manager initialized
+2025-11-25 19:26:08,069 - __main__ - INFO - [inspection_main.py:661] - [OK] Palette manager initialized
+2025-11-25 19:26:08,070 - __main__ - INFO - [inspection_main.py:662] -      45 palettes available
+2025-11-25 19:26:08,071 - __main__ - INFO - [inspection_main.py:676] - [OK] Video recorder initialized
+2025-11-25 19:26:08,071 - __main__ - INFO - [inspection_main.py:686] - [OK] Snapshot manager initialized
+2025-11-25 19:26:08,071 - __main__ - INFO - [inspection_main.py:698] - ------------------------------------------------------------
+2025-11-25 19:26:08,072 - __main__ - INFO - [inspection_main.py:707] - [OK] Threaded camera capture initialized
+2025-11-25 19:26:08,072 - performance_monitor - WARNING - [performance_monitor.py:59] - jtop not available, using basic metrics only
+2025-11-25 19:26:08,108 - __main__ - INFO - [inspection_main.py:719] - Qt GUI selected
+2025-11-25 19:26:08,109 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4149] - Building UI layout...
+2025-11-25 19:26:08,450 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4222] - UI layout built successfully
+2025-11-25 19:26:08,481 - __main__ - INFO - [inspection_main.py:722] - Qt GUI created successfully
+2025-11-25 19:26:08,482 - __main__ - INFO - [inspection_main.py:744] - ================================================================================
+2025-11-25 19:26:08,482 - __main__ - INFO - [inspection_main.py:745] - Initialization complete!
+2025-11-25 19:26:08,483 - __main__ - INFO - [inspection_main.py:746] - ================================================================================
+2025-11-25 19:26:08,483 - __main__ - INFO - [inspection_main.py:1106] - Starting inspection loop...
+2025-11-25 19:26:08,483 - threaded_camera_capture - INFO - [threaded_camera_capture.py:49] - Thermal: Background capture thread started
+2025-11-25 19:26:08,484 - threaded_camera_capture - INFO - [threaded_camera_capture.py:49] - RGB: Background capture thread started
+2025-11-25 19:26:08,485 - threaded_camera_capture - INFO - [threaded_camera_capture.py:144] - Dual camera threaded capture started
+2025-11-25 19:26:08,486 - __main__ - INFO - [inspection_main.py:1112] - Threaded camera capture started
+2025-11-25 19:26:08,514 - __main__ - INFO - [inspection_main.py:1117] - Qt GUI window shown
+2025-11-25 19:26:09,009 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4130] - Window geometry: PyQt6.QtCore.QRect(896, 256, 1280, 853)
+2025-11-25 19:26:09,010 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4131] - Right panel visible: True
+2025-11-25 19:26:09,010 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4132] - Right panel geometry: PyQt6.QtCore.QRect(860, 0, 420, 853)
+2025-11-25 19:26:09,011 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4133] - Right panel size hint: PyQt6.QtCore.QSize(598, 973)
+2025-11-25 19:26:09,012 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4134] - Control panel visible: True
+2025-11-25 19:26:09,012 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4135] - Control panel geometry: PyQt6.QtCore.QRect(0, 684, 860, 169)
+2025-11-25 19:26:09,012 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4138] - Tab count: 5
+2025-11-25 19:26:09,013 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4140] - Tab 0: Analysis
+2025-11-25 19:26:09,013 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4140] - Tab 1: Settings
+2025-11-25 19:26:09,013 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4140] - Tab 2: Anomaly
+2025-11-25 19:26:09,013 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4140] - Tab 3: Boson Control
+2025-11-25 19:26:09,014 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4140] - Tab 4: Firefly Camera
+2025-11-25 19:26:09,016 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4145] - Forced layout update and visibility check
+2025-11-25 19:26:12,039 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 24 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:26:12,067 - __main__ - INFO - [inspection_main.py:1336] - Frame 100: 28.3 FPS (35.3ms/frame)
+2025-11-25 19:26:12,067 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=23.0ms, gui_update=8.1ms, processEvents=7.0ms
+2025-11-25 19:26:12,068 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.0ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=11.0ms, anomaly_priority=0.0ms, fusion=6.1ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:26:12,068 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 3 edges, 4 hot spots
+2025-11-25 19:26:15,499 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 20 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:26:15,532 - __main__ - INFO - [inspection_main.py:1336] - Frame 200: 28.7 FPS (34.9ms/frame)
+2025-11-25 19:26:15,532 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=23.4ms, gui_update=11.0ms, processEvents=8.9ms
+2025-11-25 19:26:15,533 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.0ms, palette=1.9ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=12.5ms, anomaly_priority=0.0ms, fusion=6.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:26:15,533 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 4 edges, 3 hot spots
+2025-11-25 19:26:18,839 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 20 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:26:18,874 - __main__ - INFO - [inspection_main.py:1336] - Frame 300: 29.6 FPS (33.8ms/frame)
+2025-11-25 19:26:18,874 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=27.1ms, gui_update=12.1ms, processEvents=10.1ms
+2025-11-25 19:26:18,875 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=5.5ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=10.5ms, anomaly_priority=0.0ms, fusion=9.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:26:18,875 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 4 motion, 4 edges, 5 hot spots
+2025-11-25 19:26:22,046 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 12 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:26:22,074 - __main__ - INFO - [inspection_main.py:1336] - Frame 400: 32.3 FPS (31.0ms/frame)
+2025-11-25 19:26:22,074 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.1ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=22.0ms, gui_update=8.0ms, processEvents=6.1ms
+2025-11-25 19:26:22,075 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.0ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=10.0ms, anomaly_priority=0.0ms, fusion=7.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:26:22,075 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 4 edges, 3 hot spots
+2025-11-25 19:26:24,774 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 14 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:26:24,800 - __main__ - INFO - [inspection_main.py:1336] - Frame 500: 36.8 FPS (27.2ms/frame)
+2025-11-25 19:26:24,800 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=21.0ms, gui_update=5.5ms, processEvents=3.6ms
+2025-11-25 19:26:24,801 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=2.0ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=11.1ms, anomaly_priority=0.0ms, fusion=6.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:26:24,801 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 3 motion, 4 edges, 3 hot spots
+2025-11-25 19:26:27,727 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 22 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:26:27,753 - __main__ - INFO - [inspection_main.py:1336] - Frame 600: 34.2 FPS (29.3ms/frame)
+2025-11-25 19:26:27,755 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=0.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=24.1ms, gui_update=4.0ms, processEvents=3.0ms
+2025-11-25 19:26:27,755 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.0ms, palette=3.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=11.0ms, anomaly_priority=0.0ms, fusion=7.1ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:26:27,756 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 4 edges, 4 hot spots
+2025-11-25 19:26:30,626 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 17 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:26:30,654 - __main__ - INFO - [inspection_main.py:1336] - Frame 700: 34.8 FPS (28.7ms/frame)
+2025-11-25 19:26:30,654 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=24.4ms, gui_update=5.1ms, processEvents=3.1ms
+2025-11-25 19:26:30,655 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=2.8ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=12.6ms, anomaly_priority=0.0ms, fusion=7.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:26:30,655 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 4 edges, 3 hot spots
+2025-11-25 19:26:33,819 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 20 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:26:33,858 - __main__ - INFO - [inspection_main.py:1336] - Frame 800: 30.5 FPS (32.8ms/frame)
+2025-11-25 19:26:33,859 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=32.3ms, gui_update=7.0ms, processEvents=4.0ms
+2025-11-25 19:26:33,860 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.0ms, palette=1.9ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=18.4ms, anomaly_priority=0.0ms, fusion=9.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:26:33,860 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 4 edges, 2 hot spots
+2025-11-25 19:26:37,253 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 22 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:26:37,287 - __main__ - INFO - [inspection_main.py:1336] - Frame 900: 30.0 FPS (33.4ms/frame)
+2025-11-25 19:26:37,288 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=29.5ms, gui_update=6.0ms, processEvents=4.1ms
+2025-11-25 19:26:37,289 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.0ms, palette=1.9ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=14.0ms, anomaly_priority=0.0ms, fusion=9.5ms, display_select=1.0ms, draw_rois=0.0ms
+2025-11-25 19:26:37,290 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 4 edges, 3 hot spots
+2025-11-25 19:26:40,315 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 22 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:26:40,344 - __main__ - INFO - [inspection_main.py:1336] - Frame 1000: 32.5 FPS (30.8ms/frame)
+2025-11-25 19:26:40,345 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=20.3ms, gui_update=8.7ms, processEvents=3.0ms
+2025-11-25 19:26:40,345 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=2.0ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=9.6ms, anomaly_priority=0.0ms, fusion=6.7ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:26:40,346 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 3 edges, 3 hot spots
+2025-11-25 19:26:43,259 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 23 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:26:43,288 - __main__ - INFO - [inspection_main.py:1336] - Frame 1100: 34.6 FPS (28.9ms/frame)
+2025-11-25 19:26:43,288 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=24.0ms, gui_update=5.5ms, processEvents=3.5ms
+2025-11-25 19:26:43,289 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.0ms, palette=2.1ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=12.9ms, anomaly_priority=0.0ms, fusion=6.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:26:43,289 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 3 edges, 2 hot spots
+2025-11-25 19:26:46,301 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 28 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:26:46,329 - __main__ - INFO - [inspection_main.py:1336] - Frame 1200: 32.4 FPS (30.9ms/frame)
+2025-11-25 19:26:46,329 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=26.0ms, gui_update=5.0ms, processEvents=3.0ms
+2025-11-25 19:26:46,330 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=4.0ms, palette=4.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=12.0ms, anomaly_priority=0.0ms, fusion=6.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:26:46,330 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 3 edges, 2 hot spots
+2025-11-25 19:26:49,424 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 20 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:26:49,453 - __main__ - INFO - [inspection_main.py:1336] - Frame 1300: 31.6 FPS (31.6ms/frame)
+2025-11-25 19:26:49,453 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=25.6ms, gui_update=4.7ms, processEvents=3.7ms
+2025-11-25 19:26:49,454 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=1.9ms, palette=2.1ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=14.5ms, anomaly_priority=0.0ms, fusion=6.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:26:49,454 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 3 edges, 3 hot spots
+2025-11-25 19:26:52,422 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 13 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:26:52,446 - __main__ - INFO - [inspection_main.py:1336] - Frame 1400: 33.5 FPS (29.9ms/frame)
+2025-11-25 19:26:52,447 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=0.9ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=20.6ms, gui_update=4.5ms, processEvents=2.1ms
+2025-11-25 19:26:52,447 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=2.1ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=10.9ms, anomaly_priority=0.0ms, fusion=5.6ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:26:52,448 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 2 edges, 8 hot spots
+2025-11-25 19:26:55,387 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 27 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:26:55,416 - __main__ - INFO - [inspection_main.py:1336] - Frame 1500: 33.2 FPS (30.1ms/frame)
+2025-11-25 19:26:55,417 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.1ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=24.9ms, gui_update=6.1ms, processEvents=4.1ms
+2025-11-25 19:26:55,417 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=2.9ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=13.0ms, anomaly_priority=0.0ms, fusion=7.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:26:55,418 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 4 edges, 8 hot spots
+2025-11-25 19:26:58,346 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 22 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:26:58,370 - __main__ - INFO - [inspection_main.py:1336] - Frame 1600: 34.8 FPS (28.8ms/frame)
+2025-11-25 19:26:58,370 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=0.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=21.0ms, gui_update=4.5ms, processEvents=3.5ms
+2025-11-25 19:26:58,371 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=2.9ms, palette=2.1ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=10.0ms, anomaly_priority=0.0ms, fusion=6.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:26:58,371 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 3 edges, 7 hot spots
+2025-11-25 19:27:01,281 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 24 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:27:01,306 - __main__ - INFO - [inspection_main.py:1336] - Frame 1700: 35.0 FPS (28.6ms/frame)
+2025-11-25 19:27:01,307 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=22.1ms, gui_update=5.1ms, processEvents=3.1ms
+2025-11-25 19:27:01,307 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.0ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=10.9ms, anomaly_priority=0.0ms, fusion=6.2ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:27:01,307 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 3 edges, 7 hot spots
+2025-11-25 19:27:04,221 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 13 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:27:04,248 - __main__ - INFO - [inspection_main.py:1336] - Frame 1800: 34.4 FPS (29.1ms/frame)
+2025-11-25 19:27:04,249 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=24.1ms, gui_update=4.0ms, processEvents=3.0ms
+2025-11-25 19:27:04,250 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=2.6ms, palette=1.5ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=13.0ms, anomaly_priority=0.0ms, fusion=6.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:27:04,250 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 1 motion, 3 edges, 3 hot spots
+2025-11-25 19:27:07,308 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 19 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:27:07,334 - __main__ - INFO - [inspection_main.py:1336] - Frame 1900: 32.8 FPS (30.5ms/frame)
+2025-11-25 19:27:07,334 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.6ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=21.1ms, gui_update=5.0ms, processEvents=3.1ms
+2025-11-25 19:27:07,336 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.1ms, palette=1.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=10.0ms, anomaly_priority=0.0ms, fusion=7.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:27:07,336 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 6 edges, 2 hot spots
+2025-11-25 19:27:10,430 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 18 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:27:10,462 - __main__ - INFO - [inspection_main.py:1336] - Frame 2000: 31.3 FPS (32.0ms/frame)
+2025-11-25 19:27:10,463 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=28.5ms, gui_update=5.0ms, processEvents=3.0ms
+2025-11-25 19:27:10,463 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.0ms, palette=3.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=16.5ms, anomaly_priority=0.0ms, fusion=6.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:27:10,464 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 5 motion, 2 edges, 1 hot spots
+2025-11-25 19:27:13,981 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 16 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:27:14,018 - __main__ - INFO - [inspection_main.py:1336] - Frame 2100: 27.2 FPS (36.8ms/frame)
+2025-11-25 19:27:14,018 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.1ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=28.2ms, gui_update=10.2ms, processEvents=10.2ms
+2025-11-25 19:27:14,018 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=2.4ms, palette=3.7ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=11.7ms, anomaly_priority=0.0ms, fusion=10.5ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:27:14,018 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 3 edges, 1 hot spots
+2025-11-25 19:27:17,088 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 16 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:27:17,117 - __main__ - INFO - [inspection_main.py:1336] - Frame 2200: 35.8 FPS (27.9ms/frame)
+2025-11-25 19:27:17,117 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.1ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=24.7ms, gui_update=5.9ms, processEvents=3.9ms
+2025-11-25 19:27:17,118 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.0ms, palette=2.3ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=12.6ms, anomaly_priority=0.0ms, fusion=6.8ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:27:17,118 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 1 motion, 4 edges, 2 hot spots
+2025-11-25 19:27:20,553 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 20 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:27:20,591 - __main__ - INFO - [inspection_main.py:1336] - Frame 2300: 28.4 FPS (35.3ms/frame)
+2025-11-25 19:27:20,593 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=0.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=34.2ms, gui_update=4.0ms, processEvents=0.0ms
+2025-11-25 19:27:20,593 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=0.0ms, palette=10.1ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=15.8ms, anomaly_priority=0.0ms, fusion=8.3ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:27:20,593 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 3 edges, 2 hot spots
+2025-11-25 19:29:39,778 - root - INFO - [inspection_main.py:105] - [OK] Debug logging: thermal_inspection_debug.log
+2025-11-25 19:29:39,778 - __main__ - INFO - [inspection_main.py:2354] - ================================================================================
+2025-11-25 19:29:39,778 - __main__ - INFO - [inspection_main.py:2355] - Thermal Inspection Fusion Tool
+2025-11-25 19:29:39,778 - __main__ - INFO - [inspection_main.py:2356] - Transformed from ThermalFusionDrivingAssist
+2025-11-25 19:29:39,778 - __main__ - INFO - [inspection_main.py:2357] - ================================================================================
+2025-11-25 19:29:39,825 - __main__ - INFO - [inspection_main.py:2365] - Qt GUI enabled
+2025-11-25 19:29:39,855 - __main__ - INFO - [inspection_main.py:129] - Platform: {'machine': 'AMD64', 'is_jetson': False, 'is_arm': False, 'is_x86': True, 'system': 'Windows', 'platform': 'Windows-10-10.0.26200-SP0'}
+2025-11-25 19:29:39,855 - __main__ - INFO - [inspection_main.py:339] - Parallel processing enabled: 5 detection workers, 4 ROI workers
+2025-11-25 19:29:39,855 - __main__ - INFO - [inspection_main.py:564] - ================================================================================
+2025-11-25 19:29:39,855 - __main__ - INFO - [inspection_main.py:565] - Initializing Thermal Inspection Fusion Tool
+2025-11-25 19:29:39,855 - __main__ - INFO - [inspection_main.py:566] - ================================================================================
+2025-11-25 19:29:39,855 - __main__ - INFO - [inspection_main.py:567] - Platform: x86-64 (AMD64)
+2025-11-25 19:29:39,855 - __main__ - INFO - [inspection_main.py:569] - Mode: realtime
+2025-11-25 19:29:39,855 - __main__ - INFO - [inspection_main.py:570] - Device: cuda
+2025-11-25 19:29:39,855 - __main__ - INFO - [inspection_main.py:358] - ======================================================================
+2025-11-25 19:29:39,855 - __main__ - INFO - [inspection_main.py:359] - INITIALIZING CAMERAS (ROBUST MODE)
+2025-11-25 19:29:39,855 - __main__ - INFO - [inspection_main.py:360] - ======================================================================
+2025-11-25 19:29:39,855 - camera_initializer - INFO - [camera_initializer.py:227] - ======================================================================
+2025-11-25 19:29:39,855 - camera_initializer - INFO - [camera_initializer.py:228] - PRIORITIZED CAMERA INITIALIZATION
+2025-11-25 19:29:39,855 - camera_initializer - INFO - [camera_initializer.py:229] - ======================================================================
+2025-11-25 19:29:39,855 - camera_detector - INFO - [camera_detector.py:222] - ======================================================================
+2025-11-25 19:29:39,855 - camera_detector - INFO - [camera_detector.py:223] - COMPREHENSIVE CAMERA DETECTION
+2025-11-25 19:29:39,855 - camera_detector - INFO - [camera_detector.py:224] - ======================================================================
+2025-11-25 19:29:39,855 - camera_detector - INFO - [camera_detector.py:293] - [STEP 1] Scanning for Spinnaker cameras (Firefly RGB)...
+2025-11-25 19:29:40,416 - camera_detector - INFO - [camera_detector.py:304] -   Found 1 Spinnaker camera(s)
+2025-11-25 19:29:40,416 - camera_detector - INFO - [camera_detector.py:325] -   [OK] Firefly RGB Camera: Firefly FFY-U3-16S2C-DL (S/N: 21304514)
+2025-11-25 19:29:40,418 - camera_detector - INFO - [camera_detector.py:356] -   Spinnaker detection complete: 1 camera(s)
+2025-11-25 19:29:40,813 - camera_detector - INFO - [camera_detector.py:821] - [OK] Device 0: Identified as THERMAL (score=120): thermal resolution (640, 512), thermal aspect ratio (1.25)
+2025-11-25 19:29:40,814 - camera_detector - INFO - [camera_detector.py:663] - [OK] Thermal camera identified via frame analysis: FLIR Boson 640x512 (Camera 0)
+2025-11-25 19:29:41,084 - camera_detector - INFO - [camera_detector.py:675] - Detected: FLIR Boson 640x512 (Camera 0) at index 0
+2025-11-25 19:29:42,348 - camera_detector - INFO - [camera_detector.py:675] - Detected: Camera 1 (DSHOW) at index 1
+2025-11-25 19:29:42,348 - camera_detector - INFO - [camera_detector.py:696] - Windows camera probe complete: 2 camera(s) found
+2025-11-25 19:29:42,348 - camera_detector - INFO - [camera_detector.py:370] - 
+======================================================================
+2025-11-25 19:29:42,348 - camera_detector - INFO - [camera_detector.py:371] - DETECTION SUMMARY
+2025-11-25 19:29:42,348 - camera_detector - INFO - [camera_detector.py:372] - ======================================================================
+2025-11-25 19:29:42,348 - camera_detector - INFO - [camera_detector.py:378] - 
+Total cameras: 3
+2025-11-25 19:29:42,348 - camera_detector - INFO - [camera_detector.py:379] -   Thermal: 1
+2025-11-25 19:29:42,348 - camera_detector - INFO - [camera_detector.py:380] -   RGB: 2
+2025-11-25 19:29:42,348 - camera_detector - INFO - [camera_detector.py:385] - 
+THERMAL CAMERAS (by priority):
+2025-11-25 19:29:42,348 - camera_detector - INFO - [camera_detector.py:388] -   1. FLIR Boson 640x512 (Camera 0) [OPENCV]
+2025-11-25 19:29:42,348 - camera_detector - INFO - [camera_detector.py:392] -      Device ID: 0, Resolution: (640, 512)
+2025-11-25 19:29:42,348 - camera_detector - INFO - [camera_detector.py:395] - 
+RGB CAMERAS (by priority - graded separately from thermal):
+2025-11-25 19:29:42,348 - camera_detector - INFO - [camera_detector.py:404] -   1. [BEST - Firefly (Spinnaker)] Firefly FFY-U3-16S2C-DL [SPINNAKER]
+2025-11-25 19:29:42,348 - camera_detector - INFO - [camera_detector.py:406] -      Spinnaker Index: 0, S/N: 21304514
+2025-11-25 19:29:42,348 - camera_detector - INFO - [camera_detector.py:404] -   2. [GOOD - External USB] Camera 1 (DSHOW) [OPENCV]
+2025-11-25 19:29:42,348 - camera_detector - INFO - [camera_detector.py:408] -      Device ID: 1, Resolution: (640, 480)
+2025-11-25 19:29:42,348 - camera_detector - INFO - [camera_detector.py:410] - ======================================================================
+
+2025-11-25 19:29:42,348 - camera_registry - INFO - [camera_registry.py:90] - Loaded camera assignment: Camera 2 (DSHOW) -> rgb
+2025-11-25 19:29:42,348 - camera_registry - INFO - [camera_registry.py:90] - Loaded camera assignment: Firefly FFY-U3-16S2C-DL -> rgb
+2025-11-25 19:29:42,348 - camera_registry - INFO - [camera_registry.py:90] - Loaded camera assignment: FLIR Boson 640x512 (Camera 0) -> thermal
+2025-11-25 19:29:42,348 - camera_registry - INFO - [camera_registry.py:90] - Loaded camera assignment: Camera 1 (DSHOW) -> rgb
+2025-11-25 19:29:42,348 - camera_registry - INFO - [camera_registry.py:137] - Known camera reconnected: Firefly FFY-U3-16S2C-DL (was device -1, now device -1)
+2025-11-25 19:29:42,348 - camera_registry - INFO - [camera_registry.py:137] - Known camera reconnected: FLIR Boson 640x512 (Camera 0) (was device 0, now device 0)
+2025-11-25 19:29:42,348 - camera_registry - INFO - [camera_registry.py:137] - Known camera reconnected: Camera 1 (DSHOW) (was device 1, now device 1)
+2025-11-25 19:29:42,666 - camera_detector - INFO - [camera_detector.py:857] - [OK] Selected thermal camera: FLIR Boson 640x512 (Camera 0) (priority=0)
+2025-11-25 19:29:42,666 - camera_detector - INFO - [camera_detector.py:222] - ======================================================================
+2025-11-25 19:29:42,666 - camera_detector - INFO - [camera_detector.py:223] - COMPREHENSIVE CAMERA DETECTION
+2025-11-25 19:29:42,666 - camera_detector - INFO - [camera_detector.py:224] - ======================================================================
+2025-11-25 19:29:42,666 - camera_detector - INFO - [camera_detector.py:293] - [STEP 1] Scanning for Spinnaker cameras (Firefly RGB)...
+2025-11-25 19:29:43,156 - camera_detector - INFO - [camera_detector.py:304] -   Found 1 Spinnaker camera(s)
+2025-11-25 19:29:43,156 - camera_detector - INFO - [camera_detector.py:325] -   [OK] Firefly RGB Camera: Firefly FFY-U3-16S2C-DL (S/N: 21304514)
+2025-11-25 19:29:43,156 - camera_detector - INFO - [camera_detector.py:356] -   Spinnaker detection complete: 1 camera(s)
+2025-11-25 19:29:43,413 - camera_detector - INFO - [camera_detector.py:821] - [OK] Device 0: Identified as THERMAL (score=120): thermal resolution (640, 512), thermal aspect ratio (1.25)
+2025-11-25 19:29:43,413 - camera_detector - INFO - [camera_detector.py:663] - [OK] Thermal camera identified via frame analysis: FLIR Boson 640x512 (Camera 0)
+2025-11-25 19:29:43,684 - camera_detector - INFO - [camera_detector.py:675] - Detected: FLIR Boson 640x512 (Camera 0) at index 0
+2025-11-25 19:29:44,982 - camera_detector - INFO - [camera_detector.py:675] - Detected: Camera 1 (DSHOW) at index 1
+2025-11-25 19:29:44,982 - camera_detector - INFO - [camera_detector.py:696] - Windows camera probe complete: 2 camera(s) found
+2025-11-25 19:29:44,982 - camera_detector - INFO - [camera_detector.py:370] - 
+======================================================================
+2025-11-25 19:29:44,982 - camera_detector - INFO - [camera_detector.py:371] - DETECTION SUMMARY
+2025-11-25 19:29:44,982 - camera_detector - INFO - [camera_detector.py:372] - ======================================================================
+2025-11-25 19:29:44,982 - camera_detector - INFO - [camera_detector.py:378] - 
+Total cameras: 3
+2025-11-25 19:29:44,982 - camera_detector - INFO - [camera_detector.py:379] -   Thermal: 1
+2025-11-25 19:29:44,982 - camera_detector - INFO - [camera_detector.py:380] -   RGB: 2
+2025-11-25 19:29:44,982 - camera_detector - INFO - [camera_detector.py:385] - 
+THERMAL CAMERAS (by priority):
+2025-11-25 19:29:44,982 - camera_detector - INFO - [camera_detector.py:388] -   1. FLIR Boson 640x512 (Camera 0) [OPENCV]
+2025-11-25 19:29:44,982 - camera_detector - INFO - [camera_detector.py:392] -      Device ID: 0, Resolution: (640, 512)
+2025-11-25 19:29:44,982 - camera_detector - INFO - [camera_detector.py:395] - 
+RGB CAMERAS (by priority - graded separately from thermal):
+2025-11-25 19:29:44,982 - camera_detector - INFO - [camera_detector.py:404] -   1. [BEST - Firefly (Spinnaker)] Firefly FFY-U3-16S2C-DL [SPINNAKER]
+2025-11-25 19:29:44,982 - camera_detector - INFO - [camera_detector.py:406] -      Spinnaker Index: 0, S/N: 21304514
+2025-11-25 19:29:44,982 - camera_detector - INFO - [camera_detector.py:404] -   2. [GOOD - External USB] Camera 1 (DSHOW) [OPENCV]
+2025-11-25 19:29:44,982 - camera_detector - INFO - [camera_detector.py:408] -      Device ID: 1, Resolution: (640, 480)
+2025-11-25 19:29:44,982 - camera_detector - INFO - [camera_detector.py:410] - ======================================================================
+
+2025-11-25 19:29:44,982 - camera_registry - INFO - [camera_registry.py:137] - Known camera reconnected: Firefly FFY-U3-16S2C-DL (was device -1, now device -1)
+2025-11-25 19:29:44,982 - camera_registry - INFO - [camera_registry.py:137] - Known camera reconnected: FLIR Boson 640x512 (Camera 0) (was device 0, now device 0)
+2025-11-25 19:29:44,982 - camera_registry - INFO - [camera_registry.py:137] - Known camera reconnected: Camera 1 (DSHOW) (was device 1, now device 1)
+2025-11-25 19:29:45,292 - camera_detector - INFO - [camera_detector.py:903] - [OK] Selected RGB camera: Firefly FFY-U3-16S2C-DL [Firefly (Spinnaker) - BEST]
+2025-11-25 19:29:45,292 - camera_initializer - INFO - [camera_initializer.py:64] - Initializing Thermal Camera (device 0) (timeout: 10.0s)...
+2025-11-25 19:29:45,292 - flir_camera - INFO - [flir_camera.py:70] - Windows detected - trying DirectShow backend
+2025-11-25 19:29:46,496 - flir_camera - INFO - [flir_camera.py:96] - FLIR Boson camera opened successfully on device 0
+2025-11-25 19:29:46,496 - flir_camera - INFO - [flir_camera.py:97] - Resolution: (640, 512)
+2025-11-25 19:29:46,497 - flir_camera - INFO - [flir_camera.py:98] - FPS: 60.000240000960005
+2025-11-25 19:29:47,000 - camera_initializer - INFO - [camera_initializer.py:64] - Initializing Firefly Camera (index 0) (timeout: 15.0s)...
+2025-11-25 19:29:47,526 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:91] - Number of FLIR cameras detected: 1
+2025-11-25 19:29:47,611 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:119] - Model: Firefly FFY-U3-16S2C-DL
+2025-11-25 19:29:47,612 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:123] - Serial: 21304514
+2025-11-25 19:29:47,612 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:127] - Vendor: FLIR
+2025-11-25 19:29:47,612 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:211] - Resolution not specified - detecting maximum available resolution...
+2025-11-25 19:29:47,613 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:215] - Using maximum resolution: 1440x1080
+2025-11-25 19:29:47,615 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:266] - Frame rate set to: 30 FPS
+2025-11-25 19:29:47,616 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:275] - Acquisition mode set to continuous
+2025-11-25 19:29:47,618 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:284] - Auto exposure enabled
+2025-11-25 19:29:47,620 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:293] - Auto gain enabled
+2025-11-25 19:29:47,621 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:302] - Auto white balance enabled
+2025-11-25 19:29:47,639 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:137] - FLIR Firefly opened successfully
+2025-11-25 19:29:47,639 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:138] - Resolution: 1440x1080 @ 30 FPS
+2025-11-25 19:29:47,641 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:139] - Pixel format: BGR8
+2025-11-25 19:29:47,641 - rgb_camera_firefly - INFO - [rgb_camera_firefly.py:140] - Global shutter: Motion blur eliminated
+2025-11-25 19:29:47,701 - camera_initializer - INFO - [camera_initializer.py:309] - ======================================================================
+2025-11-25 19:29:47,701 - __main__ - INFO - [inspection_main.py:402] - ======================================================================
+2025-11-25 19:29:47,702 - config - INFO - [config.py:114] - Configuration loaded from config.json
+2025-11-25 19:29:47,702 - fusion_processor - WARNING - [fusion_processor.py:74] - No calibration file provided - using identity transform
+2025-11-25 19:29:47,702 - __main__ - INFO - [inspection_main.py:609] - [OK] Fusion processor initialized (mode: thermal_overlay)
+2025-11-25 19:29:47,703 - __main__ - INFO - [inspection_main.py:610] -      7 fusion algorithms available!
+2025-11-25 19:29:47,703 - __main__ - INFO - [inspection_main.py:617] - ------------------------------------------------------------
+2025-11-25 19:29:47,703 - __main__ - INFO - [inspection_main.py:618] - Initializing inspection modules...
+2025-11-25 19:29:47,703 - thermal_processor - INFO - [thermal_processor.py:77] - VPI not available - using OpenCV fallback
+2025-11-25 19:29:47,705 - thermal_processor - INFO - [thermal_processor.py:173] - VPI not available - using OpenCV fallback
+2025-11-25 19:29:47,705 - __main__ - INFO - [inspection_main.py:632] - [OK] Thermal processor initialized
+2025-11-25 19:29:47,706 - __main__ - INFO - [inspection_main.py:643] - [OK] Thermal analyzer initialized
+2025-11-25 19:29:47,706 - __main__ - INFO - [inspection_main.py:653] - [OK] ROI manager initialized
+2025-11-25 19:29:47,733 - __main__ - INFO - [inspection_main.py:661] - [OK] Palette manager initialized
+2025-11-25 19:29:47,734 - __main__ - INFO - [inspection_main.py:662] -      45 palettes available
+2025-11-25 19:29:47,735 - __main__ - INFO - [inspection_main.py:676] - [OK] Video recorder initialized
+2025-11-25 19:29:47,735 - __main__ - INFO - [inspection_main.py:686] - [OK] Snapshot manager initialized
+2025-11-25 19:29:47,736 - __main__ - INFO - [inspection_main.py:698] - ------------------------------------------------------------
+2025-11-25 19:29:47,737 - __main__ - INFO - [inspection_main.py:707] - [OK] Threaded camera capture initialized
+2025-11-25 19:29:47,737 - performance_monitor - WARNING - [performance_monitor.py:59] - jtop not available, using basic metrics only
+2025-11-25 19:29:47,771 - __main__ - INFO - [inspection_main.py:719] - Qt GUI selected
+2025-11-25 19:29:47,772 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4149] - Building UI layout...
+2025-11-25 19:29:48,108 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4222] - UI layout built successfully
+2025-11-25 19:29:48,144 - __main__ - INFO - [inspection_main.py:722] - Qt GUI created successfully
+2025-11-25 19:29:48,145 - __main__ - INFO - [inspection_main.py:744] - ================================================================================
+2025-11-25 19:29:48,146 - __main__ - INFO - [inspection_main.py:745] - Initialization complete!
+2025-11-25 19:29:48,146 - __main__ - INFO - [inspection_main.py:746] - ================================================================================
+2025-11-25 19:29:48,147 - __main__ - INFO - [inspection_main.py:1106] - Starting inspection loop...
+2025-11-25 19:29:48,147 - threaded_camera_capture - INFO - [threaded_camera_capture.py:49] - Thermal: Background capture thread started
+2025-11-25 19:29:48,148 - threaded_camera_capture - INFO - [threaded_camera_capture.py:49] - RGB: Background capture thread started
+2025-11-25 19:29:48,148 - threaded_camera_capture - INFO - [threaded_camera_capture.py:144] - Dual camera threaded capture started
+2025-11-25 19:29:48,150 - __main__ - INFO - [inspection_main.py:1112] - Threaded camera capture started
+2025-11-25 19:29:48,172 - __main__ - INFO - [inspection_main.py:1117] - Qt GUI window shown
+2025-11-25 19:29:48,662 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4130] - Window geometry: PyQt6.QtCore.QRect(896, 256, 1280, 853)
+2025-11-25 19:29:48,663 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4131] - Right panel visible: True
+2025-11-25 19:29:48,663 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4132] - Right panel geometry: PyQt6.QtCore.QRect(860, 0, 420, 853)
+2025-11-25 19:29:48,663 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4133] - Right panel size hint: PyQt6.QtCore.QSize(446, 973)
+2025-11-25 19:29:48,663 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4134] - Control panel visible: True
+2025-11-25 19:29:48,665 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4135] - Control panel geometry: PyQt6.QtCore.QRect(0, 684, 860, 169)
+2025-11-25 19:29:48,665 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4138] - Tab count: 5
+2025-11-25 19:29:48,666 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4140] - Tab 0: Analysis
+2025-11-25 19:29:48,666 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4140] - Tab 1: Settings
+2025-11-25 19:29:48,667 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4140] - Tab 2: Anomaly
+2025-11-25 19:29:48,667 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4140] - Tab 3: Boson Control
+2025-11-25 19:29:48,667 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4140] - Tab 4: Firefly Camera
+2025-11-25 19:29:48,671 - inspection_gui_qt - INFO - [inspection_gui_qt.py:4145] - Forced layout update and visibility check
+2025-11-25 19:29:51,354 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 26 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:29:51,379 - __main__ - INFO - [inspection_main.py:1336] - Frame 100: 35.2 FPS (28.4ms/frame)
+2025-11-25 19:29:51,380 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=22.6ms, gui_update=4.9ms, processEvents=2.9ms
+2025-11-25 19:29:51,380 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=2.5ms, palette=2.1ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=11.9ms, anomaly_priority=0.0ms, fusion=6.1ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:29:51,380 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 4 edges, 4 hot spots
+2025-11-25 19:29:53,987 - thermal_processor - INFO - [thermal_processor.py:434] - Edge detection: 24 contours found, min_area=50, max_area=98304.0
+2025-11-25 19:29:54,010 - __main__ - INFO - [inspection_main.py:1336] - Frame 200: 41.0 FPS (24.4ms/frame)
+2025-11-25 19:29:54,011 - __main__ - INFO - [inspection_main.py:1337] -   Main loop: thermal_read=0.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=23.0ms, gui_update=2.0ms, processEvents=1.0ms
+2025-11-25 19:29:54,011 - __main__ - INFO - [inspection_main.py:1354] -   process_frame breakdown: thermal_proc=3.0ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=0.0ms, thermal_analysis=10.5ms, anomaly_priority=0.0ms, fusion=7.5ms, display_select=0.0ms, draw_rois=0.0ms
+2025-11-25 19:29:54,012 - __main__ - INFO - [inspection_main.py:1359] -   Detections: 0 ROIs, 0 motion, 3 edges, 4 hot spots

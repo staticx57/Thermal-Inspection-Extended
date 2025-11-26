@@ -55,14 +55,25 @@ class FireflyControlPanel(QGroupBox):
         self._create_image_settings_section(layout)
         
         # === Preset Management ===
-        preset_layout = QHBoxLayout()
-        save_btn = QPushButton("💾 Save Preset")
-        load_btn = QPushButton("📂 Load Preset")
-        reset_btn = QPushButton("🔄 Reset Defaults")
+        preset_group = QGroupBox("Presets")
+        preset_layout = QVBoxLayout()
+        preset_layout.setSpacing(6)
+
+        save_btn = QPushButton("Save Preset")
+        save_btn.setToolTip("Save current settings as preset")
+
+        load_btn = QPushButton("Load Preset")
+        load_btn.setToolTip("Load preset settings")
+
+        reset_btn = QPushButton("Reset to Defaults")
+        reset_btn.setToolTip("Reset all settings to default values")
+
         preset_layout.addWidget(save_btn)
         preset_layout.addWidget(load_btn)
         preset_layout.addWidget(reset_btn)
-        layout.addLayout(preset_layout)
+
+        preset_group.setLayout(preset_layout)
+        layout.addWidget(preset_group)
         
         self.setLayout(layout)
     

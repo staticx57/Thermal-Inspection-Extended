@@ -57,6 +57,16 @@ This tool combines **thermal + RGB fusion** (7 algorithms) with **smart ROI mana
 - ✅ **Edge Detection**: VPI hardware acceleration (Jetson) + OpenCV fallback
 - ✅ **Edge Clustering**: Group dense edge regions
 
+### 📷 Advanced Camera Management (NEW - Phase 8!)
+- ✅ **Robust Auto-Detection**: Automatically identifies thermal and RGB cameras
+- ✅ **Firefly RGB Support**: FLIR Firefly via Spinnaker SDK with advanced controls
+- ✅ **Priority-Based Selection**: Spinnaker > External USB > Built-in webcam
+- ✅ **Frame-Based Thermal ID**: Identifies thermal cameras by resolution + saturation
+- ✅ **Timeout Protection**: Thread-safe initialization prevents hanging
+- ✅ **Max Resolution**: Automatically uses highest available camera resolution
+- ✅ **Camera Registry**: Persistent camera assignments across sessions
+- ✅ **Firefly Control Panel**: Exposure, gain, white balance, trigger, gamma, sharpness
+
 ### 🖥️ Cross-Platform
 - ✅ **Windows 10/11** (x86-64)
 - ✅ **Linux** (x86-64 and ARM64)
@@ -203,6 +213,33 @@ if trend.trend_direction == "increasing":
 - Priority control (thermal/RGB base)
 - **100% preserved from ADAS system**
 
+### 6. `camera_detector.py` - Robust Camera Detection (NEW!)
+- Spinnaker SDK support for FLIR Firefly cameras
+- Frame-based thermal camera identification
+- Priority-based camera selection
+- Separate thermal/RGB grading system
+- Windows crash mitigation
+
+### 7. `camera_initializer.py` - Thread-Safe Initialization (NEW!)
+- Timeout-protected camera opening
+- Thread-safe initialization
+- Graceful failure handling
+- Priority-based init (thermal first)
+
+### 8. `camera_registry.py` - Persistent Camera Management (NEW!)
+- Save/load camera assignments
+- Automatic reconnection
+- Device ID tracking
+- JSON-based persistence
+
+### 9. `firefly_control_panel.py` - Advanced RGB Controls (NEW!)
+- Exposure control (auto/manual)
+- Gain control with live adjustment
+- White balance (auto/manual/calibrate)
+- Trigger configuration (software/hardware)
+- Image enhancement (gamma, sharpness)
+- Preset management
+
 ---
 
 ## 🔍 Use Cases
@@ -255,9 +292,17 @@ See [CHANGELOG.md](CHANGELOG.md) for complete transformation details.
 
 ## 📚 Documentation
 
+### Core Documentation
 - **[CHANGELOG.md](CHANGELOG.md)** - Complete transformation changelog
 - **[INSPECTION_TRANSFORMATION_PLAN.md](INSPECTION_TRANSFORMATION_PLAN.md)** - Transformation plan
 - **[TRANSFORMATION_PROGRESS.md](TRANSFORMATION_PROGRESS.md)** - Progress report
+
+### Feature-Specific Documentation
+- **[BOSON_SDK_USAGE.md](BOSON_SDK_USAGE.md)** - FLIR Boson SDK integration guide
+- **[PARALLAX_COMPENSATION_PLAN.md](PARALLAX_COMPENSATION_PLAN.md)** - Software parallax compensation plan
+- **[INTEGRATION_STATUS.md](INTEGRATION_STATUS.md)** - Camera detection integration status
+
+### Platform Documentation
 - **[CROSS_PLATFORM.md](CROSS_PLATFORM.md)** - Platform support details (from ADAS)
 - **[WINDOWS_SETUP.md](WINDOWS_SETUP.md)** - Windows installation guide (from ADAS)
 
@@ -408,14 +453,41 @@ python inspection_main.py --disable-rgb
 
 **See:** [BOSON_SDK_USAGE.md](BOSON_SDK_USAGE.md) for complete SDK documentation
 
-### Phase 8 (Current): Stability & Polish
-- 🔨 Fix camera connection/disconnection cycling issue
-- 🔨 Improve mode detection reliability
+### ✅ Phase 8: Camera Detection & Management (COMPLETE)
+**Completed:**
+- ✅ Robust camera auto-detection system
+- ✅ Firefly RGB camera support via Spinnaker SDK
+- ✅ Priority-based camera selection (Spinnaker > USB UVC > Built-in)
+- ✅ Separate thermal/RGB camera grading (coequal importance)
+- ✅ Maximum resolution auto-detection
+- ✅ Timeout-protected camera initialization
+- ✅ Camera registry with persistent assignments
+- ✅ Firefly control panel with connection status display
+- ✅ GUI improvements (fixed overlapping buttons)
+
+**Technical Details:**
+- Created `camera_detector.py` - Comprehensive detection with Spinnaker support
+- Created `camera_initializer.py` - Thread-safe init with timeout protection
+- Created `camera_registry.py` - Persistent camera assignments
+- Created `firefly_control_panel.py` - Advanced Firefly camera controls
+- Frame-based thermal camera identification (resolution + saturation analysis)
+- Windows OpenCV crash mitigation (limited device probing)
+
+### Phase 9 (Current): Software Parallax Compensation
+- 📋 **Planning Complete**: Comprehensive compensation plan created
+- ⏳ Depth estimation integration (MiDaS/DepthAnything)
+- ⏳ Parallax correction implementation
+- ⏳ GUI controls for compensation
+- ⏳ Validation and tuning
+
+**See:** [PARALLAX_COMPENSATION_PLAN.md](PARALLAX_COMPENSATION_PLAN.md) for complete implementation plan
+
+### Phase 10: Stability & Polish
 - ⏳ Add ROI persistence across sessions
 - ⏳ Add export to PDF reports
 - ⏳ Add CSV export for thermal data
 
-### Phase 9 (Future): Advanced Features
+### Phase 11 (Future): Advanced Features
 - ⏳ Custom thermal analysis algorithms
 - ⏳ AI-powered anomaly detection
 - ⏳ Multi-session comparison
@@ -456,6 +528,6 @@ MIT License - See LICENSE file for details
 
 ---
 
-**Version**: 2.5.0
-**Status**: Core transformation complete! Phases 1-7 done. Qt GUI operational, SDK integrated. Focus: Stability improvements.
-**Last Updated**: 2025-11-21
+**Version**: 2.8.0
+**Status**: Phases 1-8 complete! Robust camera detection, Firefly support, parallax compensation plan ready. Focus: Parallax implementation.
+**Last Updated**: 2025-11-25
