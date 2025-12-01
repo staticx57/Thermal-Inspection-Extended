@@ -496,6 +496,209 @@ class BosonSDK:
         return info
 
     # ========================================================================
+    # Environmental Compensation (Phase 11)
+    # ========================================================================
+
+    def set_emissivity(self, emissivity: float) -> bool:
+        """
+        Set target emissivity for accurate temperature measurement.
+        
+        Emissivity (ε) represents how well a surface emits thermal radiation:
+        - 1.0 = perfect blackbody (ideal emitter)
+        - 0.9-0.98 = most non-metallic surfaces (paint, plastic, PCB)
+        - 0.1-0.3 = oxidized metals
+        - <0.1 = highly reflective polished metals
+        
+        Args:
+            emissivity: Emissivity value (0.01-1.0)
+        
+        Returns:
+            True if successful
+        """
+        if not self.connected or not self.camera:
+            logger.warning("Camera not connected - cannot set emissivity")
+            return False
+        
+        # Clamp to valid range
+        emissivity = max(0.01, min(1.0, emissivity))
+        
+        try:
+            result = self.camera.radiometrySetEmissivityTarget(emissivity)
+            if result.value == 0:
+                logger.info(f"✓ Target emissivity set to {emissivity:.2f}")
+                return True
+            else:
+                logger.warning(f"Failed to set emissivity: SDK result {result.value}")
+                return False
+        except Exception as e:
+            logger.error(f"Error setting emissivity: {e}")
+            return False
+
+    def get_emissivity(self) -> Optional[float]:
+        """
+        Get current target emissivity setting.
+        
+        Returns:
+            Emissivity value (0.01-1.0) or None if error
+        """
+        if not self.connected or not self.camera:
+            return None
+        
+        try:
+            result, emissivity = self.camera.radiometryGetEmissivityTarget()
+            if result.value == 0:
+                return emissivity
+            return None
+        except Exception as e:
+            logger.error(f"Error getting emissivity: {e}")
+            return None
+
+    def set_atmospheric_temperature(self, temp_celsius: float) -> bool:
+        """
+        Set atmospheric/ambient temperature for compensation.
+        
+        This helps compensate for atmospheric absorption and emission,
+        especially important for long-distance measurements.
+        
+        Args:
+            temp_celsius: Atmospheric temperature in °C (typically -40 to 80°C)
+        
+        Returns:
+            True if successful
+        """
+        if not self.connected or not self.camera:
+            logger.warning("Camera not connected - cannot set atmospheric temperature")
+            return False
+        
+        try:
+            # Convert to Kelvin
+            temp_k = temp_celsius + 273.15
+            result = self.camera.radiometrySetTempAtmosphere(temp_k)
+            if result.value == 0:
+                logger.info(f"✓ Atmospheric temperature set to {temp_celsius:.1f}°C")
+                return True
+            else:
+                logger.warning(f"Failed to set atmospheric temperature: SDK result {result.value}")
+                return False
+        except Exception as e:
+            logger.error(f"Error setting atmospheric temperature: {e}")
+            return False
+
+    def get_atmospheric_temperature(self) -> Optional[float]:
+        """
+        Get current atmospheric temperature setting.
+        
+        Returns:
+            Temperature in °C or None if error
+        """
+        if not self.connected or not self.camera:
+            return None
+        
+        try:
+            result, temp_k = self.camera.radiometryGetTempAtmosphere()
+            if result.value == 0:
+                return temp_k - 273.15  # Convert to Celsius
+            return None
+        except Exception as e:
+            logger.error(f"Error getting atmospheric temperature: {e}")
+            return None
+
+    def set_atmospheric_transmission(self, transmission: float) -> bool:
+        """
+        Set atmospheric transmission coefficient.
+        
+        Transmission represents the fraction of thermal radiation that reaches
+        the camera through the atmosphere:
+        - 1.0 = no atmospheric absorption (clear, short distance)
+        - 0.95 = typical at 1-2m distance
+        - 0.9 = moderate humidity or 2-5m distance
+        - 0.8 = high humidity or long distance
+        
+        Args:
+            transmission: Transmission value (0.7-1.0)
+        
+        Returns:
+            True if successful
+        """
+        if not self.connected or not self.camera:
+            logger.warning("Camera not connected - cannot set atmospheric transmission")
+            return False
+        
+        # Clamp to reasonable range
+        transmission = max(0.7, min(1.0, transmission))
+        
+        try:
+            result = self.camera.radiometrySetTransmissionWindow(transmission)
+            if result.value == 0:
+                logger.info(f"✓ Atmospheric transmission set to {transmission:.2f}")
+                return True
+            else:
+                logger.warning(f"Failed to set atmospheric transmission: SDK result {result.value}")
+                return False
+        except Exception as e:
+            logger.error(f"Error setting atmospheric transmission: {e}")
+            return False
+
+    def get_atmospheric_transmission(self) -> Optional[float]:
+        """
+        Get current atmospheric transmission coefficient.
+        
+        Returns:
+            Transmission value (0.7-1.0) or None if error
+        """
+        if not self.connected or not self.camera:
+            return None
+        
+        try:
+            result, transmission = self.camera.radiometryGetTransmissionWindow()
+            if result.value == 0:
+                return transmission
+            return None
+        except Exception as e:
+            logger.error(f"Error getting atmospheric transmission: {e}")
+            return None
+
+    def get_environmental_settings(self) -> dict:
+        """
+        Get all environmental compensation settings.
+        
+        Returns:
+            Dictionary with:
+            {
+                'emissivity': float - Target emissivity
+                'atmospheric_temp_c': float - Atmospheric temp in °C
+                'atmospheric_temp_k': float - Atmospheric temp in K
+                'atmospheric_transmission': float - Transmission coefficient
+            }
+        """
+        settings = {}
+        
+        if not self.connected or not self.camera:
+            return settings
+        
+        try:
+            # Emissivity
+            emissivity = self.get_emissivity()
+            if emissivity is not None:
+                settings['emissivity'] = emissivity
+            
+            # Atmospheric temperature
+            temp_c = self.get_atmospheric_temperature()
+            if temp_c is not None:
+                settings['atmospheric_temp_c'] = temp_c
+                settings['atmospheric_temp_k'] = temp_c + 273.15
+            
+            # Atmospheric transmission
+            transmission = self.get_atmospheric_transmission()
+            if transmission is not None:
+                settings['atmospheric_transmission'] = transmission
+        
+        except Exception as e:
+            logger.warning(f"Could not read full environmental settings: {e}")
+        
+        return settings
+
+    # ========================================================================
     # AGC - Automatic Gain Control (Phase 1)
     # ========================================================================
 
@@ -666,6 +869,125 @@ class BosonSDK:
             logger.warning(f"Could not read full AGC settings: {e}")
 
         return settings
+
+    # ========================================================================
+    # Spotmeter - Hardware-Accelerated Temperature Reading
+    # ========================================================================
+
+    def spotmeter_enable(self, enable: bool) -> bool:
+        """
+        Enable/disable hardware spotmeter.
+        
+        Args:
+            enable: True to enable, False to disable
+            
+        Returns:
+            True if successful
+        """
+        if not self.connected or not self.camera:
+            return False
+            
+        try:
+            result = self.camera.bosonSetSpotmeterMode(1 if enable else 0)
+            if result.value == 0:
+                logger.info(f"Spotmeter {'enabled' if enable else 'disabled'}")
+                return True
+            return False
+        except AttributeError:
+            logger.warning("Spotmeter not supported by SDK version")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to set spotmeter mode: {e}")
+            return False
+
+    def spotmeter_set_roi(self, x: int, y: int, width: int = 4, height: int = 4) -> bool:
+        """
+        Set spotmeter region of interest.
+        
+        Args:
+            x: X coordinate (pixel)
+            y: Y coordinate (pixel)
+            width: ROI width (default 4)
+            height: ROI height (default 4)
+            
+        Returns:
+            True if successful
+        """
+        if not self.connected or not self.camera:
+            return False
+            
+        try:
+            x_start = max(0, x - width // 2)
+            y_start = max(0, y - height // 2)
+            
+            result = self.camera.bosonSetSpotmeterROI(x_start, y_start, width, height)
+            if result.value == 0:
+                return True
+            return False
+        except AttributeError:
+            logger.debug("Spotmeter ROI not supported")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to set spotmeter ROI: {e}")
+            return False
+
+    def spotmeter_get_temperature(self) -> Optional[float]:
+        """
+        Get temperature from hardware spotmeter.
+        
+        Returns:
+            Temperature in Celsius or None
+        """
+        if not self.connected or not self.camera:
+            return None
+            
+        try:
+            result, temp_k_x10 = self.camera.bosonGetSpotmeterTemp()
+            if result.value == 0:
+                temp_c = (temp_k_x10 / 10.0) - 273.15
+                return temp_c
+            return None
+        except AttributeError:
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get spotmeter temperature: {e}")
+            return None
+
+    def spotmeter_set_statistics_mode(self, mode: str) -> bool:
+        """
+        Set spotmeter statistics mode.
+        
+        Args:
+            mode: 'center', 'average', 'max', or 'min'
+            
+        Returns:
+            True if successful
+        """
+        if not self.connected or not self.camera:
+            return False
+            
+        mode_map = {
+            'center': 0,
+            'average': 1,
+            'max': 2,
+            'min': 3
+        }
+        
+        if mode.lower() not in mode_map:
+            return False
+            
+        try:
+            result = self.camera.bosonSetSpotmeterStatisticsMode(mode_map[mode.lower()])
+            if result.value == 0:
+                logger.info(f"Spotmeter mode: {mode}")
+                return True
+            return False
+        except AttributeError:
+            logger.warning("Spotmeter statistics mode not supported")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to set spotmeter mode: {e}")
+            return False
 
     # ========================================================================
     # Info Methods
@@ -889,6 +1211,170 @@ class BosonSDK:
             }
         except Exception as e:
             logger.error(f"Error getting FFC statistics: {e}")
+            return None
+
+    # ========================================================================
+    # Additional Universal Features
+    # ========================================================================
+
+    def get_frame_rate(self) -> Optional[float]:
+        """
+        Get current frame rate (FPS).
+
+        Returns:
+            Frame rate in Hz, or None if failed
+        """
+        if not self.connected or not self.camera:
+            return None
+
+        try:
+            # Try getting from camera info
+            result, frame_rate = self.camera.bosonGetFrameRate()
+            if result.value == 0:
+                return float(frame_rate)
+
+            # Fallback: Estimate from frame count over time
+            logger.debug("Direct FPS query failed, using fallback")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting frame rate: {e}")
+            return None
+
+    def set_shutter_position(self, position: str) -> bool:
+        """
+        Set FFC shutter position.
+
+        Args:
+            position: "OPEN", "CLOSED", or "AUTO"
+
+        Returns:
+            True if successful
+        """
+        if not self.connected or not self.camera:
+            return False
+
+        try:
+            position_map = {
+                "OPEN": 0,
+                "CLOSED": 1,
+                "AUTO": 2
+            }
+
+            pos_val = position_map.get(position.upper())
+            if pos_val is None:
+                logger.error(f"Invalid shutter position: {position}")
+                return False
+
+            result = self.camera.bosonSetShutterPosition(pos_val)
+            if result.value == 0:
+                logger.info(f"Shutter position set to {position}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error setting shutter position: {e}")
+            return False
+
+    def get_shutter_position(self) -> Optional[str]:
+        """
+        Get current FFC shutter position.
+
+        Returns:
+            "OPEN", "CLOSED", or "AUTO", or None if failed
+        """
+        if not self.connected or not self.camera:
+            return None
+
+        try:
+            result, position = self.camera.bosonGetShutterPosition()
+            if result.value == 0:
+                position_map = {0: "OPEN", 1: "CLOSED", 2: "AUTO"}
+                return position_map.get(position, "UNKNOWN")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting shutter position: {e}")
+            return None
+
+    def set_agc_plateau(self, histogram_percent: float) -> bool:
+        """
+        Set AGC plateau histogram equalization percentage.
+
+        Args:
+            histogram_percent: Percentage (0-100)
+
+        Returns:
+            True if successful
+        """
+        if not self.connected or not self.camera:
+            return False
+
+        try:
+            result = self.camera.agcSetPlateau(int(histogram_percent))
+            if result.value == 0:
+                logger.info(f"AGC plateau set to {histogram_percent}%")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error setting AGC plateau: {e}")
+            return False
+
+    def set_agc_dampening(self, factor: float) -> bool:
+        """
+        Set AGC temporal dampening factor (smoothing).
+
+        Args:
+            factor: Dampening factor (typically 0-64)
+
+        Returns:
+            True if successful
+        """
+        if not self.connected or not self.camera:
+            return False
+
+        try:
+            result = self.camera.agcSetDampingFactor(int(factor))
+            if result.value == 0:
+                logger.info(f"AGC dampening set to {factor}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error setting AGC dampening: {e}")
+            return False
+
+    def get_system_status(self) -> Optional[dict]:
+        """
+        Get overall system health status.
+
+        Returns:
+            Dictionary with system status information
+        """
+        if not self.connected or not self.camera:
+            return None
+
+        try:
+            status = {}
+
+            # Frame count
+            status['frame_count'] = self.get_frame_count()
+
+            # FPA temperature
+            fpa_temp = self.get_fpa_temperature()
+            if fpa_temp:
+                status['fpa_temp_c'] = fpa_temp[0]
+
+            # Board temperature
+            status['board_temp_c'] = self.get_board_temperature()
+
+            # FFC statistics
+            ffc_stats = self.get_ffc_statistics()
+            if ffc_stats:
+                status['frames_since_ffc'] = ffc_stats.get('frames_since_ffc')
+
+            # Radiometric capable
+            status['radiometric_capable'] = self.is_radiometric_capable()
+
+            return status
+        except Exception as e:
+            logger.error(f"Error getting system status: {e}")
             return None
 
     def is_connected(self) -> bool:

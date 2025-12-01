@@ -687,6 +687,139 @@ class ThermalProcessor:
             'device': self.device
         }
 
+    # ========================================================================
+    # Temperature Overlay (Radiometric Visualization)
+    # ========================================================================
+
+    def apply_temperature_overlay(self, thermal_frame: np.ndarray,
+                                  temp_frame: np.ndarray,
+                                  colormap: str = "jet",
+                                  opacity: float = 0.5) -> np.ndarray:
+        """
+        Apply temperature colormap overlay to thermal frame.
+
+        Args:
+            thermal_frame: Original thermal frame (H, W, 3) BGR
+            temp_frame: Temperature data (H, W) float32 in Celsius
+            colormap: OpenCV colormap name ("jet", "hot", "cool", "viridis", "plasma")
+            opacity: Overlay opacity 0.0-1.0
+
+        Returns:
+            Thermal frame with temperature overlay applied
+        """
+        if thermal_frame is None or temp_frame is None:
+            return thermal_frame
+
+        if thermal_frame.shape[:2] != temp_frame.shape:
+            # Resize temperature frame to match thermal
+            temp_frame = cv2.resize(temp_frame, (thermal_frame.shape[1], thermal_frame.shape[0]),
+                                   interpolation=cv2.INTER_LINEAR)
+
+        try:
+            # Normalize temperature to 0-255 range
+            temp_min = temp_frame.min()
+            temp_max = temp_frame.max()
+
+            if temp_max - temp_min > 0.1:  # Avoid division by zero
+                temp_normalized = ((temp_frame - temp_min) / (temp_max - temp_min) * 255).astype(np.uint8)
+            else:
+                temp_normalized = np.zeros_like(temp_frame, dtype=np.uint8)
+
+            # Apply colormap
+            colormap_map = {
+                "jet": cv2.COLORMAP_JET,
+                "hot": cv2.COLORMAP_HOT,
+                "cool": cv2.COLORMAP_COOL,
+                "viridis": cv2.COLORMAP_VIRIDIS,
+                "plasma": cv2.COLORMAP_PLASMA
+            }
+            cv_colormap = colormap_map.get(colormap, cv2.COLORMAP_JET)
+            temp_colored = cv2.applyColorMap(temp_normalized, cv_colormap)
+
+            # Blend with original thermal frame
+            result = cv2.addWeighted(thermal_frame, 1.0 - opacity, temp_colored, opacity, 0)
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error applying temperature overlay: {e}")
+            return thermal_frame
+
+    # ========================================================================
+    # Isotherm Temperature Highlighting
+    # ========================================================================
+
+    def apply_isotherm_highlighting(self, colored_frame: np.ndarray,
+                                    temp_frame: np.ndarray,
+                                    mode: str = "above",
+                                    low_threshold: float = 30.0,
+                                    high_threshold: float = 50.0,
+                                    highlight_color: str = "Red") -> np.ndarray:
+        """
+        Apply isotherm temperature highlighting to thermal frame.
+        
+        Args:
+            colored_frame: Already colorized thermal frame (H, W, 3) BGR
+            temp_frame: Temperature data (H, W) float32 in Celsius
+            mode: "above", "below", "between", "outside"
+            low_threshold: Low temperature threshold (°C)
+            high_threshold: High temperature threshold (°C)
+            highlight_color: Color name for highlighting
+            
+        Returns:
+            Frame with isotherm regions highlighted
+        """
+        if colored_frame is None or temp_frame is None:
+            return colored_frame
+        
+        try:
+            # Resize temp_frame if needed
+            if colored_frame.shape[:2] != temp_frame.shape:
+                temp_frame = cv2.resize(temp_frame, 
+                                      (colored_frame.shape[1], colored_frame.shape[0]),
+                                      interpolation=cv2.INTER_LINEAR)
+            
+            # Create mask based on mode
+            if mode == "above":
+                mask = temp_frame > low_threshold
+            elif mode == "below":
+                mask = temp_frame < high_threshold
+            elif mode == "between":
+                mask = (temp_frame >= low_threshold) & (temp_frame <= high_threshold)
+            elif mode == "outside":
+                mask = (temp_frame < low_threshold) | (temp_frame > high_threshold)
+            else:
+                logger.warning(f"Unknown isotherm mode: {mode}")
+                return colored_frame
+            
+            # Define highlight color
+            color_map = {
+                "Red": (0, 0, 255),
+                "Yellow": (0, 255, 255),
+                "Green": (0, 255, 0),
+                "Blue": (255, 0, 0),
+                "Magenta": (255, 0, 255),
+                "Cyan": (255, 255, 0),
+                "White": (255, 255, 255)
+            }
+            bgr_color = color_map.get(highlight_color, (0, 0, 255))
+            
+            # Create highlighted overlay
+            result = colored_frame.copy()
+            
+            # Apply semi-transparent highlighting
+            overlay = colored_frame.copy()
+            overlay[mask] = bgr_color
+            
+            # Blend 50% overlay with original
+            result = cv2.addWeighted(colored_frame, 0.5, overlay, 0.5, 0)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error applying isotherm highlighting: {e}")
+            return colored_frame
+
     def release(self):
         """Release resources."""
         # Shutdown thread pool executor (Phase 1 optimization)

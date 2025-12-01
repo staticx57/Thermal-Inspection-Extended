@@ -29,14 +29,16 @@ class TLinearConverter:
     Uses either linear approximation or TLinear lookup table for accurate conversion.
     """
 
-    def __init__(self, method: str = "linear"):
+    def __init__(self, method: str = "linear", temperature_unit: str = "C"):
         """
         Initialize radiometric converter
 
         Args:
             method: Conversion method - "linear" or "lut"
+            temperature_unit: Temperature unit - "C" (Celsius) or "F" (Fahrenheit)
         """
         self.method = method
+        self.temperature_unit = temperature_unit
         self.lut = None  # Lookup table dict: {pixel_value: temperature}
         self.lut_size = 0
 
@@ -52,7 +54,51 @@ class TLinearConverter:
         self.calibration_offset = None
         self.is_calibrated = False
 
-        logger.info(f"Radiometric converter initialized (method: {method})")
+        logger.info(f"Radiometric converter initialized (method: {method}, unit: {temperature_unit})")
+
+    # Temperature Unit Conversion Methods
+    
+    def celsius_to_fahrenheit(self, temp_c: float) -> float:
+        """Convert Celsius to Fahrenheit. Formula: F = C * 9/5 + 32"""
+        return (temp_c * 9.0 / 5.0) + 32.0
+    
+    def fahrenheit_to_celsius(self, temp_f: float) -> float:
+        """Convert Fahrenheit to Celsius. Formula: C = (F - 32) * 5/9"""
+        return (temp_f - 32.0) * 5.0 / 9.0
+    
+    def convert_temperature(self, temp_c: float) -> float:
+        """
+        Convert temperature from Celsius to current unit setting.
+        
+        Args:
+            temp_c: Temperature in Celsius
+        
+        Returns:
+            Temperature in selected unit (C or F)
+        """
+        if self.temperature_unit == 'F':
+            return self.celsius_to_fahrenheit(temp_c)
+        return temp_c
+    
+    def get_temperature_unit_symbol(self) -> str:
+        """Get temperature unit symbol for display"""
+        return 'F' if self.temperature_unit == 'F' else 'C'
+    
+    def set_temperature_unit(self, unit: str):
+        """
+        Set temperature unit.
+        
+        Args:
+            unit: 'C' for Celsius or 'F' for Fahrenheit
+        """
+        if unit not in ['C', 'F']:
+            raise ValueError("Unit must be 'C' or 'F'")
+        self.temperature_unit = unit
+        logger.info(f"Temperature unit set to: {unit}")
+    
+    def get_temperature_unit(self) -> str:
+        """Get current temperature unit"""
+        return self.temperature_unit
 
     def set_temperature_range(self, min_temp: float, max_temp: float):
         """

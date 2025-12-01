@@ -2,6 +2,9 @@
 Boson SDK Panel for GUI
 Add this to inspection_gui_qt.py before CameraManagerDialog class
 """
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                             QPushButton, QGroupBox, QComboBox, QFrame, QSlider, QButtonGroup)
+from PyQt6.QtCore import pyqtSignal, Qt
 
 class BosonSDKPanel(QGroupBox):
     """Panel for Boson SDK connection controls"""
@@ -11,6 +14,9 @@ class BosonSDKPanel(QGroupBox):
     disconnect_clicked = pyqtSignal()
     ffc_clicked = pyqtSignal()
     scan_ports_clicked = pyqtSignal()
+    shutter_position_changed = pyqtSignal(str)  # OPEN/CLOSED/AUTO
+    agc_plateau_changed = pyqtSignal(float)  # 0.0-1.0
+    agc_dampening_changed = pyqtSignal(float)  # 0.0-1.0
     
     def __init__(self, parent=None):
         super().__init__("Boson SDK Control", parent)
@@ -63,13 +69,87 @@ class BosonSDKPanel(QGroupBox):
         self.ffc_btn.clicked.connect(self._on_ffc)
         self.ffc_btn.setEnabled(False)
         layout.addWidget(self.ffc_btn)
-        
+
+        # Separator
+        separator1 = QFrame()
+        separator1.setFrameShape(QFrame.Shape.HLine)
+        separator1.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(separator1)
+
+        # Shutter Control Section
+        shutter_label = QLabel("Shutter Control:")
+        shutter_label.setStyleSheet("font-weight: bold; margin-top: 5px;")
+        layout.addWidget(shutter_label)
+
+        shutter_layout = QHBoxLayout()
+        self.shutter_auto_btn = QPushButton("Auto")
+        self.shutter_auto_btn.setCheckable(True)
+        self.shutter_auto_btn.setChecked(True)
+        self.shutter_auto_btn.setToolTip("Automatic shutter control")
+        self.shutter_auto_btn.clicked.connect(lambda: self._on_shutter_position("AUTO"))
+        shutter_layout.addWidget(self.shutter_auto_btn)
+
+        self.shutter_open_btn = QPushButton("Open")
+        self.shutter_open_btn.setCheckable(True)
+        self.shutter_open_btn.setToolTip("Force shutter open")
+        self.shutter_open_btn.clicked.connect(lambda: self._on_shutter_position("OPEN"))
+        shutter_layout.addWidget(self.shutter_open_btn)
+
+        self.shutter_closed_btn = QPushButton("Closed")
+        # Disable shutter controls until connected
+        self.shutter_auto_btn.setEnabled(False)
+        self.shutter_open_btn.setEnabled(False)
+        self.shutter_closed_btn.setEnabled(False)
+
+        # Separator
+        separator2 = QFrame()
+        separator2.setFrameShape(QFrame.Shape.HLine)
+        separator2.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(separator2)
+
+        # Advanced AGC Section
+        agc_label = QLabel("Advanced AGC:")
+        agc_label.setStyleSheet("font-weight: bold; margin-top: 5px;")
+        layout.addWidget(agc_label)
+
+        # AGC Plateau Control
+        plateau_layout = QHBoxLayout()
+        plateau_layout.addWidget(QLabel("Plateau:"))
+        self.plateau_slider = QSlider(Qt.Orientation.Horizontal)
+        self.plateau_slider.setMinimum(0)
+        self.plateau_slider.setMaximum(100)
+        self.plateau_slider.setValue(50)
+        self.plateau_slider.setToolTip("Histogram plateau equalization (0-100%)")
+        self.plateau_slider.valueChanged.connect(self._on_plateau_changed)
+        self.plateau_slider.setEnabled(False)
+        plateau_layout.addWidget(self.plateau_slider)
+        self.plateau_value_label = QLabel("50%")
+        self.plateau_value_label.setMinimumWidth(40)
+        plateau_layout.addWidget(self.plateau_value_label)
+        layout.addLayout(plateau_layout)
+
+        # AGC Dampening Control
+        dampening_layout = QHBoxLayout()
+        dampening_layout.addWidget(QLabel("Dampening:"))
+        self.dampening_slider = QSlider(Qt.Orientation.Horizontal)
+        self.dampening_slider.setMinimum(0)
+        self.dampening_slider.setMaximum(100)
+        self.dampening_slider.setValue(50)
+        self.dampening_slider.setToolTip("Temporal smoothing factor (0-100%)")
+        self.dampening_slider.valueChanged.connect(self._on_dampening_changed)
+        self.dampening_slider.setEnabled(False)
+        dampening_layout.addWidget(self.dampening_slider)
+        self.dampening_value_label = QLabel("50%")
+        self.dampening_value_label.setMinimumWidth(40)
+        dampening_layout.addWidget(self.dampening_value_label)
+        layout.addLayout(dampening_layout)
+
         # Status Message
         self.message_label = QLabel("")
         self.message_label.setWordWrap(True)
         self.message_label.setStyleSheet("font-size: 9pt; color: #666;")
         layout.addWidget(self.message_label)
-        
+
         self.setLayout(layout)
         
     def _on_connect(self):
@@ -88,6 +168,22 @@ class BosonSDKPanel(QGroupBox):
     def _on_scan_ports(self):
         """Emit scan ports signal"""
         self.scan_ports_clicked.emit()
+
+    def _on_shutter_position(self, position: str):
+        """Handle shutter position change"""
+        self.shutter_position_changed.emit(position)
+
+    def _on_plateau_changed(self, value: int):
+        """Handle AGC plateau slider change"""
+        percentage = value / 100.0
+        self.plateau_value_label.setText(f"{value}%")
+        self.agc_plateau_changed.emit(percentage)
+
+    def _on_dampening_changed(self, value: int):
+        """Handle AGC dampening slider change"""
+        percentage = value / 100.0
+        self.dampening_value_label.setText(f"{value}%")
+        self.agc_dampening_changed.emit(percentage)
         
     def set_connected(self, connected: bool):
         """Update UI for connection state"""
@@ -99,6 +195,13 @@ class BosonSDKPanel(QGroupBox):
             self.ffc_btn.setEnabled(True)
             self.port_combo.setEnabled(False)
             self.scan_btn.setEnabled(False)
+            # Enable shutter controls
+            self.shutter_auto_btn.setEnabled(True)
+            self.shutter_open_btn.setEnabled(True)
+            self.shutter_closed_btn.setEnabled(True)
+            # Enable AGC controls
+            self.plateau_slider.setEnabled(True)
+            self.dampening_slider.setEnabled(True)
         else:
             self.status_label.setText("Disconnected")
             self.status_label.setStyleSheet("color: #ff6b6b; font-weight: bold;")
@@ -107,6 +210,13 @@ class BosonSDKPanel(QGroupBox):
             self.ffc_btn.setEnabled(False)
             self.port_combo.setEnabled(True)
             self.scan_btn.setEnabled(True)
+            # Disable shutter controls
+            self.shutter_auto_btn.setEnabled(False)
+            self.shutter_open_btn.setEnabled(False)
+            self.shutter_closed_btn.setEnabled(False)
+            # Disable AGC controls
+            self.plateau_slider.setEnabled(False)
+            self.dampening_slider.setEnabled(False)
             
     def set_status(self, message: str, is_error: bool = False):
         """Set status message"""
@@ -123,3 +233,43 @@ class BosonSDKPanel(QGroupBox):
         self.port_combo.addItems(ports)
         if current in ports:
             self.port_combo.setCurrentText(current)
+
+    def set_shutter_position(self, position: str):
+        """
+        Update shutter position button state.
+
+        Args:
+            position: "AUTO", "OPEN", or "CLOSED"
+        """
+        if position == "AUTO":
+            self.shutter_auto_btn.setChecked(True)
+        elif position == "OPEN":
+            self.shutter_open_btn.setChecked(True)
+        elif position == "CLOSED":
+            self.shutter_closed_btn.setChecked(True)
+
+    def set_agc_plateau(self, value: float):
+        """
+        Update AGC plateau slider.
+
+        Args:
+            value: Plateau value 0.0-1.0
+        """
+        slider_value = int(value * 100)
+        self.plateau_slider.blockSignals(True)
+        self.plateau_slider.setValue(slider_value)
+        self.plateau_value_label.setText(f"{slider_value}%")
+        self.plateau_slider.blockSignals(False)
+
+    def set_agc_dampening(self, value: float):
+        """
+        Update AGC dampening slider.
+
+        Args:
+            value: Dampening value 0.0-1.0
+        """
+        slider_value = int(value * 100)
+        self.dampening_slider.blockSignals(True)
+        self.dampening_slider.setValue(slider_value)
+        self.dampening_value_label.setText(f"{slider_value}%")
+        self.dampening_slider.blockSignals(False)

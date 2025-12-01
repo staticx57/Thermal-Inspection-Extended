@@ -84,9 +84,32 @@ pyserial>=3.5               # Serial port communication for Boson SDK/CCI protoc
 #   - VPI (Vision Programming Interface) available for GPU acceleration
 #
 # ============================================================================
+# Optional: ML Depth Estimation (for Parallax Compensation - NEW v3.3.0)
+# ============================================================================
+# Uncomment to enable DepthAnything V2 depth estimation for improved parallax
+# compensation accuracy. This provides state-of-the-art monocular depth estimation
+# for better thermal-RGB alignment.
+#
+torch>=2.0.0              # PyTorch (CPU version, ~2GB download)
+transformers>=4.30.0      # Hugging Face Transformers
+huggingface-hub>=0.16.0   # Model downloads and caching
+#
+# For GPU acceleration (recommended for real-time performance):
+# Install PyTorch with CUDA from https://pytorch.org/get-started/locally/
+# Example for CUDA 11.8: 
+#   pip install torch --index-url https://download.pytorch.org/whl/cu118
+#
+# Model Downloads (automatic on first use):
+#   - Small model: ~100MB (good for CPU, 24.8M params)
+#   - Base model: ~200MB (balanced, 97.5M params)
+#   - Large model: ~350MB (best accuracy, GPU recommended, 335M params)
+#
+# Without these dependencies, parallax compensation uses simplified geometric mode.
+
+# ============================================================================
 # Removed Dependencies (No Longer Needed)
 # ============================================================================
-#
+
 # The following were removed during ADAS → Inspection transformation:
 #   - ultralytics (YOLOv8) - object detection not needed
 #   - torch/torchvision - deep learning not needed

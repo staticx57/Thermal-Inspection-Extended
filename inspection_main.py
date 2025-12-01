@@ -50,11 +50,39 @@ from thermal_analyzer import (
     ThresholdDetectionResult
 )
 from roi_manager import ROIManager, ROISource
+from roi_radiometric_analyzer import ROIRadiometricAnalyzer
 from palette_manager import PaletteManager, PaletteType
 from media_recorder import VideoRecorder, VideoPlayer, SnapshotManager
 
 # Core modules (PRESERVED - Fusion is paramount!)
 from fusion_processor import FusionProcessor
+
+# Parallax compensation (optional, disabled by default)
+try:
+    from parallax_compensator import ParallaxCompensator, CameraGeometry
+    PARALLAX_AVAILABLE = True
+except ImportError:
+    PARALLAX_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.info("Parallax compensation not available")
+
+# Measurement points (radiometric temperature measurement)
+try:
+    from measurement_points import MeasurementPointManager
+    MEASUREMENT_POINTS_AVAILABLE = True
+except ImportError:
+    MEASUREMENT_POINTS_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.info("Measurement points not available")
+
+# Radiometric calibration
+try:
+    from radiometric_calibration import RadiometricCalibrator
+    RADIOMETRIC_CALIBRATION_AVAILABLE = True
+except ImportError:
+    RADIOMETRIC_CALIBRATION_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.info("Radiometric calibration not available")
 
 # Performance monitoring
 from performance_monitor import PerformanceMonitor
@@ -213,6 +241,7 @@ class ThermalInspectionFusion:
         self.thermal_processor: Optional[ThermalProcessor] = None
         self.thermal_analyzer: Optional[ThermalAnalyzer] = None
         self.roi_manager: Optional[ROIManager] = None
+        self.roi_radiometric_analyzer: Optional[ROIRadiometricAnalyzer] = None
         self.palette_manager: Optional[PaletteManager] = None
 
         # PRESERVED: Fusion processor (PARAMOUNT!)
@@ -460,6 +489,22 @@ class ThermalInspectionFusion:
                     self.args.radiometric = True
                     logger.info("Auto-enabled radiometric mode")
                 
+                # Initialize radiometric panel if GUI exists
+                if self.gui and hasattr(self.gui, 'radiometric_panel'):
+                    sdk_connected = self.thermal_camera.is_sdk_connected()
+                    mode_desc = "16-bit Radiometric" if is_radiometric else "8-bit AGC"
+                    self.gui.radiometric_panel.set_radiometric_status(
+                        capable=is_radiometric,
+                        enabled=self.args.radiometric,
+                        mode=mode_desc
+                    )
+                    
+                    # Enable hardware spotmeter checkbox if SDK is connected
+                    if sdk_connected and hasattr(self.gui.radiometric_panel, 'hw_spotmeter_checkbox'):
+                        self.gui.radiometric_panel.hw_spotmeter_checkbox.setEnabled(True)
+                    
+                    logger.info(f"✓ Radiometric panel initialized (capable={is_radiometric}, sdk={sdk_connected})")
+                
                 return True
             else:
                 logger.debug("Thermal camera not found")
@@ -607,6 +652,43 @@ class ThermalInspectionFusion:
                     calibration_file=calibration_file
                 )
                 logger.info(f"[OK] Fusion processor initialized (mode: {self.fusion_mode})")
+
+                # 4b. Initialize parallax compensator (OPTIONAL, disabled by default)
+                self.parallax_compensator = None
+                if PARALLAX_AVAILABLE:
+                    geometry = CameraGeometry(
+                        baseline_mm=50.0,  # Default 5cm
+                        thermal_resolution=(640, 512),
+                        rgb_resolution=(1920, 1200)
+                    )
+                    self.parallax_compensator = ParallaxCompensator(
+                        camera_geometry=geometry,
+                        depth_method="simplified"
+                    )
+                    self.parallax_compensator.enable(False)  # DISABLED BY DEFAULT
+                    logger.info("[OK] Parallax compensator initialized (DISABLED by default)")
+                else:
+                    logger.info("[ ] Parallax compensation not available")
+
+                # 4c. Initialize measurement points manager
+                self.measurement_points = None
+                if MEASUREMENT_POINTS_AVAILABLE:
+                    self.measurement_points = MeasurementPointManager()
+                    logger.info("[OK] Measurement points manager initialized")
+                else:
+                    logger.info("[ ] Measurement points not available")
+
+                # 4d. Initialize radiometric calibrator
+                self.radiometric_calibrator = None
+                self.calibration_enabled = False
+                self.calibration_add_point_mode = False
+                self.calibration_reference_temp = 25.0
+                if RADIOMETRIC_CALIBRATION_AVAILABLE:
+                    self.radiometric_calibrator = RadiometricCalibrator()
+                    logger.info("[OK] Radiometric calibrator initialized")
+                else:
+                    logger.info("[ ] Radiometric calibration not available")
+
                 logger.info("     7 fusion algorithms available!")
                 self.view_mode = ViewMode.FUSION
             else:
@@ -651,6 +733,16 @@ class ThermalInspectionFusion:
             }
             self.roi_manager = ROIManager(roi_config)
             logger.info("[OK] ROI manager initialized")
+            
+            # ROI Radiometric Analyzer (NEW - Phase 11)
+            # Only initialize if thermal analyzer is available for radiometric conversion
+            self.roi_radiometric_analyzer = None
+            if self.thermal_analyzer:
+                # Note: thermal_analyzer has radiometric converter internally
+                # We'll initialize roi_radiometric_analyzer later when converter is available
+                logger.info("[ ] ROI radiometric analyzer will be initialized with thermal camera")
+            else:
+                logger.info("[ ] ROI radiometric analyzer deferred (no thermal analyzer)")
 
             # Palette manager
             palette_config = {
@@ -721,6 +813,9 @@ class ThermalInspectionFusion:
                     self.gui = InspectionAppWindow(self)
                     logger.info("Qt GUI created successfully")
 
+                    # Connect all GUI signals
+                    self._connect_signals()
+
                     # Update camera panel statuses
                     self.update_firefly_gui()
                     self.update_boson_gui()
@@ -751,6 +846,101 @@ class ThermalInspectionFusion:
         except Exception as e:
             logger.error(f"Initialization failed: {e}", exc_info=True)
             return False
+
+    def _connect_signals(self):
+        """Connect all GUI signals to their handlers."""
+        if not self.gui:
+            return
+
+        try:
+            # 1. Control Panel (Bottom)
+            if hasattr(self.gui, 'control_panel'):
+                cp = self.gui.control_panel
+                # Media controls
+                if hasattr(cp, 'record_toggled'): cp.record_toggled.connect(self.toggle_recording)
+                if hasattr(cp, 'snapshot_clicked'): cp.snapshot_clicked.connect(self.capture_snapshot)
+                if hasattr(cp, 'freeze_frame_toggled'): cp.freeze_frame_toggled.connect(self.toggle_freeze)
+                
+                # View controls
+                if hasattr(cp, 'view_mode_clicked'): cp.view_mode_clicked.connect(self.cycle_view_mode)
+                if hasattr(cp, 'day_night_clicked'): cp.day_night_clicked.connect(self.toggle_theme)
+                
+                # ROI controls
+                if hasattr(cp, 'auto_roi_clicked'): cp.auto_roi_clicked.connect(self.auto_roi_detect)
+                if hasattr(cp, 'draw_roi_clicked'): cp.draw_roi_clicked.connect(self.draw_roi)
+                if hasattr(cp, 'clear_rois_clicked'): cp.clear_rois_clicked.connect(self.clear_rois)
+
+            # 2. Thermal Analysis Panel (General)
+            if hasattr(self.gui, 'analysis_panel'):
+                ap = self.gui.analysis_panel
+                if hasattr(ap, 'palette_changed'): ap.palette_changed.connect(self.set_palette)
+                if hasattr(ap, 'baseline_toggled'): ap.baseline_toggled.connect(self.lock_baseline)
+                # Note: overlay_info_toggled is handled by GUI internally or needs handler?
+                # Let's add handler if we want to toggle overlay rendering in main loop
+                if hasattr(ap, 'overlay_info_toggled'): ap.overlay_info_toggled.connect(self.toggle_overlay_info)
+
+            # 3. Radiometric Panel
+            if hasattr(self.gui, 'radiometric_panel'):
+                rp = self.gui.radiometric_panel
+                # TODO: Add handlers for radiometric panel signals
+                # if hasattr(rp, 'spotmeter_mode_changed'): rp.spotmeter_mode_changed.connect(self._on_spotmeter_mode_changed)
+                pass
+
+            # 4. Firefly Control Panel
+            if hasattr(self.gui, 'firefly_panel'):
+                fp = self.gui.firefly_panel
+                if hasattr(fp, 'exposure_mode_changed'): fp.exposure_mode_changed.connect(self.set_firefly_exposure_mode)
+                if hasattr(fp, 'exposure_time_changed'): fp.exposure_time_changed.connect(self.set_firefly_exposure_time)
+                if hasattr(fp, 'gain_mode_changed'): fp.gain_mode_changed.connect(self.set_firefly_gain_mode)
+                if hasattr(fp, 'gain_changed'): fp.gain_changed.connect(self.set_firefly_gain)
+                if hasattr(fp, 'wb_mode_changed'): fp.wb_mode_changed.connect(self.set_firefly_wb_mode)
+                
+                # Use lambdas for specific channel/parameter mapping
+                if hasattr(fp, 'wb_red_changed'): fp.wb_red_changed.connect(lambda v: self.set_firefly_wb_ratio('Red', v))
+                if hasattr(fp, 'wb_blue_changed'): fp.wb_blue_changed.connect(lambda v: self.set_firefly_wb_ratio('Blue', v))
+                
+                if hasattr(fp, 'trigger_mode_changed'): fp.trigger_mode_changed.connect(self.set_firefly_trigger_mode)
+                if hasattr(fp, 'software_trigger_clicked'): fp.software_trigger_clicked.connect(self.fire_software_trigger)
+                
+                if hasattr(fp, 'gamma_changed'): fp.gamma_changed.connect(self.set_firefly_gamma)
+                if hasattr(fp, 'sharpness_enabled_changed'): fp.sharpness_enabled_changed.connect(lambda e: self.set_firefly_sharpness(e))
+                if hasattr(fp, 'sharpness_changed'): fp.sharpness_changed.connect(lambda v: self.set_firefly_sharpness(True, v))
+
+            # 5. Boson Control Panel
+            if hasattr(self.gui, 'boson_panel'):
+                bp = self.gui.boson_panel
+                if hasattr(bp, 'connect_clicked'): bp.connect_clicked.connect(self.connect_boson_sdk)
+                if hasattr(bp, 'ffc_clicked'): bp.ffc_clicked.connect(self.trigger_ffc)
+                if hasattr(bp, 'gain_mode_changed'): bp.gain_mode_changed.connect(self.set_boson_gain_mode)
+                if hasattr(bp, 'ffc_mode_changed'): bp.ffc_mode_changed.connect(self.set_boson_ffc_mode)
+
+            # 6. Radiometric Panel
+            if hasattr(self.gui, 'radiometric_panel'):
+                rp = self.gui.radiometric_panel
+                # Hardware spotmeter signals
+                if hasattr(rp, 'spotmeter_enabled_changed'): rp.spotmeter_enabled_changed.connect(self._on_spotmeter_enabled)
+                if hasattr(rp, 'spotmeter_mode_changed'): rp.spotmeter_mode_changed.connect(self._on_spotmeter_mode_changed)
+                # Sensor temperature refresh signal
+                if hasattr(rp, 'sensor_temps_requested'): rp.sensor_temps_requested.connect(self._update_sensor_temperatures)
+
+            logger.info("✓ GUI signals connected")
+
+        except Exception as e:
+            logger.error(f"Failed to connect GUI signals: {e}", exc_info=True)
+
+    def toggle_theme(self):
+        """Toggle between light and dark theme."""
+        if self.gui:
+            current = self.gui.current_theme
+            new_theme = "light" if current == "dark" else "dark"
+            self.gui._apply_theme(new_theme)
+            logger.info(f"Theme switched to {new_theme}")
+
+    def toggle_overlay_info(self, enabled: bool):
+        """Toggle overlay information display."""
+        self.show_overlay_info = enabled
+        logger.info(f"Overlay info: {'ON' if enabled else 'OFF'}")
+
 
     def process_frame(self, thermal_frame: np.ndarray, rgb_frame: Optional[np.ndarray] = None) -> Dict:
         """
@@ -798,6 +988,20 @@ class ThermalInspectionFusion:
                 thermal_frame, self.roi_manager
             )
             t_prof['after_palette'] = time.time()
+
+            # 2b. Apply temperature overlay if radiometric is enabled
+            if self.thermal_camera and self.thermal_camera.is_radiometric_enabled():
+                if self.gui and hasattr(self.gui, 'radiometric_panel'):
+                    if self.gui.radiometric_panel.is_temp_overlay_enabled():
+                        # Get temperature frame from radiometric converter
+                        temp_frame = self._get_temperature_frame()
+                        if temp_frame is not None:
+                            colormap = self.gui.radiometric_panel.get_colormap()
+                            opacity = self.gui.radiometric_panel.get_overlay_opacity()
+                            thermal_colorized = self.thermal_processor.apply_temperature_overlay(
+                                thermal_colorized, temp_frame, colormap, opacity
+                            )
+
             result['thermal_colorized'] = thermal_colorized
 
             # 3. Automatic ROI detection (if enabled)
@@ -834,6 +1038,11 @@ class ThermalInspectionFusion:
 
             # 4. Thermal analysis for each ROI
             t_prof['before_roi_analysis'] = time.time()
+            
+            # Calculate global statistics first (for GUI display)
+            if self.thermal_analyzer:
+                result['thermal_stats'] = self.thermal_analyzer.analyze_frame(thermal_frame)
+
             rois = self.roi_manager.get_all_rois(active_only=True)
 
             # OPTIMIZATION: Parallel ROI analysis (Phase 1)
@@ -941,12 +1150,37 @@ class ThermalInspectionFusion:
                         use_raw_values=self.manual_threshold_use_raw
                     )
                     result['manual_threshold_result'] = threshold_result
-                    self.latest_threshold_result = threshold_result
-                else:
-                    result['manual_threshold_result'] = None
-                    self.latest_threshold_result = None
-
-            t_prof['after_thermal_analysis'] = time.time()
+            
+            # 5a. Per-ROI Radiometric Temperature Analysis (NEW - Phase 11)
+            # Analyze temperature for each ROI if radiometric is enabled
+            if (self.roi_radiometric_analyzer and 
+                self.thermal_camera and 
+                self.thermal_camera.is_radiometric_enabled()):
+                
+                # Get the raw 16-bit frame for radiometric conversion
+                raw_frame_16bit = None
+                if hasattr(self.thermal_camera, 'get_last_raw_frame'):
+                    raw_frame_16bit = self.thermal_camera.get_last_raw_frame()
+                
+                # If we have 16-bit data, analyze all active ROIs
+                if raw_frame_16bit is not None and raw_frame_16bit.dtype == np.uint16:
+                    try:
+                        # Analyze all ROIs
+                        roi_temp_stats = self.roi_radiometric_analyzer.analyze_all_rois(
+                            result['rois'],
+                            raw_frame_16bit
+                        )
+                        
+                        # Update each ROI with temperature data
+                        for roi in result['rois']:
+                            stats = roi_temp_stats.get(roi.roi_id)
+                            if stats:
+                                roi.temp_min = stats.get('temp_min')
+                                roi.temp_max = stats.get('temp_max')
+                                roi.temp_avg = stats.get('temp_avg')
+                                roi.temp_std = stats.get('temp_std')
+                    except Exception as e:
+                        logger.debug(f"ROI radiometric analysis failed: {e}")
 
             # 5b. Apply anomaly priority colorization if enabled (AFTER all detections)
             t_prof['before_anomaly_priority'] = time.time()
@@ -1140,14 +1374,43 @@ class ThermalInspectionFusion:
                 # Instead, we'll optimize the processing pipeline itself
 
                 # 1. Poll for thermal camera if not connected (hot-plug support)
+                # Wait for thermal camera (hot-plug support)
                 if not self.thermal_connected:
                     current_time = time.time()
                     if current_time - self.last_thermal_scan_time > self.thermal_scan_interval:
                         self.last_thermal_scan_time = current_time
-                        if self._try_connect_thermal():
-                            logger.info("[OK] Thermal camera connected!")
+                        logger.info("Thermal camera not connected. Scanning...")
+                        self._try_connect_thermal()
 
-                # 2. Capture thermal frame
+                        # Initialize ROI radiometric analyzer when thermal camera is connected
+                        # (only if it has a radiometric converter)
+                        if self.thermal_connected: # Check if connection was successful
+                            logger.info("[OK] Thermal camera connected!")
+                            if (self.thermal_camera and
+                                hasattr(self.thermal_camera, 'radiometric_converter') and
+                                self.thermal_camera.radiometric_converter and
+                                not self.roi_radiometric_analyzer):
+                                try:
+                                    self.roi_radiometric_analyzer = ROIRadiometricAnalyzer(
+                                        self.thermal_camera.radiometric_converter
+                                    )
+                                    logger.info("[OK] ROI radiometric analyzer initialized")
+                                except Exception as e:
+                                    logger.warning(f"Failed to initialize ROI radiometric analyzer: {e}")
+                        continue
+
+                # 2. Check for freeze state
+                if self.frame_frozen:
+                    # If frozen, just process GUI events and continue
+                    # We skip capture and processing to maintain the static image
+                    if self.gui_type == 'qt' and self.qt_app:
+                        self.qt_app.processEvents()
+                    
+                    # Sleep briefly to prevent CPU spinning
+                    time.sleep(0.03)
+                    continue
+
+                # 3. Capture thermal frame
                 t_markers['before_thermal_read'] = time.time()
                 thermal_frame = None
                 rgb_frame = None
@@ -1301,8 +1564,39 @@ class ThermalInspectionFusion:
                         anomalies=result.get('anomalies', []),
                         motion_detections=result.get('motion_detections', []),
                         edge_clusters=result.get('edge_clusters', []),
-                        trend=None
+                        trend=result.get('trend')
                     )
+
+                    # Update radiometric panel with live temperature data
+                    if hasattr(self.gui, 'radiometric_panel') and self.args.radiometric:
+                        thermal_stats = result.get('thermal_stats')
+                        thermal_frame_16bit = result.get('thermal_16bit')
+                        
+                        # Update frame statistics (min/max/mean)
+                        if thermal_stats:
+                            self.gui.radiometric_panel.set_frame_statistics(
+                                min_temp=thermal_stats.min_temp,
+                                max_temp=thermal_stats.max_temp,
+                                mean_temp=thermal_stats.mean_temp,
+                                unit=thermal_stats.unit
+                            )
+                        
+                        # Update center temperature (frame center pixel)
+                        if thermal_frame_16bit is not None:
+                            h, w = thermal_frame_16bit.shape
+                            center_y, center_x = h // 2, w // 2
+                            center_pixel = thermal_frame_16bit[center_y, center_x]
+                            
+                            # Convert to temperature if radiometric converter available
+                            if self.thermal_camera and hasattr(self.thermal_camera, 'radiometric_converter'):
+                                conv = self.thermal_camera.radiometric_converter
+                                if conv:
+                                    center_temp_c = conv.pixel_to_celsius(center_pixel)
+                                    self.gui.radiometric_panel.set_center_temperature(center_temp_c)
+                        
+                        # Update cursor temperature if cursor position is available
+                        # (This would be set by mouse move events in the GUI)
+                        # For now, we'll use center as a placeholder
 
                     # Update ROIs
                     self.gui.update_rois(result.get('rois', []))
@@ -1376,14 +1670,23 @@ class ThermalInspectionFusion:
 
     def set_palette(self, palette_name: str):
         """Set specific palette by name."""
-        if self.palette_manager:
-            try:
-                self.palette_manager.set_global_palette(PaletteType(palette_name))
-                if self.gui and hasattr(self.gui, 'control_panel') and hasattr(self.gui.control_panel, 'update_palette_button'):
-                    self.gui.control_panel.update_palette_button(palette_name)
-                logger.info(f"Switched to palette: {palette_name}")
-            except (ValueError, KeyError) as e:
-                logger.error(f"Failed to set palette '{palette_name}': {e}")
+        if not palette_name or not self.palette_manager:
+            return
+            
+        # Strip whitespace (combo box adds indentation)
+        palette_name = palette_name.strip()
+        
+        # Skip category headers (they contain "───")
+        if "───" in palette_name:
+            return
+            
+        try:
+            self.palette_manager.set_global_palette(PaletteType(palette_name))
+            if self.gui and hasattr(self.gui, 'control_panel') and hasattr(self.gui.control_panel, 'update_palette_button'):
+                self.gui.control_panel.update_palette_button(palette_name)
+            logger.info(f"Switched to palette: {palette_name}")
+        except (ValueError, KeyError) as e:
+            logger.error(f"Failed to set palette '{palette_name}': {e}")
 
     def cycle_palette(self):
         """Cycle to next palette."""
@@ -1854,6 +2157,145 @@ class ThermalInspectionFusion:
                     return False
         return False
 
+    # ========================================================================
+    # Firefly Camera Control Methods
+    # ========================================================================
+
+    def set_firefly_exposure_mode(self, mode: str):
+        """Set Firefly exposure mode (Off/Once/Continuous)."""
+        if self.rgb_camera and hasattr(self.rgb_camera, 'set_exposure_mode'):
+            if self.rgb_camera.set_exposure_mode(mode):
+                logger.info(f"Firefly exposure mode set to: {mode}")
+
+    def set_firefly_exposure_time(self, time_us: float):
+        """Set Firefly exposure time in microseconds."""
+        if self.rgb_camera and hasattr(self.rgb_camera, 'set_exposure_time'):
+            if self.rgb_camera.set_exposure_time(time_us):
+                # logger.info(f"Firefly exposure time set to: {time_us}us")
+                pass
+
+    def set_firefly_gain_mode(self, mode: str):
+        """Set Firefly gain mode (Off/Once/Continuous)."""
+        if self.rgb_camera and hasattr(self.rgb_camera, 'set_gain_mode'):
+            if self.rgb_camera.set_gain_mode(mode):
+                logger.info(f"Firefly gain mode set to: {mode}")
+
+    def set_firefly_gain(self, gain_db: float):
+        """Set Firefly gain in dB."""
+        if self.rgb_camera and hasattr(self.rgb_camera, 'set_gain'):
+            if self.rgb_camera.set_gain(gain_db):
+                # logger.info(f"Firefly gain set to: {gain_db}dB")
+                pass
+
+    def set_firefly_wb_mode(self, mode: str):
+        """Set Firefly white balance mode (Off/Once/Continuous)."""
+        if self.rgb_camera and hasattr(self.rgb_camera, 'set_white_balance_mode'):
+            if self.rgb_camera.set_white_balance_mode(mode):
+                logger.info(f"Firefly WB mode set to: {mode}")
+
+    def set_firefly_wb_ratio(self, channel: str, value: float):
+        """Set Firefly white balance ratio (Red/Blue)."""
+        if self.rgb_camera and hasattr(self.rgb_camera, 'set_white_balance_ratio'):
+            if self.rgb_camera.set_white_balance_ratio(channel, value):
+                # logger.info(f"Firefly WB {channel} ratio set to: {value}")
+                pass
+
+    def set_firefly_trigger_mode(self, enabled: bool, source: str = 'Software'):
+        """Set Firefly trigger mode."""
+        if self.rgb_camera and hasattr(self.rgb_camera, 'set_trigger_mode'):
+            if self.rgb_camera.set_trigger_mode(enabled, source):
+                logger.info(f"Firefly trigger mode: {'ON' if enabled else 'OFF'} ({source})")
+
+    def fire_software_trigger(self):
+        """Fire software trigger."""
+        if self.rgb_camera and hasattr(self.rgb_camera, 'execute_software_trigger'):
+            self.rgb_camera.execute_software_trigger()
+            logger.info("Software trigger fired")
+
+    def set_firefly_gamma(self, gamma: float):
+        if self.rgb_camera and hasattr(self.rgb_camera, 'set_gamma'):
+            self.rgb_camera.set_gamma(gamma)
+            logger.info(f"Firefly gamma set to: {gamma}")
+
+    def set_firefly_sharpness(self, enabled: bool, value: int = 1000):
+        """Set Firefly sharpness."""
+        if self.rgb_camera and hasattr(self.rgb_camera, 'set_sharpness'):
+            if self.rgb_camera.set_sharpness(enabled, value):
+                # logger.info(f"Firefly sharpness: {'ON' if enabled else 'OFF'} (value={value})")
+                pass
+
+    # ========================================================================
+    # Radiometric Panel Handlers
+    # ========================================================================
+
+    def _on_spotmeter_enabled(self, enabled: bool):
+        """Handle hardware spotmeter enable/disable."""
+        if self.thermal_camera and hasattr(self.thermal_camera, 'spotmeter_enable'):
+            if self.thermal_camera.spotmeter_enable(enabled):
+                self.use_hw_spotmeter = enabled
+                logger.info(f"Hardware spotmeter: {'ON' if enabled else 'OFF'}")
+            else:
+                logger.warning("Failed to enable hardware spotmeter - using software")
+                self.use_hw_spotmeter = False
+        else:
+            logger.debug("Hardware spotmeter not available on this camera")
+            self.use_hw_spotmeter = False
+
+    def _on_spotmeter_mode_changed(self, mode: str):
+        """Handle spotmeter statistics mode change."""
+        if self.thermal_camera and hasattr(self.thermal_camera, 'spotmeter_set_statistics_mode'):
+            if self.thermal_camera.spotmeter_set_statistics_mode(mode):
+                logger.info(f"Spotmeter mode: {mode}")
+            else:
+                logger.warning(f"Failed to set spotmeter mode to {mode}")
+        else:
+            logger.debug("Spotmeter mode control not available on this camera")
+
+    def _update_sensor_temperatures(self):
+        """Read and update all sensor temperatures."""
+        if not self.thermal_camera:
+            return
+            
+        try:
+            # Initialize temperatures
+            fpa_temp = 0.0
+            lens_temp = 0.0
+            shutter_temp = 0.0
+            board_temp = 0.0
+            
+            # FPA temperature
+            if hasattr(self.thermal_camera, 'get_fpa_temperature'):
+                result = self.thermal_camera.get_fpa_temperature()
+                if result and len(result) > 1:
+                    fpa_temp = result[1]  # Celsius value
+            
+            # Lens temperature
+            if hasattr(self.thermal_camera, 'get_lens_temperature'):
+                result = self.thermal_camera.get_lens_temperature()
+                if result and len(result) > 1:
+                    lens_temp = result[1]
+            
+            # Shutter temperature
+            if hasattr(self.thermal_camera, 'get_shutter_temperature'):
+                result = self.thermal_camera.get_shutter_temperature()
+                if result and len(result) > 1:
+                    shutter_temp = result[1]
+            
+            # Board temperature
+            if hasattr(self.thermal_camera, 'get_board_temperature'):
+                result = self.thermal_camera.get_board_temperature()
+                if result and len(result) > 1:
+                    board_temp = result[1]
+            
+            # Update GUI
+            if self.gui and hasattr(self.gui, 'radiometric_panel'):
+                self.gui.radiometric_panel.update_sensor_temperatures(
+                    fpa_temp, lens_temp, shutter_temp, board_temp
+                )
+                
+        except Exception as e:
+            logger.debug(f"Failed to read sensor temperatures: {e}")
+
     def set_boson_color_lut(self, lut_name: str):
         """Set Boson color LUT (palette)."""
         if self.thermal_camera and self.thermal_camera.is_sdk_connected():
@@ -1915,15 +2357,62 @@ class ThermalInspectionFusion:
     def reset_agc_settings(self) -> bool:
         """Reset AGC settings to defaults."""
         if self.thermal_camera and self.thermal_camera.is_sdk_connected():
-            # Reset to defaults: max_gain=2.0, gamma=1.0, linearity=50%, dde=1.3
+            # Reset to defaults: max_gain=2.0, gamma=1.0, linearity=50%, dde=1.3, plateau=0.5, dampening=0.5
             success = True
             success &= self.set_agc_max_gain(2.0)
             success &= self.set_agc_gamma(1.0)
             success &= self.set_agc_linearity(50.0)
             success &= self.set_agc_dde(1.3)
+            success &= self.set_agc_plateau(0.5)
+            success &= self.set_agc_dampening(0.5)
             if success:
                 logger.info("AGC settings reset to defaults")
             return success
+        return False
+
+    def set_agc_plateau(self, value: float) -> bool:
+        """
+        Set AGC plateau (histogram equalization).
+
+        Args:
+            value: Plateau value 0.0-1.0
+
+        Returns:
+            True if successful
+        """
+        if self.thermal_camera and self.thermal_camera.is_sdk_connected():
+            if hasattr(self.thermal_camera.sdk, 'set_agc_plateau'):
+                return self.thermal_camera.sdk.set_agc_plateau(value)
+        return False
+
+    def set_agc_dampening(self, value: float) -> bool:
+        """
+        Set AGC dampening (temporal smoothing).
+
+        Args:
+            value: Dampening value 0.0-1.0
+
+        Returns:
+            True if successful
+        """
+        if self.thermal_camera and self.thermal_camera.is_sdk_connected():
+            if hasattr(self.thermal_camera.sdk, 'set_agc_dampening'):
+                return self.thermal_camera.sdk.set_agc_dampening(value)
+        return False
+
+    def set_shutter_position(self, position: str) -> bool:
+        """
+        Set shutter position.
+
+        Args:
+            position: "AUTO", "OPEN", or "CLOSED"
+
+        Returns:
+            True if successful
+        """
+        if self.thermal_camera and self.thermal_camera.is_sdk_connected():
+            if hasattr(self.thermal_camera.sdk, 'set_shutter_position'):
+                return self.thermal_camera.sdk.set_shutter_position(position)
         return False
 
     def connect_boson_sdk(self, com_port: str) -> bool:
@@ -2372,8 +2861,628 @@ class ThermalInspectionFusion:
                     if center_temp is not None:
                         self.gui.radiometric_panel.set_center_temperature(center_temp)
 
+                # Update measurement points
+                if self.measurement_points:
+                    temp_frame = self._get_temperature_frame()
+                    if temp_frame is not None:
+                        self.measurement_points.update_temperatures(temp_frame)
+                        points = self.measurement_points.get_all_points()
+                        self.gui.radiometric_panel.update_measurement_points(points)
+
         except Exception as e:
             logger.debug(f"Error updating radiometric GUI: {e}")
+
+    def load_radiometric_lut(self, filepath: str) -> bool:
+        """
+        Load TLinear lookup table from CSV file.
+
+        Args:
+            filepath: Path to LUT CSV file
+
+        Returns:
+            True if loaded successfully
+        """
+        if not self.thermal_camera:
+            logger.warning("No thermal camera available for LUT loading")
+            return False
+
+        if not hasattr(self.thermal_camera, 'radiometric_converter'):
+            logger.warning("Thermal camera does not have radiometric converter")
+            return False
+
+        try:
+            converter = self.thermal_camera.radiometric_converter
+            if not converter:
+                logger.error("Radiometric converter not initialized")
+                return False
+
+            # Load LUT file
+            success = converter.load_lut_from_file(filepath)
+
+            if success and self.gui and hasattr(self.gui, 'radiometric_panel'):
+                # Update GUI with LUT status
+                info = converter.get_info()
+                if info['lut_loaded']:
+                    lut_keys = sorted(converter.lut.keys())
+                    lut_vals = [converter.lut[k] for k in lut_keys]
+                    pixel_range = (min(lut_keys), max(lut_keys))
+                    temp_range = (min(lut_vals), max(lut_vals))
+
+                    self.gui.radiometric_panel.set_lut_status(
+                        loaded=True,
+                        entry_count=info['lut_size'],
+                        pixel_range=pixel_range,
+                        temp_range=temp_range
+                    )
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Error loading radiometric LUT: {e}")
+            return False
+
+    def set_radiometric_method(self, method: str) -> bool:
+        """
+        Set radiometric conversion method (linear or lut).
+
+        Args:
+            method: "linear" or "lut"
+
+        Returns:
+            True if successful
+        """
+        if not self.thermal_camera:
+            logger.warning("No thermal camera available")
+            return False
+
+        if not hasattr(self.thermal_camera, 'radiometric_converter'):
+            logger.warning("Thermal camera does not have radiometric converter")
+            return False
+
+        try:
+            converter = self.thermal_camera.radiometric_converter
+            if not converter:
+                logger.error("Radiometric converter not initialized")
+                return False
+
+            converter.method = method
+            logger.info(f"Radiometric conversion method set to: {method}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error setting radiometric method: {e}")
+            return False
+
+        # Radiometric state
+        self.use_hw_spotmeter = False  # Track if hardware spotmeter is enabled
+
+    # ========================================================================
+    # Parallax Compensation Control (Phase 11)
+    # ========================================================================
+
+    def enable_parallax_compensation(self, enable: bool) -> bool:
+        """
+        Enable or disable parallax compensation.
+
+        Args:
+            enable: True to enable, False to disable
+
+        Returns:
+            True if successful
+        """
+        if not self.parallax_compensator:
+            logger.warning("Parallax compensator not available")
+            return False
+
+        try:
+            self.parallax_compensator.enable(enable)
+            logger.info(f"Parallax compensation: {'ENABLED' if enable else 'DISABLED'}")
+            return True
+        except Exception as e:
+            logger.error(f"Error toggling parallax compensation: {e}")
+            return False
+
+    def set_parallax_baseline(self, baseline_mm: float) -> bool:
+        """
+        Set camera baseline distance for parallax compensation.
+
+        Args:
+            baseline_mm: Distance between camera centers in millimeters
+
+        Returns:
+            True if successful
+        """
+        if not self.parallax_compensator:
+            logger.warning("Parallax compensator not available")
+            return False
+
+        try:
+            self.parallax_compensator.set_baseline(baseline_mm)
+            logger.info(f"Parallax baseline set to {baseline_mm}mm")
+            return True
+        except Exception as e:
+            logger.error(f"Error setting parallax baseline: {e}")
+            return False
+
+    def set_parallax_depth_method(self, method: str) -> bool:
+        """
+        Set depth estimation method for parallax compensation.
+
+        Args:
+            method: "simplified", "midas", or "depthanything"
+
+        Returns:
+            True if successful
+        """
+        if not self.parallax_compensator:
+            logger.warning("Parallax compensator not available")
+            return False
+
+        try:
+            # Create new depth estimator with selected method
+            from parallax_compensator import DepthEstimator
+            self.parallax_compensator.depth_estimator = DepthEstimator(method=method)
+            logger.info(f"Parallax depth method set to: {method}")
+
+            # Update GUI status if available
+            if self.gui and hasattr(self.gui, 'parallax_panel'):
+                if method in ["midas", "depthanything"]:
+                    self.gui.parallax_panel.set_method_status(
+                        f"{method} model loading...", is_error=False
+                    )
+                else:
+                    self.gui.parallax_panel.set_method_status("Ready", is_error=False)
+
+            return True
+        except Exception as e:
+            logger.error(f"Error setting parallax depth method: {e}")
+            if self.gui and hasattr(self.gui, 'parallax_panel'):
+                self.gui.parallax_panel.set_method_status(f"Error: {e}", is_error=True)
+            return False
+
+    # ========================================================================
+    # Temperature Frame Access (Helper)
+    # ========================================================================
+
+    def _get_temperature_frame(self) -> Optional[np.ndarray]:
+        """
+        Get temperature frame in Celsius from radiometric camera.
+
+        Returns:
+            Temperature frame (H, W) float32, or None if not available
+        """
+        if not self.thermal_camera:
+            return None
+
+        if not hasattr(self.thermal_camera, 'radiometric_converter'):
+            return None
+
+        converter = self.thermal_camera.radiometric_converter
+        if not converter:
+            return None
+
+        # Get last 16-bit frame
+        if not hasattr(self.thermal_camera, 'last_frame_16bit'):
+            return None
+
+        frame_16bit = self.thermal_camera.last_frame_16bit
+        if frame_16bit is None:
+            return None
+
+        try:
+            # Convert to temperature
+            temp_frame = converter.pixel_to_celsius(frame_16bit)
+
+            # Apply calibration if enabled
+            if (self.calibration_enabled and
+                RADIOMETRIC_CALIBRATION_AVAILABLE and
+                self.radiometric_calibrator and
+                self.radiometric_calibrator.is_calibrated):
+                temp_frame = self.radiometric_calibrator.apply_calibration_to_frame(temp_frame)
+
+            return temp_frame
+        except Exception as e:
+            logger.debug(f"Error getting temperature frame: {e}")
+            return None
+
+    # ========================================================================
+    # Radiometric Calibration Control
+    # ========================================================================
+
+    def set_calibration_add_point_mode(self, enabled: bool, reference_temp: float):
+        """
+        Enable/disable calibration point adding mode.
+
+        Args:
+            enabled: True to enable mode
+            reference_temp: Reference temperature for the point
+        """
+        if not RADIOMETRIC_CALIBRATION_AVAILABLE or not self.radiometric_calibrator:
+            logger.warning("Radiometric calibration not available")
+            return
+
+        self.calibration_add_point_mode = enabled
+        self.calibration_reference_temp = reference_temp
+
+        if self.gui and hasattr(self.gui, 'video_widget'):
+            self.gui.video_widget.set_add_point_mode(enabled)
+
+        logger.info(f"Calibration add point mode: {'ENABLED' if enabled else 'DISABLED'}")
+
+    def _on_add_calibration_point(self, x: int, y: int):
+        """
+        Handle adding a calibration point from video widget click.
+
+        Args:
+            x: Frame X coordinate
+            y: Frame Y coordinate
+        """
+        if not RADIOMETRIC_CALIBRATION_AVAILABLE or not self.radiometric_calibrator:
+            return
+
+        if not hasattr(self, 'calibration_add_point_mode') or not self.calibration_add_point_mode:
+            return
+
+        try:
+            # Get measured temperature at this location
+            temp_frame = self._get_temperature_frame()
+            if temp_frame is None:
+                logger.warning("No temperature frame available for calibration")
+                return
+
+            h, w = temp_frame.shape
+            if not (0 <= x < w and 0 <= y < h):
+                logger.warning(f"Calibration point coordinates out of bounds: ({x}, {y})")
+                return
+
+            measured_temp = float(temp_frame[y, x])
+            reference_temp = self.calibration_reference_temp
+
+            # Add calibration point
+            point = self.radiometric_calibrator.add_calibration_point(
+                reference_temp, measured_temp, x, y
+            )
+
+            logger.info(f"Added calibration point: {reference_temp:.1f}°C (ref) vs {measured_temp:.1f}°C (meas)")
+
+            # Update GUI
+            self.update_calibration_gui()
+
+            # Disable add mode
+            if self.gui and hasattr(self.gui, 'calibration_panel'):
+                self.gui.calibration_panel.disable_add_point_mode()
+
+        except Exception as e:
+            logger.error(f"Error adding calibration point: {e}")
+
+    def compute_calibration(self, method: str, degree: int = 2) -> bool:
+        """
+        Compute radiometric calibration.
+
+        Args:
+            method: "linear" or "polynomial"
+            degree: Polynomial degree (for polynomial method)
+
+        Returns:
+            True if successful
+        """
+        if not RADIOMETRIC_CALIBRATION_AVAILABLE or not self.radiometric_calibrator:
+            return False
+
+        return self.radiometric_calibrator.compute_calibration(method, degree)
+
+    def set_calibration_enabled(self, enabled: bool):
+        """
+        Enable/disable calibration correction.
+
+        Args:
+            enabled: True to enable calibration correction
+        """
+        if not RADIOMETRIC_CALIBRATION_AVAILABLE or not self.radiometric_calibrator:
+            return
+
+        self.calibration_enabled = enabled
+        logger.info(f"Calibration correction: {'ENABLED' if enabled else 'DISABLED'}")
+
+    def clear_calibration(self):
+        """Clear all calibration points."""
+        if not RADIOMETRIC_CALIBRATION_AVAILABLE or not self.radiometric_calibrator:
+            return
+
+        self.radiometric_calibrator.clear_calibration_points()
+        logger.info("Calibration cleared")
+
+    def export_calibration(self, filepath: str) -> bool:
+        """Export calibration to file."""
+        if not RADIOMETRIC_CALIBRATION_AVAILABLE or not self.radiometric_calibrator:
+            return False
+
+        return self.radiometric_calibrator.export_calibration(filepath)
+
+    def import_calibration(self, filepath: str) -> bool:
+        """Import calibration from file."""
+        if not RADIOMETRIC_CALIBRATION_AVAILABLE or not self.radiometric_calibrator:
+            return False
+
+        return self.radiometric_calibrator.import_calibration(filepath)
+
+    def remove_calibration_point(self, index: int) -> bool:
+        """Remove calibration point at index."""
+        if not RADIOMETRIC_CALIBRATION_AVAILABLE or not self.radiometric_calibrator:
+            return False
+
+        return self.radiometric_calibrator.remove_calibration_point(index)
+
+    def update_calibration_gui(self):
+        """Update calibration GUI panel."""
+        if not self.gui or not hasattr(self.gui, 'calibration_panel'):
+            return
+
+        if not RADIOMETRIC_CALIBRATION_AVAILABLE or not self.radiometric_calibrator:
+            return
+
+        try:
+            # Update calibration points table
+            points = self.radiometric_calibrator.calibration_points
+            self.gui.calibration_panel.update_calibration_points(points)
+
+            # Update calibration status
+            stats = self.radiometric_calibrator.get_calibration_stats()
+            is_calibrated = self.radiometric_calibrator.is_calibrated
+            self.gui.calibration_panel.set_calibration_status(is_calibrated, stats)
+
+        except Exception as e:
+            logger.debug(f"Error updating calibration GUI: {e}")
+
+    # ========================================================================
+    # Measurement Points Control (Radiometric Feature)
+    # ========================================================================
+
+    def _on_add_point_mode_toggled(self, checked: bool):
+        """Handle add point mode toggle from radiometric panel."""
+        if self.gui and hasattr(self.gui, 'video_widget'):
+            self.gui.video_widget.set_add_point_mode(checked)
+            logger.info(f"Add measurement point mode: {'ENABLED' if checked else 'DISABLED'}")
+
+    def _on_add_measurement_point(self, x: int, y: int):
+        """
+        Handle adding a measurement point from video widget click.
+
+        Args:
+            x: Frame X coordinate
+            y: Frame Y coordinate
+        """
+        if not MEASUREMENT_POINTS_AVAILABLE or not self.measurement_points:
+            logger.warning("Measurement points not available")
+            return
+
+        try:
+            # Add point to manager
+            point = self.measurement_points.add_point(x, y)
+            logger.info(f"Added measurement point '{point.label}' at ({x}, {y})")
+
+            # Update temperature immediately if available
+            temp_frame = self._get_temperature_frame()
+            if temp_frame is not None:
+                self.measurement_points.update_temperatures(temp_frame)
+
+            # Update GUI
+            if self.gui and hasattr(self.gui, 'video_widget'):
+                points = self.measurement_points.get_all_points()
+                self.gui.video_widget.update_measurement_points(points)
+
+            # Update radiometric panel
+            self.update_radiometric_gui()
+
+            # Enable buttons
+            if self.gui and hasattr(self.gui, 'radiometric_panel'):
+                self.gui.radiometric_panel.clear_points_btn.setEnabled(True)
+
+        except Exception as e:
+            logger.error(f"Error adding measurement point: {e}")
+
+    def _on_clear_measurement_points(self):
+        """Handle clearing all measurement points."""
+        if not MEASUREMENT_POINTS_AVAILABLE or not self.measurement_points:
+            return
+
+        try:
+            self.measurement_points.clear_all_points()
+            logger.info("Cleared all measurement points")
+
+            # Update GUI
+            if self.gui and hasattr(self.gui, 'video_widget'):
+                self.gui.video_widget.update_measurement_points([])
+
+            # Update radiometric panel
+            self.update_radiometric_gui()
+
+            # Disable clear button
+            if self.gui and hasattr(self.gui, 'radiometric_panel'):
+                self.gui.radiometric_panel.clear_points_btn.setEnabled(False)
+                # Turn off add mode
+                self.gui.radiometric_panel.add_point_btn.setChecked(False)
+
+        except Exception as e:
+            logger.error(f"Error clearing measurement points: {e}")
+
+    def _on_export_points_csv(self):
+        """Export measurement points to CSV file."""
+        if not MEASUREMENT_POINTS_AVAILABLE or not self.measurement_points:
+            return
+
+        try:
+            from PyQt6.QtWidgets import QFileDialog
+            import csv
+            from datetime import datetime
+
+            # Get save file path
+            default_name = f"measurement_points_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            file_path, _ = QFileDialog.getSaveFileName(
+                self.gui,
+                "Export Measurement Points to CSV",
+                default_name,
+                "CSV Files (*.csv);;All Files (*.*)"
+            )
+
+            if not file_path:
+                return
+
+            # Export data
+            data = self.measurement_points.export_data()
+
+            with open(file_path, 'w', newline='') as csvfile:
+                fieldnames = ['id', 'label', 'x', 'y', 'temperature_c', 'color_rgb']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+
+                for point_data in data:
+                    # Convert color tuple to string for CSV
+                    point_data_copy = point_data.copy()
+                    point_data_copy['color_rgb'] = str(point_data['color_rgb'])
+                    writer.writerow(point_data_copy)
+
+            logger.info(f"Exported {len(data)} measurement points to CSV: {file_path}")
+
+            # Show success message
+            if self.gui:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.information(
+                    self.gui,
+                    "Export Successful",
+                    f"Exported {len(data)} measurement points to:\n{file_path}"
+                )
+
+        except Exception as e:
+            logger.error(f"Error exporting measurement points to CSV: {e}")
+            if self.gui:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.critical(
+                    self.gui,
+                    "Export Failed",
+                    f"Error exporting CSV:\n{str(e)}"
+                )
+
+    def _on_export_points_json(self):
+        """Export measurement points to JSON file."""
+        if not MEASUREMENT_POINTS_AVAILABLE or not self.measurement_points:
+            return
+
+        try:
+            from PyQt6.QtWidgets import QFileDialog
+            import json
+            from datetime import datetime
+
+            # Get save file path
+            default_name = f"measurement_points_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            file_path, _ = QFileDialog.getSaveFileName(
+                self.gui,
+                "Export Measurement Points to JSON",
+                default_name,
+                "JSON Files (*.json);;All Files (*.*)"
+            )
+
+            if not file_path:
+                return
+
+            # Export data
+            data = self.measurement_points.export_data()
+
+            # Create full export with metadata
+            export_obj = {
+                'export_timestamp': datetime.now().isoformat(),
+                'point_count': len(data),
+                'measurement_points': data
+            }
+
+            with open(file_path, 'w') as jsonfile:
+                json.dump(export_obj, jsonfile, indent=2)
+
+            logger.info(f"Exported {len(data)} measurement points to JSON: {file_path}")
+
+            # Show success message
+            if self.gui:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.information(
+                    self.gui,
+                    "Export Successful",
+                    f"Exported {len(data)} measurement points to:\n{file_path}"
+                )
+
+        except Exception as e:
+            logger.error(f"Error exporting measurement points to JSON: {e}")
+            if self.gui:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.critical(
+                    self.gui,
+                    "Export Failed",
+                    f"Error exporting JSON:\n{str(e)}"
+                )
+    
+    def _on_temperature_unit_changed(self, unit: str):
+        """
+        Handle temperature unit change (C/F).
+        
+        Args:
+            unit: 'C' for Celsius or 'F' for Fahrenheit
+        """
+        if self.thermal_camera and hasattr(self.thermal_camera, 'radiometric_converter'):
+            converter = self.thermal_camera.radiometric_converter
+            if converter:
+                converter.set_temperature_unit(unit)
+                logger.info(f"Temperature unit changed to: {unit}")
+                
+                # Update ROI radiometric analyzer if it exists
+                if self.roi_radiometric_analyzer:
+                    # The ROI analyzer uses the same converter, so it's already updated
+                    pass
+                
+                # Update GUI displays if radiometric is enabled
+                if self.gui and hasattr(self.gui, 'radiometric_panel'):
+                    self.update_radiometric_gui()
+
+    # ========================================================================
+    # Environmental Compensation Methods (Phase 11)
+    # ========================================================================
+
+    def set_emissivity(self, emissivity: float):
+        """
+        Set target emissivity for temperature measurement.
+        
+        Args:
+            emissivity: Emissivity value (0.01-1.0)
+        """
+        if self.boson_sdk and self.boson_sdk.is_connected():
+            self.boson_sdk.set_emissivity(emissivity)
+            logger.info(f"✓ Emissivity set to {emissivity:.2f}")
+        else:
+            logger.warning("Boson SDK not connected - cannot set emissivity")
+
+    def set_atmospheric_temperature(self, temp_celsius: float):
+        """
+        Set atmospheric temperature for compensation.
+        
+        Args:
+            temp_celsius: Atmospheric temperature in °C
+        """
+        if self.boson_sdk and self.boson_sdk.is_connected():
+            self.boson_sdk.set_atmospheric_temperature(temp_celsius)
+            logger.info(f"✓ Atmospheric temperature set to {temp_celsius:.1f}°C")
+        else:
+            logger.warning("Boson SDK not connected - cannot set atmospheric temperature")
+
+    def set_atmospheric_transmission(self, transmission: float):
+        """
+        Set atmospheric transmission coefficient.
+        
+        Args:
+            transmission: Transmission value (0.7-1.0)
+        """
+        if self.boson_sdk and self.boson_sdk.is_connected():
+            self.boson_sdk.set_atmospheric_transmission(transmission)
+            logger.info(f"✓ Atmospheric transmission set to {transmission:.2f}")
+        else:
+            logger.warning("Boson SDK not connected - cannot set atmospheric transmission")
 
 
 def parse_arguments():

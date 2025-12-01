@@ -527,6 +527,43 @@ class FLIRBosonCamera:
             logger.error(f"Error setting temperature range: {e}")
             return False
 
+    def enable_radiometric_mode(self) -> bool:
+        """
+        Enable radiometric mode on the camera (16-bit temperature output).
+
+        This requires SDK connection and a radiometric-capable Boson camera.
+
+        Returns:
+            True if radiometric mode was successfully enabled
+        """
+        if not self.sdk_connected or not self.sdk:
+            logger.warning("SDK not connected - cannot enable radiometric mode")
+            logger.info("Hint: Use connect_sdk() to establish serial connection")
+            return False
+
+        # Check if camera is radiometric-capable
+        if hasattr(self.sdk, 'is_radiometric_capable'):
+            if not self.sdk.is_radiometric_capable():
+                logger.warning("Camera does not support radiometric mode")
+                return False
+
+        # Enable radiometry via SDK
+        try:
+            if hasattr(self.sdk, 'enable_radiometry'):
+                if self.sdk.enable_radiometry():
+                    self.radiometric_enabled = True
+                    logger.info("Radiometric mode ENABLED via SDK")
+                    return True
+                else:
+                    logger.error("Failed to enable radiometric mode via SDK")
+                    return False
+            else:
+                logger.warning("SDK does not have enable_radiometry method")
+                return False
+        except Exception as e:
+            logger.error(f"Error enabling radiometric mode: {e}")
+            return False
+
     # ========================================================================
     # Runtime SDK Connection (Phase 7 Enhancement - v2.7.0)
     # ========================================================================

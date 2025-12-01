@@ -254,24 +254,33 @@ class CameraInitializer:
 
             # Initialize RGB second
             if rgb_info:
-                if rgb_info.interface == 'spinnaker':
-                    result = CameraInitializer.init_firefly_camera_safe(
-                        camera_index=rgb_info.spinnaker_index,
-                        resolution=(0, 0),  # Max resolution
-                        timeout=15.0
-                    )
-                else:
-                    result = CameraInitializer.init_uvc_camera_safe(
-                        device_id=rgb_info.device_id,
-                        resolution=(0, 0),  # Max resolution
-                        timeout=10.0
-                    )
+                # Check for conflict with thermal camera
+                conflict = False
+                if thermal_camera and hasattr(thermal_camera, 'device_id'):
+                    # Check if RGB camera uses the same device ID
+                    if rgb_info.interface != 'spinnaker' and rgb_info.device_id == thermal_camera.device_id:
+                        logger.warning(f"Skipping RGB init: Device {rgb_info.device_id} already used by thermal camera")
+                        conflict = True
+                
+                if not conflict:
+                    if rgb_info.interface == 'spinnaker':
+                        result = CameraInitializer.init_firefly_camera_safe(
+                            camera_index=rgb_info.spinnaker_index,
+                            resolution=(0, 0),  # Max resolution
+                            timeout=15.0
+                        )
+                    else:
+                        result = CameraInitializer.init_uvc_camera_safe(
+                            device_id=rgb_info.device_id,
+                            resolution=(0, 0),  # Max resolution
+                            timeout=10.0
+                        )
 
-                if result.success:
-                    rgb_camera = result.camera_object
-                    logger.info(f"  ✓ RGB initialized ({result.init_time_seconds:.2f}s)")
-                else:
-                    logger.warning(f"  ✗ RGB failed: {result.error_message}")
+                    if result.success:
+                        rgb_camera = result.camera_object
+                        logger.info(f"  ✓ RGB initialized ({result.init_time_seconds:.2f}s)")
+                    else:
+                        logger.warning(f"  ✗ RGB failed: {result.error_message}")
 
         else:
             # Initialize RGB first

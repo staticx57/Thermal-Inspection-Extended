@@ -31,6 +31,7 @@ from roi_manager import ROI, ROIType
 from thermal_analyzer import ThermalStatistics, HotSpot, ColdSpot, ThermalAnomaly, TemperatureTrend
 from firefly_control_panel import FireflyControlPanel
 from radiometric_panel import RadiometricPanel
+from parallax_panel import ParallaxPanel
 
 logger = logging.getLogger(__name__)
 
@@ -698,6 +699,9 @@ class InspectionOverlayWidget(QWidget):
         # Multi-select support
         self.selected_roi_ids: set = set()  # Set of selected ROI IDs
 
+        # Measurement points
+        self.measurement_points: List = []  # List of MeasurementPoint objects
+
         # ROI drawing state
         self.drawing_mode = False
         self.drawing_type = ROIType.RECTANGLE  # Default
@@ -721,6 +725,11 @@ class InspectionOverlayWidget(QWidget):
         self.hot_spots = hot_spots
         self.cold_spots = cold_spots
         self.anomalies = anomalies
+        self.update()
+
+    def update_measurement_points(self, points: List):
+        """Update measurement points for visualization."""
+        self.measurement_points = points
         self.update()
 
     def set_frame_transform(self, frame_width: int, frame_height: int, pixmap_width: int, pixmap_height: int, widget_width: int, widget_height: int):
@@ -878,6 +887,31 @@ class InspectionOverlayWidget(QWidget):
                 # Use description if available, otherwise type
                 label_text = f"⚠ {anomaly.description}" if anomaly.description else f"⚠ {anomaly.anomaly_type.value}"
                 draw_label(int(wx) + 15, int(wy), label_text, QColor(255, 255, 0))
+
+        # Draw measurement points
+        for point in self.measurement_points:
+            # Transform frame coordinates to widget coordinates
+            wx, wy = self.frame_to_widget(point.x, point.y)
+
+            # Draw point marker (circle with cross)
+            r, g, b = point.color
+            point_color = QColor(r, g, b)
+            painter.setPen(QPen(point_color, 2))
+            painter.setBrush(QColor(r, g, b, 100))  # Semi-transparent fill
+
+            # Outer circle
+            painter.drawEllipse(int(wx) - 8, int(wy) - 8, 16, 16)
+
+            # Inner cross
+            painter.drawLine(int(wx) - 5, int(wy), int(wx) + 5, int(wy))
+            painter.drawLine(int(wx), int(wy) - 5, int(wx), int(wy) + 5)
+
+            # Draw label with temperature
+            if point.temperature is not None:
+                label_text = f"{point.label}: {point.temperature:.1f}°C"
+            else:
+                label_text = f"{point.label}: --"
+            draw_label(int(wx) + 12, int(wy) + 5, label_text, point_color)
 
         # Draw temporary ROI being created
         if self.drawing_mode and self.draw_start_pos and self.draw_current_pos:
@@ -1287,6 +1321,8 @@ class VideoWidget(QLabel):
     High-performance video display widget with embedded inspection overlay.
     Reuses frame buffers to reduce memory allocations on Jetson.
     """
+    # Signal for cursor position (emits x, y in frame coordinates)
+    cursor_moved = pyqtSignal(int, int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1295,9 +1331,17 @@ class VideoWidget(QLabel):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setStyleSheet("background-color: #000000; border: 2px solid #404040;")
 
+        # Enable mouse tracking for cursor temperature readout
+        self.setMouseTracking(True)
+
         # Frame buffer reuse (performance optimization for Jetson)
         self._last_qimage = None
         self._last_qpixmap = None
+        self._frame_width = 0
+        self._frame_height = 0
+
+        # Measurement point mode
+        self.add_point_mode = False
 
         # Embedded inspection overlay
         self.overlay = InspectionOverlayWidget(self)
@@ -1308,6 +1352,10 @@ class VideoWidget(QLabel):
             return
 
         height, width = frame.shape[:2]
+
+        # Store frame dimensions for cursor position mapping
+        self._frame_width = width
+        self._frame_height = height
 
         # Convert BGR to RGB
         if len(frame.shape) == 3 and frame.shape[2] == 3:
@@ -1346,6 +1394,18 @@ class VideoWidget(QLabel):
         """Update thermal detections on overlay."""
         self.overlay.update_thermal_detections(hot_spots, cold_spots, anomalies)
 
+    def set_add_point_mode(self, enabled: bool):
+        """Enable/disable measurement point adding mode."""
+        self.add_point_mode = enabled
+        if enabled:
+            self.setCursor(Qt.CursorShape.CrossCursor)
+        else:
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+
+    def update_measurement_points(self, points):
+        """Update measurement points on overlay."""
+        self.overlay.update_measurement_points(points)
+
     def resizeEvent(self, event):
         """Ensure overlay matches video widget size and update coordinate transformation."""
         super().resizeEvent(event)
@@ -1368,8 +1428,102 @@ class VideoWidget(QLabel):
                     self.width(), self.height()
                 )
 
+    def mouseMoveEvent(self, event):
+        """Handle mouse move to emit cursor position in frame coordinates."""
+        super().mouseMoveEvent(event)
+
+        # Only emit if we have valid frame dimensions
+        if self._frame_width == 0 or self._frame_height == 0:
+            return
+
+        if not self._last_qpixmap:
+            return
+
+        # Get mouse position in widget coordinates
+        mouse_x = event.pos().x()
+        mouse_y = event.pos().y()
+
+        # Calculate pixmap position within widget (centered with aspect ratio)
+        pixmap_width = self._last_qpixmap.width()
+        pixmap_height = self._last_qpixmap.height()
+
+        widget_width = self.width()
+        widget_height = self.height()
+
+        # Calculate pixmap offset (it's centered in the widget)
+        pixmap_x = (widget_width - pixmap_width) // 2
+        pixmap_y = (widget_height - pixmap_height) // 2
+
+        # Check if mouse is within pixmap bounds
+        if mouse_x < pixmap_x or mouse_x >= pixmap_x + pixmap_width:
+            return
+        if mouse_y < pixmap_y or mouse_y >= pixmap_y + pixmap_height:
+            return
+
+        # Convert to pixmap coordinates
+        pixmap_local_x = mouse_x - pixmap_x
+        pixmap_local_y = mouse_y - pixmap_y
+
+        # Map pixmap coordinates to frame coordinates
+        frame_x = int((pixmap_local_x / pixmap_width) * self._frame_width)
+        frame_y = int((pixmap_local_y / pixmap_height) * self._frame_height)
+
+        # Clamp to frame bounds
+        frame_x = max(0, min(frame_x, self._frame_width - 1))
+        frame_y = max(0, min(frame_y, self._frame_height - 1))
+
+        # Emit cursor position signal
+        self.cursor_moved.emit(frame_x, frame_y)
+
         # Trigger overlay repaint with new coordinates
         self.overlay.update()
+
+    def mousePressEvent(self, event):
+        """Handle mouse click to add measurement points."""
+        super().mousePressEvent(event)
+
+        # Only handle left clicks in add point mode
+        if not self.add_point_mode or event.button() != Qt.MouseButton.LeftButton:
+            return
+
+        # Only process if we have valid frame dimensions
+        if self._frame_width == 0 or self._frame_height == 0 or not self._last_qpixmap:
+            return
+
+        # Get mouse position and convert to frame coordinates
+        mouse_x = event.pos().x()
+        mouse_y = event.pos().y()
+
+        # Calculate pixmap position within widget
+        pixmap_width = self._last_qpixmap.width()
+        pixmap_height = self._last_qpixmap.height()
+        widget_width = self.width()
+        widget_height = self.height()
+        pixmap_x = (widget_width - pixmap_width) // 2
+        pixmap_y = (widget_height - pixmap_height) // 2
+
+        # Check if click is within pixmap bounds
+        if mouse_x < pixmap_x or mouse_x >= pixmap_x + pixmap_width:
+            return
+        if mouse_y < pixmap_y or mouse_y >= pixmap_y + pixmap_height:
+            return
+
+        # Convert to pixmap coordinates
+        pixmap_local_x = mouse_x - pixmap_x
+        pixmap_local_y = mouse_y - pixmap_y
+
+        # Map to frame coordinates
+        frame_x = int((pixmap_local_x / pixmap_width) * self._frame_width)
+        frame_y = int((pixmap_local_y / pixmap_height) * self._frame_height)
+
+        # Clamp to frame bounds
+        frame_x = max(0, min(frame_x, self._frame_width - 1))
+        frame_y = max(0, min(frame_y, self._frame_height - 1))
+
+        # Notify parent window to add measurement point
+        parent_window = self.window()
+        if hasattr(parent_window, '_on_add_measurement_point'):
+            parent_window._on_add_measurement_point(frame_x, frame_y)
 
 
 # ============================================================================
@@ -1603,7 +1757,7 @@ class ThermalAnalysisPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedWidth(420)  # Increased from 380 for better text accommodation
+        # Removed fixed width - use parent tab width dynamically
         self.current_rois = []  # Store ROI list
         self.selected_roi_index = -1  # Track selected ROI
 
@@ -1647,6 +1801,19 @@ class ThermalAnalysisPanel(QWidget):
         self.general_layout = QVBoxLayout(general_content)
         self.general_layout.setSpacing(8)  # Reduced from 12
         self.general_layout.setContentsMargins(6, 6, 6, 6)  # Reduced from 8
+
+        # === Global Palette ===
+        self.general_layout.addWidget(create_section_header("🎨 Global Palette"))
+        
+        self.palette_combo = QComboBox()
+        self.palette_combo.setMinimumHeight(32)
+        self.palette_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        # Populate palette combo
+        self._populate_palette_combo(self.palette_combo)
+        self.palette_combo.currentTextChanged.connect(self.palette_changed.emit)
+        self.general_layout.addWidget(self.palette_combo)
+
+        self.general_layout.addWidget(create_separator())
 
         # === Overlay Display ===
         self.general_layout.addWidget(create_section_header("👁 Overlay Display"))
@@ -1790,7 +1957,7 @@ class ThermalAnalysisPanel(QWidget):
         self.analysis_tabs.addTab(general_tab, "General")
 
         # ===================================================================
-        # RADIOMETRIC TAB (Placeholder for future radiometric analysis)
+        # === Radiometric Analysis Tab ===
         # ===================================================================
         radiometric_tab = QWidget()
         radiometric_scroll = QScrollArea()
@@ -1800,17 +1967,12 @@ class ThermalAnalysisPanel(QWidget):
 
         radiometric_content = QWidget()
         radiometric_layout = QVBoxLayout(radiometric_content)
-        radiometric_layout.setSpacing(8)  # Reduced from 12
-        radiometric_layout.setContentsMargins(6, 6, 6, 6)  # Reduced from 8
-
-        # Placeholder content
-        radiometric_layout.addWidget(create_section_header("🌡️ Radiometric Analysis"))
-
-        placeholder_label = QLabel("Radiometric analysis features coming soon.\n\nThis will include:\n• Emissivity corrections\n• Atmospheric compensation\n• Distance-based corrections\n• Material-specific calibrations\n• Advanced temperature accuracy")
-        placeholder_label.setWordWrap(True)
-        placeholder_label.setAlignment(Qt.AlignmentFlag.AlignTop)
-        placeholder_label.setStyleSheet("padding: 20px; color: gray;")
-        radiometric_layout.addWidget(placeholder_label)
+        radiometric_layout.setSpacing(8)
+        radiometric_layout.setContentsMargins(6, 6, 6, 6)
+        
+        # Use the actual RadiometricPanel with all tools
+        self.radiometric_panel_general = RadiometricPanel()
+        radiometric_layout.addWidget(self.radiometric_panel_general)
 
         radiometric_layout.addStretch()
 
@@ -2278,7 +2440,7 @@ class AnomalyWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedWidth(380)
+        # Removed fixed width - use parent tab width dynamically
 
         # State
         self.enabled_types = {
@@ -2695,6 +2857,10 @@ class BosonControlPanel(QWidget):
     agc_linearity_changed = pyqtSignal(float)  # Linearity (0-100%)
     agc_dde_changed = pyqtSignal(float)  # DDE ratio (0.0-3.0)
     agc_reset_requested = pyqtSignal()  # Reset to defaults
+    # New advanced controls
+    shutter_position_changed = pyqtSignal(str)  # OPEN/CLOSED/AUTO
+    agc_plateau_changed = pyqtSignal(float)  # 0.0-1.0
+    agc_dampening_changed = pyqtSignal(float)  # 0.0-1.0
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -3069,6 +3235,53 @@ class BosonControlPanel(QWidget):
 
         layout.addWidget(ffc_group)
 
+        # Add shutter control
+        self._create_shutter_controls(layout)
+
+    def _create_shutter_controls(self, layout):
+        """Create shutter position control buttons."""
+        shutter_group = QGroupBox("SHUTTER CONTROL")
+        shutter_layout = QVBoxLayout(shutter_group)
+
+        # Shutter position buttons
+        button_layout = QHBoxLayout()
+
+        self.shutter_auto_btn = QPushButton("Auto")
+        self.shutter_auto_btn.setCheckable(True)
+        self.shutter_auto_btn.setChecked(True)
+        self.shutter_auto_btn.setToolTip("Automatic shutter control (recommended)")
+        self.shutter_auto_btn.setMinimumHeight(32)
+        button_layout.addWidget(self.shutter_auto_btn)
+
+        self.shutter_open_btn = QPushButton("Open")
+        self.shutter_open_btn.setCheckable(True)
+        self.shutter_open_btn.setToolTip("Force shutter open (imaging mode)")
+        self.shutter_open_btn.setMinimumHeight(32)
+        button_layout.addWidget(self.shutter_open_btn)
+
+        self.shutter_closed_btn = QPushButton("Closed")
+        self.shutter_closed_btn.setCheckable(True)
+        self.shutter_closed_btn.setToolTip("Force shutter closed (calibration)")
+        self.shutter_closed_btn.setMinimumHeight(32)
+        button_layout.addWidget(self.shutter_closed_btn)
+
+        shutter_layout.addLayout(button_layout)
+
+        # Create button group for exclusive selection
+        from PyQt6.QtWidgets import QButtonGroup
+        self.shutter_btn_group = QButtonGroup()
+        self.shutter_btn_group.addButton(self.shutter_auto_btn)
+        self.shutter_btn_group.addButton(self.shutter_open_btn)
+        self.shutter_btn_group.addButton(self.shutter_closed_btn)
+        self.shutter_btn_group.setExclusive(True)
+
+        # Status label
+        self.shutter_status_label = QLabel("Position: Auto")
+        self.shutter_status_label.setStyleSheet("font-size: 10px; color: #888;")
+        shutter_layout.addWidget(self.shutter_status_label)
+
+        layout.addWidget(shutter_group)
+
     def _create_gain_controls(self, layout):
         """Create gain mode controls."""
         gain_group = QGroupBox("GAIN MODE")
@@ -3220,6 +3433,63 @@ class BosonControlPanel(QWidget):
         dde_layout.addWidget(range_label)
         agc_layout.addLayout(dde_layout)
 
+        # Separator for new advanced controls
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        agc_layout.addWidget(separator)
+
+        # Advanced AGC label
+        advanced_label = QLabel("Advanced Controls:")
+        advanced_label.setStyleSheet("font-weight: bold; font-size: 10px; margin-top: 5px;")
+        agc_layout.addWidget(advanced_label)
+
+        # Plateau slider (histogram equalization)
+        plateau_layout = QVBoxLayout()
+        plateau_header = QHBoxLayout()
+        plateau_header.addWidget(QLabel("Plateau:"))
+        self.agc_plateau_value = QLabel("50%")
+        self.agc_plateau_value.setStyleSheet("font-weight: bold; color: #00aaff;")
+        plateau_header.addWidget(self.agc_plateau_value)
+        plateau_header.addStretch()
+        plateau_layout.addLayout(plateau_header)
+
+        self.agc_plateau_slider = QSlider(Qt.Orientation.Horizontal)
+        self.agc_plateau_slider.setRange(0, 100)  # 0-100%
+        self.agc_plateau_slider.setValue(50)  # Default 50%
+        self.agc_plateau_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.agc_plateau_slider.setTickInterval(20)
+        self.agc_plateau_slider.setToolTip("Histogram plateau equalization (0-100%)")
+        plateau_layout.addWidget(self.agc_plateau_slider)
+
+        range_label = QLabel("Less Equalization         More Equalization")
+        range_label.setStyleSheet("font-size: 9px; color: #888;")
+        plateau_layout.addWidget(range_label)
+        agc_layout.addLayout(plateau_layout)
+
+        # Dampening slider (temporal smoothing)
+        dampening_layout = QVBoxLayout()
+        dampening_header = QHBoxLayout()
+        dampening_header.addWidget(QLabel("Dampening:"))
+        self.agc_dampening_value = QLabel("50%")
+        self.agc_dampening_value.setStyleSheet("font-weight: bold; color: #00aaff;")
+        dampening_header.addWidget(self.agc_dampening_value)
+        dampening_header.addStretch()
+        dampening_layout.addLayout(dampening_header)
+
+        self.agc_dampening_slider = QSlider(Qt.Orientation.Horizontal)
+        self.agc_dampening_slider.setRange(0, 100)  # 0-100%
+        self.agc_dampening_slider.setValue(50)  # Default 50%
+        self.agc_dampening_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.agc_dampening_slider.setTickInterval(20)
+        self.agc_dampening_slider.setToolTip("Temporal smoothing factor (0-100%)")
+        dampening_layout.addWidget(self.agc_dampening_slider)
+
+        range_label = QLabel("Fast Response             Smooth/Slow")
+        range_label.setStyleSheet("font-size: 9px; color: #888;")
+        dampening_layout.addWidget(range_label)
+        agc_layout.addLayout(dampening_layout)
+
         # Reset button
         self.agc_reset_button = QPushButton("Reset to Defaults")
         self.agc_reset_button.setMinimumHeight(30)
@@ -3284,7 +3554,14 @@ class BosonControlPanel(QWidget):
         self.agc_gamma_slider.valueChanged.connect(self._on_agc_gamma_changed)
         self.agc_linearity_slider.valueChanged.connect(self._on_agc_linearity_changed)
         self.agc_dde_slider.valueChanged.connect(self._on_agc_dde_changed)
+        self.agc_plateau_slider.valueChanged.connect(self._on_agc_plateau_changed)
+        self.agc_dampening_slider.valueChanged.connect(self._on_agc_dampening_changed)
         self.agc_reset_button.clicked.connect(self._on_agc_reset_clicked)
+
+        # Shutter controls
+        self.shutter_auto_btn.clicked.connect(lambda: self._on_shutter_position_changed("AUTO"))
+        self.shutter_open_btn.clicked.connect(lambda: self._on_shutter_position_changed("OPEN"))
+        self.shutter_closed_btn.clicked.connect(lambda: self._on_shutter_position_changed("CLOSED"))
 
     def _on_connect_clicked(self):
         """Handle connect button click."""
@@ -3328,7 +3605,24 @@ class BosonControlPanel(QWidget):
         self.agc_gamma_slider.setValue(10)  # 1.0
         self.agc_linearity_slider.setValue(50)  # 50%
         self.agc_dde_slider.setValue(13)  # 1.3
+        self.agc_plateau_slider.setValue(50)  # 50%
+        self.agc_dampening_slider.setValue(50)  # 50%
         self.agc_reset_requested.emit()
+
+    def _on_agc_plateau_changed(self, value: int):
+        """Handle AGC plateau slider change."""
+        self.agc_plateau_value.setText(f"{value}%")
+        self.agc_plateau_changed.emit(value / 100.0)
+
+    def _on_agc_dampening_changed(self, value: int):
+        """Handle AGC dampening slider change."""
+        self.agc_dampening_value.setText(f"{value}%")
+        self.agc_dampening_changed.emit(value / 100.0)
+
+    def _on_shutter_position_changed(self, position: str):
+        """Handle shutter position button change."""
+        self.shutter_status_label.setText(f"Position: {position.capitalize()}")
+        self.shutter_position_changed.emit(position)
 
     def update_connection_status(self, connected: bool):
         """Update SDK connection status and button states."""
@@ -3353,7 +3647,13 @@ class BosonControlPanel(QWidget):
             self.agc_gamma_slider.setEnabled(True)
             self.agc_linearity_slider.setEnabled(True)
             self.agc_dde_slider.setEnabled(True)
+            self.agc_plateau_slider.setEnabled(True)
+            self.agc_dampening_slider.setEnabled(True)
             self.agc_reset_button.setEnabled(True)
+            # Enable shutter controls
+            self.shutter_auto_btn.setEnabled(True)
+            self.shutter_open_btn.setEnabled(True)
+            self.shutter_closed_btn.setEnabled(True)
         else:
             self.connection_status_label.setText("● Disconnected")
             self.connection_status_label.setStyleSheet("color: #ff4444; font-weight: bold;")
@@ -3375,7 +3675,13 @@ class BosonControlPanel(QWidget):
             self.agc_gamma_slider.setEnabled(False)
             self.agc_linearity_slider.setEnabled(False)
             self.agc_dde_slider.setEnabled(False)
+            self.agc_plateau_slider.setEnabled(False)
+            self.agc_dampening_slider.setEnabled(False)
             self.agc_reset_button.setEnabled(False)
+            # Disable shutter controls
+            self.shutter_auto_btn.setEnabled(False)
+            self.shutter_open_btn.setEnabled(False)
+            self.shutter_closed_btn.setEnabled(False)
 
     def update_com_ports(self, ports: list):
         """Update COM port dropdown with available ports."""
@@ -3531,7 +3837,7 @@ class CombinedAnomalyWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedWidth(380)
+        # Removed fixed width - use parent tab width dynamically
 
         self._init_ui()
 
@@ -3608,20 +3914,6 @@ class SettingsPanel(QGroupBox):
         self.device_combo.currentTextChanged.connect(self.device_changed.emit)
         device_layout.addWidget(self.device_combo)
         proc_layout.addLayout(device_layout)
-
-        # Global Palette
-        palette_layout = QHBoxLayout()
-        palette_layout.addWidget(QLabel("Palette:"))
-        self.palette_combo = QComboBox()
-        self.palette_combo.setMinimumHeight(28)  # Taller for full text visibility
-        self.palette_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        # Block signals during population to avoid triggering changes
-        self.palette_combo.blockSignals(True)
-        self._populate_palette_combo(self.palette_combo)
-        self.palette_combo.blockSignals(False)
-        self.palette_combo.currentTextChanged.connect(self._on_palette_changed)
-        palette_layout.addWidget(self.palette_combo)
-        proc_layout.addLayout(palette_layout)
 
         # Baseline Lock
         self.baseline_check = QCheckBox("Lock Baseline Temp")
@@ -4276,6 +4568,9 @@ class InspectionAppWindow(QMainWindow):
         # Window setup
         self.setWindowTitle("Thermal Inspection Fusion Tool v2.0")
         self.setMinimumSize(1280, 720)
+        
+        # Add status bar
+        self.statusBar().showMessage("Developer Mode: ON (Press Ctrl+D to toggle panels)", 8000)
 
         # State
         self.current_theme = "dark"
@@ -4317,91 +4612,160 @@ class InspectionAppWindow(QMainWindow):
 
     def _build_ui(self):
         """Build the main UI layout."""
+        logger.info("=" * 60)
         logger.info("Building UI layout...")
+        logger.info("=" * 60)
         
-        # Central widget
-        central = QWidget()
-        central.setObjectName("central_widget")
-        central.setStyleSheet("QWidget#central_widget { background-color: #202020; }")
-        self.setCentralWidget(central)
+        try:
+            # Central widget
+            central = QWidget()
+            central.setObjectName("central_widget")
+            # Removed hardcoded style that was blocking theme switching
+            self.setCentralWidget(central)
+            logger.info("✓ Central widget created")
 
-        # Main layout container
-        main_layout = QHBoxLayout(central)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+            # Main layout container
+            main_layout = QHBoxLayout(central)
+            main_layout.setContentsMargins(0, 0, 0, 0)
+            main_layout.setSpacing(0)
+            logger.info("✓ Main layout created")
 
-        # Left side: Video + Controls
-        left_widget = QWidget()
-        left_widget.setObjectName("left_widget")
-        # left_widget.setStyleSheet("border: 1px solid red;") # Debug border
-        left_layout = QVBoxLayout(left_widget)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(0)
+            # Left side: Video + Controls
+            left_widget = QWidget()
+            left_widget.setObjectName("left_widget")
+            left_layout = QVBoxLayout(left_widget)
+            left_layout.setContentsMargins(0, 0, 0, 0)
+            left_layout.setSpacing(0)
 
-        # Video widget
-        self.video_widget = VideoWidget()
-        self.video_widget.setMinimumSize(640, 480)
-        left_layout.addWidget(self.video_widget, stretch=1) # Let it expand
+            # Video widget
+            self.video_widget = VideoWidget()
+            # Removed minimum size constraint to allow proper scaling
+            left_layout.addWidget(self.video_widget, stretch=1)
+            logger.info("✓ Video widget created")
 
-        # Control panel
-        self.control_panel = ControlPanel()
-        self.control_panel.setMinimumHeight(120) # Ensure visibility
-        # self.control_panel.setStyleSheet("border: 1px solid blue;") # Debug border
-        left_layout.addWidget(self.control_panel, stretch=0) # Fixed height based on content
+            # Control panel
+            self.control_panel = ControlPanel()
+            self.control_panel.setMinimumHeight(120)
+            self.control_panel.setMaximumHeight(150)  # Limit control panel height
+            left_layout.addWidget(self.control_panel, stretch=0)
+            logger.info("✓ Control panel created")
 
-        main_layout.addWidget(left_widget, stretch=1) # Expand to fill available space
+            main_layout.addWidget(left_widget, stretch=5)  # Increased from 3 to 5 for even more video space
+            logger.info("✓ Left widget added to main layout")
 
-        # Right side: Tabbed widget panel
-        self.right_panel_tabs = QTabWidget()
-        self.right_panel_tabs.setObjectName("right_panel")
-        self.right_panel_tabs.setFixedWidth(420) # Fixed width to prevent collapse
-        self.right_panel_tabs.setVisible(True)
+            # RIGHT PANEL TABS - THIS IS WHAT THE USER IS MISSING
+            self.right_panel_tabs = QTabWidget()
+            self.right_panel_tabs.setObjectName("right_panel")
+            self.right_panel_tabs.setFixedWidth(630)  # Increased from 420 to 630 (50% larger)
+            self.right_panel_tabs.setVisible(True)
+            logger.info("✓ Right panel tabs widget created (width=630, visible=True)")
 
-        # Add Analysis Panel tab
-        self.analysis_panel = ThermalAnalysisPanel()
-        self.right_panel_tabs.addTab(self.analysis_panel, "Analysis")
+            # === OPTIMIZED TAB STRUCTURE (4 main tabs) ===
+            
+            # Tab 1: Analysis & Radiometry (4 subtabs - removed Temperature duplicate)
+            logger.info("Creating Analysis tab...")
+            self.analysis_tabs = QTabWidget()
+            
+            self.analysis_panel = ThermalAnalysisPanel()
+            self.analysis_tabs.addTab(self.analysis_panel, "General")
+            logger.info("  ✓ General analysis panel added (includes Radiometric subtab)")
+            
+            # Restore self.radiometric_panel alias for signal handlers
+            # This fixes the crash where handlers try to access the missing attribute
+            self.radiometric_panel = self.analysis_panel.radiometric_panel_general
+            
+            # Note: RadiometricPanel is now in General > Radiometric subtab
+            # Removed duplicate "Temperature" top-level tab
+            
+            from roi_temperature_panel import ROITemperaturePanel
+            self.roi_temp_panel = ROITemperaturePanel()
+            self.analysis_tabs.addTab(self.roi_temp_panel, "Per-ROI")
+            logger.info("  ✓ Per-ROI temperature panel added")
+            
+            from environmental_compensation_panel import EnvironmentalCompensationPanel
+            self.env_comp_panel = EnvironmentalCompensationPanel()
+            self.analysis_tabs.addTab(self.env_comp_panel, "Environmental")
+            logger.info("  ✓ Environmental compensation panel added")
+            
+            from isotherm_panel import IsothermPanel
+            self.isotherm_panel = IsothermPanel()
+            self.analysis_tabs.addTab(self.isotherm_panel, "Isotherm")
+            logger.info("  ✓ Isotherm panel added")
+            
+            self.right_panel_tabs.addTab(self.analysis_tabs, "📊 Analysis")
+            logger.info("✓ Analysis tab added to right panel")
+            
+            # Tab 2: Detection & Anomaly
+            logger.info("Creating Detection tab...")
+            self.combined_anomaly_widget = CombinedAnomalyWidget()
+            self.right_panel_tabs.addTab(self.combined_anomaly_widget, "🔍 Detection")
+            self.anomaly_widget = self.combined_anomaly_widget.automatic_widget
+            self.manual_threshold_widget = self.combined_anomaly_widget.manual_widget
+            logger.info("✓ Detection tab added to right panel")
+            
+            # Tab 3: Cameras (Hardware & Calibration - 5 subtabs)
+            logger.info("Creating Cameras tab...")
+            self.cameras_tabs = QTabWidget()
+            
+            self.boson_panel = BosonControlPanel()
+            self.cameras_tabs.addTab(self.boson_panel, "Boson")
+            logger.info("  ✓ Boson panel added")
+            
+            self.firefly_panel = FireflyControlPanel()
+            self.cameras_tabs.addTab(self.firefly_panel, "Firefly")
+            logger.info("  ✓ Firefly panel added")
 
-        # Add Settings Panel tab
-        self.settings_panel = SettingsPanel()
-        self.right_panel_tabs.addTab(self.settings_panel, "Settings")
+            from lepton_control_panel import LeptonControlPanel
+            self.lepton_panel = LeptonControlPanel()
+            self.cameras_tabs.addTab(self.lepton_panel, "Lepton")
+            logger.info("  ✓ Lepton panel added")
+            
+            from calibration_panel import CalibrationPanel
+            self.calibration_panel = CalibrationPanel()
+            self.cameras_tabs.addTab(self.calibration_panel, "Calibration")
+            logger.info("  ✓ Calibration panel added")
+            
+            self.parallax_panel = ParallaxPanel()
+            self.cameras_tabs.addTab(self.parallax_panel, "Parallax")
+            logger.info("  ✓ Parallax panel added")
+            
+            self.right_panel_tabs.addTab(self.cameras_tabs, "🎥 Cameras")
+            logger.info("✓ Cameras tab added to right panel")
+            
+            # Tab 4: Settings
+            logger.info("Creating Settings tab...")
+            self.settings_panel = SettingsPanel()
+            self.right_panel_tabs.addTab(self.settings_panel, "🛠️ Settings")
+            logger.info("✓ Settings tab added to right panel")
 
-        # Add Combined Anomaly Widget tab (Automatic + Manual modes)
-        self.combined_anomaly_widget = CombinedAnomalyWidget()
-        self.right_panel_tabs.addTab(self.combined_anomaly_widget, "Anomaly")
+            # ADD RIGHT PANEL TO MAIN LAYOUT
+            main_layout.addWidget(self.right_panel_tabs, stretch=0)
+            
+            # CRITICAL FIX: Set visibility AFTER adding to layout
+            # Qt widgets can lose visibility when added to layouts
+            self.right_panel_tabs.setVisible(True)
+            self.right_panel_tabs.show()  # Force show
+            
+            logger.info("✓✓✓ RIGHT PANEL TABS ADDED TO MAIN LAYOUT ✓✓✓")
+            logger.info(f"    Right panel tab count: {self.right_panel_tabs.count()}")
+            logger.info(f"    Right panel visible: {self.right_panel_tabs.isVisible()}")
+            logger.info(f"    Right panel width: {self.right_panel_tabs.width()}")
 
-        # Keep reference to individual widgets for signal connections
-        self.anomaly_widget = self.combined_anomaly_widget.automatic_widget
-        self.manual_threshold_widget = self.combined_anomaly_widget.manual_widget
+            # Info panel (overlay on video widget)
+            self.info_panel = InfoPanel(self.video_widget)
+            self.info_panel.move(10, 10)
+            logger.info("✓ Info panel created")
 
-        # Add Boson Control Panel tab
-        self.boson_panel = BosonControlPanel()
-        self.right_panel_tabs.addTab(self.boson_panel, "Boson Control")
-
-        # Add Firefly Control Panel tab
-        self.firefly_panel = FireflyControlPanel()
-        self.right_panel_tabs.addTab(self.firefly_panel, "Firefly Camera")
-
-        # Add Radiometric Panel tab
-        self.radiometric_panel = RadiometricPanel()
-        self.right_panel_tabs.addTab(self.radiometric_panel, "Radiometric")
-
-        main_layout.addWidget(self.right_panel_tabs, stretch=0) # Fixed width
-
-        # Info panel (overlay on video widget)
-        self.info_panel = InfoPanel(self.video_widget)
-        self.info_panel.move(10, 10)  # Top-left corner
-
-        # Connect signals
-        self._connect_signals()
-        
-        logger.info("UI layout built successfully")
-
-        # Info panel (overlay on video widget)
-        self.info_panel = InfoPanel(self.video_widget)
-        self.info_panel.move(10, 10)  # Top-left corner
-
-        # Connect signals
-        self._connect_signals()
+            # Connect signals
+            self._connect_signals()
+            
+            logger.info("=" * 60)
+            logger.info("✓✓✓ UI LAYOUT BUILD COMPLETE ✓✓✓")
+            logger.info("=" * 60)
+            
+        except Exception as e:
+            logger.error(f"ERROR during UI build: {e}", exc_info=True)
+            raise
 
     def _connect_signals(self):
         """Connect control panel signals to handlers."""
@@ -4424,7 +4788,8 @@ class InspectionAppWindow(QMainWindow):
 
         # Settings Panel Signals
         self.settings_panel.device_changed.connect(self._on_device_changed)
-        self.settings_panel.palette_changed.connect(self._on_global_palette_changed)
+        # Palette moved to Analysis Panel
+        self.analysis_panel.palette_changed.connect(self._on_global_palette_changed)
         self.settings_panel.baseline_lock_toggled.connect(self._on_baseline_toggle)
         self.settings_panel.fusion_mode_changed.connect(self._on_fusion_mode_changed)
         self.settings_panel.fusion_alpha_changed.connect(self._on_fusion_alpha_changed)
@@ -4466,8 +4831,22 @@ class InspectionAppWindow(QMainWindow):
         self.boson_panel.agc_gamma_changed.connect(self._on_agc_gamma_changed)
         self.boson_panel.agc_linearity_changed.connect(self._on_agc_linearity_changed)
         self.boson_panel.agc_dde_changed.connect(self._on_agc_dde_changed)
+        self.boson_panel.agc_plateau_changed.connect(self._on_agc_plateau_changed)
+        self.boson_panel.agc_dampening_changed.connect(self._on_agc_dampening_changed)
         self.boson_panel.agc_reset_requested.connect(self._on_agc_reset)
-        
+
+        # Boson SDK Panel - Shutter controls
+        self.boson_panel.shutter_position_changed.connect(self._on_shutter_position_changed)
+
+        # Calibration Panel
+        self.calibration_panel.add_calibration_point_clicked.connect(self._on_calibration_add_point_mode)
+        self.calibration_panel.compute_calibration_clicked.connect(self._on_compute_calibration)
+        self.calibration_panel.apply_calibration_toggled.connect(self._on_apply_calibration_toggled)
+        self.calibration_panel.clear_calibration_clicked.connect(self._on_clear_calibration)
+        self.calibration_panel.export_calibration_clicked.connect(self._on_export_calibration)
+        self.calibration_panel.import_calibration_clicked.connect(self._on_import_calibration)
+        self.calibration_panel.remove_point_clicked.connect(self._on_remove_calibration_point)
+
         # Firefly Camera Panel - Exposure controls
         self.firefly_panel.exposure_mode_changed.connect(self._on_firefly_exposure_mode)
         self.firefly_panel.exposure_time_changed.connect(self._on_firefly_exposure_time)
@@ -4492,6 +4871,27 @@ class InspectionAppWindow(QMainWindow):
         # Radiometric Panel - Enable/disable and temperature range
         self.radiometric_panel.enable_checkbox.stateChanged.connect(self._on_radiometric_enable_changed)
         self.radiometric_panel.apply_range_btn.clicked.connect(self._on_radiometric_range_apply)
+        self.radiometric_panel.load_lut_btn.clicked.connect(self._on_load_lut)
+        self.radiometric_panel.method_linear_radio.toggled.connect(self._on_radiometric_method_changed)
+        self.radiometric_panel.method_lut_radio.toggled.connect(self._on_radiometric_method_changed)
+
+        # Parallax Panel - Enable/disable and configuration
+        self.parallax_panel.parallax_toggled.connect(self._on_parallax_toggled)
+        self.parallax_panel.baseline_changed.connect(self._on_parallax_baseline_changed)
+        self.parallax_panel.depth_method_changed.connect(self._on_parallax_method_changed)
+        self.parallax_panel.apply_geometry_btn.clicked.connect(self._on_parallax_geometry_apply)
+
+        # Environmental Compensation Panel
+        self.env_comp_panel.emissivity_changed.connect(self._on_emissivity_changed)
+        self.env_comp_panel.atmospheric_temp_changed.connect(self._on_atmospheric_temp_changed)
+        self.env_comp_panel.atmospheric_transmission_changed.connect(self._on_atmospheric_transmission_changed)
+
+        # Isotherm Panel
+        self.isotherm_panel.enabled_changed.connect(self._on_isotherm_enabled_changed)
+        self.isotherm_panel.mode_changed.connect(self._on_isotherm_mode_changed)
+        self.isotherm_panel.low_threshold_changed.connect(self._on_isotherm_low_threshold_changed)
+        self.isotherm_panel.high_threshold_changed.connect(self._on_isotherm_high_threshold_changed)
+        self.isotherm_panel.color_changed.connect(self._on_isotherm_color_changed)
 
         # Analysis panel signals
         self.analysis_panel.roi_palette_changed.connect(self._on_roi_palette_changed)
@@ -4521,6 +4921,9 @@ class InspectionAppWindow(QMainWindow):
         if hasattr(self.video_widget, 'overlay'):
             self.video_widget.overlay.roi_created.connect(self._on_roi_created)
             self.video_widget.overlay.roi_selected.connect(self._on_roi_selected)
+
+        # Video widget signals
+        self.video_widget.cursor_moved.connect(self._on_cursor_moved)
 
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""
@@ -4569,7 +4972,11 @@ class InspectionAppWindow(QMainWindow):
         else:
             self.resize(self.width() - 350, self.height())
 
-        logger.info(f"Developer mode: {'ON' if self.developer_mode else 'OFF'}")
+        # Show prominent message
+        mode_text = "ON" if self.developer_mode else "OFF"
+        logger.warning(f"********** DEVELOPER MODE: {mode_text} **********")
+        if hasattr(self, 'statusBar'):
+            self.statusBar().showMessage(f"Developer Mode: {mode_text} (Press Ctrl+D to toggle)", 5000)
 
     def _apply_theme(self, theme: str):
         """Apply color theme."""
@@ -5022,6 +5429,296 @@ class InspectionAppWindow(QMainWindow):
             else:
                 logger.warning("Failed to reset AGC settings")
 
+    def _on_agc_plateau_changed(self, value: float):
+        """Handle AGC plateau change."""
+        if self.app and hasattr(self.app, 'set_agc_plateau'):
+            if self.app.set_agc_plateau(value):
+                logger.info(f"AGC plateau set to {value*100:.0f}%")
+            else:
+                logger.warning(f"Failed to set AGC plateau to {value*100:.0f}%")
+
+    def _on_agc_dampening_changed(self, value: float):
+        """Handle AGC dampening change."""
+        if self.app and hasattr(self.app, 'set_agc_dampening'):
+            if self.app.set_agc_dampening(value):
+                logger.info(f"AGC dampening set to {value*100:.0f}%")
+            else:
+                logger.warning(f"Failed to set AGC dampening to {value*100:.0f}%")
+
+    def _on_shutter_position_changed(self, position: str):
+        """Handle shutter position change."""
+        if self.app and hasattr(self.app, 'set_shutter_position'):
+            if self.app.set_shutter_position(position):
+                logger.info(f"Shutter position set to {position}")
+            else:
+                logger.warning(f"Failed to set shutter position to {position}")
+
+    def _on_calibration_add_point_mode(self, reference_temp: float):
+        """Handle calibration add point mode toggle."""
+        if self.app and hasattr(self.app, 'set_calibration_add_point_mode'):
+            self.app.set_calibration_add_point_mode(True, reference_temp)
+
+    def _on_compute_calibration(self, method: str, degree: int):
+        """Handle compute calibration request."""
+        if self.app and hasattr(self.app, 'compute_calibration'):
+            if self.app.compute_calibration(method, degree):
+                logger.info(f"Calibration computed using {method} method")
+                # Update GUI
+                if hasattr(self.app, 'update_calibration_gui'):
+                    self.app.update_calibration_gui()
+            else:
+                logger.warning("Failed to compute calibration")
+                QMessageBox.warning(self, "Calibration Error",
+                                   "Failed to compute calibration. Need at least 2 points for linear, more for polynomial.")
+
+    def _on_apply_calibration_toggled(self, enabled: bool):
+        """Handle apply calibration toggle."""
+        if self.app and hasattr(self.app, 'set_calibration_enabled'):
+            self.app.set_calibration_enabled(enabled)
+            logger.info(f"Calibration correction: {'ENABLED' if enabled else 'DISABLED'}")
+
+    def _on_update_depth_config(self):
+        """Handle depth map configuration update."""
+        if self.app and hasattr(self.app, 'update_depth_config'):
+            config = {
+                'enable_ml': self.parallax_panel.ml_depth_enabled,
+                'min_depth_m': self.parallax_panel.get_depth_range()[0],
+                'max_depth_m': self.parallax_panel.get_depth_range()[1],
+            }
+            self.app.update_depth_config(config)
+            logger.info(f"Depth configuration updated: {config}")
+    
+    def _on_clear_calibration(self):
+        """Handle clear calibration request."""
+        if self.app and hasattr(self.app, 'clear_calibration'):
+            self.app.clear_calibration()
+            logger.info("Calibration cleared")
+            if hasattr(self.app, 'update_calibration_gui'):
+                self.app.update_calibration_gui()
+    
+    # ========================================================================
+    # Environmental Compensation Handlers (Phase 11)
+    # ========================================================================
+    
+    def _on_emissivity_changed(self, emissivity: float):
+        """Handle emissivity change."""
+        if self.app and hasattr(self.app, 'set_emissivity'):
+            self.app.set_emissivity(emissivity)
+            logger.info(f"Emissivity set to {emissivity:.2f}")
+    
+    def _on_atmospheric_temp_changed(self, temp_c: float):
+        """Handle atmospheric temperature change."""
+        if self.app and hasattr(self.app, 'set_atmospheric_temperature'):
+            self.app.set_atmospheric_temperature(temp_c)
+            logger.info(f"Atmospheric temperature set to {temp_c:.1f}°C")
+    
+    def _on_atmospheric_transmission_changed(self, transmission: float):
+        """Handle atmospheric transmission change."""
+        if self.app and hasattr(self.app, 'set_atmospheric_transmission'):
+            self.app.set_atmospheric_transmission(transmission)
+            logger.info(f"Atmospheric transmission set to {transmission:.2f}")
+
+    def _on_isotherm_enabled_changed(self, enabled: bool):
+        """Handle isotherm highlighting enable/disable."""
+        if self.app and hasattr(self.app, 'isotherm_enabled'):
+            self.app.isotherm_enabled = enabled
+            logger.info(f"Isotherm highlighting: {'enabled' if enabled else 'disabled'}")
+
+    def _on_isotherm_mode_changed(self, mode: str):
+        """Handle isotherm mode change."""
+        if self.app and hasattr(self.app, 'isotherm_mode'):
+            self.app.isotherm_mode = mode
+            logger.info(f"Isotherm mode: {mode}")
+
+    def _on_isotherm_low_threshold_changed(self, threshold: float):
+        """Handle isotherm low threshold change."""
+        if self.app and hasattr(self.app, 'isotherm_low_threshold'):
+            self.app.isotherm_low_threshold = threshold
+
+    def _on_isotherm_high_threshold_changed(self, threshold: float):
+        """Handle isotherm high threshold change."""
+        if self.app and hasattr(self.app, 'isotherm_high_threshold'):
+            self.app.isotherm_high_threshold = threshold
+
+    def _on_isotherm_color_changed(self, color: str):
+        """Handle isotherm color change."""
+        if self.app and hasattr(self.app, 'isotherm_color'):
+            self.app.isotherm_color = color
+            logger.info(f"Isotherm color set to: {color}")
+    
+    # ========================================================================
+    # Radiometric Tab Placeholder Creation Methods
+    # ========================================================================
+    
+    def _create_roi_temp_placeholder(self):
+        """Create placeholder widget for Per-ROI temperature panel"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+        
+        header = QLabel("Per-ROI Temperature Analysis")
+        header.setStyleSheet("font-size: 14pt; font-weight: bold; color: #0a0;")
+        layout.addWidget(header)
+        
+        status = QLabel("✅ Backend Implementation Complete")
+        status.setStyleSheet("color: #0a0; font-size: 11pt; font-weight: bold;")
+        layout.addWidget(status)
+        
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(separator)
+        
+        info = QLabel(
+            "<b>Implemented Features:</b><br>"
+            "• Independent temperature statistics per ROI (min/max/avg/std)<br>"
+            "• Per-ROI emissivity override for different materials<br>"
+            "• Temperature trend tracking over time<br>"
+            "• CSV/JSON export with per-ROI data<br>"
+            "<br>"
+            "<b>Status:</b> Backend integrated into main processing loop.<br>"
+            "<b>Pending:</b> GUI display and controls (coming soon)."
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("font-size: 10pt;")
+        layout.addWidget(info)
+        
+        layout.addStretch()
+        widget.setLayout(layout)
+        return widget
+    
+    def _create_env_comp_placeholder(self):
+        """Create placeholder widget for environmental compensation panel"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+        
+        header = QLabel("Environmental Compensation")
+        header.setStyleSheet("font-size: 14pt; font-weight: bold; color: #fa0;")
+        layout.addWidget(header)
+        
+        status = QLabel("📋 Planned for Advanced Radiometry Phase 1")
+        status.setStyleSheet("color: #fa0; font-size: 11pt; font-weight: bold;")
+        layout.addWidget(status)
+        
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(separator)
+        
+        info = QLabel(
+            "<b>Planned Features:</b><br>"
+            "• Emissivity control with material presets<br>"
+            "• Atmospheric transmission compensation<br>"
+            "• Distance and reflected temperature settings<br>"
+            "• Humidity and atmospheric absorption<br>"
+            "<br>"
+            "<b>Impact:</b> Improves accuracy from ±2-5°C to ±0.5-1°C<br>"
+            "<b>Priority:</b> HIGH (next major radiometric feature)"
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("font-size: 10pt;")
+        layout.addWidget(info)
+        
+        layout.addStretch()
+        widget.setLayout(layout)
+        return widget
+    
+    def _create_isotherm_placeholder(self):
+        """Create placeholder widget for isotherm highlighting panel"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+        
+        header = QLabel("Temperature Range Highlighting (Isotherm)")
+        header.setStyleSheet("font-size: 14pt; font-weight: bold; color: #08f;")
+        layout.addWidget(header)
+        
+        status = QLabel("📋 Planned for Advanced Radiometry Phase 2")
+        status.setStyleSheet("color: #08f; font-size: 11pt; font-weight: bold;")
+        layout.addWidget(status)
+        
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(separator)
+        
+        info = QLabel(
+            "<b>Planned Features:</b><br>"
+            "• Highlight pixels within temperature range<br>"
+            "• Configurable low/high thresholds and colors<br>"
+            "• Multiple modes: above, below, between<br>"
+            "• Real-time visualization overlay<br>"
+            "<br>"
+            "<b>Use Cases:</b> Identify overheating components, thermal leaks,<br>"
+            "temperature uniformity analysis<br>"
+            "<b>Priority:</b> MEDIUM (after environmental compensation)"
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("font-size: 10pt;")
+        layout.addWidget(info)
+        
+        layout.addStretch()
+        widget.setLayout(layout)
+        return widget
+
+    def _on_export_calibration(self):
+        """Handle export calibration request."""
+        if not self.app or not hasattr(self.app, 'export_calibration'):
+            return
+
+        from datetime import datetime
+        default_name = f"calibration_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Calibration",
+            default_name,
+            "JSON Files (*.json);;All Files (*.*)"
+        )
+
+        if file_path:
+            if self.app.export_calibration(file_path):
+                logger.info(f"Calibration exported to {file_path}")
+                QMessageBox.information(self, "Export Successful",
+                                       f"Calibration exported to:\n{file_path}")
+            else:
+                logger.error("Failed to export calibration")
+                QMessageBox.critical(self, "Export Failed", "Failed to export calibration")
+
+    def _on_import_calibration(self):
+        """Handle import calibration request."""
+        if not self.app or not hasattr(self.app, 'import_calibration'):
+            return
+
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import Calibration",
+            "",
+            "JSON Files (*.json);;All Files (*.*)"
+        )
+
+        if file_path:
+            if self.app.import_calibration(file_path):
+                logger.info(f"Calibration imported from {file_path}")
+                QMessageBox.information(self, "Import Successful",
+                                       f"Calibration imported from:\n{file_path}")
+                if hasattr(self.app, 'update_calibration_gui'):
+                    self.app.update_calibration_gui()
+            else:
+                logger.error("Failed to import calibration")
+                QMessageBox.critical(self, "Import Failed", "Failed to import calibration")
+
+    def _on_remove_calibration_point(self, index: int):
+        """Handle remove calibration point request."""
+        if self.app and hasattr(self.app, 'remove_calibration_point'):
+            if self.app.remove_calibration_point(index):
+                logger.info(f"Removed calibration point at index {index}")
+                if hasattr(self.app, 'update_calibration_gui'):
+                    self.app.update_calibration_gui()
+
     def _on_overlay_info_toggle(self, show: bool):
         """Handle overlay detection info toggle."""
         if hasattr(self.video_widget, 'overlay'):
@@ -5220,6 +5917,86 @@ class InspectionAppWindow(QMainWindow):
         if self.app:
             self.app.set_radiometric_temperature_range(min_temp, max_temp)
             logger.info(f"Radiometric temperature range: {min_temp}°C - {max_temp}°C")
+
+    def _on_cursor_moved(self, x: int, y: int):
+        """Handle cursor movement to display temperature at cursor position."""
+        if not self.app or not hasattr(self.app, 'thermal_camera'):
+            return
+
+        if not self.app.thermal_camera:
+            return
+
+        # Get temperature at cursor position
+        try:
+            temp = self.app.thermal_camera.get_spot_temperature(x, y)
+            if temp is not None:
+                # Update radiometric panel
+                self.radiometric_panel.set_cursor_temperature(temp, x, y)
+        except Exception as e:
+            logger.debug(f"Error getting cursor temperature: {e}")
+
+    def _on_load_lut(self):
+        """Handle Load LUT button click."""
+        from PyQt6.QtWidgets import QFileDialog
+
+        # Open file dialog
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load TLinear LUT File",
+            "",
+            "CSV Files (*.csv);;All Files (*.*)"
+        )
+
+        if not file_path:
+            return  # User cancelled
+
+        # Load LUT via app
+        if self.app and hasattr(self.app, 'load_radiometric_lut'):
+            success = self.app.load_radiometric_lut(file_path)
+            if success:
+                logger.info(f"TLinear LUT loaded successfully from {file_path}")
+                # Status will be updated by app calling radiometric panel methods
+            else:
+                logger.error(f"Failed to load TLinear LUT from {file_path}")
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "LUT Load Failed",
+                                   f"Failed to load TLinear LUT from:\n{file_path}\n\nCheck the file format.")
+
+    def _on_radiometric_method_changed(self):
+        """Handle conversion method change (linear/LUT)."""
+        method = self.radiometric_panel.get_conversion_method()
+        if self.app and hasattr(self.app, 'set_radiometric_method'):
+            self.app.set_radiometric_method(method)
+            logger.info(f"Radiometric conversion method: {method.upper()}")
+
+    # ========================================================================
+    # Parallax Panel Handlers
+    # ========================================================================
+
+    def _on_parallax_toggled(self, enabled: bool):
+        """Handle parallax enable/disable toggle."""
+        if self.app and hasattr(self.app, 'enable_parallax_compensation'):
+            self.app.enable_parallax_compensation(enabled)
+            logger.info(f"Parallax compensation: {'ENABLED' if enabled else 'DISABLED'}")
+
+    def _on_parallax_baseline_changed(self, baseline_mm: float):
+        """Handle baseline distance change."""
+        if self.app and hasattr(self.app, 'set_parallax_baseline'):
+            self.app.set_parallax_baseline(baseline_mm)
+            logger.info(f"Parallax baseline: {baseline_mm}mm")
+
+    def _on_parallax_method_changed(self, method: str):
+        """Handle depth estimation method change."""
+        if self.app and hasattr(self.app, 'set_parallax_depth_method'):
+            self.app.set_parallax_depth_method(method)
+            logger.info(f"Parallax depth method: {method}")
+
+    def _on_parallax_geometry_apply(self):
+        """Handle apply geometry button click."""
+        baseline = self.parallax_panel.get_baseline()
+        if self.app and hasattr(self.app, 'set_parallax_baseline'):
+            self.app.set_parallax_baseline(baseline)
+            logger.info(f"Parallax geometry applied: baseline={baseline}mm")
 
 # ============================================================================
 # Standalone Test

@@ -46,6 +46,14 @@ class ROI:
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
     last_updated: float = field(default_factory=time.time)
+    
+    # Radiometric temperature fields (NEW)
+    temp_min: Optional[float] = None  # Minimum temperature in ROI (°C)
+    temp_max: Optional[float] = None  # Maximum temperature in ROI (°C)
+    temp_avg: Optional[float] = None  # Average temperature in ROI (°C)
+    temp_std: Optional[float] = None  # Standard deviation of temperature (°C)
+    emissivity: Optional[float] = None  # Material emissivity override (None = use global)
+    temp_history: List[float] = field(default_factory=list)  # Recent avg temps for trending
 
     def get_bbox(self) -> Tuple[int, int, int, int]:
         """Get bounding box (x, y, w, h) for this ROI."""

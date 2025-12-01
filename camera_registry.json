@@ -25,7 +25,7 @@
       "manual_override": false
     },
     {
-      "device_id": 0,
+      "device_id": 1,
       "name": "FLIR Boson 640x512 (Camera 0)",
       "resolution": [
         640,
@@ -37,8 +37,8 @@
       "manual_override": false
     },
     {
-      "device_id": 1,
-      "name": "Camera 1 (DSHOW)",
+      "device_id": 0,
+      "name": "Camera 0 (DSHOW)",
       "resolution": [
         640,
         480
@@ -46,7 +46,7 @@
       "driver": "DSHOW/MSMF",
       "role": "rgb",
       "is_connected": true,
-      "manual_override": true
+      "manual_override": false
     }
   ],
   "version": "1.0"

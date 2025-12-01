@@ -159,6 +159,26 @@ See `BOSON_SDK_STATUS.md` in archive for implementation details.
 - Automatic reconnection
 - Device ID tracking
 
+### Parallax Compensation (New v3.3.0)
+
+**ML-Powered Depth Estimation:**
+- **DepthAnything V2** integration - State-of-the-art monocular depth estimation
+- 3 model sizes: Small (CPU-friendly), Base (balanced), Large (GPU recommended)
+- 10x faster inference than diffusion-based methods
+- Superior accuracy for thermal-RGB alignment
+
+**Automatic Parallax Correction:**
+- Depth-based pixel displacement calculation
+- Adaptive alignment for objects at varying distances
+- Configurable camera baseline distance
+- Simplified geometric mode (fallback, no ML dependencies)
+
+**Features:**
+- Lazy model loading (first-use download, ~100-350MB cached)
+- Auto device detection (CUDA/CPU)
+- Depth map visualization for debugging
+- Disabled by default (optional, can enable per-session)
+
 ---
 
 ## Hardware Requirements
@@ -241,6 +261,9 @@ Spinnaker SDK support, frame-based thermal ID, priority selection
 **camera_initializer.py** - Thread-safe initialization
 Timeout protection, graceful failure handling
 
+**parallax_compensator.py** - Parallax compensation (NEW v3.3.0)
+ML depth estimation (DepthAnything V2), depth-based alignment, geometric fallback
+
 **firefly_control_panel.py** - Firefly camera controls
 Exposure, gain, white balance, trigger, image enhancement
 
@@ -307,6 +330,6 @@ MIT License - See LICENSE file for details
 
 ---
 
-**Version**: 3.0.0
-**Status**: Production-ready thermal inspection system with full radiometric support
-**Last Updated**: 2025-11-26
+**Version**: 3.3.1
+**Status**: Production-ready thermal inspection system with full radiometric support, ML depth estimation, and hardware-accelerated spotmeter
+**Last Updated**: 2025-11-30
