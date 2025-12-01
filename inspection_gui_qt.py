@@ -2861,6 +2861,8 @@ class BosonControlPanel(QWidget):
     shutter_position_changed = pyqtSignal(str)  # OPEN/CLOSED/AUTO
     agc_plateau_changed = pyqtSignal(float)  # 0.0-1.0
     agc_dampening_changed = pyqtSignal(float)  # 0.0-1.0
+    # Radiometric mode control
+    radiometric_mode_changed = pyqtSignal(bool)  # True=Radiometric, False=Colorized
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -2978,16 +2980,49 @@ class BosonControlPanel(QWidget):
         radiometric_layout.setSpacing(8)  # Reduced from 12
         radiometric_layout.setContentsMargins(6, 6, 6, 6)  # Reduced from 8
 
-        # Placeholder
-        radiometric_group = QGroupBox("RADIOMETRIC CONTROLS")
-        radiometric_group_layout = QVBoxLayout(radiometric_group)
+        # Camera Mode Selection
+        mode_group = QGroupBox("CAMERA OUTPUT MODE")
+        mode_layout = QVBoxLayout(mode_group)
 
-        placeholder_label = QLabel("Radiometric controls coming soon.\n\nThis will include:\n• Temperature measurement modes\n• Emissivity settings\n• Atmospheric corrections\n• Calibration controls\n• Spotmeter configuration\n\nNote: Only available on Boson radiometric models (640R/320R)")
-        placeholder_label.setWordWrap(True)
-        placeholder_label.setStyleSheet("padding: 20px; color: gray;")
-        radiometric_group_layout.addWidget(placeholder_label)
+        mode_info = QLabel("Switch between 16-bit radiometric data (for temperature measurement) and 8-bit colorized output (for visual display).")
+        mode_info.setWordWrap(True)
+        mode_info.setStyleSheet("color: gray; font-size: 10px; margin-bottom: 8px;")
+        mode_layout.addWidget(mode_info)
 
-        radiometric_layout.addWidget(radiometric_group)
+        # Radio buttons for mode selection
+        self.radiometric_mode_radio = QRadioButton("T-Linear Radiometric (16-bit)")
+        self.radiometric_mode_radio.setToolTip("Enable T-Linear mode for 16-bit absolute temperature data.\nAllows precise temperature measurements.")
+
+        self.colorized_mode_radio = QRadioButton("UVC Post-Colorized (8-bit)")
+        self.colorized_mode_radio.setToolTip("Standard UVC mode with AGC processing and colorization.\nBetter for visual thermal imaging.")
+        self.colorized_mode_radio.setChecked(True)  # Default to colorized
+
+        mode_layout.addWidget(self.radiometric_mode_radio)
+        mode_layout.addWidget(self.colorized_mode_radio)
+
+        # Apply button
+        apply_mode_btn = QPushButton("Apply Mode Change")
+        apply_mode_btn.setToolTip("Apply the selected camera output mode.\nNote: Requires SDK connection and camera reinitialization.")
+        apply_mode_btn.clicked.connect(self._on_radiometric_mode_apply)
+        mode_layout.addWidget(apply_mode_btn)
+
+        # Status label
+        self.radiometric_mode_status = QLabel("Current Mode: UVC Post-Colorized (8-bit)")
+        self.radiometric_mode_status.setStyleSheet("font-weight: bold; padding: 4px; background-color: #2a2a2a; border-radius: 3px;")
+        mode_layout.addWidget(self.radiometric_mode_status)
+
+        radiometric_layout.addWidget(mode_group)
+
+        # Future radiometric controls placeholder
+        future_group = QGroupBox("ADVANCED RADIOMETRIC CONTROLS (Coming Soon)")
+        future_layout = QVBoxLayout(future_group)
+
+        future_label = QLabel("Additional radiometric features:\n• Emissivity settings\n• Atmospheric corrections\n• Temperature range calibration\n• Spotmeter configuration\n\nNote: Requires radiometric Boson model (640R/320R)")
+        future_label.setWordWrap(True)
+        future_label.setStyleSheet("color: gray; padding: 10px;")
+        future_layout.addWidget(future_label)
+
+        radiometric_layout.addWidget(future_group)
         radiometric_layout.addStretch()
         radiometric_scroll.setWidget(radiometric_content)
         radiometric_tab_layout = QVBoxLayout(radiometric_tab)
@@ -3623,6 +3658,34 @@ class BosonControlPanel(QWidget):
         """Handle shutter position button change."""
         self.shutter_status_label.setText(f"Position: {position.capitalize()}")
         self.shutter_position_changed.emit(position)
+
+    def _on_radiometric_mode_apply(self):
+        """Handle radiometric mode change request."""
+        enable_radiometric = self.radiometric_mode_radio.isChecked()
+        self.radiometric_mode_changed.emit(enable_radiometric)
+
+        # Update status label
+        if enable_radiometric:
+            self.radiometric_mode_status.setText("Switching to: T-Linear Radiometric (16-bit)...")
+            self.radiometric_mode_status.setStyleSheet("font-weight: bold; padding: 4px; background-color: #444400; border-radius: 3px; color: yellow;")
+        else:
+            self.radiometric_mode_status.setText("Switching to: UVC Post-Colorized (8-bit)...")
+            self.radiometric_mode_status.setStyleSheet("font-weight: bold; padding: 4px; background-color: #444400; border-radius: 3px; color: yellow;")
+
+    def update_radiometric_mode_status(self, is_radiometric: bool, success: bool = True):
+        """Update the radiometric mode status display."""
+        if success:
+            if is_radiometric:
+                self.radiometric_mode_status.setText("Current Mode: T-Linear Radiometric (16-bit) ✓")
+                self.radiometric_mode_status.setStyleSheet("font-weight: bold; padding: 4px; background-color: #004400; border-radius: 3px; color: #44ff44;")
+                self.radiometric_mode_radio.setChecked(True)
+            else:
+                self.radiometric_mode_status.setText("Current Mode: UVC Post-Colorized (8-bit) ✓")
+                self.radiometric_mode_status.setStyleSheet("font-weight: bold; padding: 4px; background-color: #004400; border-radius: 3px; color: #44ff44;")
+                self.colorized_mode_radio.setChecked(True)
+        else:
+            self.radiometric_mode_status.setText("Mode change failed ✗")
+            self.radiometric_mode_status.setStyleSheet("font-weight: bold; padding: 4px; background-color: #440000; border-radius: 3px; color: #ff4444;")
 
     def update_connection_status(self, connected: bool):
         """Update SDK connection status and button states."""
@@ -4838,6 +4901,9 @@ class InspectionAppWindow(QMainWindow):
         # Boson SDK Panel - Shutter controls
         self.boson_panel.shutter_position_changed.connect(self._on_shutter_position_changed)
 
+        # Boson SDK Panel - Radiometric mode control
+        self.boson_panel.radiometric_mode_changed.connect(self._on_radiometric_mode_changed)
+
         # Calibration Panel
         self.calibration_panel.add_calibration_point_clicked.connect(self._on_calibration_add_point_mode)
         self.calibration_panel.compute_calibration_clicked.connect(self._on_compute_calibration)
@@ -5452,6 +5518,23 @@ class InspectionAppWindow(QMainWindow):
                 logger.info(f"Shutter position set to {position}")
             else:
                 logger.warning(f"Failed to set shutter position to {position}")
+
+    def _on_radiometric_mode_changed(self, enable_radiometric: bool):
+        """Handle radiometric mode change request."""
+        if self.app and hasattr(self.app, 'set_radiometric_mode'):
+            success = self.app.set_radiometric_mode(enable_radiometric)
+
+            # Update UI based on result
+            self.boson_panel.update_radiometric_mode_status(enable_radiometric, success)
+
+            if success:
+                mode_name = "T-Linear Radiometric (16-bit)" if enable_radiometric else "UVC Post-Colorized (8-bit)"
+                logger.info(f"Camera mode changed to: {mode_name}")
+            else:
+                logger.error(f"Failed to change camera mode")
+        else:
+            logger.error("set_radiometric_mode method not available")
+            self.boson_panel.update_radiometric_mode_status(enable_radiometric, False)
 
     def _on_calibration_add_point_mode(self, reference_temp: float):
         """Handle calibration add point mode toggle."""

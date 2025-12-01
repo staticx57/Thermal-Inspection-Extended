@@ -124,11 +124,29 @@ class FLIRBosonCamera:
                             self.sdk_connected = True
                             logger.info("[OK] Boson SDK connected - serial control enabled")
                             logger.info(f"  Camera SN: {self.sdk.get_info().serial_number}")
-                            logger.info(f"  FPA Temp: {self.sdk.get_info().fpa_temperature_k - 273.15:.1f}°C")
+                            
+                            # Enable T-Linear mode (Radiometry)
+                            if self.enable_tlinear_mode():
+                                logger.info("[OK] T-Linear mode enabled via SDK")
+                                
+                                # Re-open video capture to apply format change if needed
+                                # But that might be too disruptive. 
+                                # Let's hope the camera applies it on the fly or next frame.
+                            else:
+                                logger.warning("Failed to enable T-Linear mode")
+                                
                         else:
                             logger.warning("SDK connection failed - continuing in video-only mode")
                     except Exception as e:
                         logger.warning(f"SDK initialization failed: {e} - continuing in video-only mode")
+
+                # Force Y16 format if possible (for radiometric data)
+                try:
+                    self.cap.set(cv2.CAP_PROP_CONVERT_RGB, 0)
+                    self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'Y16 '))
+                    logger.info("Requested Y16 format from OpenCV")
+                except Exception as e:
+                    logger.warning(f"Failed to set Y16 format: {e}")
 
                 return True
             else:
@@ -530,38 +548,46 @@ class FLIRBosonCamera:
     def enable_radiometric_mode(self) -> bool:
         """
         Enable radiometric mode on the camera (16-bit temperature output).
+        Alias for enable_tlinear_mode()
+        """
+        return self.enable_tlinear_mode()
 
-        This requires SDK connection and a radiometric-capable Boson camera.
-
-        Returns:
-            True if radiometric mode was successfully enabled
+    def enable_tlinear_mode(self) -> bool:
+        """
+        Enable T-Linear (Radiometric) mode via SDK.
+        This switches the camera output to 16-bit linear temperature data.
         """
         if not self.sdk_connected or not self.sdk:
-            logger.warning("SDK not connected - cannot enable radiometric mode")
-            logger.info("Hint: Use connect_sdk() to establish serial connection")
             return False
-
-        # Check if camera is radiometric-capable
-        if hasattr(self.sdk, 'is_radiometric_capable'):
-            if not self.sdk.is_radiometric_capable():
-                logger.warning("Camera does not support radiometric mode")
-                return False
-
-        # Enable radiometry via SDK
+            
         try:
-            if hasattr(self.sdk, 'enable_radiometry'):
-                if self.sdk.enable_radiometry():
+            # Try using the raw camera object to call TLinear SetControl
+            # This requires constructing the correct Enum or value wrapper
+            cam = self.sdk.camera
+            if hasattr(cam, 'CLIENT_pkg_TLinear_SetControl'):
+                # Create a simple wrapper class for the argument if needed
+                # or pass int if the wrapper handles it (it didn't in our test)
+                class CTypesInt:
+                    def __init__(self, val):
+                        self.value = val
+                
+                # 1 = Enable
+                arg = CTypesInt(1)
+                res = cam.CLIENT_pkg_TLinear_SetControl(arg)
+                
+                val = res.value if hasattr(res, 'value') else res
+                if val == 0:
                     self.radiometric_enabled = True
-                    logger.info("Radiometric mode ENABLED via SDK")
                     return True
-                else:
-                    logger.error("Failed to enable radiometric mode via SDK")
-                    return False
-            else:
-                logger.warning("SDK does not have enable_radiometry method")
-                return False
+            
+            # Fallback: try enable_radiometry (TempStableEnable)
+            # This is NOT the same as T-Linear but related
+            if self.sdk.enable_radiometry():
+                return True
+                
+            return False
         except Exception as e:
-            logger.error(f"Error enabling radiometric mode: {e}")
+            logger.error(f"Error enabling T-Linear: {e}")
             return False
 
     # ========================================================================

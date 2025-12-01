@@ -16,6 +16,7 @@ import subprocess
 import re
 import logging
 import platform
+import time
 import numpy as np
 from typing import List, Dict, Optional, Tuple
 from enum import Enum
@@ -598,7 +599,7 @@ class CameraDetector:
         return None
 
     @staticmethod
-    def _probe_windows_cameras(max_devices: int = 2, skip_device_ids: Optional[List[int]] = None) -> List[CameraInfo]:
+    def _probe_windows_cameras(max_devices: int = 5, skip_device_ids: Optional[List[int]] = None) -> List[CameraInfo]:
         """
         Probe cameras on Windows using DirectShow/MSMF with ROBUST frame-based detection
         
@@ -614,10 +615,12 @@ class CameraDetector:
         """
         cameras = []
         consecutive_failures = 0
-        MAX_CONSECUTIVE_FAILURES = 2
+        MAX_CONSECUTIVE_FAILURES = 3  # INCREASED: Allow more gaps (e.g. if device 1 fails but 2 works)
 
         if skip_device_ids is None:
             skip_device_ids = []
+            
+        logger.info(f"Probing Windows cameras (max={max_devices})...")
 
         for device_id in range(max_devices):
             if device_id in skip_device_ids:
@@ -626,13 +629,17 @@ class CameraDetector:
 
             cap = None
             try:
-                logger.debug(f"Probing Windows camera index {device_id}...")
+                logger.info(f"Probing Windows camera index {device_id}...")  # Changed to INFO for visibility
+
+                # Add small delay to let drivers settle
+                time.sleep(0.2)
 
                 # Try DirectShow first (better compatibility with thermal cameras)
                 try:
                     cap = cv2.VideoCapture(device_id, cv2.CAP_DSHOW)
+                    logger.info(f"  DirectShow attempt: isOpened={cap.isOpened() if cap else False}")
                 except Exception as e:
-                    logger.debug(f"DirectShow failed for camera {device_id}: {e}")
+                    logger.info(f"  DirectShow failed for camera {device_id}: {e}")
                     cap = None
 
                 if cap is None or not cap.isOpened():
@@ -641,11 +648,13 @@ class CameraDetector:
                         if cap is not None:
                             cap.release()
                         cap = cv2.VideoCapture(device_id, cv2.CAP_MSMF)
+                        logger.info(f"  MSMF attempt: isOpened={cap.isOpened() if cap else False}")
                     except Exception as e:
-                        logger.debug(f"MSMF failed for camera {device_id}: {e}")
+                        logger.info(f"  MSMF failed for camera {device_id}: {e}")
                         cap = None
 
                 if cap is not None and cap.isOpened():
+                    logger.info(f"  Camera {device_id} opened successfully, analyzing frames...")
                     # ROBUST DETECTION: Read actual frames to identify camera type
                     is_thermal, resolution = CameraDetector._identify_camera_by_frames(cap, device_id)
                     
@@ -676,10 +685,11 @@ class CameraDetector:
                     consecutive_failures = 0
 
                 else:
+                    logger.info(f"  Camera {device_id} could not be opened")
                     consecutive_failures += 1
 
             except Exception as e:
-                logger.debug(f"Failed to probe camera {device_id}: {e}")
+                logger.info(f"  Exception probing camera {device_id}: {e}")  # Changed to INFO
                 consecutive_failures += 1
             finally:
                 if cap is not None:
@@ -690,7 +700,7 @@ class CameraDetector:
 
             # Early termination after consecutive failures
             if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                logger.debug(f"Stopping probe after {consecutive_failures} failures")
+                logger.info(f"  Stopping probe after {consecutive_failures} consecutive failures")  # Changed to INFO
                 break
 
         logger.info(f"Windows camera probe complete: {len(cameras)} camera(s) found")
@@ -749,7 +759,11 @@ class CameraDetector:
             if resolution in thermal_resolutions:
                 thermal_score += 100  # INCREASED: Resolution match is decisive
                 reasons.append(f"thermal resolution {resolution}")
-                logger.debug(f"Device {device_id}: Resolution {resolution} matches thermal (+100 DECISIVE)")
+                logger.info(f"Device {device_id}: Resolution {resolution} matches thermal (+100 DECISIVE)")
+                
+                # If resolution is a perfect match for Boson, return immediately as thermal
+                # This bypasses channel checks which might fail on some drivers
+                return True, resolution
             
             # 2. Check if frame is grayscale (thermal cameras are single-channel)
             if len(frame.shape) == 2:

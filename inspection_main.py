@@ -448,8 +448,27 @@ class ThermalInspectionFusion:
             enable_sdk = getattr(self.args, 'enable_boson_sdk', False)
             com_port = getattr(self.args, 'boson_com_port', 'COM6')
 
+            # Determine device ID
+            device_id = getattr(self.args, 'thermal_device', None)
+            logger.info(f"DEBUG: Initial device_id from args: {device_id}")
+            
+            if device_id is None:
+                # Auto-detect if not specified
+                logger.info("DEBUG: Auto-detecting thermal camera...")
+                from camera_detector import CameraDetector
+                thermal_info = CameraDetector.find_thermal_camera()
+                if thermal_info:
+                    device_id = thermal_info.device_id
+                    logger.info(f"Auto-detected thermal camera at index {device_id}")
+                else:
+                    # Fallback to 0 if detection fails (better than None)
+                    device_id = 0
+                    logger.warning("Could not auto-detect thermal camera, defaulting to index 0")
+            
+            logger.info(f"DEBUG: Final device_id: {device_id}")
+
             self.thermal_camera = FLIRBosonCamera(
-                device_id=getattr(self.args, 'thermal_device', 0),
+                device_id=device_id,
                 resolution=(getattr(self.args, 'width', 640), getattr(self.args, 'height', 512)),
                 enable_sdk=enable_sdk,
                 com_port=com_port
