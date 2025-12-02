@@ -23,12 +23,19 @@ class RadiometricPanel(QWidget):
     - Temperature range configuration
     - Hardware spotmeter controls
     - Sensor temperature monitoring
+    - 8-bit pseudo-radiometric estimation (NEW)
     """
 
     # Signals
     spotmeter_enabled_changed = pyqtSignal(bool)
     spotmeter_mode_changed = pyqtSignal(str)
     sensor_temps_requested = pyqtSignal()
+    
+    # 8-Bit Estimation Signals (NEW)
+    estimation_8bit_enabled_changed = pyqtSignal(bool)
+    temperature_range_changed = pyqtSignal(float, float)  # min_c, max_c
+    calibrate_single_point_requested = pyqtSignal()
+    calibrate_two_point_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -39,6 +46,25 @@ class RadiometricPanel(QWidget):
         layout = QVBoxLayout()
         layout.setSpacing(8)
         layout.setContentsMargins(8, 8, 8, 8)
+
+        # ====================================================================
+        # ACTIVE MODE STATUS BANNER (Prominent display at top)
+        # ====================================================================
+        self.status_banner = QLabel("Active Mode: Checking...")
+        self.status_banner.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_banner.setStyleSheet("""
+            QLabel {
+                background-color: #555;
+                color: white;
+                font-size: 14pt;
+                font-weight: bold;
+                padding: 12px;
+                border-radius: 5px;
+                border: 2px solid #777;
+            }
+        """)
+        self.status_banner.setMinimumHeight(50)
+        layout.addWidget(self.status_banner)
 
         # Status Group
         status_group = QGroupBox("Radiometric Status")
@@ -119,6 +145,94 @@ class RadiometricPanel(QWidget):
 
         method_group.setLayout(method_layout)
         layout.addWidget(method_group)
+
+        # ====================================================================
+        # 8-Bit Temperature Estimation Group (NEW)
+        # Works on ALL Boson cameras with SDK connection
+        # ====================================================================
+        estimation_group = QGroupBox("🌡️ 8-Bit Temperature Estimation")
+        estimation_layout = QVBoxLayout()
+        estimation_layout.setSpacing(6)
+
+        # Info label
+        info_label = QLabel("Works on ALL Boson cameras (320, 640, -R variants)")
+        info_label.setStyleSheet("color: #0a0; font-size: 9pt; font-style: italic;")
+        info_label.setWordWrap(True)
+        estimation_layout.addWidget(info_label)
+
+        # Enable checkbox
+        self.enable_8bit_checkbox = QCheckBox("Enable 8-Bit Estimation")
+        self.enable_8bit_checkbox.setToolTip(
+            "Enable temperature estimation from 8-bit AGC frames.\n"
+            "Accuracy: ±5-10°C absolute, ±2-3°C relative.\n"
+            "Auto-enabled when SDK is connected."
+        )
+        self.enable_8bit_checkbox.setEnabled(False)
+        self.enable_8bit_checkbox.toggled.connect(self.estimation_8bit_enabled_changed.emit)
+        estimation_layout.addWidget(self.enable_8bit_checkbox)
+
+        # Scene range configuration
+        range_label = QLabel("Expected Scene Range:")
+        range_label.setStyleSheet("font-weight: bold; margin-top: 8px;")
+        estimation_layout.addWidget(range_label)
+
+        min_layout = QHBoxLayout()
+        min_layout.addWidget(QLabel("Min:"))
+        self.scene_min_spin = QDoubleSpinBox()
+        self.scene_min_spin.setRange(-40.0, 500.0)
+        self.scene_min_spin.setValue(10.0)
+        self.scene_min_spin.setDecimals(1)
+        self.scene_min_spin.setSuffix(" °C")
+        self.scene_min_spin.setSingleStep(5.0)
+        min_layout.addWidget(self.scene_min_spin)
+        estimation_layout.addLayout(min_layout)
+
+        max_layout = QHBoxLayout()
+        max_layout.addWidget(QLabel("Max:"))
+        self.scene_max_spin = QDoubleSpinBox()
+        self.scene_max_spin.setRange(-40.0, 550.0)
+        self.scene_max_spin.setValue(110.0)
+        self.scene_max_spin.setDecimals(1)
+        self.scene_max_spin.setSuffix(" °C")
+        self.scene_max_spin.setSingleStep(5.0)
+        max_layout.addWidget(self.scene_max_spin)
+        estimation_layout.addLayout(max_layout)
+
+        self.apply_scene_range_btn = QPushButton("Apply Scene Range")
+        self.apply_scene_range_btn.setEnabled(False)
+        self.apply_scene_range_btn.clicked.connect(self._on_apply_scene_range)
+        estimation_layout.addWidget(self.apply_scene_range_btn)
+
+        # Calibration section
+        calib_label = QLabel("Calibration:")
+        calib_label.setStyleSheet("font-weight: bold; margin-top: 8px;")
+        estimation_layout.addWidget(calib_label)
+
+        self.single_point_calib_btn = QPushButton("Single-Point Calibration")
+        self.single_point_calib_btn.setToolTip(
+            "Calibrate using one known temperature reference\n"
+            "(e.g., ice water = 0°C, room temp = 22°C)"
+        )
+        self.single_point_calib_btn.setEnabled(False)
+        self.single_point_calib_btn.clicked.connect(self.calibrate_single_point_requested.emit)
+        estimation_layout.addWidget(self.single_point_calib_btn)
+
+        self.two_point_calib_btn = QPushButton("Two-Point Calibration")
+        self.two_point_calib_btn.setToolTip(
+            "Calibrate using hot and cold references\n"
+            "(e.g., ice water = 0°C, boiling water = 100°C)"
+        )
+        self.two_point_calib_btn.setEnabled(False)
+        self.two_point_calib_btn.clicked.connect(self.calibrate_two_point_requested.emit)
+        estimation_layout.addWidget(self.two_point_calib_btn)
+
+        # Calibration offset display
+        self.calib_offset_label = QLabel("Current Offset: 0.0°C")
+        self.calib_offset_label.setStyleSheet("color: #666; font-size: 9pt;")
+        estimation_layout.addWidget(self.calib_offset_label)
+
+        estimation_group.setLayout(estimation_layout)
+        layout.addWidget(estimation_group)
 
         # Live Temperature Readings
         readings_group = QGroupBox("Live Temperature Readings")
@@ -258,6 +372,12 @@ class RadiometricPanel(QWidget):
         layout.addStretch()
         self.setLayout(layout)
 
+    def _on_apply_scene_range(self):
+        """Handle apply scene range button click."""
+        min_c = self.scene_min_spin.value()
+        max_c = self.scene_max_spin.value()
+        self.temperature_range_changed.emit(min_c, max_c)
+
     def _on_hw_spotmeter_toggled(self, enabled: bool):
         """Handle hardware spotmeter toggle."""
         self.spotmeter_mode_combo.setEnabled(enabled)
@@ -342,3 +462,65 @@ class RadiometricPanel(QWidget):
         self.lens_temp_label.setText(f"{lens:.1f}°C")
         self.shutter_temp_label.setText(f"{shutter:.1f}°C")
         self.board_temp_label.setText(f"{board:.1f}°C")
+
+    def update_active_mode_status(self, mode: str, accuracy: str, description: str):
+        """
+        Update the active mode status banner.
+        
+        Args:
+            mode: "8bit", "16bit", or "none"
+            accuracy: Accuracy string (e.g., "±5-10°C", "±2°C")
+            description: Human-readable description
+        """
+        # Update banner text
+        banner_text = f"Active: {description}"
+        if accuracy != "N/A":
+            banner_text += f" ({accuracy})"
+        
+        self.status_banner.setText(banner_text)
+        
+        # Update banner color based on mode
+        if mode == "16bit":
+            # Green for 16-bit (best accuracy)
+            bg_color = "#0a8000"
+            border_color = "#0d0"
+        elif mode == "8bit":
+            # Yellow/Orange for 8-bit (good accuracy)
+            bg_color = "#cc8800"
+            border_color = "#fa0"
+        else:
+            # Gray for none
+            bg_color = "#555"
+            border_color = "#777"
+        
+        self.status_banner.setStyleSheet(f"""
+            QLabel {{
+                background-color: {bg_color};
+                color: white;
+                font-size: 14pt;
+                font-weight: bold;
+                padding: 12px;
+                border-radius: 5px;
+                border: 2px solid {border_color};
+            }}
+        """)
+    
+    def set_8bit_estimation_available(self, available: bool, auto_enabled: bool = False):
+        """
+        Enable/disable 8-bit estimation controls.
+        
+        Args:
+            available: True if 8-bit estimation is available (SDK connected)
+            auto_enabled: True to auto-check the enable checkbox
+        """
+        self.enable_8bit_checkbox.setEnabled(available)
+        self.apply_scene_range_btn.setEnabled(available)
+        self.single_point_calib_btn.setEnabled(available)
+        self.two_point_calib_btn.setEnabled(available)
+        
+        if auto_enabled:
+            self.enable_8bit_checkbox.setChecked(True)
+    
+    def set_calibration_offset(self, offset_c: float):
+        """Update the displayed calibration offset."""
+        self.calib_offset_label.setText(f"Current Offset: {offset_c:+.2f}°C")

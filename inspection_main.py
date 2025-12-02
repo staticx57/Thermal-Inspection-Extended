@@ -84,6 +84,15 @@ except ImportError:
     logger = logging.getLogger(__name__)
     logger.info("Radiometric calibration not available")
 
+# 8-bit pseudo-radiometric temperature estimation (works on ALL Bosons)
+try:
+    from thermal_estimator import ThermalTemperatureEstimator
+    THERMAL_ESTIMATION_AVAILABLE = True
+except ImportError:
+    THERMAL_ESTIMATION_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.info("Thermal temperature estimator not available")
+
 # Performance monitoring
 from performance_monitor import PerformanceMonitor
 
@@ -243,6 +252,12 @@ class ThermalInspectionFusion:
         self.roi_manager: Optional[ROIManager] = None
         self.roi_radiometric_analyzer: Optional[ROIRadiometricAnalyzer] = None
         self.palette_manager: Optional[PaletteManager] = None
+
+        # 8-Bit Temperature Estimator (works on ALL Bosons with SDK)
+        self.temp_estimator: Optional[ThermalTemperatureEstimator] = None
+        self.temp_estimation_enabled: bool = False
+        self.active_temp_mode: str = "none"  # "8bit", "16bit", or "none"
+        self.latest_temp_data: Optional[Dict] = None  # Stores latest temperature statistics
 
         # PRESERVED: Fusion processor (PARAMOUNT!)
         self.fusion_processor: Optional[FusionProcessor] = None
@@ -498,6 +513,9 @@ class ThermalInspectionFusion:
                         logger.info(f"  Gain Mode: {info.gain_mode.name if info.gain_mode else 'Unknown'}")
                     logger.info("  Press 'f' to trigger FFC (Flat Field Correction)")
                     logger.info("=" * 60)
+                    
+                    # Auto-initialize 8-bit temperature estimator (works on ALL Bosons)
+                    self._init_8bit_estimation()
                 elif enable_sdk:
                     logger.warning("SDK was requested but connection failed - continuing in video-only mode")
 
@@ -523,7 +541,23 @@ class ThermalInspectionFusion:
                     if sdk_connected and hasattr(self.gui.radiometric_panel, 'hw_spotmeter_checkbox'):
                         self.gui.radiometric_panel.hw_spotmeter_checkbox.setEnabled(True)
                     
-                    logger.info(f"✓ Radiometric panel initialized (capable={is_radiometric}, sdk={sdk_connected})")
+                    # Enable 8-bit estimation controls if SDK is connected
+                    if sdk_connected and hasattr(self.gui.radiometric_panel, 'set_8bit_estimation_available'):
+                        self.gui.radiometric_panel.set_8bit_estimation_available(
+                            available=True,
+                            auto_enabled=self.temp_estimation_enabled
+                        )
+                    
+                    # Update status banner
+                    if hasattr(self.gui.radiometric_panel, 'update_active_mode_status'):
+                        mode_info = self.get_active_temperature_mode()
+                        self.gui.radiometric_panel.update_active_mode_status(
+                            mode_info['mode'],
+                            mode_info['accuracy'],
+                            mode_info['description']
+                        )
+                    
+                    logger.info(f"✓ Radiometric panel initialized (capable={is_radiometric}, sdk={sdk_connected}, 8bit={self.temp_estimation_enabled})")
                 
                 return True
             else:
@@ -1023,6 +1057,18 @@ class ThermalInspectionFusion:
                             )
 
             result['thermal_colorized'] = thermal_colorized
+
+            # 2c. Update 8-bit temperature estimation (if enabled)
+            t_prof['before_temp_estimation'] = time.time()
+            if self.temp_estimation_enabled and self.temp_estimator:
+                # Convert to 8-bit grayscale if needed
+                if thermal_colorized.ndim == 3:
+                    thermal_gray = cv2.cvtColor(thermal_colorized, cv2.COLOR_BGR2GRAY)
+                else:
+                    thermal_gray = thermal_frame if thermal_frame.dtype == np.uint8 else (thermal_frame / 256).astype(np.uint8)
+                
+                self._update_temperature_estimation(thermal_gray)
+            t_prof['after_temp_estimation'] = time.time()
 
             # 3. Automatic ROI detection (if enabled)
             # OPTIMIZATION: Only run auto-ROI detection every N frames to reduce overhead
@@ -3274,6 +3320,247 @@ class ThermalInspectionFusion:
 
         self.radiometric_calibrator.clear_calibration_points()
         logger.info("Calibration cleared")
+
+    # ========================================================================
+    # 8-Bit Temperature Estimation (Works on ALL Bosons)
+    # ========================================================================
+
+    def _init_8bit_estimation(self):
+        """
+        Initialize 8-bit pseudo-radiometric temperature estimator.
+        AUTO-CALLED when SDK connects (works on all Bosons).
+        """
+        if not THERMAL_ESTIMATION_AVAILABLE:
+            logger.info("8-bit temperature estimator not available")
+            return
+
+        try:
+            # Initialize estimator with default scene range
+            self.temp_estimator = ThermalTemperatureEstimator(
+                scene_min_c=10.0,
+                scene_max_c=110.0,
+                use_adaptive_range=True
+            )
+            
+            # Auto-enable by default since SDK is connected
+            self.temp_estimation_enabled = True
+            self.active_temp_mode = "8bit"
+            self.last_agc_stats = {'min': 0, 'max': 255, 'center': 128}
+            
+            logger.info("=" * 60)
+            logger.info("[OK] 8-Bit Temperature Estimation initialized")
+            logger.info("  Works on ALL Boson cameras (320, 640, -R variants)")
+            logger.info("  Accuracy: ±5-10°C absolute, ±2-3°C relative")
+            logger.info("  Auto-enabled by default (can disable in GUI)")
+            logger.info("=" * 60)
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize 8-bit temperature estimator: {e}")
+
+    def _update_temperature_estimation(self, thermal_frame: np.ndarray):
+        """
+        Update temperature estimation from thermal frame.
+        
+        Args:
+            thermal_frame: 8-bit thermal image (grayscale)
+        """
+        if not self.temp_estimation_enabled or not self.temp_estimator:
+            return
+
+        if not self.thermal_camera or not self.thermal_camera.is_sdk_connected():
+            return
+
+        try:
+            # Get FPA temperature from SDK
+            fpa_temp_result = self.thermal_camera.get_fpa_temperature()
+            if not fpa_temp_result:
+                return
+            
+            fpa_temp_c = fpa_temp_result[1]  # Celsius value
+            
+            # Store AGC statistics for calibration
+            h, w = thermal_frame.shape
+            center_y, center_x = h // 2, w // 2
+            self.last_agc_stats = {
+                'min': int(np.min(thermal_frame)),
+                'max': int(np.max(thermal_frame)),
+                'center': int(thermal_frame[center_y, center_x])
+            }
+            
+            # Get temperature statistics
+            stats = self.temp_estimator.get_statistics(thermal_frame, fpa_temp_c)
+            
+            if stats:
+                self.latest_temp_data = stats
+                
+                # Update GUI if available
+                if self.gui and hasattr(self.gui, 'radiometric_panel'):
+                    panel = self.gui.radiometric_panel
+                    
+                    # Update live temperature readings
+                    panel.set_frame_statistics(
+                        stats['min_temp_c'],
+                        stats['max_temp_c'],
+                        stats['mean_temp_c']
+                    )
+                    
+                    # Update center temperature
+                    center_temp = self.temp_estimator.get_pixel_temperature(
+                        thermal_frame, center_x, center_y, fpa_temp_c
+                    )
+                    if center_temp is not None:
+                        panel.set_center_temperature(center_temp)
+        
+        except Exception as e:
+            logger.debug(f"Error updating temperature estimation: {e}")
+
+    def set_temperature_range(self, min_c: float, max_c: float) -> bool:
+        """
+        Set expected temperature range for 8-bit estimation.
+        
+        Args:
+            min_c: Minimum expected temperature (Celsius)
+            max_c: Maximum expected temperature (Celsius)
+            
+        Returns:
+            True if successful
+        """
+        if not self.temp_estimator:
+            return False
+
+        try:
+            self.temp_estimator.scene_min_c = min_c
+            self.temp_estimator.scene_max_c = max_c
+            logger.info(f"Temperature range set: {min_c:.1f}°C to {max_c:.1f}°C")
+            return True
+        except Exception as e:
+            logger.error(f"Error setting temperature range: {e}")
+            return False
+
+    def calibrate_8bit_single_point(self, known_temp_c: float, agc_value: Optional[int] = None) -> bool:
+        """
+        Perform single-point calibration for 8-bit estimation.
+        
+        Args:
+            known_temp_c: Known temperature at reference point
+            agc_value: Optional AGC pixel value (0-255). If None, uses last center pixel.
+            
+        Returns:
+            True if successful
+        """
+        if not self.temp_estimator or not self.thermal_camera:
+            return False
+
+        try:
+            # Use last center AGC if not provided
+            if agc_value is None:
+                agc_value = self.last_agc_stats.get('center', 128)
+                logger.info(f"Using center AGC value: {agc_value}")
+
+            fpa_temp_result = self.thermal_camera.get_fpa_temperature()
+            if not fpa_temp_result:
+                logger.warning("Cannot calibrate: FPA temperature not available")
+                return False
+            
+            fpa_temp_c = fpa_temp_result[1]
+            self.temp_estimator.calibrate_single_point(agc_value, known_temp_c, fpa_temp_c)
+            logger.info(f"Single-point calibration: {known_temp_c:.1f}°C (AGC: {agc_value})")
+            return True
+        except Exception as e:
+            logger.error(f"Error in single-point calibration: {e}")
+            return False
+
+    def calibrate_8bit_two_point(self, temp_low_c: float, temp_high_c: float,
+                                  agc_low: Optional[int] = None, agc_high: Optional[int] = None) -> bool:
+        """
+        Perform two-point calibration for 8-bit estimation.
+        
+        Args:
+            temp_low_c: Temperature at cold reference
+            temp_high_c: Temperature at hot reference
+            agc_low: Optional AGC value at cold reference. If None, uses scene min.
+            agc_high: Optional AGC value at hot reference. If None, uses scene max.
+            
+        Returns:
+            True if successful
+        """
+        if not self.temp_estimator or not self.thermal_camera:
+            return False
+
+        try:
+            # Use scene min/max if not provided
+            if agc_low is None:
+                agc_low = self.last_agc_stats.get('min', 0)
+            if agc_high is None:
+                agc_high = self.last_agc_stats.get('max', 255)
+                
+            logger.info(f"Using AGC range: {agc_low} (low) to {agc_high} (high)")
+
+            fpa_temp_result = self.thermal_camera.get_fpa_temperature()
+            if not fpa_temp_result:
+                logger.warning("Cannot calibrate: FPA temperature not available")
+                return False
+            
+            fpa_temp_c = fpa_temp_result[1]
+            self.temp_estimator.calibrate_two_point(
+                agc_low, temp_low_c, agc_high, temp_high_c, fpa_temp_c
+            )
+            logger.info(f"Two-point calibration: {temp_low_c:.1f}°C to {temp_high_c:.1f}°C")
+            return True
+        except Exception as e:
+            logger.error(f"Error in two-point calibration: {e}")
+            return False
+
+    def set_8bit_estimation_enabled(self, enabled: bool):
+        """
+        Enable or disable 8-bit temperature estimation.
+        
+        Args:
+            enabled: True to enable, False to disable
+        """
+        if not self.temp_estimator:
+            logger.warning("8-bit temperature estimator not initialized")
+            return
+
+        self.temp_estimation_enabled = enabled
+        
+        # Update active mode
+        if enabled:
+            self.active_temp_mode = "8bit"
+        else:
+            # Check if 16-bit is available
+            if self.thermal_camera and self.thermal_camera.is_radiometric_enabled():
+                self.active_temp_mode = "16bit"
+            else:
+                self.active_temp_mode = "none"
+        
+        logger.info(f"8-bit temperature estimation: {'ENABLED' if enabled else 'DISABLED'}")
+        logger.info(f"Active temperature mode: {self.active_temp_mode}")
+
+    def get_active_temperature_mode(self) -> Dict[str, any]:
+        """
+        Get current active temperature mode information.
+        
+        Returns:
+            Dictionary with mode info: {'mode': str, 'accuracy': str, 'enabled': bool}
+        """
+        mode_info = {
+            'mode': self.active_temp_mode,
+            'accuracy': 'N/A',
+            'enabled': False,
+            'description': 'No temperature measurement'
+        }
+
+        if self.active_temp_mode == "16bit":
+            mode_info['accuracy'] = '±2°C'
+            mode_info['enabled'] = True
+            mode_info['description'] = '16-Bit Radiometric (True Temperature)'
+        elif self.active_temp_mode == "8bit":
+            mode_info['accuracy'] = '±5-10°C'
+            mode_info['enabled'] = True
+            mode_info['description'] = '8-Bit Pseudo-Radiometric (Estimation)'
+
+        return mode_info
 
     def export_calibration(self, filepath: str) -> bool:
         """Export calibration to file."""

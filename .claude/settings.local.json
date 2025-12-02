@@ -17,7 +17,8 @@
       "Bash(cmd /c \"dir /s /b \"\"C:\\Users\\stati\\Desktop\\Projects\\Thermal-Inspection\"\" | findstr /i bosonusb\")",
       "Bash(cmd /c \"dir /s /b \"\"C:\\Users\\stati\\Desktop\\Projects\\Thermal-Inspection\"\" | findstr /i \"\"flir.*app flir.*exe viewer\"\" | head -n 20\")",
       "Bash(pip install:*)",
-      "WebSearch"
+      "WebSearch",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []

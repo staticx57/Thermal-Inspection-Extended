@@ -4984,6 +4984,21 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("parallax_panel", "depth_method_changed", self._on_parallax_method_changed, "(parallax)")
         self._safe_connect("parallax_panel.apply_geometry_btn", "clicked", self._on_parallax_geometry_apply, "(parallax)")
 
+        # === PARALLAX PANEL (new connections) ===
+        if hasattr(self, 'parallax_panel') and self.parallax_panel:
+            self._safe_connect("parallax_panel", "parallax_toggled", self._on_parallax_toggle, "(parallax)")
+            self._safe_connect("parallax_panel", "baseline_changed", self._on_baseline_changed, "(parallax)")
+            self._safe_connect("parallax_panel", "align_cameras_clicked", self._on_align_cameras, "(parallax)")
+            logger.info("Parallax panel signals connected")
+        
+        # === RADIOMETRIC PANEL (8-Bit Estimation) ===
+        if hasattr(self, 'radiometric_panel') and self.radiometric_panel:
+            self._safe_connect("radiometric_panel", "estimation_8bit_enabled_changed", self._on_8bit_estimation_toggled, "(radiometric 8-bit)")
+            self._safe_connect("radiometric_panel", "temperature_range_changed", self._on_temperature_range_changed, "(radiometric 8-bit)")
+            self._safe_connect("radiometric_panel", "calibrate_single_point_requested", self._on_calibrate_single_point, "(radiometric 8-bit)")
+            self._safe_connect("radiometric_panel", "calibrate_two_point_requested", self._on_calibrate_two_point, "(radiometric 8-bit)")
+            logger.info("Radiometric panel (8-bit estimation) signals connected")
+
         # === ENVIRONMENTAL COMPENSATION PANEL ===
         self._safe_connect("env_comp_panel", "emissivity_changed", self._on_emissivity_changed, "(environmental)")
         self._safe_connect("env_comp_panel", "atmospheric_temp_changed", self._on_atmospheric_temp_changed, "(environmental)")
@@ -5164,17 +5179,127 @@ class InspectionAppWindow(QMainWindow):
             else:
                 logger.info(f"ROIs saved to {filename}")
 
-    def _on_load_rois(self):
-        """Load ROIs from file."""
+    def _on_load_lut(self):
+        """Handle load LUT button click."""
         filename, _ = QFileDialog.getOpenFileName(
-            self, "Load ROIs", "", "JSON Files (*.json)"
+            self, "Load TLinear LUT", "", "CSV Files (*.csv);;All Files (*.*)"
         )
-        if filename:
-            if self.app:
-                self.app.load_rois(filename)
+        if filename and self.app:
+            success = self.app.load_radiometric_lut(filename)
+            if success:
+                self.statusBar().showMessage(f"Loaded LUT from {filename}", 3000)
+                logger.info(f"Loaded radiometric LUT from {filename}")
             else:
-                logger.info(f"ROIs loaded from {filename}")
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "LUT Load Failed", "Could not load TLinear LUT file")
 
+    # === 8-BIT TEMPERATURE ESTIMATION HANDLERS (NEW) ===
+    
+    def _on_8bit_estimation_toggled(self, enabled: bool):
+        """Handle 8-bit temperature estimation enable/disable."""
+        if self.app and hasattr(self.app, 'set_8bit_estimation_enabled'):
+            self.app.set_8bit_estimation_enabled(enabled)
+            logger.info(f"8-bit temperature estimation: {'enabled' if enabled else 'disabled'}")
+            
+            # Update status banner
+            if hasattr(self.radiometric_panel, 'update_active_mode_status'):
+                mode_info = self.app.get_active_temperature_mode()
+                self.radiometric_panel.update_active_mode_status(
+                    mode_info['mode'],
+                    mode_info['accuracy'],
+                    mode_info['description']
+                )
+    
+    def _on_temperature_range_changed(self, min_c: float, max_c: float):
+        """Handle temperature range configuration change."""
+        if self.app and hasattr(self.app, 'set_temperature_range'):
+            success = self.app.set_temperature_range(min_c, max_c)
+            if success:
+                self.statusBar().showMessage(f"Temperature range set: {min_c:.1f}°C to {max_c:.1f}°C", 2000)
+                logger.info(f"Temperature range updated: {min_c:.1f}°C to {max_c:.1f}°C")
+            else:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "Range Error", "Failed to set temperature range")
+    
+    def _on_calibrate_single_point(self):
+        """Handle single-point calibration request."""
+        from PyQt6.QtWidgets import QInputDialog, QMessageBox
+        
+        # Get known temperature from user
+        known_temp, ok = QInputDialog.getDouble(
+            self,
+            "Single-Point Calibration",
+            "Enter known temperature at center point (°C):",
+            25.0,  # default value
+            -40.0, 550.0,  # min, max
+            1  # decimals
+        )
+        
+        if ok and self.app:
+            # Get AGC value at center of current frame
+            # For now, we'll assume center pixel value = 128 (middle)
+            # In a real implementation, you'd grab the actual pixel value
+            agc_value = 128  # Placeholder
+            
+            if hasattr(self.app, 'calibrate_8bit_single_point'):
+                success = self.app.calibrate_8bit_single_point(agc_value, known_temp)
+                if success:
+                    QMessageBox.information(
+                        self,
+                        "Calibration Complete",
+                        f"Single-point calibration set to {known_temp:.1f}°C"
+                    )
+                    logger.info(f"Single-point calibration: {known_temp:.1f}°C")
+                else:
+                    QMessageBox.warning(self, "Calibration Failed", "Could not perform calibration")
+    
+    def _on_calibrate_two_point(self):
+        """Handle two-point calibration request."""
+        from PyQt6.QtWidgets import QInputDialog, QMessageBox
+        
+        # Get cold reference temp
+        temp_low, ok1 = QInputDialog.getDouble(
+            self,
+            "Two-Point Calibration - Cold Reference",
+            "Enter cold reference temperature (°C)\\n(e.g., ice water = 0°C):",
+            0.0,  # default
+            -40.0, 100.0,  # min, max
+            1
+        )
+        
+        if not ok1:
+            return
+        
+        # Get hot reference temp
+        temp_high, ok2 = QInputDialog.getDouble(
+            self,
+            "Two-Point Calibration - Hot Reference",
+            "Enter hot reference temperature (°C)\\n(e.g., boiling water = 100°C):",
+            100.0,  # default value
+            0.0, 550.0,  # min, max
+            1
+        )
+        
+        if ok2 and self.app:
+            # Placeholder AGC values (in real implementation, user would select pixels)
+            agc_low = 50   # Dark/cold pixel
+            agc_high = 200  # Bright/hot pixel
+            
+            if hasattr(self.app, 'calibrate_8bit_two_point'):
+                success = self.app.calibrate_8bit_two_point(agc_low, temp_low, agc_high, temp_high)
+                if success:
+                    QMessageBox.information(
+                        self,
+                        "Calibration Complete",
+                        f"Two-point calibration set:\\n"
+                        f"Cold: {temp_low:.1f}°C\\n"
+                        f"Hot: {temp_high:.1f}°C"
+                    )
+                    logger.info(f"Two-point calibration: {temp_low:.1f}°C to {temp_high:.1f}°C")
+                else:
+                    QMessageBox.warning(self, "Calibration Failed", "Could not perform calibration")
+
+    # === PARALLAX HANDLERS ===
     def _on_view_mode_changed(self, mode_name: str):
         """Handle view mode change."""
         if self.app:

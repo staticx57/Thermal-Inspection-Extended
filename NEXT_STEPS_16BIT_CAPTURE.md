@@ -31,34 +31,29 @@ Based on extensive web research, we discovered:
 
 ---
 
-## Immediate Action Items (Quick Tests - 30 Minutes)
+## ✅ TESTING COMPLETE - Issue Identified
 
-### Action 1: Test Property Setting Order ⚡ DO THIS FIRST
+### Test Results: OpenCV 4.6.0 on Windows 11
 
-**Script Created**: `test_convert_rgb_order.py`
+**Tested**: All 5 property order configurations with OpenCV 4.6.0
+**Result**: ❌ **ALL TESTS FAILED**
+**Conclusion**: **Windows 11 DirectShow limitation, NOT OpenCV version**
 
-**What it does**:
-- Tests 5 different property setting orders
-- Verifies if order matters for Y16 capture
-- Checks CONVERT_RGB before/after FOURCC
-- Tests reopen and backend variations
+**Evidence**:
+- FLIR forum: Win10 + OpenCV 4.6.0 = ✅ Works
+- Our test: Win11 + OpenCV 4.6.0 = ❌ Failed
+- **Isolated variable**: Windows 10 vs Windows 11
 
-**Run it**:
-```bash
-python test_convert_rgb_order.py
-```
+**See**: `TEST_RESULTS_OPENCV_4.6.0.md` for complete analysis
 
-**Expected Output**:
-```
-Test 1: Set CAP_PROP_CONVERT_RGB BEFORE CAP_PROP_FOURCC
-  dtype: uint16  <-- We want this!
-  shape: (512, 640)  <-- And this!
-  ✓ SUCCESS - Got 16-bit Y16!
-```
+### Root Cause Confirmed
 
-**If successful**: One of the tests will show 16-bit capture working!
+**Windows 11 DirectShow does NOT support Y16 format negotiation**
 
-**If failed**: All tests show 8-bit - confirms OpenCV/Windows version issue
+- DirectShow negotiates to YUY2 or corrupted FOURCC instead of Y16
+- MediaFoundation (MSMF) also doesn't support Y16
+- Camera IS configured correctly (T-Linear mode 2 active)
+- Both OpenCV 4.6.0 and 4.11.0 fail on Windows 11
 
 ---
 
