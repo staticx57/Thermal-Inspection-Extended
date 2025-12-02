@@ -386,6 +386,156 @@ class BosonSDK:
             return None
 
     # ========================================================================
+    # USB VIDEO OUTPUT MODE CONTROL (Y16 / Radiometric)
+    # ========================================================================
+
+    def get_usb_video_ir16_mode(self) -> Optional[int]:
+        """
+        Get current USB Video IR16 mode.
+
+        Returns:
+            0 = 16-bit raw
+            1 = 14-bit raw
+            2 = T-Linear radiometric
+            None if failed
+        """
+        if not self.connected or not self.camera:
+            return None
+
+        try:
+            result, mode = self.camera.sysctrlGetUsbVideoIR16Mode()
+            if result.value == 0:
+                return mode
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get USB IR16 mode: {e}")
+            return None
+
+    def set_usb_video_ir16_mode(self, mode: int) -> bool:
+        """
+        Set USB Video IR16 output mode.
+
+        Args:
+            mode: 0 = 16-bit raw, 1 = 14-bit raw, 2 = T-Linear radiometric
+
+        Returns:
+            True if successful
+
+        Note:
+            Video capture must be closed and reopened after changing this mode.
+            OpenCV with DirectShow may not properly capture Y16 format on Windows.
+        """
+        if not self.connected or not self.camera:
+            return False
+
+        if mode not in [0, 1, 2]:
+            logger.error(f"Invalid IR16 mode: {mode}. Must be 0, 1, or 2")
+            return False
+
+        try:
+            # Create ctypes wrapper for integer argument
+            class Int32Wrapper:
+                def __init__(self, val):
+                    self.value = val
+
+            mode_arg = Int32Wrapper(mode)
+            result = self.camera.sysctrlSetUsbVideoIR16Mode(mode_arg)
+
+            if result.value == 0:
+                mode_names = {0: "16-bit raw", 1: "14-bit raw", 2: "T-Linear radiometric"}
+                logger.info(f"USB IR16 mode set to: {mode_names.get(mode, mode)}")
+                return True
+            else:
+                logger.error(f"Failed to set USB IR16 mode: result={result.value}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error setting USB IR16 mode: {e}")
+            return False
+
+    def enable_tlinear_control(self) -> bool:
+        """
+        Enable T-Linear processing control.
+
+        Returns:
+            True if successful
+        """
+        if not self.connected or not self.camera:
+            return False
+
+        try:
+            class Int32Wrapper:
+                def __init__(self, val):
+                    self.value = val
+
+            arg = Int32Wrapper(1)  # 1 = Enable
+            result = self.camera.CLIENT_pkg_TLinear_SetControl(arg)
+
+            val = result.value if hasattr(result, 'value') else result
+            if val == 0:
+                logger.info("T-Linear control enabled")
+                return True
+            else:
+                logger.error(f"Failed to enable T-Linear control: {val}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error enabling T-Linear control: {e}")
+            return False
+
+    def disable_tlinear_control(self) -> bool:
+        """
+        Disable T-Linear processing control.
+
+        Returns:
+            True if successful
+        """
+        if not self.connected or not self.camera:
+            return False
+
+        try:
+            class Int32Wrapper:
+                def __init__(self, val):
+                    self.value = val
+
+            arg = Int32Wrapper(0)  # 0 = Disable
+            result = self.camera.CLIENT_pkg_TLinear_SetControl(arg)
+
+            val = result.value if hasattr(result, 'value') else result
+            if val == 0:
+                logger.info("T-Linear control disabled")
+                return True
+            else:
+                logger.error(f"Failed to disable T-Linear control: {val}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error disabling T-Linear control: {e}")
+            return False
+
+    def get_tlinear_control_state(self) -> Optional[bool]:
+        """
+        Get current T-Linear control state.
+
+        Returns:
+            True if enabled, False if disabled, None if failed
+        """
+        if not self.connected or not self.camera:
+            return None
+
+        try:
+            result = self.camera.CLIENT_pkg_TLinear_GetControl()
+            if isinstance(result, tuple) and len(result) >= 2:
+                # Result is (FLR_RESULT, FLR_ENABLE_E)
+                status, state = result
+                # FLR_ENABLE = 1, FLR_DISABLE = 0
+                return state == 1
+            return None
+        except Exception as e:
+            logger.error(f"Error getting T-Linear control state: {e}")
+            return None
+
+    # ========================================================================
     # RADIOMETRY - Temperature Measurement & Calibration (Phase 1)
     # ========================================================================
 

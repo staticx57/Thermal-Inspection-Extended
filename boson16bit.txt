@@ -1,0 +1,332 @@
+Logo 
+ 
+My Account
+Product Registration
+Service
+Downloads
+Technical Support
+
+FLIR OEM - Boson Video and Image Capture using OpenCV 16-bit Y16
+Updated Date
+25/06/2025 01.07 AM
+How do I capture raw or radiometric images using Boson using python and/or OpenCV?
+
+
+This code below allows users to capture raw 16-bit boson frames using opencv on windows and linux over USB. The last example shows how to configure the SDK and USB video channel to capture Radiometric data and display a spot meter. This will work in any language that has opencv bindings.
+
+This has been tested in c# (emgucv) and python (opencv-python). In other languages, setting the same properties will allow the same type of data capture. The main difference between windows and linux is needing to force the DirectShow backend under windows, and the differences in the name of the serial port. The video channel and serial control channel are two independent interfaces. Video is captured through the UVC video device while communication and control of the camera is done via serial via the SDK. 
+
+ 
+
+It is of note that for both Boson 640 and Boson 320, the following information assumes the desire to capture the pre-AGC / 16-bit video. If the desire is actually to capture 8-bit post-AGC video, then the "Y16 " mode referenced should be replaced with the colorized "I420" mode. This changes the UVC video output by selecting a different codec. The codec that corresponds to IR16 is the fourcc “Y16 “ (note the space after the ‘6’). The codec that corresponds to the colorized YUV420P format code is “I420”.
+
+To switch a UVC capture to 8-bit post-AGC streaming, the following line will be used in place of the Y16 equivalent:
+
+cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('I', '4', '2', '0'))
+
+ 
+
+It is important to note that on the UVC USB video interface the height and width must be correctly specified to get the correct video stream. 
+
+For Boson 640 the width will always be 640, but the height will be 512 without telemetry and 514 with telemetry (define using UVC interface commands like: cv2.CAP_PROP_FRAME_WIDTH)
+For Boson 320 the width/height will be 640/512 with the colorized output mode (I420), and 320/256 for the "Y16 " mode. Add two rows for telemetry to be included. 
+ 
+Another example for image capture using C++ lives here: https://github.com/FLIR/BosonUSB
+
+Prerequisite (from terminal/command prompt) pip install opencv-python.
+
+On Linux
+#capture.py
+import cv2
+cap = cv2.VideoCapture(“/dev/video0”)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 512) #use 256 for Boson 320
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640) #use 320 for Boson 320
+cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('Y','1','6',' '))
+cap.set(cv2.CAP_PROP_CONVERT_RGB, 0)
+
+framecount=600
+frame_buf=[]
+for _ in range(framecount):#record indefinitely (until user presses q), replace with "while True"
+    stream_ret, frame = cap.read()
+    if stream_ret:
+        cv2.imshow("image", frame)
+        if cv2.waitKey(1) == ord('q'):
+            break;
+        frame_buf.append(frame)
+        
+cv2.destroyAllWindows()
+
+#Below is example code to save images to "folder" (Use appropriate directory syntax.)
+num=0
+while len(frame_buf)>0:
+    cv2.imwrite(f'{folder}/cap_{num}.tiff', frame_buf.pop(0))
+    num += 1
+
+ 
+ 
+ 
+Code for Linux platforms.
+On Windows
+#capture.py
+import cv2
+device_index = 0
+cap = cv2.VideoCapture(device_index+cv2.CAP_DSHOW)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 512) #use 256 for Boson 320
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640) #use 320 for Boson 320
+cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('Y','1','6',' '))
+cap.set(cv2.CAP_PROP_CONVERT_RGB, 0)
+
+
+framecount=600
+frame_buf=[]
+for _ in range(framecount): #record indefinitely (until user presses q), replace with "while True"
+    stream_ret, frame = cap.read()
+    if stream_ret:
+        cv2.imshow("image", frame)
+        if cv2.waitKey(1) == ord('q'):
+            break;
+        frame_buf.append(frame)
+        
+cv2.destroyAllWindows()
+
+#Below is example code to save images to "folder" (Use appropriate directory syntax.)
+num=0
+while len(frame_buf)>0:
+    cv2.imwrite(f'{folder}/cap_{num}.tiff', frame_buf.pop(0))
+    num += 1
+
+
+ 
+ 
+ 
+ 
+ 
+Code for Windows platforms.
+On Windows (with Multipage TIFF save and Linear AGC)
+Prerequisites include Tifffile, time, datetime, numpy
+#Multi_page_tiff_example.py
+import cv2
+import numpy as np
+from datetime import datetime
+import tifffile
+import os, sys, time
+device_index = 1
+cap = cv2.VideoCapture(device_index+cv2.CAP_DSHOW)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 512) #use 256 for Boson 320
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640) #use 320 for Boson 320
+print(cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('Y','1','6',' ')))
+cap.set(cv2.CAP_PROP_CONVERT_RGB, 0)
+framecount=100
+frame_buf=[]
+def get_dt():
+    now = datetime.now()
+    return now.strftime("%Y%m%d_%H%M%S")
+def basic_agc(img, lower_bound=None, upper_bound=None):
+    '''
+    Map a 16-bit image tHrough a lookup table to convert it to 8-bit.
+    Parameters
+    ----------
+    img: numpy.ndarray[np.uint16]
+        image that should be mapped
+    lower_bound: int, optional
+        lower bound of the range that should be mapped to ``[0, 255]``,
+        value must be in the range ``[0, 65535]`` and smaller than `upper_bound`
+        (defaults to ``numpy.min(img)``)
+    upper_bound: int, optional
+       upper bound of the range that should be mapped to ``[0, 255]``,
+       value must be in the range ``[0, 65535]`` and larger than `lower_bound`
+       (defaults to ``numpy.max(img)``)
+    Returns
+    -------
+    numpy.ndarray[uint8]
+    '''
+    if not(0 <= lower_bound < 2**16) and lower_bound is not None:
+        raise ValueError(
+            '"lower_bound" must be in the range [0, 65535]')
+    if not(0 <= upper_bound < 2**16) and upper_bound is not None:
+        raise ValueError(
+            '"upper_bound" must be in the range [0, 65535]')
+    if lower_bound is None:
+        lower_bound = np.min(img)
+    if upper_bound is None:
+        upper_bound = np.max(img)
+    if lower_bound >= upper_bound:
+        raise ValueError(
+            '"lower_bound" must be smaller than "upper_bound"')
+    lut = np.concatenate([
+        np.zeros(lower_bound, dtype=np.uint16),
+        np.linspace(0, 255, upper_bound - lower_bound).astype(np.uint16),
+        np.ones(2**16 - upper_bound, dtype=np.uint16) * 255
+    ])
+    return lut[img].astype(np.uint8)
+print("start")
+for _ in range(framecount): #record indefinitely (until user presses q), replace with "while True"
+    stream_ret, frame = cap.read()
+    if stream_ret:
+        min_val = frame.min()
+        max_val = frame.max()
+        cv2.imshow("image", basic_agc(frame, min_val, max_val))
+        if cv2.waitKey(1) == ord('q'):
+            break;
+        frame_buf.append(frame)
+    #print(frame)    
+cv2.destroyAllWindows()
+print("end")
+#Below is example code to save images to "folder" (Use appropriate directory syntax.)
+num=0
+write_folder = "BosonCaptures" + '\\' + get_dt()
+os.makedirs(os.path.dirname(write_folder), exist_ok=True)
+print('Started write')
+num = 0
+tifffile.imsave(f'{write_folder}_cap.tiff', frame_buf)
+Code for Windows platforms.
+SDK Configuration for Saving radiometric Images
+***Requires the Boson SDK (v3.0 or greater) : boson+ Docs
+#Radiometry.py
+
+import os
+import cv2
+import numpy as np
+from SDK_USER_PERMISSIONS import *
+
+myCam = CamAPI.pyClient(manualport="COM46") #Boson COM port on windows, check device manager
+myCam.bosonSetGainMode(FLR_BOSON_GAINMODE_E.FLR_BOSON_HIGH_GAIN) #Low gain mode also available if temp > 120C
+myCam.TLinearSetControl(FLR_ENABLE_E.FLR_ENABLE)
+myCam.sysctrlSetUsbVideoIR16Mode(FLR_SYSCTRL_USBIR16_MODE_E.FLR_SYSCTRL_USBIR16_MODE_TLINEAR)
+myCam.radiometrySetTransmissionWindow(100) #100% transmission (no window in front of Boson)
+myCam.TLinearRefreshLUT(FLR_BOSON_GAINMODE_E.FLR_BOSON_HIGH_GAIN) #necessary after setting radiometry parameters like window transmission
+myCam.bosonRunFFC()
+device_index = 1 #make sure this device is the boson (it will show black if incorrect)
+cap = cv2.VideoCapture(device_index + cv2.CAP_DSHOW)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 512) #use 256 for Boson 320
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640) #use 320 for Boson 320
+cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('Y', '1', '6', ' '))
+cap.set(cv2.CAP_PROP_CONVERT_RGB, 0)
+#number of frames to capture
+framecount = 600
+frame_buf = []
+#spot meter size, position
+x_center = 320
+y_center = 256
+width = 100
+height = 100
+# Define the rectangle coordinates (top left and bottom right)
+left_x = x_center - (width / 2)
+left_y = y_center - (height / 2)
+# Calculate bottom-right coordinates
+right_x = x_center + (width / 2)
+right_y = y_center + (height / 2)
+#rectangle corners
+rect_top_left = (int(left_x), int(left_y))  # (x, y)
+rect_bottom_right = (int(right_x), int(right_y))  # (x, y)
+# Define the text properties
+position = (5, 25)  # Bottom-left corner of the text string in the image
+font = cv2.FONT_HERSHEY_SIMPLEX
+font_scale = 1
+font_color = (255, 255, 255)  # White color in BGR
+thickness = 2
+line_type = cv2.LINE_AA
+
+while True:
+    stream_ret, frame = cap.read()
+    if stream_ret: 
+        #convert frame to 8-bit for contrast (frame1=8-bit) (frame=16-bit)
+        if frame.dtype == np.uint16:
+            min_val, max_val = np.min(frame), np.max(frame)
+            frame1 = ((frame - min_val) / (max_val - min_val) * 255).astype(np.uint8)
+        # Extract the rectangle from the frame
+        rect = frame[rect_top_left[1]:rect_bottom_right[1], rect_top_left[0]:rect_bottom_right[0]]
+        # Calculate the average pixel value within the rectangle
+        mean_val = cv2.mean(rect)
+        avg_pixel_val = round(mean_val[0], 1)  # mean_val is a tuple, we're interested in the first value
+        # Calculate the average temperature
+        avg_temp_c = round((avg_pixel_val / 100) - 273, 1) #Low gain mode uses pixel_val/50 instead of pixel_val/100
+        avg_temp_f = round(avg_temp_c * 9/5 + 32, 1)
+        print(f"Average pixel value in rectangle: {avg_pixel_val}, Average temperature: {avg_temp_c} °C ({avg_temp_f} °F)")
+        text_str = "Temp C "
+        exit = "  Press q to exit"
+        text = f"{text_str}{avg_temp_c:.2f}{exit}"  # Format the text with the float
+        # Draw a red rectangle on the frame
+        cv2.rectangle(frame1, rect_top_left, rect_bottom_right, (255, 255, 255), 2)
+        cv2.putText(frame1, text, position, font, font_scale, font_color, thickness, line_type)
+        cv2.imshow("image", frame1)
+        if cv2.waitKey(1) == ord('q'):
+            break
+        #record the 16-bit frame as t_linear data
+        frame_buf.append(frame)
+
+        
+cv2.destroyAllWindows()
+
+
+
+ 
+ 
+ 
+ 
+ 
+Code for Windows platforms.
+ 
+Answers others found helpful
+FLIR OEM - Linux and embedded support for Boson SDK commands
+FLIR OEM - Boson Sample Development Code
+FLIR OEM - Boson 320 Radiometric - Cannot Acquire Radiometric 16 bit data on C++ and Python in Windows 10
+FLIR OEM - Boson Video and Image Capture using GStreamer
+FLIR OEM - Boson USBc Interface
+Print
+Email this page
+
+« Go Back to Search Results
+
+Login to subscribe to Answer update notifications.
+Still have questions?
+
+Ask a Question
+The FLIR Advantage
+
+Free Extended Warranty
+Some products are eligible for free warranty extension.
+
+Don't miss out this opportunity and get your 1-year free warranty extension today!
+
+Register your Flir product
+
+Repair and Calibration Services
+Get the best performance out of your Flir product!
+
+Send it in for annual maintenance and calibration for accurate measurements.
+
+Thermography Cameras
+
+
+
+Infrared Training Center
+Start learning thermography today! Find the course that's right for you:
+
+View available courses
+
+Detect the Undetectable.
+Predict the Unpredictable.®
+2025 © FLIR® Systems, Inc. All Rights Reserved
+Privacy Policy | Copyright Policy | Terms of Use
+
+ 
+ 
+ 
+ 
+About FLIR
+Investors
+Newsroom
+Careers
+Supply Chain
+Cookie Policy
+Support
+Product Registration
+Product Manuals
+Warranty Information
+Training
+Our Brands
+Raymarine
+Extech
+Infrared Training Center
+Cookie settings

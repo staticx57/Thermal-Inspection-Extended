@@ -16,7 +16,7 @@ try:
                                   QSizePolicy, QFileDialog, QListWidget, QListWidgetItem,
                                   QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox,
                                   QGroupBox, QScrollArea, QTabWidget, QFrame, QMessageBox,
-                                  QSlider, QProgressBar, QMenu)
+                                  QSlider, QProgressBar, QMenu, QRadioButton)
     from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QSize
     from PyQt6.QtGui import QImage, QPixmap, QFont, QPainter, QPen, QColor, QPalette
     PYQT_AVAILABLE = True
@@ -4830,166 +4830,180 @@ class InspectionAppWindow(QMainWindow):
             logger.error(f"ERROR during UI build: {e}", exc_info=True)
             raise
 
+    def _safe_connect(self, source_path: str, signal_name: str, handler, context: str = ""):
+        """
+        Safely connect a signal to a handler with defensive checks.
+
+        Args:
+            source_path: Dot-separated path to the panel (e.g., "radiometric_panel.enable_checkbox")
+            signal_name: Name of the signal (e.g., "stateChanged")
+            handler: Handler method to connect
+            context: Optional context description for logging
+
+        Returns:
+            bool: True if connection succeeded, False otherwise
+        """
+        try:
+            # Navigate the path to find the source object
+            parts = source_path.split('.')
+            obj = self
+
+            for part in parts:
+                if not hasattr(obj, part):
+                    logger.warning(f"Signal connection skipped: {source_path}.{signal_name} - '{part}' not found {context}")
+                    return False
+                obj = getattr(obj, part)
+
+            # Check if signal exists
+            if not hasattr(obj, signal_name):
+                logger.warning(f"Signal connection skipped: {source_path}.{signal_name} - signal not found {context}")
+                return False
+
+            # Connect the signal
+            signal = getattr(obj, signal_name)
+            signal.connect(handler)
+            return True
+
+        except Exception as e:
+            logger.warning(f"Failed to connect {source_path}.{signal_name}: {e} {context}")
+            return False
+
     def _connect_signals(self):
-        """Connect control panel signals to handlers."""
-        # Simple controls
-        self.control_panel.view_mode_clicked.connect(self._on_view_mode_cycle)
-        self.control_panel.day_night_clicked.connect(self._on_theme_cycle)
-
-        # Recording
-        self.control_panel.record_toggled.connect(self._on_record_toggle)
-        self.control_panel.snapshot_clicked.connect(self._on_snapshot)
-        self.control_panel.freeze_frame_toggled.connect(self._on_freeze_toggle)
-
-        # ROI
-        self.control_panel.auto_roi_clicked.connect(self._on_auto_roi)
-        self.control_panel.draw_roi_clicked.connect(self._on_draw_roi)
-        self.control_panel.clear_rois_clicked.connect(self._on_clear_rois)
-
-        # Camera
-        self.control_panel.camera_clicked.connect(self._on_camera_clicked)
-
-        # Settings Panel Signals
-        self.settings_panel.device_changed.connect(self._on_device_changed)
-        # Palette moved to Analysis Panel
-        self.analysis_panel.palette_changed.connect(self._on_global_palette_changed)
-        self.settings_panel.baseline_lock_toggled.connect(self._on_baseline_toggle)
-        self.settings_panel.fusion_mode_changed.connect(self._on_fusion_mode_changed)
-        self.settings_panel.fusion_alpha_changed.connect(self._on_fusion_alpha_changed)
-        self.settings_panel.fusion_priority_changed.connect(self._on_fusion_priority_changed)
-        self.settings_panel.fusion_strength_changed.connect(self._on_fusion_strength_changed)
-        self.settings_panel.fusion_fuzziness_changed.connect(self._on_fusion_fuzziness_changed)
-        self.settings_panel.fusion_color_mode_changed.connect(self._on_fusion_color_mode_changed)
-        self.settings_panel.edge_strength_changed.connect(self._on_edge_strength_changed)
-        self.settings_panel.edge_fuzziness_changed.connect(self._on_edge_fuzziness_changed)
-        self.settings_panel.edge_color_changed.connect(self._on_edge_color_changed)
-        self.settings_panel.detail_strength_changed.connect(self._on_detail_strength_changed)
-        self.settings_panel.detail_quality_changed.connect(self._on_detail_quality_changed)
-        self.settings_panel.save_rois_clicked.connect(self._on_save_rois)
-        self.settings_panel.load_rois_clicked.connect(self._on_load_rois)
-        self.settings_panel.overlay_info_toggled.connect(self._on_overlay_info_toggle)
-        self.settings_panel.show_stats_toggled.connect(self._on_show_stats_toggle)
-        self.settings_panel.show_trends_toggled.connect(self._on_show_trends_toggle)
-        self.settings_panel.show_detections_toggled.connect(self._on_show_detections_toggle)
-        self.settings_panel.view_mode_changed.connect(self._on_view_mode_changed)
-
-        # Anomaly Widget Signals
-        self.anomaly_widget.anomaly_priority_toggled.connect(self._on_anomaly_priority_toggle)
-        self.anomaly_widget.motion_threshold_changed.connect(self._on_motion_threshold_changed)
-        # Connect other anomaly signals as needed...
-
-        # Boson SDK Panel - Connection and basic controls
-        self.boson_panel.sdk_connect_requested.connect(self._on_boson_connect)
-        self.boson_panel.sdk_disconnect_requested.connect(self._on_boson_disconnect)
-        self.boson_panel.ffc_triggered.connect(self._on_boson_ffc)
-        self.boson_panel.sdk_scan_ports_requested.connect(self._on_boson_scan_ports)
+        """Connect control panel signals to handlers using defensive pattern."""
+        logger.info("Connecting signals with defensive checks...")
         
-        # Boson SDK Panel - Camera controls (quick wins)
-        self.boson_panel.gain_mode_changed.connect(self._on_boson_gain_mode)
-        self.boson_panel.ffc_mode_changed.connect(self._on_boson_ffc_mode)
-        self.boson_panel.color_lut_changed.connect(self._on_boson_color_lut)
+        # === CRITICAL CONTROLS (Always present) ===
+        # These should always exist, but we'll still use defensive connections
+        self._safe_connect("control_panel", "view_mode_clicked", self._on_view_mode_cycle, "(critical control)")
+        self._safe_connect("control_panel", "day_night_clicked", self._on_theme_cycle, "(critical control)")
+        self._safe_connect("control_panel", "record_toggled", self._on_record_toggle, "(critical control)")
+        self._safe_connect("control_panel", "snapshot_clicked", self._on_snapshot, "(critical control)")
+        self._safe_connect("control_panel", "freeze_frame_toggled", self._on_freeze_toggle, "(critical control)")
+        self._safe_connect("control_panel", "auto_roi_clicked", self._on_auto_roi, "(critical control)")
+        self._safe_connect("control_panel", "draw_roi_clicked", self._on_draw_roi, "(critical control)")
+        self._safe_connect("control_panel", "clear_rois_clicked", self._on_clear_rois, "(critical control)")
+        self._safe_connect("control_panel", "camera_clicked", self._on_camera_clicked, "(critical control)")
 
-        # Boson SDK Panel - AGC controls (Universal - ALL Boson cameras)
-        self.boson_panel.agc_max_gain_changed.connect(self._on_agc_max_gain_changed)
-        self.boson_panel.agc_gamma_changed.connect(self._on_agc_gamma_changed)
-        self.boson_panel.agc_linearity_changed.connect(self._on_agc_linearity_changed)
-        self.boson_panel.agc_dde_changed.connect(self._on_agc_dde_changed)
-        self.boson_panel.agc_plateau_changed.connect(self._on_agc_plateau_changed)
-        self.boson_panel.agc_dampening_changed.connect(self._on_agc_dampening_changed)
-        self.boson_panel.agc_reset_requested.connect(self._on_agc_reset)
+        # === SETTINGS PANEL ===
+        self._safe_connect("settings_panel", "device_changed", self._on_device_changed, "(settings)")
+        self._safe_connect("settings_panel", "baseline_lock_toggled", self._on_baseline_toggle, "(settings)")
+        self._safe_connect("settings_panel", "fusion_mode_changed", self._on_fusion_mode_changed, "(settings)")
+        self._safe_connect("settings_panel", "fusion_alpha_changed", self._on_fusion_alpha_changed, "(settings)")
+        self._safe_connect("settings_panel", "fusion_priority_changed", self._on_fusion_priority_changed, "(settings)")
+        self._safe_connect("settings_panel", "fusion_strength_changed", self._on_fusion_strength_changed, "(settings)")
+        self._safe_connect("settings_panel", "fusion_fuzziness_changed", self._on_fusion_fuzziness_changed, "(settings)")
+        self._safe_connect("settings_panel", "fusion_color_mode_changed", self._on_fusion_color_mode_changed, "(settings)")
+        self._safe_connect("settings_panel", "edge_strength_changed", self._on_edge_strength_changed, "(settings)")
+        self._safe_connect("settings_panel", "edge_fuzziness_changed", self._on_edge_fuzziness_changed, "(settings)")
+        self._safe_connect("settings_panel", "edge_color_changed", self._on_edge_color_changed, "(settings)")
+        self._safe_connect("settings_panel", "detail_strength_changed", self._on_detail_strength_changed, "(settings)")
+        self._safe_connect("settings_panel", "detail_quality_changed", self._on_detail_quality_changed, "(settings)")
+        self._safe_connect("settings_panel", "save_rois_clicked", self._on_save_rois, "(settings)")
+        self._safe_connect("settings_panel", "load_rois_clicked", self._on_load_rois, "(settings)")
+        self._safe_connect("settings_panel", "overlay_info_toggled", self._on_overlay_info_toggle, "(settings)")
+        self._safe_connect("settings_panel", "show_stats_toggled", self._on_show_stats_toggle, "(settings)")
+        self._safe_connect("settings_panel", "show_trends_toggled", self._on_show_trends_toggle, "(settings)")
+        self._safe_connect("settings_panel", "show_detections_toggled", self._on_show_detections_toggle, "(settings)")
+        self._safe_connect("settings_panel", "view_mode_changed", self._on_view_mode_changed, "(settings)")
 
-        # Boson SDK Panel - Shutter controls
-        self.boson_panel.shutter_position_changed.connect(self._on_shutter_position_changed)
+        # === ANALYSIS PANEL ===
+        self._safe_connect("analysis_panel", "palette_changed", self._on_global_palette_changed, "(analysis)")
+        self._safe_connect("analysis_panel", "roi_palette_changed", self._on_roi_palette_changed, "(analysis)")
+        self._safe_connect("analysis_panel", "roi_palette_cleared", self._on_roi_palette_cleared, "(analysis)")
+        self._safe_connect("analysis_panel", "overlay_info_toggled", self._on_overlay_info_toggle, "(analysis)")
 
-        # Boson SDK Panel - Radiometric mode control
-        self.boson_panel.radiometric_mode_changed.connect(self._on_radiometric_mode_changed)
+        # === ANOMALY WIDGET ===
+        self._safe_connect("anomaly_widget", "anomaly_priority_toggled", self._on_anomaly_priority_toggle, "(anomaly)")
+        self._safe_connect("anomaly_widget", "anomaly_types_changed", self._on_anomaly_types_changed, "(anomaly)")
+        self._safe_connect("anomaly_widget", "fade_strength_changed", self._on_fade_strength_changed, "(anomaly)")
+        self._safe_connect("anomaly_widget", "fade_distance_changed", self._on_fade_distance_changed, "(anomaly)")
+        self._safe_connect("anomaly_widget", "motion_threshold_changed", self._on_motion_threshold_changed, "(anomaly)")
+        self._safe_connect("anomaly_widget", "edge_thresholds_changed", self._on_edge_thresholds_changed, "(anomaly)")
+        self._safe_connect("anomaly_widget", "hot_spot_percentile_changed", self._on_hot_spot_percentile_changed, "(anomaly)")
+        self._safe_connect("anomaly_widget", "cold_spot_percentile_changed", self._on_cold_spot_percentile_changed, "(anomaly)")
+        self._safe_connect("anomaly_widget", "min_anomaly_size_changed", self._on_min_anomaly_size_changed, "(anomaly)")
 
-        # Calibration Panel
-        self.calibration_panel.add_calibration_point_clicked.connect(self._on_calibration_add_point_mode)
-        self.calibration_panel.compute_calibration_clicked.connect(self._on_compute_calibration)
-        self.calibration_panel.apply_calibration_toggled.connect(self._on_apply_calibration_toggled)
-        self.calibration_panel.clear_calibration_clicked.connect(self._on_clear_calibration)
-        self.calibration_panel.export_calibration_clicked.connect(self._on_export_calibration)
-        self.calibration_panel.import_calibration_clicked.connect(self._on_import_calibration)
-        self.calibration_panel.remove_point_clicked.connect(self._on_remove_calibration_point)
+        # === MANUAL THRESHOLD WIDGET ===
+        self._safe_connect("manual_threshold_widget", "enabled_changed", self._on_manual_threshold_enabled, "(manual threshold)")
+        self._safe_connect("manual_threshold_widget", "threshold_mode_changed", self._on_manual_threshold_mode_changed, "(manual threshold)")
+        self._safe_connect("manual_threshold_widget", "min_threshold_changed", self._on_manual_min_threshold_changed, "(manual threshold)")
+        self._safe_connect("manual_threshold_widget", "max_threshold_changed", self._on_manual_max_threshold_changed, "(manual threshold)")
+        self._safe_connect("manual_threshold_widget", "use_raw_values_changed", self._on_manual_use_raw_changed, "(manual threshold)")
+        self._safe_connect("manual_threshold_widget", "visualization_mode_changed", self._on_manual_viz_mode_changed, "(manual threshold)")
 
-        # Firefly Camera Panel - Exposure controls
-        self.firefly_panel.exposure_mode_changed.connect(self._on_firefly_exposure_mode)
-        self.firefly_panel.exposure_time_changed.connect(self._on_firefly_exposure_time)
+        # === BOSON SDK PANEL ===
+        self._safe_connect("boson_panel", "sdk_connect_requested", self._on_boson_connect, "(boson)")
+        self._safe_connect("boson_panel", "sdk_disconnect_requested", self._on_boson_disconnect, "(boson)")
+        self._safe_connect("boson_panel", "ffc_triggered", self._on_boson_ffc, "(boson)")
+        self._safe_connect("boson_panel", "sdk_scan_ports_requested", self._on_boson_scan_ports, "(boson)")
+        self._safe_connect("boson_panel", "gain_mode_changed", self._on_boson_gain_mode, "(boson)")
+        self._safe_connect("boson_panel", "ffc_mode_changed", self._on_boson_ffc_mode, "(boson)")
+        self._safe_connect("boson_panel", "color_lut_changed", self._on_boson_color_lut, "(boson)")
+        self._safe_connect("boson_panel", "agc_max_gain_changed", self._on_agc_max_gain_changed, "(boson AGC)")
+        self._safe_connect("boson_panel", "agc_gamma_changed", self._on_agc_gamma_changed, "(boson AGC)")
+        self._safe_connect("boson_panel", "agc_linearity_changed", self._on_agc_linearity_changed, "(boson AGC)")
+        self._safe_connect("boson_panel", "agc_dde_changed", self._on_agc_dde_changed, "(boson AGC)")
+        self._safe_connect("boson_panel", "agc_plateau_changed", self._on_agc_plateau_changed, "(boson AGC)")
+        self._safe_connect("boson_panel", "agc_dampening_changed", self._on_agc_dampening_changed, "(boson AGC)")
+        self._safe_connect("boson_panel", "agc_reset_requested", self._on_agc_reset, "(boson AGC)")
+        self._safe_connect("boson_panel", "shutter_position_changed", self._on_shutter_position_changed, "(boson shutter)")
+        self._safe_connect("boson_panel", "radiometric_mode_changed", self._on_radiometric_mode_changed, "(boson radiometric)")
+
+        # === FIREFLY CAMERA PANEL ===
+        self._safe_connect("firefly_panel", "exposure_mode_changed", self._on_firefly_exposure_mode, "(firefly)")
+        self._safe_connect("firefly_panel", "exposure_time_changed", self._on_firefly_exposure_time, "(firefly)")
+        self._safe_connect("firefly_panel", "gain_mode_changed", self._on_firefly_gain_mode, "(firefly)")
+        self._safe_connect("firefly_panel", "gain_changed", self._on_firefly_gain, "(firefly)")
+        self._safe_connect("firefly_panel", "white_balance_mode_changed", self._on_firefly_white_balance_mode, "(firefly)")
+        self._safe_connect("firefly_panel", "white_balance_calibrate", self._on_firefly_white_balance_calibrate, "(firefly)")
+        self._safe_connect("firefly_panel", "white_balance_ratio_changed", self._on_firefly_white_balance_ratio, "(firefly)")
+        self._safe_connect("firefly_panel", "trigger_mode_changed", self._on_firefly_trigger_mode, "(firefly)")
+        self._safe_connect("firefly_panel", "trigger_fire", self._on_firefly_trigger_fire, "(firefly)")
+        self._safe_connect("firefly_panel", "gamma_changed", self._on_firefly_gamma, "(firefly)")
+        self._safe_connect("firefly_panel", "sharpness_changed", self._on_firefly_sharpness, "(firefly)")
+
+        # === CALIBRATION PANEL ===
+        self._safe_connect("calibration_panel", "add_calibration_point_clicked", self._on_calibration_add_point_mode, "(calibration)")
+        self._safe_connect("calibration_panel", "compute_calibration_clicked", self._on_compute_calibration, "(calibration)")
+        self._safe_connect("calibration_panel", "apply_calibration_toggled", self._on_apply_calibration_toggled, "(calibration)")
+        self._safe_connect("calibration_panel", "clear_calibration_clicked", self._on_clear_calibration, "(calibration)")
+        self._safe_connect("calibration_panel", "export_calibration_clicked", self._on_export_calibration, "(calibration)")
+        self._safe_connect("calibration_panel", "import_calibration_clicked", self._on_import_calibration, "(calibration)")
+        self._safe_connect("calibration_panel", "remove_point_clicked", self._on_remove_calibration_point, "(calibration)")
+
+        # === RADIOMETRIC PANEL (nested widget) ===
+        self._safe_connect("radiometric_panel.enable_checkbox", "stateChanged", self._on_radiometric_enable_changed, "(radiometric)")
+        self._safe_connect("radiometric_panel.apply_range_btn", "clicked", self._on_radiometric_range_apply, "(radiometric)")
+        self._safe_connect("radiometric_panel.load_lut_btn", "clicked", self._on_load_lut, "(radiometric)")
+        self._safe_connect("radiometric_panel.method_linear_radio", "toggled", self._on_radiometric_method_changed, "(radiometric)")
+        self._safe_connect("radiometric_panel.method_lut_radio", "toggled", self._on_radiometric_method_changed, "(radiometric)")
+
+        # === PARALLAX PANEL ===
+        self._safe_connect("parallax_panel", "parallax_toggled", self._on_parallax_toggled, "(parallax)")
+        self._safe_connect("parallax_panel", "baseline_changed", self._on_parallax_baseline_changed, "(parallax)")
+        self._safe_connect("parallax_panel", "depth_method_changed", self._on_parallax_method_changed, "(parallax)")
+        self._safe_connect("parallax_panel.apply_geometry_btn", "clicked", self._on_parallax_geometry_apply, "(parallax)")
+
+        # === ENVIRONMENTAL COMPENSATION PANEL ===
+        self._safe_connect("env_comp_panel", "emissivity_changed", self._on_emissivity_changed, "(environmental)")
+        self._safe_connect("env_comp_panel", "atmospheric_temp_changed", self._on_atmospheric_temp_changed, "(environmental)")
+        self._safe_connect("env_comp_panel", "atmospheric_transmission_changed", self._on_atmospheric_transmission_changed, "(environmental)")
+
+        # === ISOTHERM PANEL ===
+        self._safe_connect("isotherm_panel", "enabled_changed", self._on_isotherm_enabled_changed, "(isotherm)")
+        self._safe_connect("isotherm_panel", "mode_changed", self._on_isotherm_mode_changed, "(isotherm)")
+        self._safe_connect("isotherm_panel", "low_threshold_changed", self._on_isotherm_low_threshold_changed, "(isotherm)")
+        self._safe_connect("isotherm_panel", "high_threshold_changed", self._on_isotherm_high_threshold_changed, "(isotherm)")
+        self._safe_connect("isotherm_panel", "color_changed", self._on_isotherm_color_changed, "(isotherm)")
+
+        # === ROI OVERLAY (nested widget) ===
+        self._safe_connect("video_widget.overlay", "roi_created", self._on_roi_created, "(roi overlay)")
+        self._safe_connect("video_widget.overlay", "roi_selected", self._on_roi_selected, "(roi overlay)")
+
+        # === VIDEO WIDGET ===
+        self._safe_connect("video_widget", "cursor_moved", self._on_cursor_moved, "(video)")
         
-        # Firefly Camera Panel - Gain controls
-        self.firefly_panel.gain_mode_changed.connect(self._on_firefly_gain_mode)
-        self.firefly_panel.gain_changed.connect(self._on_firefly_gain)
-        
-        # Firefly Camera Panel - White Balance controls
-        self.firefly_panel.white_balance_mode_changed.connect(self._on_firefly_white_balance_mode)
-        self.firefly_panel.white_balance_calibrate.connect(self._on_firefly_white_balance_calibrate)
-        self.firefly_panel.white_balance_ratio_changed.connect(self._on_firefly_white_balance_ratio)
-        
-        # Firefly Camera Panel - Trigger controls
-        self.firefly_panel.trigger_mode_changed.connect(self._on_firefly_trigger_mode)
-        self.firefly_panel.trigger_fire.connect(self._on_firefly_trigger_fire)
-        
-        # Firefly Camera Panel - Image settings
-        self.firefly_panel.gamma_changed.connect(self._on_firefly_gamma)
-        self.firefly_panel.sharpness_changed.connect(self._on_firefly_sharpness)
-
-        # Radiometric Panel - Enable/disable and temperature range
-        self.radiometric_panel.enable_checkbox.stateChanged.connect(self._on_radiometric_enable_changed)
-        self.radiometric_panel.apply_range_btn.clicked.connect(self._on_radiometric_range_apply)
-        self.radiometric_panel.load_lut_btn.clicked.connect(self._on_load_lut)
-        self.radiometric_panel.method_linear_radio.toggled.connect(self._on_radiometric_method_changed)
-        self.radiometric_panel.method_lut_radio.toggled.connect(self._on_radiometric_method_changed)
-
-        # Parallax Panel - Enable/disable and configuration
-        self.parallax_panel.parallax_toggled.connect(self._on_parallax_toggled)
-        self.parallax_panel.baseline_changed.connect(self._on_parallax_baseline_changed)
-        self.parallax_panel.depth_method_changed.connect(self._on_parallax_method_changed)
-        self.parallax_panel.apply_geometry_btn.clicked.connect(self._on_parallax_geometry_apply)
-
-        # Environmental Compensation Panel
-        self.env_comp_panel.emissivity_changed.connect(self._on_emissivity_changed)
-        self.env_comp_panel.atmospheric_temp_changed.connect(self._on_atmospheric_temp_changed)
-        self.env_comp_panel.atmospheric_transmission_changed.connect(self._on_atmospheric_transmission_changed)
-
-        # Isotherm Panel
-        self.isotherm_panel.enabled_changed.connect(self._on_isotherm_enabled_changed)
-        self.isotherm_panel.mode_changed.connect(self._on_isotherm_mode_changed)
-        self.isotherm_panel.low_threshold_changed.connect(self._on_isotherm_low_threshold_changed)
-        self.isotherm_panel.high_threshold_changed.connect(self._on_isotherm_high_threshold_changed)
-        self.isotherm_panel.color_changed.connect(self._on_isotherm_color_changed)
-
-        # Analysis panel signals
-        self.analysis_panel.roi_palette_changed.connect(self._on_roi_palette_changed)
-        self.analysis_panel.roi_palette_cleared.connect(self._on_roi_palette_cleared)
-        self.analysis_panel.overlay_info_toggled.connect(self._on_overlay_info_toggle)
-
-        # Anomaly Widget
-        self.anomaly_widget.anomaly_priority_toggled.connect(self._on_anomaly_priority_toggle)
-        self.anomaly_widget.anomaly_types_changed.connect(self._on_anomaly_types_changed)
-        self.anomaly_widget.fade_strength_changed.connect(self._on_fade_strength_changed)
-        self.anomaly_widget.fade_distance_changed.connect(self._on_fade_distance_changed)
-        self.anomaly_widget.motion_threshold_changed.connect(self._on_motion_threshold_changed)
-        self.anomaly_widget.edge_thresholds_changed.connect(self._on_edge_thresholds_changed)
-        self.anomaly_widget.hot_spot_percentile_changed.connect(self._on_hot_spot_percentile_changed)
-        self.anomaly_widget.cold_spot_percentile_changed.connect(self._on_cold_spot_percentile_changed)
-        self.anomaly_widget.min_anomaly_size_changed.connect(self._on_min_anomaly_size_changed)
-
-        # Manual Threshold Widget
-        self.manual_threshold_widget.enabled_changed.connect(self._on_manual_threshold_enabled)
-        self.manual_threshold_widget.threshold_mode_changed.connect(self._on_manual_threshold_mode_changed)
-        self.manual_threshold_widget.min_threshold_changed.connect(self._on_manual_min_threshold_changed)
-        self.manual_threshold_widget.max_threshold_changed.connect(self._on_manual_max_threshold_changed)
-        self.manual_threshold_widget.use_raw_values_changed.connect(self._on_manual_use_raw_changed)
-        self.manual_threshold_widget.visualization_mode_changed.connect(self._on_manual_viz_mode_changed)
-
-        # ROI Overlay signals
-        if hasattr(self.video_widget, 'overlay'):
-            self.video_widget.overlay.roi_created.connect(self._on_roi_created)
-            self.video_widget.overlay.roi_selected.connect(self._on_roi_selected)
-
-        # Video widget signals
-        self.video_widget.cursor_moved.connect(self._on_cursor_moved)
+        logger.info("✓ Signal connections complete (defensive mode)")
 
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""

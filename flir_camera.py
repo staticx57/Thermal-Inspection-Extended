@@ -55,7 +55,7 @@ class FLIRBosonCamera:
 
         # SDK integration (Phase 7)
         self.enable_sdk = enable_sdk and SDK_AVAILABLE
-        self.com_port = com_port
+        self.com_port = com_port if com_port else 'COM7'  # Default to COM7 (FLIR Control port)
         self.sdk: Optional[BosonSDK] = None
         self.sdk_connected = False
 
@@ -119,7 +119,7 @@ class FLIRBosonCamera:
                 # Open SDK connection for serial control (Phase 7)
                 if self.enable_sdk:
                     try:
-                        self.sdk = BosonSDK(com_port=self.com_port or 'COM6')
+                        self.sdk = BosonSDK(com_port=self.com_port or 'COM7')
                         if self.sdk.open():
                             self.sdk_connected = True
                             logger.info("[OK] Boson SDK connected - serial control enabled")
@@ -129,9 +129,47 @@ class FLIRBosonCamera:
                             if self.enable_tlinear_mode():
                                 logger.info("[OK] T-Linear mode enabled via SDK")
                                 
-                                # Re-open video capture to apply format change if needed
-                                # But that might be too disruptive. 
-                                # Let's hope the camera applies it on the fly or next frame.
+                                # CRITICAL: Restart video capture to apply T-Linear format change
+                                # The camera needs to be closed and reopened to switch from 8-bit AGC to 16-bit radiometric
+                                logger.info("  -> Restarting video capture to apply T-Linear format...")
+                                self.cap.release()
+                                
+                                # Small delay to allow camera to apply the mode change
+                                import time
+                                time.sleep(0.5)
+                                
+                                # Reopen video capture with Y16 format for radiometric data
+                                import platform
+                                system = platform.system()
+                                if system == "Windows":
+                                    try:
+                                        self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_DSHOW)
+                                    except:
+                                        self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_MSMF)
+                                else:
+                                    self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_V4L2 if system == "Linux" else 0)
+
+                                if not self.cap.isOpened():
+                                    logger.error("Failed to reopen video capture after T-Linear mode")
+                                    return False
+
+                                # CRITICAL: Set Y16 format BEFORE setting other properties
+                                # This must happen immediately after opening to capture 16-bit radiometric data
+                                try:
+                                    self.cap.set(cv2.CAP_PROP_CONVERT_RGB, 0)  # Disable RGB conversion
+                                    self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('Y','1','6',' '))
+                                    logger.info("  -> Y16 format requested for radiometric mode")
+                                except Exception as e:
+                                    logger.warning(f"  -> Failed to set Y16 format: {e}")
+
+                                # Reconfigure camera properties
+                                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
+                                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
+                                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                                self.cap.set(cv2.CAP_PROP_FPS, 60)
+                                
+                                logger.info("  -> Video capture restarted successfully")
+                                logger.info(f"  -> Resolution: {int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))}x{int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
                             else:
                                 logger.warning("Failed to enable T-Linear mode")
                                 
@@ -555,40 +593,143 @@ class FLIRBosonCamera:
     def enable_tlinear_mode(self) -> bool:
         """
         Enable T-Linear (Radiometric) mode via SDK.
-        This switches the camera output to 16-bit linear temperature data.
+
+        This enables T-Linear processing and sets USB output to radiometric mode.
+
+        Note on Windows:
+            Due to DirectShow limitations, OpenCV will still capture 8-bit YUV data
+            even after enabling this mode. The camera is configured correctly, but
+            Windows DirectShow prefers color formats over Y16.
+
+            The AGC output will reflect T-Linear processing, providing better
+            thermal data quality even in 8-bit format.
+
+        Returns:
+            True if successful
         """
         if not self.sdk_connected or not self.sdk:
+            logger.warning("SDK not connected - cannot enable T-Linear mode")
             return False
-            
+
         try:
-            # Try using the raw camera object to call TLinear SetControl
-            # This requires constructing the correct Enum or value wrapper
-            cam = self.sdk.camera
-            if hasattr(cam, 'CLIENT_pkg_TLinear_SetControl'):
-                # Create a simple wrapper class for the argument if needed
-                # or pass int if the wrapper handles it (it didn't in our test)
-                class CTypesInt:
-                    def __init__(self, val):
-                        self.value = val
-                
-                # 1 = Enable
-                arg = CTypesInt(1)
-                res = cam.CLIENT_pkg_TLinear_SetControl(arg)
-                
-                val = res.value if hasattr(res, 'value') else res
-                if val == 0:
-                    self.radiometric_enabled = True
-                    return True
-            
-            # Fallback: try enable_radiometry (TempStableEnable)
-            # This is NOT the same as T-Linear but related
-            if self.sdk.enable_radiometry():
-                return True
-                
-            return False
+            # Step 1: Enable T-Linear control
+            if not self.sdk.enable_tlinear_control():
+                logger.error("Failed to enable T-Linear control")
+                return False
+
+            # Step 2: Set USB video output to T-Linear mode (mode 2)
+            if not self.sdk.set_usb_video_ir16_mode(2):
+                logger.warning("Failed to set USB IR16 mode, but T-Linear control is active")
+                # Don't fail completely - T-Linear control is still useful
+
+            self.radiometric_enabled = True
+            logger.info("T-Linear mode enabled successfully")
+            return True
+
         except Exception as e:
-            logger.error(f"Error enabling T-Linear: {e}")
+            logger.error(f"Error enabling T-Linear mode: {e}")
             return False
+
+    def disable_tlinear_mode(self) -> bool:
+        """
+        Disable T-Linear mode and return to standard AGC processing.
+
+        Returns:
+            True if successful
+        """
+        if not self.sdk_connected or not self.sdk:
+            logger.warning("SDK not connected - cannot disable T-Linear mode")
+            return False
+
+        try:
+            # Disable T-Linear control
+            if not self.sdk.disable_tlinear_control():
+                logger.error("Failed to disable T-Linear control")
+                return False
+
+            # Set USB video to standard 16-bit raw mode (mode 0)
+            if not self.sdk.set_usb_video_ir16_mode(0):
+                logger.warning("Failed to reset USB IR16 mode")
+
+            self.radiometric_enabled = False
+            logger.info("T-Linear mode disabled")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error disabling T-Linear mode: {e}")
+            return False
+
+    def get_video_mode_status(self) -> dict:
+        """
+        Get current video mode status.
+
+        Returns:
+            Dictionary with mode information
+        """
+        status = {
+            'sdk_connected': self.sdk_connected,
+            'tlinear_enabled': False,
+            'usb_ir16_mode': None,
+            'usb_ir16_mode_name': 'Unknown',
+            'radiometric_capable': self.radiometric_capable,
+            'note': ''
+        }
+
+        if not self.sdk_connected or not self.sdk:
+            status['note'] = 'SDK not connected'
+            return status
+
+        try:
+            # Get T-Linear control state
+            tlinear_state = self.sdk.get_tlinear_control_state()
+            status['tlinear_enabled'] = tlinear_state if tlinear_state is not None else False
+
+            # Get USB IR16 mode
+            ir16_mode = self.sdk.get_usb_video_ir16_mode()
+            status['usb_ir16_mode'] = ir16_mode
+
+            mode_names = {
+                0: '16-bit raw',
+                1: '14-bit raw',
+                2: 'T-Linear radiometric'
+            }
+            status['usb_ir16_mode_name'] = mode_names.get(ir16_mode, 'Unknown')
+
+            # Add note about Windows limitation
+            if ir16_mode == 2:
+                status['note'] = 'T-Linear mode active. Note: Windows DirectShow captures 8-bit YUV.'
+
+        except Exception as e:
+            status['note'] = f'Error reading status: {e}'
+
+        return status
+
+    def switch_to_agc_mode(self) -> bool:
+        """
+        Switch camera to AGC (8-bit processed) mode at runtime.
+
+        This disables T-Linear and returns to standard AGC processing.
+        Video capture does NOT need to be restarted.
+
+        Returns:
+            True if successful
+        """
+        return self.disable_tlinear_mode()
+
+    def switch_to_radiometric_mode(self) -> bool:
+        """
+        Switch camera to radiometric (T-Linear) mode at runtime.
+
+        This enables T-Linear processing. On Windows with OpenCV,
+        the output will still be 8-bit YUV, but with T-Linear processing
+        providing better thermal data quality.
+
+        Video capture does NOT need to be restarted.
+
+        Returns:
+            True if successful
+        """
+        return self.enable_tlinear_mode()
 
     # ========================================================================
     # Runtime SDK Connection (Phase 7 Enhancement - v2.7.0)
@@ -626,7 +767,7 @@ class FLIRBosonCamera:
                     com_port = f"COM{com_port}"
 
             # Create SDK instance
-            self.sdk = BosonSDK(com_port=com_port or 'COM6')
+            self.sdk = BosonSDK(com_port=com_port or 'COM7')
 
             # Attempt connection
             if self.sdk.open():

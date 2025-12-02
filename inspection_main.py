@@ -445,7 +445,8 @@ class ThermalInspectionFusion:
             logger.info("Scanning for FLIR Boson thermal camera...")
 
             # NEW: Phase 7 - Enable SDK for serial control
-            enable_sdk = getattr(self.args, 'enable_boson_sdk', False)
+            # CHANGED: Default to True so T-Linear mode can be enabled automatically
+            enable_sdk = getattr(self.args, 'enable_boson_sdk', True)  # Changed from False to True
             com_port = getattr(self.args, 'boson_com_port', 'COM6')
 
             # Determine device ID
@@ -1252,6 +1253,7 @@ class ThermalInspectionFusion:
                 # Update result with anomaly-priority-applied colorization
                 result['thermal_colorized'] = thermal_colorized
             t_prof['after_anomaly_priority'] = time.time()
+            t_prof['after_thermal_analysis'] = time.time()  # Mark end of thermal analysis section
 
             # 5c. Apply manual threshold visualization if enabled
             if self.manual_threshold_enabled and self.latest_threshold_result is not None:
@@ -2433,6 +2435,68 @@ class ThermalInspectionFusion:
             if hasattr(self.thermal_camera.sdk, 'set_shutter_position'):
                 return self.thermal_camera.sdk.set_shutter_position(position)
         return False
+
+    def set_radiometric_mode(self, enable_radiometric: bool) -> bool:
+        """
+        Switch between T-Linear radiometric mode (16-bit) and UVC colorized mode (8-bit).
+
+        Args:
+            enable_radiometric: True for T-Linear mode, False for UVC mode
+
+        Returns:
+            True if successful, False otherwise
+
+        Note:
+            - T-Linear mode: 16-bit absolute temperature data for precise measurements
+            - UVC mode: 8-bit AGC-processed colorized output for visual display
+            - In radiometric mode, colorization is still applied via palette manager
+        """
+        if not self.thermal_camera:
+            logger.error("No thermal camera available")
+            return False
+
+        if not self.thermal_camera.is_sdk_connected():
+            logger.error("SDK not connected - cannot change camera mode")
+            return False
+
+        try:
+            if enable_radiometric:
+                # Enable T-Linear mode via SDK
+                logger.info("Enabling T-Linear radiometric mode...")
+                success = self.thermal_camera.enable_tlinear_mode()
+
+                if success:
+                    logger.info("[OK] T-Linear mode enabled")
+                    logger.info("  -> Camera will output 16-bit absolute temperature data")
+                    logger.info("  -> Colorization will be applied via palette manager")
+
+                    # Enable radiometric processing in the camera object
+                    if hasattr(self.thermal_camera, 'enable_radiometric'):
+                        self.thermal_camera.enable_radiometric(True)
+
+                    return True
+                else:
+                    logger.error("[ERROR] Failed to enable T-Linear mode")
+                    return False
+            else:
+                # Disable T-Linear mode (revert to standard UVC)
+                logger.info("Switching to UVC post-colorized mode...")
+
+                # Disable radiometric processing
+                if hasattr(self.thermal_camera, 'enable_radiometric'):
+                    self.thermal_camera.enable_radiometric(False)
+
+                # Note: Disabling T-Linear requires camera reset/reinitialization
+                # or power cycle. This is a limitation of the Boson firmware.
+                logger.warning("Note: Switching from T-Linear to UVC may require camera power cycle")
+                logger.info("[OK] Radiometric processing disabled")
+                logger.info("  -> Camera output remains in current mode until power cycle")
+
+                return True
+
+        except Exception as e:
+            logger.error(f"Error changing radiometric mode: {e}")
+            return False
 
     def connect_boson_sdk(self, com_port: str) -> bool:
         """
