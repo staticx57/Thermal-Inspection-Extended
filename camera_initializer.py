@@ -211,13 +211,15 @@ class CameraInitializer:
         )
 
     @staticmethod
-    def init_cameras_prioritized(thermal_first: bool = True) -> Tuple[Optional[object], Optional[object]]:
+    def init_cameras_prioritized(thermal_first: bool = True, enable_sdk: bool = False, com_port: str = 'COM6') -> Tuple[Optional[object], Optional[object]]:
         """
         Initialize both cameras with priority order
 
         Args:
             thermal_first: If True, initialize thermal first (recommended for inspection apps)
                           If False, initialize RGB first
+            enable_sdk: Enable Boson SDK for thermal camera
+            com_port: COM port for Boson SDK
 
         Returns:
             (thermal_camera, rgb_camera) tuple (either can be None if failed)
@@ -227,6 +229,7 @@ class CameraInitializer:
         logger.info("="*70)
         logger.info("PRIORITIZED CAMERA INITIALIZATION")
         logger.info("="*70)
+        logger.info(f"SDK enabled: {enable_sdk}, COM port: {com_port}")
 
         # Detect cameras first
         thermal_info = CameraDetector.find_thermal_camera()
@@ -241,6 +244,8 @@ class CameraInitializer:
                 result = CameraInitializer.init_thermal_camera_safe(
                     device_id=thermal_info.device_id,
                     resolution=thermal_info.resolution,
+                    enable_sdk=enable_sdk,
+                    com_port=com_port,
                     timeout=10.0
                 )
                 if result.success:
@@ -309,6 +314,8 @@ class CameraInitializer:
                 result = CameraInitializer.init_thermal_camera_safe(
                     device_id=thermal_info.device_id,
                     resolution=thermal_info.resolution,
+                    enable_sdk=enable_sdk,
+                    com_port=com_port,
                     timeout=10.0
                 )
                 if result.success:

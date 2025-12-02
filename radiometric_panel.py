@@ -30,12 +30,15 @@ class RadiometricPanel(QWidget):
     spotmeter_enabled_changed = pyqtSignal(bool)
     spotmeter_mode_changed = pyqtSignal(str)
     sensor_temps_requested = pyqtSignal()
-    
+
     # 8-Bit Estimation Signals (NEW)
     estimation_8bit_enabled_changed = pyqtSignal(bool)
     temperature_range_changed = pyqtSignal(float, float)  # min_c, max_c
     calibrate_single_point_requested = pyqtSignal()
     calibrate_two_point_requested = pyqtSignal()
+
+    # Temperature Unit Signal
+    temperature_unit_changed = pyqtSignal(str)  # Emits 'C', 'F', or 'K'
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -86,6 +89,26 @@ class RadiometricPanel(QWidget):
 
         status_group.setLayout(status_layout)
         layout.addWidget(status_group)
+
+        # ====================================================================
+        # TEMPERATURE UNIT SELECTOR
+        # ====================================================================
+        unit_group = QGroupBox("Temperature Unit")
+        unit_layout = QHBoxLayout()
+        unit_layout.setSpacing(6)
+
+        unit_label = QLabel("Display Unit:")
+        unit_layout.addWidget(unit_label)
+
+        self.temp_unit_combo = QComboBox()
+        self.temp_unit_combo.addItems(['°C (Celsius)', '°F (Fahrenheit)', 'K (Kelvin)'])
+        self.temp_unit_combo.setCurrentIndex(0)  # Default to Celsius
+        self.temp_unit_combo.setToolTip("Select temperature unit for all displays")
+        self.temp_unit_combo.currentIndexChanged.connect(self._on_temp_unit_changed)
+        unit_layout.addWidget(self.temp_unit_combo)
+
+        unit_group.setLayout(unit_layout)
+        layout.addWidget(unit_group)
 
         # Temperature Range Configuration
         range_group = QGroupBox("Temperature Range")
@@ -443,6 +466,14 @@ class RadiometricPanel(QWidget):
         self.max_temp_label.setText("Max: --")
         self.mean_temp_label.setText("Mean: --")
 
+    def _on_temp_unit_changed(self, index: int):
+        """Handle temperature unit combo box change."""
+        # Map index to unit code
+        unit_map = {0: 'C', 1: 'F', 2: 'K'}
+        unit = unit_map.get(index, 'C')
+        logger.info(f"Temperature unit changed to: {unit}")
+        self.temperature_unit_changed.emit(unit)
+
     def get_temperature_range(self) -> tuple:
         """Get configured temperature range."""
         return (self.min_temp_spin.value(), self.max_temp_spin.value())
@@ -524,3 +555,8 @@ class RadiometricPanel(QWidget):
     def set_calibration_offset(self, offset_c: float):
         """Update the displayed calibration offset."""
         self.calib_offset_label.setText(f"Current Offset: {offset_c:+.2f}°C")
+
+    def set_scene_range(self, min_c: float, max_c: float):
+        """Update the displayed scene range."""
+        self.scene_min_spin.setValue(min_c)
+        self.scene_max_spin.setValue(max_c)

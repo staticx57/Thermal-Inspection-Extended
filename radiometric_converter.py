@@ -35,7 +35,7 @@ class TLinearConverter:
 
         Args:
             method: Conversion method - "linear" or "lut"
-            temperature_unit: Temperature unit - "C" (Celsius) or "F" (Fahrenheit)
+            temperature_unit: Temperature unit - "C" (Celsius), "F" (Fahrenheit), or "K" (Kelvin)
         """
         self.method = method
         self.temperature_unit = temperature_unit
@@ -65,34 +65,48 @@ class TLinearConverter:
     def fahrenheit_to_celsius(self, temp_f: float) -> float:
         """Convert Fahrenheit to Celsius. Formula: C = (F - 32) * 5/9"""
         return (temp_f - 32.0) * 5.0 / 9.0
-    
+
+    def celsius_to_kelvin(self, temp_c: float) -> float:
+        """Convert Celsius to Kelvin. Formula: K = C + 273.15"""
+        return temp_c + 273.15
+
+    def kelvin_to_celsius(self, temp_k: float) -> float:
+        """Convert Kelvin to Celsius. Formula: C = K - 273.15"""
+        return temp_k - 273.15
+
     def convert_temperature(self, temp_c: float) -> float:
         """
         Convert temperature from Celsius to current unit setting.
-        
+
         Args:
             temp_c: Temperature in Celsius
-        
+
         Returns:
-            Temperature in selected unit (C or F)
+            Temperature in selected unit (C, F, or K)
         """
         if self.temperature_unit == 'F':
             return self.celsius_to_fahrenheit(temp_c)
+        elif self.temperature_unit == 'K':
+            return self.celsius_to_kelvin(temp_c)
         return temp_c
-    
+
     def get_temperature_unit_symbol(self) -> str:
         """Get temperature unit symbol for display"""
-        return 'F' if self.temperature_unit == 'F' else 'C'
-    
+        if self.temperature_unit == 'F':
+            return '°F'
+        elif self.temperature_unit == 'K':
+            return 'K'
+        return '°C'
+
     def set_temperature_unit(self, unit: str):
         """
         Set temperature unit.
-        
+
         Args:
-            unit: 'C' for Celsius or 'F' for Fahrenheit
+            unit: 'C' for Celsius, 'F' for Fahrenheit, or 'K' for Kelvin
         """
-        if unit not in ['C', 'F']:
-            raise ValueError("Unit must be 'C' or 'F'")
+        if unit not in ['C', 'F', 'K']:
+            raise ValueError("Unit must be 'C', 'F', or 'K'")
         self.temperature_unit = unit
         logger.info(f"Temperature unit set to: {unit}")
     

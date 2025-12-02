@@ -156,10 +156,12 @@ class ThermalAnalyzer:
         # Hot spot detection settings
         self.hot_spot_threshold = self.config.get("hot_spot_threshold", 0.8)  # 80th percentile
         self.hot_spot_min_area = self.config.get("hot_spot_min_area", 100)  # pixels
+        self.max_hot_spots = self.config.get("max_hot_spots", 3)  # Maximum number of hot spots to return
 
         # Cold spot detection settings
         self.cold_spot_threshold = self.config.get("cold_spot_threshold", 0.2)  # 20th percentile
         self.cold_spot_min_area = self.config.get("cold_spot_min_area", 100)  # pixels
+        self.max_cold_spots = self.config.get("max_cold_spots", 3)  # Maximum number of cold spots to return
 
         # Anomaly detection settings
         self.anomaly_sensitivity = self.config.get("anomaly_sensitivity", 0.7)

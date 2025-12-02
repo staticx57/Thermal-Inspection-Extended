@@ -88,10 +88,12 @@ except ImportError:
 try:
     from thermal_estimator import ThermalTemperatureEstimator
     THERMAL_ESTIMATION_AVAILABLE = True
-except ImportError:
+    logger = logging.getLogger(__name__)
+    logger.info("8-bit temperature estimation module available")
+except ImportError as e:
     THERMAL_ESTIMATION_AVAILABLE = False
     logger = logging.getLogger(__name__)
-    logger.info("Thermal temperature estimator not available")
+    logger.warning(f"Thermal temperature estimator not available: {e}")
 
 # Performance monitoring
 from performance_monitor import PerformanceMonitor
@@ -403,8 +405,16 @@ class ThermalInspectionFusion:
         logger.info("INITIALIZING CAMERAS (ROBUST MODE)")
         logger.info("="*70)
 
+        # Get SDK parameters from args
+        enable_sdk = getattr(self.args, 'enable_boson_sdk', False)
+        com_port = getattr(self.args, 'boson_com_port', 'COM6')
+
         # Use robust initializer with thermal-first priority
-        thermal_cam, rgb_cam = CameraInitializer.init_cameras_prioritized(thermal_first=True)
+        thermal_cam, rgb_cam = CameraInitializer.init_cameras_prioritized(
+            thermal_first=True,
+            enable_sdk=enable_sdk,
+            com_port=com_port
+        )
 
         # Handle thermal camera
         thermal_success = False
@@ -422,6 +432,9 @@ class ThermalInspectionFusion:
                 if info:
                     logger.info(f"  Camera SN: {info.serial_number}")
                 logger.info("=" * 60)
+
+                # Initialize 8-bit temperature estimator when SDK connects
+                self._init_8bit_estimation()
 
             # Auto-enable radiometric if available
             if hasattr(thermal_cam, 'enable_radiometric_mode'):
@@ -1107,7 +1120,20 @@ class ThermalInspectionFusion:
             
             # Calculate global statistics first (for GUI display)
             if self.thermal_analyzer:
-                result['thermal_stats'] = self.thermal_analyzer.analyze_frame(thermal_frame)
+                # Use temperature map if 8-bit estimation is active
+                analysis_frame = thermal_frame
+                if self.temp_estimation_enabled and self.temp_estimator:
+                    if self.thermal_camera and self.thermal_camera.is_sdk_connected():
+                        fpa_temp_result = self.thermal_camera.get_fpa_temperature()
+                        if fpa_temp_result:
+                            fpa_temp_c = fpa_temp_result[1]
+                            # Convert AGC frame to temperature map
+                            analysis_frame = self.temp_estimator.estimate_temperature_map(
+                                thermal_frame, fpa_temp_c
+                            )
+                            # Hot/cold spots will now show temperatures in °C
+
+                result['thermal_stats'] = self.thermal_analyzer.analyze_frame(analysis_frame)
 
             rois = self.roi_manager.get_all_rois(active_only=True)
 
@@ -2152,6 +2178,10 @@ class ThermalInspectionFusion:
             
             if success:
                 logger.info("[OK] Boson SDK connected")
+
+                # Initialize 8-bit temperature estimator now that SDK is connected
+                self._init_8bit_estimation()
+
                 return True
             else:
                 logger.error("[ERROR] Boson SDK connection failed")
@@ -2542,26 +2572,6 @@ class ThermalInspectionFusion:
 
         except Exception as e:
             logger.error(f"Error changing radiometric mode: {e}")
-            return False
-
-    def connect_boson_sdk(self, com_port: str) -> bool:
-        """
-        Connect to Boson SDK.
-
-        Args:
-            com_port: COM port (e.g., 'COM6')
-
-        Returns:
-            True if successful
-        """
-        if not self.thermal_camera or not self.is_flir_boson:
-            logger.warning("No thermal camera connected or not a Boson")
-            return False
-
-        if self.thermal_camera.connect_sdk(com_port if com_port else None):
-            logger.info(f"Boson SDK connected on {com_port}")
-            return True
-        else:
             return False
 
     def swap_cameras(self) -> bool:
@@ -3330,8 +3340,10 @@ class ThermalInspectionFusion:
         Initialize 8-bit pseudo-radiometric temperature estimator.
         AUTO-CALLED when SDK connects (works on all Bosons).
         """
+        logger.info(f"_init_8bit_estimation() called. THERMAL_ESTIMATION_AVAILABLE={THERMAL_ESTIMATION_AVAILABLE}")
+
         if not THERMAL_ESTIMATION_AVAILABLE:
-            logger.info("8-bit temperature estimator not available")
+            logger.warning("8-bit temperature estimator not available - module import failed")
             return
 
         try:
@@ -3346,7 +3358,12 @@ class ThermalInspectionFusion:
             self.temp_estimation_enabled = True
             self.active_temp_mode = "8bit"
             self.last_agc_stats = {'min': 0, 'max': 255, 'center': 128}
-            
+
+            # Set thermal analyzer to radiometric mode since 8-bit estimation is active
+            if self.thermal_analyzer:
+                self.thermal_analyzer.is_radiometric = True
+                logger.debug("Thermal analyzer set to radiometric mode (8-bit estimation active)")
+
             logger.info("=" * 60)
             logger.info("[OK] 8-Bit Temperature Estimation initialized")
             logger.info("  Works on ALL Boson cameras (320, 640, -R variants)")
@@ -3514,7 +3531,7 @@ class ThermalInspectionFusion:
     def set_8bit_estimation_enabled(self, enabled: bool):
         """
         Enable or disable 8-bit temperature estimation.
-        
+
         Args:
             enabled: True to enable, False to disable
         """
@@ -3523,7 +3540,13 @@ class ThermalInspectionFusion:
             return
 
         self.temp_estimation_enabled = enabled
-        
+
+        # Update thermal analyzer's radiometric flag
+        # When 8-bit estimation is active, hot/cold spots should show temperatures
+        if self.thermal_analyzer:
+            self.thermal_analyzer.is_radiometric = enabled
+            logger.debug(f"Thermal analyzer radiometric mode: {enabled}")
+
         # Update active mode
         if enabled:
             self.active_temp_mode = "8bit"
@@ -3791,10 +3814,10 @@ class ThermalInspectionFusion:
     
     def _on_temperature_unit_changed(self, unit: str):
         """
-        Handle temperature unit change (C/F).
-        
+        Handle temperature unit change (C/F/K).
+
         Args:
-            unit: 'C' for Celsius or 'F' for Fahrenheit
+            unit: 'C' for Celsius, 'F' for Fahrenheit, or 'K' for Kelvin
         """
         if self.thermal_camera and hasattr(self.thermal_camera, 'radiometric_converter'):
             converter = self.thermal_camera.radiometric_converter
@@ -3810,6 +3833,15 @@ class ThermalInspectionFusion:
                 # Update GUI displays if radiometric is enabled
                 if self.gui and hasattr(self.gui, 'radiometric_panel'):
                     self.update_radiometric_gui()
+
+    def set_temperature_unit(self, unit: str):
+        """
+        Public API to set temperature unit for all displays.
+
+        Args:
+            unit: 'C' for Celsius, 'F' for Fahrenheit, or 'K' for Kelvin
+        """
+        self._on_temperature_unit_changed(unit)
 
     # ========================================================================
     # Environmental Compensation Methods (Phase 11)

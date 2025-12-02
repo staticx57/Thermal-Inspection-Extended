@@ -1989,6 +1989,9 @@ class ThermalAnalysisPanel(QWidget):
         self.roi_palette_combo.currentTextChanged.connect(self._on_roi_palette_combo_changed)
         self.overlay_info_checkbox.toggled.connect(self.overlay_info_toggled.emit)
 
+        # Connect radiometric panel temperature unit change signal
+        self.radiometric_panel_general.temperature_unit_changed.connect(self._on_temperature_unit_changed)
+
     def _populate_palette_combo(self, combo: QComboBox):
         """Populate a combo box with categorized palettes."""
         palette_categories = [
@@ -2066,6 +2069,11 @@ class ThermalAnalysisPanel(QWidget):
             if 0 <= self.selected_roi_index < len(self.current_rois):
                 roi = self.current_rois[self.selected_roi_index]
                 self.roi_palette_changed.emit(roi.roi_id, clean_name)
+
+    def _on_temperature_unit_changed(self, unit: str):
+        """Handle temperature unit change from radiometric panel."""
+        if self.app:
+            self.app.set_temperature_unit(unit)
 
     def update_detection_results(self, motion_count: int, edge_count: int, anomaly_count: int):
         """Update detection results display."""
@@ -4641,6 +4649,9 @@ class InspectionAppWindow(QMainWindow):
         self.recording = False
         self.frozen = False
 
+        # Connection tracking for defensive pattern
+        self._connected_signals = set()
+
         # Build UI
         self._build_ui()
 
@@ -4833,6 +4844,8 @@ class InspectionAppWindow(QMainWindow):
     def _safe_connect(self, source_path: str, signal_name: str, handler, context: str = ""):
         """
         Safely connect a signal to a handler with defensive checks.
+        
+        ENHANCED with handler validation and duplicate detection.
 
         Args:
             source_path: Dot-separated path to the panel (e.g., "radiometric_panel.enable_checkbox")
@@ -4844,7 +4857,22 @@ class InspectionAppWindow(QMainWindow):
             bool: True if connection succeeded, False otherwise
         """
         try:
-            # Navigate the path to find the source object
+            # Get handler name for logging
+            handler_name = handler.__name__ if hasattr(handler, '__name__') else str(handler)
+            
+            # 1. ENHANCED: Validate handler exists and is callable
+            if not callable(handler):
+                logger.error(f"⚠️ Handler not callable: {handler_name} for {source_path}.{signal_name} {context}")
+                return False
+            
+            # 2. ENHANCED: Check if handler method exists on self
+            if hasattr(handler, '__self__') and handler.__self__ is self:
+                if not hasattr(self, handler_name):
+                    logger.error(f"⚠️ MISSING HANDLER METHOD: {handler_name} for {source_path}.{signal_name} {context}")
+                    logger.error(f"   This method needs to be defined in InspectionAppWindow")
+                    return False
+            
+            # 3. Navigate the path to find the source object
             parts = source_path.split('.')
             obj = self
 
@@ -4854,18 +4882,32 @@ class InspectionAppWindow(QMainWindow):
                     return False
                 obj = getattr(obj, part)
 
-            # Check if signal exists
+            # 4. Check if signal exists
             if not hasattr(obj, signal_name):
                 logger.warning(f"Signal connection skipped: {source_path}.{signal_name} - signal not found {context}")
                 return False
 
-            # Connect the signal
+            # 5. ENHANCED: Check for duplicate connections
+            connection_key = f"{source_path}.{signal_name} -> {handler_name}"
+            
+            if connection_key in self._connected_signals:
+                logger.warning(f"⚠️ DUPLICATE CONNECTION SKIPPED: {connection_key} {context}")
+                return False
+            
+            # 6. Connect the signal
             signal = getattr(obj, signal_name)
             signal.connect(handler)
+            
+            # 7. Track the connection
+            self._connected_signals.add(connection_key)
+            logger.debug(f"✓ Connected: {connection_key} {context}")
             return True
 
         except Exception as e:
-            logger.warning(f"Failed to connect {source_path}.{signal_name}: {e} {context}")
+            handler_name = handler.__name__ if hasattr(handler, '__name__') else str(handler)
+            logger.error(f"⚠️ Connection failed: {source_path}.{signal_name} -> {handler_name}: {e} {context}")
+            import traceback
+            logger.debug(traceback.format_exc())
             return False
 
     def _connect_signals(self):
@@ -4978,26 +5020,22 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("radiometric_panel.method_linear_radio", "toggled", self._on_radiometric_method_changed, "(radiometric)")
         self._safe_connect("radiometric_panel.method_lut_radio", "toggled", self._on_radiometric_method_changed, "(radiometric)")
 
+        # === RADIOMETRIC PANEL (spotmeter signals - for 16-bit radiometric) ===
+        self._safe_connect("radiometric_panel", "spotmeter_enabled_changed", self._on_spotmeter_enabled_changed, "(radiometric spotmeter)")
+        self._safe_connect("radiometric_panel", "spotmeter_mode_changed", self._on_spotmeter_mode_changed, "(radiometric spotmeter)")
+        self._safe_connect("radiometric_panel", "sensor_temps_requested", self._on_sensor_temps_requested, "(radiometric spotmeter)")
+
         # === PARALLAX PANEL ===
         self._safe_connect("parallax_panel", "parallax_toggled", self._on_parallax_toggled, "(parallax)")
         self._safe_connect("parallax_panel", "baseline_changed", self._on_parallax_baseline_changed, "(parallax)")
         self._safe_connect("parallax_panel", "depth_method_changed", self._on_parallax_method_changed, "(parallax)")
         self._safe_connect("parallax_panel.apply_geometry_btn", "clicked", self._on_parallax_geometry_apply, "(parallax)")
 
-        # === PARALLAX PANEL (new connections) ===
-        if hasattr(self, 'parallax_panel') and self.parallax_panel:
-            self._safe_connect("parallax_panel", "parallax_toggled", self._on_parallax_toggle, "(parallax)")
-            self._safe_connect("parallax_panel", "baseline_changed", self._on_baseline_changed, "(parallax)")
-            self._safe_connect("parallax_panel", "align_cameras_clicked", self._on_align_cameras, "(parallax)")
-            logger.info("Parallax panel signals connected")
-        
         # === RADIOMETRIC PANEL (8-Bit Estimation) ===
-        if hasattr(self, 'radiometric_panel') and self.radiometric_panel:
-            self._safe_connect("radiometric_panel", "estimation_8bit_enabled_changed", self._on_8bit_estimation_toggled, "(radiometric 8-bit)")
-            self._safe_connect("radiometric_panel", "temperature_range_changed", self._on_temperature_range_changed, "(radiometric 8-bit)")
-            self._safe_connect("radiometric_panel", "calibrate_single_point_requested", self._on_calibrate_single_point, "(radiometric 8-bit)")
-            self._safe_connect("radiometric_panel", "calibrate_two_point_requested", self._on_calibrate_two_point, "(radiometric 8-bit)")
-            logger.info("Radiometric panel (8-bit estimation) signals connected")
+        self._safe_connect("radiometric_panel", "estimation_8bit_enabled_changed", self._on_8bit_estimation_toggled, "(radiometric 8-bit)")
+        self._safe_connect("radiometric_panel", "temperature_range_changed", self._on_temperature_range_changed, "(radiometric 8-bit)")
+        self._safe_connect("radiometric_panel", "calibrate_single_point_requested", self._on_calibrate_single_point, "(radiometric 8-bit)")
+        self._safe_connect("radiometric_panel", "calibrate_two_point_requested", self._on_calibrate_two_point, "(radiometric 8-bit)")
 
         # === ENVIRONMENTAL COMPENSATION PANEL ===
         self._safe_connect("env_comp_panel", "emissivity_changed", self._on_emissivity_changed, "(environmental)")
@@ -5179,6 +5217,17 @@ class InspectionAppWindow(QMainWindow):
             else:
                 logger.info(f"ROIs saved to {filename}")
 
+    def _on_load_rois(self):
+        """Load ROIs from file."""
+        filename, _ = QFileDialog.getOpenFileName(
+            self, "Load ROIs", "", "JSON Files (*.json)"
+        )
+        if filename:
+            if self.app:
+                self.app.load_rois(filename)
+            else:
+                logger.info(f"ROIs loaded from {filename}")
+
     def _on_load_lut(self):
         """Handle load LUT button click."""
         filename, _ = QFileDialog.getOpenFileName(
@@ -5236,14 +5285,15 @@ class InspectionAppWindow(QMainWindow):
         )
         
         if ok and self.app:
-            # Get AGC value at center of current frame
-            # For now, we'll assume center pixel value = 128 (middle)
-            # In a real implementation, you'd grab the actual pixel value
-            agc_value = 128  # Placeholder
-            
+            # We pass None for agc_value to let the app use the latest frame's center pixel
             if hasattr(self.app, 'calibrate_8bit_single_point'):
-                success = self.app.calibrate_8bit_single_point(agc_value, known_temp)
+                success = self.app.calibrate_8bit_single_point(known_temp)
                 if success:
+                    # Update calibration offset display
+                    if self.app.temp_estimator and hasattr(self.radiometric_panel, 'set_calibration_offset'):
+                        offset = self.app.temp_estimator.calibration_offset
+                        self.radiometric_panel.set_calibration_offset(offset)
+
                     QMessageBox.information(
                         self,
                         "Calibration Complete",
@@ -5281,13 +5331,18 @@ class InspectionAppWindow(QMainWindow):
         )
         
         if ok2 and self.app:
-            # Placeholder AGC values (in real implementation, user would select pixels)
-            agc_low = 50   # Dark/cold pixel
-            agc_high = 200  # Bright/hot pixel
-            
+            # We pass None for AGC values to let the app use the latest frame's min/max
             if hasattr(self.app, 'calibrate_8bit_two_point'):
-                success = self.app.calibrate_8bit_two_point(agc_low, temp_low, agc_high, temp_high)
+                success = self.app.calibrate_8bit_two_point(temp_low, temp_high)
                 if success:
+                    # Update calibration offset and scene range displays
+                    if self.app.temp_estimator:
+                        if hasattr(self.radiometric_panel, 'set_calibration_offset'):
+                            offset = self.app.temp_estimator.calibration_offset
+                            self.radiometric_panel.set_calibration_offset(offset)
+                        if hasattr(self.radiometric_panel, 'set_scene_range'):
+                            self.radiometric_panel.set_scene_range(temp_low, temp_high)
+
                     QMessageBox.information(
                         self,
                         "Calibration Complete",
@@ -5298,6 +5353,27 @@ class InspectionAppWindow(QMainWindow):
                     logger.info(f"Two-point calibration: {temp_low:.1f}°C to {temp_high:.1f}°C")
                 else:
                     QMessageBox.warning(self, "Calibration Failed", "Could not perform calibration")
+
+    # === RADIOMETRIC SPOTMETER HANDLERS (Placeholder for 16-bit radiometric) ===
+    
+    def _on_spotmeter_enabled_changed(self, enabled: bool):
+        """Handle hardware spotmeter enable/disable (16-bit radiometric feature)."""
+        logger.info(f"Spotmeter {'enabled' if enabled else 'disabled'} (16-bit feature - not yet implemented)")
+        # TODO: Implement when 16-bit radiometric is working
+        pass
+    
+    def _on_spotmeter_mode_changed(self, mode: str):
+        """Handle hardware spotmeter mode change (16-bit radiometric feature)."""
+        logger.info(f"Spotmeter mode changed to: {mode} (16-bit feature - not yet implemented)")
+        # TODO: Implement when 16-bit radiometric is working
+        pass
+    
+    def _on_sensor_temps_requested(self):
+        """Handle sensor temperature request (16-bit radiometric feature)."""
+        logger.info("Sensor temperatures requested (16-bit feature - not yet implemented)")
+        # TODO: Implement when 16-bit radiometric is working
+        if self.app and hasattr(self.app, 'read_sensor_temperatures'):
+            self.app.read_sensor_temperatures()
 
     # === PARALLAX HANDLERS ===
     def _on_view_mode_changed(self, mode_name: str):
@@ -5534,6 +5610,24 @@ class InspectionAppWindow(QMainWindow):
             if success:
                 self.boson_panel.update_connection_status(True)
                 logger.info(f"Boson SDK connected on {com_port}")
+
+                # Enable 8-bit estimation controls now that SDK is connected
+                if hasattr(self.radiometric_panel, 'set_8bit_estimation_available'):
+                    self.radiometric_panel.set_8bit_estimation_available(
+                        available=True,
+                        auto_enabled=True  # Auto-check the checkbox
+                    )
+                    logger.info("8-bit estimation controls enabled")
+
+                # Update status banner
+                if hasattr(self.radiometric_panel, 'update_active_mode_status') and hasattr(self.app, 'get_active_temperature_mode'):
+                    mode_info = self.app.get_active_temperature_mode()
+                    self.radiometric_panel.update_active_mode_status(
+                        mode_info['mode'],
+                        mode_info['accuracy'],
+                        mode_info['description']
+                    )
+
                 # Get camera info and display
                 if hasattr(self.app.thermal_camera, 'get_camera_info'):
                     info = self.app.thermal_camera.get_camera_info()
@@ -5553,6 +5647,15 @@ class InspectionAppWindow(QMainWindow):
             self.app.disconnect_boson_sdk()
             self.boson_panel.update_connection_status(False)
             self.boson_panel.set_status("Disconnected")
+
+            # Disable 8-bit estimation controls when SDK disconnects
+            if hasattr(self.radiometric_panel, 'set_8bit_estimation_available'):
+                self.radiometric_panel.set_8bit_estimation_available(
+                    available=False,
+                    auto_enabled=False
+                )
+                logger.info("8-bit estimation controls disabled")
+
             logger.info("Boson SDK disconnected")
 
     def _on_boson_scan_ports(self):
