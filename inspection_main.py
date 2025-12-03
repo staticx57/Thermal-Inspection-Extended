@@ -3843,6 +3843,38 @@ class ThermalInspectionFusion:
         """
         self._on_temperature_unit_changed(unit)
 
+    def set_max_hot_spots(self, count: int):
+        """
+        Set maximum number of hot spots to display.
+
+        Args:
+            count: Maximum number of hot spots (1-20)
+        """
+        try:
+            if self.thermal_analyzer:
+                self.thermal_analyzer.max_hot_spots = count
+                logger.info(f"Max hot spots set to: {count}")
+            else:
+                logger.warning("Cannot set max hot spots: thermal analyzer not initialized")
+        except Exception as e:
+            logger.error(f"Error setting max hot spots: {e}")
+
+    def set_max_cold_spots(self, count: int):
+        """
+        Set maximum number of cold spots to display.
+
+        Args:
+            count: Maximum number of cold spots (1-20)
+        """
+        try:
+            if self.thermal_analyzer:
+                self.thermal_analyzer.max_cold_spots = count
+                logger.info(f"Max cold spots set to: {count}")
+            else:
+                logger.warning("Cannot set max cold spots: thermal analyzer not initialized")
+        except Exception as e:
+            logger.error(f"Error setting max cold spots: {e}")
+
     # ========================================================================
     # Environmental Compensation Methods (Phase 11)
     # ========================================================================

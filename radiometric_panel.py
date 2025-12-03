@@ -40,6 +40,13 @@ class RadiometricPanel(QWidget):
     # Temperature Unit Signal
     temperature_unit_changed = pyqtSignal(str)  # Emits 'C', 'F', or 'K'
 
+    # Hot/Cold Spot Count Signals
+    max_hot_spots_changed = pyqtSignal(int)  # Emits max number of hot spots
+    max_cold_spots_changed = pyqtSignal(int)  # Emits max number of cold spots
+
+    # Backend Selector Signal
+    backend_changed = pyqtSignal(str)  # Emits 'opencv' or 'usb'
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.init_ui()
@@ -91,6 +98,54 @@ class RadiometricPanel(QWidget):
         layout.addWidget(status_group)
 
         # ====================================================================
+        # CAMERA BACKEND SELECTOR
+        # ====================================================================
+        backend_group = QGroupBox("Camera Backend")
+        backend_layout = QVBoxLayout()
+        backend_layout.setSpacing(6)
+
+        # Backend selection radio buttons
+        self.backend_button_group = QButtonGroup()
+
+        self.opencv_backend_radio = QRadioButton("8-bit OpenCV (T-Linear AGC)")
+        self.opencv_backend_radio.setChecked(True)  # Default to OpenCV
+        self.opencv_backend_radio.setToolTip(
+            "8-bit thermal capture with T-Linear processing\n"
+            "• Works with current UVC driver\n"
+            "• SDK control (FFC, AGC modes)\n"
+            "• Excellent visual quality\n"
+            "• Relative temperatures only"
+        )
+        self.backend_button_group.addButton(self.opencv_backend_radio, 0)
+        backend_layout.addWidget(self.opencv_backend_radio)
+
+        self.usb_backend_radio = QRadioButton("16-bit USB (True Radiometric)")
+        self.usb_backend_radio.setToolTip(
+            "True 16-bit radiometric capture via direct USB\n"
+            "• Requires WinUSB driver (install with Zadig)\n"
+            "• Absolute temperatures (±2°C accuracy)\n"
+            "• 65,536 gray levels\n"
+            "• No SDK control"
+        )
+        self.backend_button_group.addButton(self.usb_backend_radio, 1)
+        backend_layout.addWidget(self.usb_backend_radio)
+
+        # Apply backend button
+        self.apply_backend_btn = QPushButton("Apply Backend Change")
+        self.apply_backend_btn.setToolTip("Switch to selected backend (will restart camera)")
+        self.apply_backend_btn.clicked.connect(self._on_apply_backend)
+        backend_layout.addWidget(self.apply_backend_btn)
+
+        # Backend status display
+        self.backend_status_label = QLabel("Backend: Not initialized")
+        self.backend_status_label.setStyleSheet("color: #666; font-style: italic;")
+        self.backend_status_label.setWordWrap(True)
+        backend_layout.addWidget(self.backend_status_label)
+
+        backend_group.setLayout(backend_layout)
+        layout.addWidget(backend_group)
+
+        # ====================================================================
         # TEMPERATURE UNIT SELECTOR
         # ====================================================================
         unit_group = QGroupBox("Temperature Unit")
@@ -109,6 +164,38 @@ class RadiometricPanel(QWidget):
 
         unit_group.setLayout(unit_layout)
         layout.addWidget(unit_group)
+
+        # ====================================================================
+        # HOT/COLD SPOT COUNT SETTINGS (without "All" option)
+        # ====================================================================
+        spot_count_group = QGroupBox("Hot/Cold Spot Detection")
+        spot_count_layout = QVBoxLayout()
+        spot_count_layout.setSpacing(6)
+
+        # Max hot spots
+        hot_spot_layout = QHBoxLayout()
+        hot_spot_layout.addWidget(QLabel("Max Hot Spots:"))
+        self.max_hot_spots_spin = QComboBox()
+        self.max_hot_spots_spin.addItems(['1', '2', '3', '5', '10', '20'])
+        self.max_hot_spots_spin.setCurrentIndex(2)  # Default to 3
+        self.max_hot_spots_spin.setToolTip("Maximum number of hot spots to display")
+        self.max_hot_spots_spin.currentIndexChanged.connect(self._on_max_hot_spots_changed)
+        hot_spot_layout.addWidget(self.max_hot_spots_spin)
+        spot_count_layout.addLayout(hot_spot_layout)
+
+        # Max cold spots
+        cold_spot_layout = QHBoxLayout()
+        cold_spot_layout.addWidget(QLabel("Max Cold Spots:"))
+        self.max_cold_spots_spin = QComboBox()
+        self.max_cold_spots_spin.addItems(['1', '2', '3', '5', '10', '20'])
+        self.max_cold_spots_spin.setCurrentIndex(2)  # Default to 3
+        self.max_cold_spots_spin.setToolTip("Maximum number of cold spots to display")
+        self.max_cold_spots_spin.currentIndexChanged.connect(self._on_max_cold_spots_changed)
+        cold_spot_layout.addWidget(self.max_cold_spots_spin)
+        spot_count_layout.addLayout(cold_spot_layout)
+
+        spot_count_group.setLayout(spot_count_layout)
+        layout.addWidget(spot_count_group)
 
         # Temperature Range Configuration
         range_group = QGroupBox("Temperature Range")
@@ -473,6 +560,99 @@ class RadiometricPanel(QWidget):
         unit = unit_map.get(index, 'C')
         logger.info(f"Temperature unit changed to: {unit}")
         self.temperature_unit_changed.emit(unit)
+
+    def _on_max_hot_spots_changed(self, index: int):
+        """Handle max hot spots combo box change."""
+        try:
+            count = int(self.max_hot_spots_spin.currentText())
+            logger.info(f"[DEBUG] Max hot spots changed to: {count}")
+            self.max_hot_spots_changed.emit(count)
+            logger.info(f"[DEBUG] Signal emitted successfully for hot spots: {count}")
+        except Exception as e:
+            logger.error(f"[ERROR] Exception in _on_max_hot_spots_changed: {e}", exc_info=True)
+
+    def _on_max_cold_spots_changed(self, index: int):
+        """Handle max cold spots combo box change."""
+        try:
+            count = int(self.max_cold_spots_spin.currentText())
+            logger.info(f"[DEBUG] Max cold spots changed to: {count}")
+            self.max_cold_spots_changed.emit(count)
+            logger.info(f"[DEBUG] Signal emitted successfully for cold spots: {count}")
+        except Exception as e:
+            logger.error(f"[ERROR] Exception in _on_max_cold_spots_changed: {e}", exc_info=True)
+
+    def _on_apply_backend(self):
+        """Handle backend change button click."""
+        try:
+            # Determine which backend is selected
+            if self.opencv_backend_radio.isChecked():
+                mode = 'opencv'
+                mode_name = '8-bit OpenCV'
+            else:
+                mode = 'usb'
+                mode_name = '16-bit USB'
+
+            logger.info(f"[BACKEND] User requested backend change to: {mode} ({mode_name})")
+
+            # Emit signal for backend change
+            self.backend_changed.emit(mode)
+
+            # Update status (will be updated by app after successful change)
+            self.backend_status_label.setText(f"Switching to {mode_name}...")
+            self.backend_status_label.setStyleSheet("color: #FF8C00; font-style: italic;")
+
+        except Exception as e:
+            logger.error(f"[ERROR] Exception in _on_apply_backend: {e}", exc_info=True)
+            self.backend_status_label.setText(f"Error: {e}")
+            self.backend_status_label.setStyleSheet("color: red; font-style: italic;")
+
+    def update_backend_status(self, backend_info: dict):
+        """
+        Update backend status display.
+
+        Args:
+            backend_info: Dictionary with backend information from CameraManager
+        """
+        try:
+            if not backend_info:
+                self.backend_status_label.setText("Backend: Not initialized")
+                self.backend_status_label.setStyleSheet("color: #666; font-style: italic;")
+                return
+
+            backend_name = backend_info.get('backend', 'Unknown')
+            bit_depth = backend_info.get('bit_depth', '?')
+            radiometric = backend_info.get('radiometric', False)
+            resolution = backend_info.get('resolution', (0, 0))
+            current_mode = backend_info.get('current_mode', 'unknown')
+
+            # Update radio button selection to match current backend
+            if current_mode == 'opencv':
+                self.opencv_backend_radio.setChecked(True)
+            elif current_mode == 'usb':
+                self.usb_backend_radio.setChecked(True)
+
+            # Build status text
+            status_text = (
+                f"Backend: {backend_name}\n"
+                f"Bit Depth: {bit_depth}-bit\n"
+                f"Resolution: {resolution[0]}×{resolution[1]}\n"
+                f"Radiometric: {'Yes ±2°C' if radiometric else 'No (AGC)'}"
+            )
+
+            self.backend_status_label.setText(status_text)
+
+            # Color based on radiometric capability
+            if radiometric:
+                self.backend_status_label.setStyleSheet("color: #00AA00; font-style: normal; font-weight: bold;")
+            else:
+                self.backend_status_label.setStyleSheet("color: #0066CC; font-style: normal;")
+
+            logger.info(f"[BACKEND] Status updated: {backend_name}, {bit_depth}-bit, radiometric={radiometric}")
+
+        except Exception as e:
+            logger.error(f"[ERROR] Exception in update_backend_status: {e}", exc_info=True)
+            self.backend_status_label.setText("Error updating status")
+            self.backend_status_label.setStyleSheet("color: red; font-style: italic;")
 
     def get_temperature_range(self) -> tuple:
         """Get configured temperature range."""

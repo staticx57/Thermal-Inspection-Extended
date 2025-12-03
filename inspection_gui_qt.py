@@ -767,6 +767,35 @@ class InspectionOverlayWidget(QWidget):
         self.selected_roi_id = roi_id
         self.update()
 
+    def _format_temperature_with_unit(self, temp_celsius: float, original_unit: str) -> tuple:
+        """
+        Convert temperature from Celsius to current unit and return with unit symbol.
+
+        Args:
+            temp_celsius: Temperature in Celsius
+            original_unit: Original unit string from detection ("°C" or " (raw)")
+
+        Returns:
+            Tuple of (converted_temperature, unit_symbol)
+        """
+        # If it's raw AGC value, don't convert
+        if "(raw)" in original_unit:
+            return (temp_celsius, original_unit)
+
+        # Get radiometric converter from app
+        if self.parent() and hasattr(self.parent(), 'app') and self.parent().app:
+            app = self.parent().app
+            if hasattr(app, 'thermal_camera') and app.thermal_camera:
+                if hasattr(app.thermal_camera, 'radiometric_converter'):
+                    converter = app.thermal_camera.radiometric_converter
+                    if converter:
+                        converted_temp = converter.convert_temperature(temp_celsius)
+                        unit_symbol = converter.get_temperature_unit_symbol()
+                        return (converted_temp, unit_symbol)
+
+        # Fallback: return Celsius
+        return (temp_celsius, "°C")
+
     def paintEvent(self, event):
         """Draw ROIs and thermal detections."""
         painter = QPainter(self)
@@ -864,7 +893,9 @@ class InspectionOverlayWidget(QWidget):
                 x, y = hot_spot.centroid
                 wx, wy = self.frame_to_widget(x, y)
                 painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
-                draw_label(int(wx) + 10, int(wy), f"{hot_spot.max_temp:.1f}{hot_spot.unit}", QColor(255, 100, 100))
+                # Convert temperature to current unit
+                temp_c, unit_symbol = self._format_temperature_with_unit(hot_spot.max_temp, hot_spot.unit)
+                draw_label(int(wx) + 10, int(wy), f"{temp_c:.1f}{unit_symbol}", QColor(255, 100, 100))
 
             # Draw cold spots (with coordinate transformation)
             for cold_spot in self.cold_spots:
@@ -872,7 +903,9 @@ class InspectionOverlayWidget(QWidget):
                 x, y = cold_spot.centroid
                 wx, wy = self.frame_to_widget(x, y)
                 painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
-                draw_label(int(wx) + 10, int(wy), f"{cold_spot.min_temp:.1f}{cold_spot.unit}", QColor(100, 200, 255))
+                # Convert temperature to current unit
+                temp_c, unit_symbol = self._format_temperature_with_unit(cold_spot.min_temp, cold_spot.unit)
+                draw_label(int(wx) + 10, int(wy), f"{temp_c:.1f}{unit_symbol}", QColor(100, 200, 255))
 
             # Draw anomalies (with coordinate transformation)
             for anomaly in self.anomalies:
@@ -1992,6 +2025,10 @@ class ThermalAnalysisPanel(QWidget):
         # Connect radiometric panel temperature unit change signal
         self.radiometric_panel_general.temperature_unit_changed.connect(self._on_temperature_unit_changed)
 
+        # Connect radiometric panel spot count change signals
+        self.radiometric_panel_general.max_hot_spots_changed.connect(self._on_max_hot_spots_changed)
+        self.radiometric_panel_general.max_cold_spots_changed.connect(self._on_max_cold_spots_changed)
+
     def _populate_palette_combo(self, combo: QComboBox):
         """Populate a combo box with categorized palettes."""
         palette_categories = [
@@ -2074,6 +2111,34 @@ class ThermalAnalysisPanel(QWidget):
         """Handle temperature unit change from radiometric panel."""
         if self.app:
             self.app.set_temperature_unit(unit)
+
+    def _on_max_hot_spots_changed(self, count: int):
+        """Handle max hot spots count change from radiometric panel."""
+        try:
+            logger.info(f"[DEBUG] GUI received max_hot_spots signal: {count}")
+            # Access app through parent window
+            window = self.window()
+            if window and hasattr(window, 'app') and window.app:
+                window.app.set_max_hot_spots(count)
+                logger.info(f"[DEBUG] app.set_max_hot_spots({count}) completed")
+            else:
+                logger.warning("[DEBUG] Cannot set max hot spots: window or app not found")
+        except Exception as e:
+            logger.error(f"[ERROR] Exception in _on_max_hot_spots_changed: {e}", exc_info=True)
+
+    def _on_max_cold_spots_changed(self, count: int):
+        """Handle max cold spots count change from radiometric panel."""
+        try:
+            logger.info(f"[DEBUG] GUI received max_cold_spots signal: {count}")
+            # Access app through parent window
+            window = self.window()
+            if window and hasattr(window, 'app') and window.app:
+                window.app.set_max_cold_spots(count)
+                logger.info(f"[DEBUG] app.set_max_cold_spots({count}) completed")
+            else:
+                logger.warning("[DEBUG] Cannot set max cold spots: window or app not found")
+        except Exception as e:
+            logger.error(f"[ERROR] Exception in _on_max_cold_spots_changed: {e}", exc_info=True)
 
     def update_detection_results(self, motion_count: int, edge_count: int, anomaly_count: int):
         """Update detection results display."""

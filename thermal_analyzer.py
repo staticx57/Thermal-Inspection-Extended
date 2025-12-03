@@ -330,6 +330,10 @@ class ThermalAnalyzer:
         # Sort by max temperature (hottest first)
         hot_spots.sort(key=lambda x: x.max_temp, reverse=True)
 
+        # Limit to max_hot_spots (0 means no limit)
+        if self.max_hot_spots > 0 and len(hot_spots) > self.max_hot_spots:
+            hot_spots = hot_spots[:self.max_hot_spots]
+
         return hot_spots
 
     def detect_cold_spots(self, thermal_frame: np.ndarray,
@@ -405,6 +409,10 @@ class ThermalAnalyzer:
 
         # Sort by min temperature (coldest first)
         cold_spots.sort(key=lambda x: x.min_temp)
+
+        # Limit to max_cold_spots (0 means no limit)
+        if self.max_cold_spots > 0 and len(cold_spots) > self.max_cold_spots:
+            cold_spots = cold_spots[:self.max_cold_spots]
 
         return cold_spots
 
