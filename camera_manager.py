@@ -11,6 +11,7 @@ import logging
 from camera_backends import ThermalBackend, RGBBackend, BackendNotAvailableError, BackendInitializationError
 from opencv_thermal_backend import OpenCVThermalBackend
 from pyusb_thermal_backend import PyUSBThermalBackend
+from flirpy_thermal_backend import FlirpyThermalBackend
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class CameraManager:
     # Backend mode constants
     MODE_OPENCV = 'opencv'
     MODE_USB = 'usb'
+    MODE_FLIRPY = 'flirpy'
 
     def __init__(self):
         """Initialize camera manager."""
@@ -78,6 +80,17 @@ class CameraManager:
                 'mode': self.MODE_USB,
                 'name': 'PyUSB Direct (16-bit)',
                 'description': 'True 16-bit Y16 radiometric',
+                'radiometric': True,
+                'available': True
+            })
+
+        # Check flirpy backend
+        flirpy_backend = FlirpyThermalBackend()
+        if flirpy_backend.is_available():
+            available.append({
+                'mode': self.MODE_FLIRPY,
+                'name': 'flirpy (16-bit Y16)',
+                'description': '16-bit Y16 radiometric via flirpy (UVC driver)',
                 'radiometric': True,
                 'available': True
             })
@@ -122,8 +135,10 @@ class CameraManager:
             )
         elif mode == self.MODE_USB:
             backend = PyUSBThermalBackend()
+        elif mode == self.MODE_FLIRPY:
+            backend = FlirpyThermalBackend()
         else:
-            raise ValueError(f"Unknown thermal backend mode: {mode}. Use 'opencv' or 'usb'")
+            raise ValueError(f"Unknown thermal backend mode: {mode}. Use 'opencv', 'usb', or 'flirpy'")
 
         # Check availability
         if not backend.is_available():

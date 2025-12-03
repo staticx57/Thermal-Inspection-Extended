@@ -45,7 +45,7 @@ class RadiometricPanel(QWidget):
     max_cold_spots_changed = pyqtSignal(int)  # Emits max number of cold spots
 
     # Backend Selector Signal
-    backend_changed = pyqtSignal(str)  # Emits 'opencv' or 'usb'
+    backend_changed = pyqtSignal(str)  # Emits 'opencv', 'usb', or 'flirpy'
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -129,6 +129,18 @@ class RadiometricPanel(QWidget):
         )
         self.backend_button_group.addButton(self.usb_backend_radio, 1)
         backend_layout.addWidget(self.usb_backend_radio)
+
+        self.flirpy_backend_radio = QRadioButton("16-bit flirpy (Best of Both)")
+        self.flirpy_backend_radio.setToolTip(
+            "16-bit Y16 radiometric via flirpy library\n"
+            "• Works with default UVC driver (no Zadig!)\n"
+            "• True absolute temperatures (±2°C accuracy)\n"
+            "• SDK control via COM port (FFC, telemetry)\n"
+            "• Native 9Hz radiometric capture\n"
+            "• Simple, reliable implementation"
+        )
+        self.backend_button_group.addButton(self.flirpy_backend_radio, 2)
+        backend_layout.addWidget(self.flirpy_backend_radio)
 
         # Apply backend button
         self.apply_backend_btn = QPushButton("Apply Backend Change")
@@ -588,9 +600,12 @@ class RadiometricPanel(QWidget):
             if self.opencv_backend_radio.isChecked():
                 mode = 'opencv'
                 mode_name = '8-bit OpenCV'
-            else:
+            elif self.usb_backend_radio.isChecked():
                 mode = 'usb'
                 mode_name = '16-bit USB'
+            else:  # flirpy_backend_radio
+                mode = 'flirpy'
+                mode_name = '16-bit flirpy'
 
             logger.info(f"[BACKEND] User requested backend change to: {mode} ({mode_name})")
 
@@ -630,6 +645,8 @@ class RadiometricPanel(QWidget):
                 self.opencv_backend_radio.setChecked(True)
             elif current_mode == 'usb':
                 self.usb_backend_radio.setChecked(True)
+            elif current_mode == 'flirpy':
+                self.flirpy_backend_radio.setChecked(True)
 
             # Build status text
             status_text = (
