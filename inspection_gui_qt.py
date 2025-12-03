@@ -2029,6 +2029,9 @@ class ThermalAnalysisPanel(QWidget):
         self.radiometric_panel_general.max_hot_spots_changed.connect(self._on_max_hot_spots_changed)
         self.radiometric_panel_general.max_cold_spots_changed.connect(self._on_max_cold_spots_changed)
 
+        # Connect radiometric panel backend change signal
+        self.radiometric_panel_general.backend_changed.connect(self._on_backend_changed)
+
     def _populate_palette_combo(self, combo: QComboBox):
         """Populate a combo box with categorized palettes."""
         palette_categories = [
@@ -2139,6 +2142,82 @@ class ThermalAnalysisPanel(QWidget):
                 logger.warning("[DEBUG] Cannot set max cold spots: window or app not found")
         except Exception as e:
             logger.error(f"[ERROR] Exception in _on_max_cold_spots_changed: {e}", exc_info=True)
+
+    def _on_backend_changed(self, mode: str):
+        """Handle backend change request from radiometric panel.
+
+        This is the UNIFIED CONTROL for radiometric settings.
+        When user selects a backend, we automatically configure the camera hardware mode:
+        - 'flirpy' (16-bit) → Enable T-Linear radiometric mode via SDK (Boson/Lepton)
+        - 'opencv' (8-bit) → Enable Colorized mode via SDK (Boson/Lepton)
+        - 'usb' (16-bit) → Enable T-Linear radiometric mode via SDK (Boson/Lepton)
+        """
+        try:
+            logger.info(f"[BACKEND] GUI received backend_changed signal: {mode}")
+
+            # Access app through parent window (ThermalAnalysisPanel is a QWidget, not the main window)
+            window = self.window()
+            if not window or not hasattr(window, 'app') or not window.app:
+                logger.warning("[BACKEND] Cannot switch backend: window or app not available")
+                return
+
+            app = window.app
+
+            # STEP 1: Automatically configure camera hardware mode based on backend
+            # This provides unified control - user selects backend, system handles camera config
+            if hasattr(app, 'thermal_camera') and app.thermal_camera:
+                thermal_cam = app.thermal_camera
+
+                # Check if SDK is available for mode control
+                if hasattr(thermal_cam, 'sdk') and thermal_cam.sdk and hasattr(thermal_cam, 'sdk_connected') and thermal_cam.sdk_connected:
+                    # Determine required camera mode based on backend
+                    if mode == 'flirpy' or mode == 'usb':
+                        # 16-bit backends require T-Linear radiometric mode
+                        enable_radiometric = True
+                        mode_name = "T-Linear Radiometric (16-bit)"
+                        logger.info(f"[BACKEND] Backend '{mode}' requires 16-bit -> Setting camera to T-Linear mode")
+                    else:  # mode == 'opencv'
+                        # 8-bit backend uses Colorized mode
+                        enable_radiometric = False
+                        mode_name = "Colorized (8-bit)"
+                        logger.info(f"[BACKEND] Backend '{mode}' uses 8-bit -> Setting camera to Colorized mode")
+
+                    # Set camera mode via SDK
+                    try:
+                        sdk = thermal_cam.sdk
+                        if hasattr(sdk, 'set_usb_video_ir16_mode'):
+                            # set_usb_video_ir16_mode takes integer: 0=Colorized/AGC, 1=T-Linear
+                            mode_value = 1 if enable_radiometric else 0
+                            success = sdk.set_usb_video_ir16_mode(mode_value)
+
+                            if success:
+                                logger.info(f"[BACKEND] Successfully set camera to {mode_name}")
+                                # Update Boson panel status display (if it exists)
+                                if hasattr(window, 'boson_panel') and hasattr(window.boson_panel, 'update_radiometric_mode_status'):
+                                    window.boson_panel.update_radiometric_mode_status(enable_radiometric, success=True)
+                            else:
+                                logger.warning(f"[BACKEND] Failed to set camera to {mode_name}")
+                        else:
+                            logger.warning("[BACKEND] SDK does not support set_usb_video_ir16_mode()")
+                    except Exception as e:
+                        logger.warning(f"[BACKEND] Could not set camera mode: {e}")
+                else:
+                    logger.info("[BACKEND] SDK not available - skipping camera mode configuration")
+
+            # STEP 2: Backend switching
+            # Call the new switch_thermal_backend method for runtime switching
+            logger.info(f"[BACKEND] Switching to {mode} backend...")
+            success = app.switch_thermal_backend(mode)
+            
+            if success:
+                logger.info(f"[BACKEND] Successfully switched to {mode} backend")
+            else:
+                logger.error(f"[BACKEND] Failed to switch to {mode} backend")
+
+            # Update radiometric panel status
+            self.radiometric_panel_general.update_backend_status(mode)
+        except Exception as e:
+            logger.error(f"[ERROR] Exception in _on_backend_changed: {e}", exc_info=True)
 
     def update_detection_results(self, motion_count: int, edge_count: int, anomaly_count: int):
         """Update detection results display."""
@@ -3040,7 +3119,7 @@ class BosonControlPanel(QWidget):
         self.boson_tabs.addTab(advanced_tab, "Advanced Controls")
 
         # ===================================================================
-        # RADIOMETRIC CONTROLS TAB (Placeholder)
+        # RADIOMETRIC STATUS TAB (Read-Only Display)
         # ===================================================================
         radiometric_tab = QWidget()
         radiometric_scroll = QScrollArea()
@@ -3050,47 +3129,80 @@ class BosonControlPanel(QWidget):
 
         radiometric_content = QWidget()
         radiometric_layout = QVBoxLayout(radiometric_content)
-        radiometric_layout.setSpacing(8)  # Reduced from 12
-        radiometric_layout.setContentsMargins(6, 6, 6, 6)  # Reduced from 8
+        radiometric_layout.setSpacing(8)
+        radiometric_layout.setContentsMargins(6, 6, 6, 6)
 
-        # Camera Mode Selection
-        mode_group = QGroupBox("CAMERA OUTPUT MODE")
-        mode_layout = QVBoxLayout(mode_group)
+        # UNIFIED CONTROL NOTICE
+        unified_notice = QGroupBox("ℹ️ UNIFIED RADIOMETRIC CONTROL")
+        unified_layout = QVBoxLayout(unified_notice)
+        unified_layout.setSpacing(8)
 
-        mode_info = QLabel("Switch between 16-bit radiometric data (for temperature measurement) and 8-bit colorized output (for visual display).")
-        mode_info.setWordWrap(True)
-        mode_info.setStyleSheet("color: gray; font-size: 10px; margin-bottom: 8px;")
-        mode_layout.addWidget(mode_info)
+        notice_text = QLabel(
+            "<b>Radiometric settings are controlled from:</b><br>"
+            "→ <b>Analysis Tab > Radiometric Panel</b><br><br>"
+            "When you select a backend (8-bit OpenCV, 16-bit USB, or 16-bit flirpy), "
+            "the system automatically configures the camera hardware mode (T-Linear/Colorized).<br><br>"
+            "<i>This tab shows the current camera mode status.</i>"
+        )
+        notice_text.setWordWrap(True)
+        notice_text.setStyleSheet("color: #aaf; font-size: 10px; padding: 8px;")
+        unified_layout.addWidget(notice_text)
+        radiometric_layout.addWidget(unified_notice)
 
-        # Radio buttons for mode selection
-        self.radiometric_mode_radio = QRadioButton("T-Linear Radiometric (16-bit)")
-        self.radiometric_mode_radio.setToolTip("Enable T-Linear mode for 16-bit absolute temperature data.\nAllows precise temperature measurements.")
+        # Camera Mode Status Display (Read-Only)
+        status_group = QGroupBox("CURRENT CAMERA OUTPUT MODE (Read-Only)")
+        status_layout = QVBoxLayout(status_group)
 
-        self.colorized_mode_radio = QRadioButton("UVC Post-Colorized (8-bit)")
-        self.colorized_mode_radio.setToolTip("Standard UVC mode with AGC processing and colorization.\nBetter for visual thermal imaging.")
-        self.colorized_mode_radio.setChecked(True)  # Default to colorized
-
-        mode_layout.addWidget(self.radiometric_mode_radio)
-        mode_layout.addWidget(self.colorized_mode_radio)
-
-        # Apply button
-        apply_mode_btn = QPushButton("Apply Mode Change")
-        apply_mode_btn.setToolTip("Apply the selected camera output mode.\nNote: Requires SDK connection and camera reinitialization.")
-        apply_mode_btn.clicked.connect(self._on_radiometric_mode_apply)
-        mode_layout.addWidget(apply_mode_btn)
-
-        # Status label
+        # Status label (updated by unified control)
         self.radiometric_mode_status = QLabel("Current Mode: UVC Post-Colorized (8-bit)")
-        self.radiometric_mode_status.setStyleSheet("font-weight: bold; padding: 4px; background-color: #2a2a2a; border-radius: 3px;")
-        mode_layout.addWidget(self.radiometric_mode_status)
+        self.radiometric_mode_status.setStyleSheet(
+            "font-weight: bold; padding: 8px; background-color: #2a2a2a; "
+            "border-radius: 3px; font-size: 11px;"
+        )
+        self.radiometric_mode_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        status_layout.addWidget(self.radiometric_mode_status)
 
-        radiometric_layout.addWidget(mode_group)
+        # Mode explanation
+        mode_explain = QLabel(
+            "• <b>T-Linear Radiometric (16-bit)</b>: Precise temperature measurement<br>"
+            "• <b>Colorized (8-bit)</b>: Visual thermal imaging with AGC"
+        )
+        mode_explain.setWordWrap(True)
+        mode_explain.setStyleSheet("color: gray; font-size: 9px; padding: 8px;")
+        status_layout.addWidget(mode_explain)
 
-        # Future radiometric controls placeholder
+        radiometric_layout.addWidget(status_group)
+
+        # Future: Lepton Integration
+        lepton_group = QGroupBox("🔧 FUTURE: LEPTON INTEGRATION")
+        lepton_layout = QVBoxLayout(lepton_group)
+
+        lepton_label = QLabel(
+            "<b>Planned Features:</b><br>"
+            "• Lepton 3.5 radiometric support via integration board<br>"
+            "• Similar VPC-style module architecture as Boson<br>"
+            "• Unified control for both Boson and Lepton cameras<br>"
+            "• Automatic backend/mode configuration for Lepton<br><br>"
+            "<i>Integration board design in progress...</i>"
+        )
+        lepton_label.setWordWrap(True)
+        lepton_label.setStyleSheet("color: #aa8; padding: 10px; font-size: 10px;")
+        lepton_layout.addWidget(lepton_label)
+
+        radiometric_layout.addWidget(lepton_group)
+
+        # Advanced radiometric controls placeholder
         future_group = QGroupBox("ADVANCED RADIOMETRIC CONTROLS (Coming Soon)")
         future_layout = QVBoxLayout(future_group)
 
-        future_label = QLabel("Additional radiometric features:\n• Emissivity settings\n• Atmospheric corrections\n• Temperature range calibration\n• Spotmeter configuration\n\nNote: Requires radiometric Boson model (640R/320R)")
+        future_label = QLabel(
+            "Additional radiometric features:\n"
+            "• Emissivity settings\n"
+            "• Atmospheric corrections\n"
+            "• Temperature range calibration\n"
+            "• Spotmeter configuration\n\n"
+            "Note: Requires radiometric camera model (Boson 640R/320R, Lepton 3.5)"
+        )
         future_label.setWordWrap(True)
         future_label.setStyleSheet("color: gray; padding: 10px;")
         future_layout.addWidget(future_label)
@@ -5122,6 +5234,39 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("video_widget", "cursor_moved", self._on_cursor_moved, "(video)")
         
         logger.info("✓ Signal connections complete (defensive mode)")
+
+        # === INITIALIZE BOSON PANEL IF SDK ALREADY CONNECTED ===
+        # The SDK may auto-connect during startup (--enable-boson-sdk flag)
+        # In that case, the camera info is retrieved but the panel is never updated
+        # because the panel update code only runs when user manually clicks "Connect"
+        # This code checks if SDK is already connected and updates the panel
+        try:
+            if self.app and hasattr(self.app, 'thermal_camera'):
+                thermal_cam = self.app.thermal_camera
+                # Check if SDK is connected
+                if hasattr(thermal_cam, 'sdk_connected') and thermal_cam.sdk_connected:
+                    logger.info("[BOSON INIT] SDK already connected, updating panel...")
+
+                    # Update connection status
+                    self.boson_panel.update_connection_status(True)
+
+                    # Get and display camera info
+                    if hasattr(thermal_cam, 'get_camera_info'):
+                        info = thermal_cam.get_camera_info()
+                        if info:
+                            self.boson_panel.set_status(f"SN: {info.serial_number}")
+                            self.boson_panel.update_camera_info(info)
+                            logger.info(f"[BOSON INIT] Panel updated with camera info (SN: {info.serial_number})")
+                        else:
+                            logger.warning("[BOSON INIT] SDK connected but get_camera_info() returned None")
+                    else:
+                        logger.warning("[BOSON INIT] thermal_camera does not have get_camera_info() method")
+                else:
+                    logger.info("[BOSON INIT] SDK not connected yet")
+            else:
+                logger.info("[BOSON INIT] App or thermal_camera not available yet")
+        except Exception as e:
+            logger.error(f"[BOSON INIT] Error initializing Boson panel: {e}", exc_info=True)
 
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""

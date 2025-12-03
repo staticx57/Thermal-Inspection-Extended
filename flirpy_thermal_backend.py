@@ -74,10 +74,10 @@ class FlirpyThermalBackend(ThermalBackend):
 
         try:
             logger.info("Opening Boson camera via flirpy...")
-            # IMPORTANT: Pass dummy port to prevent flirpy from opening COM port
-            # This allows separate BosonSDK wrapper to control via COM port
-            # Using "DISABLED" as dummy port prevents serial connection
-            self.camera = Boson(port="DISABLED")
+            # IMPORTANT: Do not pass port parameter (defaults to None)
+            # This prevents flirpy from trying to open the COM port
+            # Our separate BosonSDK wrapper will handle COM port communication
+            self.camera = Boson()
             self._is_opened = True
             self._frame_count = 0
 

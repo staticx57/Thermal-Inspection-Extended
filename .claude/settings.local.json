@@ -20,7 +20,8 @@
       "WebSearch",
       "WebFetch(domain:github.com)",
       "Bash(timeout 5 powershell:*)",
-      "Bash(test -f:*)"
+      "Bash(test -f:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []

@@ -36,6 +36,7 @@ faulthandler.enable()
 
 # Camera modules
 from flir_camera import FLIRBosonCamera
+from flirpy_thermal_backend import FlirpyThermalBackend
 from camera_factory import create_rgb_camera, autodetect_camera_types
 from camera_detector import CameraDetector
 from camera_initializer import CameraInitializer
@@ -149,6 +150,37 @@ def setup_logging():
 
 
 logger = setup_logging()
+
+
+def create_thermal_backend(backend_type: str, device_id: int, resolution: Tuple[int, int],
+                           enable_sdk: bool = False, com_port: Optional[str] = None):
+    """
+    Factory function to create thermal camera backend.
+
+    Args:
+        backend_type: 'opencv' for FLIRBosonCamera, 'flirpy' for FlirpyThermalBackend
+        device_id: Video device ID
+        resolution: Camera resolution (width, height)
+        enable_sdk: Enable Boson SDK for serial control
+        com_port: COM port for SDK control
+
+    Returns:
+        Thermal camera backend instance
+    """
+    if backend_type == 'flirpy':
+        logger.info(f"Creating flirpy thermal backend (device_id={device_id}, resolution={resolution})")
+        backend = FlirpyThermalBackend()
+        # Note: flirpy backend doesn't use device_id, it auto-detects Boson
+        # SDK control is handled separately via BosonSDK wrapper
+        return backend
+    else:  # Default to 'opencv' (FLIRBosonCamera)
+        logger.info(f"Creating OpenCV thermal backend (device_id={device_id}, resolution={resolution}, sdk={enable_sdk})")
+        return FLIRBosonCamera(
+            device_id=device_id,
+            resolution=resolution,
+            enable_sdk=enable_sdk,
+            com_port=com_port
+        )
 
 
 def detect_platform():
@@ -496,7 +528,12 @@ class ThermalInspectionFusion:
             
             logger.info(f"DEBUG: Final device_id: {device_id}")
 
-            self.thermal_camera = FLIRBosonCamera(
+            # Get backend type from command-line args
+            backend_type = getattr(self.args, 'thermal_backend', 'opencv')
+            
+            # Use factory to create appropriate backend
+            self.thermal_camera = create_thermal_backend(
+                backend_type=backend_type,
                 device_id=device_id,
                 resolution=(getattr(self.args, 'width', 640), getattr(self.args, 'height', 512)),
                 enable_sdk=enable_sdk,
@@ -596,11 +633,22 @@ class ThermalInspectionFusion:
             
         logger.info("Detecting camera mode...")
         
-        # Grab a few frames to settle
-        for _ in range(5):
-            self.thermal_camera.read_thermal()
+        # Use appropriate read method depending on backend
+        if hasattr(self.thermal_camera, 'read_thermal'):
+            # FLIRBosonCamera - use read_thermal()
+            # Grab a few frames to settle
+            for _ in range(5):
+                self.thermal_camera.read_thermal()
+                
+            success, frame = self.thermal_camera.read_thermal()
+        else:
+            # FlirpyThermalBackend - use read()
+            # Grab a few frames to settle
+            for _ in range(5):
+                self.thermal_camera.read()
+                
+            success, frame = self.thermal_camera.read()
             
-        success, frame = self.thermal_camera.read_thermal()
         if not success or frame is None:
             logger.warning("Could not grab frame for mode detection")
             return False
@@ -3454,6 +3502,124 @@ class ThermalInspectionFusion:
             logger.error(f"Error setting temperature range: {e}")
             return False
 
+    def switch_thermal_backend(self, backend_type: str) -> bool:
+        """
+        Switch thermal camera backend at runtime.
+
+        Args:
+            backend_type: 'opencv' for FLIRBosonCamera, 'flirpy' for FlirpyThermalBackend
+
+        Returns:
+            True if successful, False otherwise
+        """
+        logger.info(f"=== Switching thermal backend to: {backend_type} ===")
+        
+        # Check if already reconfiguring
+        if self.reconfiguring:
+            logger.warning("Backend switch already in progress...")
+            return False
+        
+        # Set reconfiguring flag to pause main loop
+        self.reconfiguring = True
+        logger.info("Main loop paused for backend switching")
+        
+        try:
+            # 1. Stop threaded capture if running
+            if self.threaded_capture:
+                logger.info("Stopping threaded capture...")
+                self.threaded_capture.stop()
+                self.threaded_capture = None
+
+            # 2. Release current thermal camera
+            if self.thermal_camera:
+                logger.info(f"Releasing current thermal camera...")
+                self.thermal_camera.release()
+                self.thermal_camera = None
+
+            # 3. Get SDK parameters from args
+            enable_sdk = getattr(self.args, 'enable_boson_sdk', True)
+            com_port = getattr(self.args, 'boson_com_port', 'COM6')
+
+            # 4. Auto-detect device ID
+            device_id = getattr(self.args, 'thermal_device', None)
+            if device_id is None:
+                from camera_detector import CameraDetector
+                thermal_info = CameraDetector.find_thermal_camera()
+                if thermal_info:
+                    device_id = thermal_info.device_id
+                    logger.info(f"Auto-detected thermal camera at index {device_id}")
+                else:
+                    device_id = 0
+                    logger.warning("Could not auto-detect thermal camera, defaulting to index 0")
+
+            # 5. Create new backend using factory
+            self.thermal_camera = create_thermal_backend(
+                backend_type=backend_type,
+                device_id=device_id,
+                resolution=(getattr(self.args, 'width', 640), getattr(self.args, 'height', 512)),
+                enable_sdk=enable_sdk,
+                com_port=com_port
+            )
+
+            # 6. Open the new camera
+            if not self.thermal_camera.open():
+                logger.error(f"Failed to open {backend_type} backend")
+                self.thermal_connected = False
+                return False
+
+            # 7. Update connection state
+            self.thermal_connected = True
+            # Get resolution - use appropriate method for each backend
+            if hasattr(self.thermal_camera, 'get_actual_resolution'):
+                actual_res = self.thermal_camera.get_actual_resolution()
+            else:
+                actual_res = self.thermal_camera.get_resolution()
+            logger.info(f"[OK] Thermal camera connected: {actual_res[0]}x{actual_res[1]} ({backend_type} backend)")
+
+            # 8. Detect and set radiometric mode
+            is_radiometric = self._detect_radiometric_mode()
+            if is_radiometric:
+                self.args.radiometric = True
+                logger.info("Radiometric mode enabled")
+
+            # 9. Initialize 8-bit estimation if SDK available
+            if hasattr(self.thermal_camera, 'is_sdk_connected') and self.thermal_camera.is_sdk_connected():
+                self._init_8bit_estimation()
+
+            # 10. Update GUI radiometric panel if available
+            if self.gui and hasattr(self.gui, 'radiometric_panel'):
+                sdk_connected = self.thermal_camera.is_sdk_connected() if hasattr(self.thermal_camera, 'is_sdk_connected') else False
+                mode_desc = "16-bit Radiometric" if is_radiometric else "8-bit AGC"
+                self.gui.radiometric_panel.set_radiometric_status(
+                    capable=is_radiometric,
+                    enabled=self.args.radiometric,
+                    mode=mode_desc
+                )
+                logger.info(f"✓ GUI radiometric panel updated for {backend_type} backend")
+
+            # 11. Restart threaded capture if it was enabled
+            if self.use_threaded_capture:
+                from threaded_camera_capture import ThreadedCameraCapture
+                self.threaded_capture = ThreadedCameraCapture(self.thermal_camera, self.rgb_camera)
+                self.threaded_capture.start()
+                logger.info("Threaded capture restarted")
+
+            # 12. Update backend type in args
+            self.args.thermal_backend = backend_type
+
+            logger.info(f"=== Successfully switched to {backend_type} backend ===")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error switching thermal backend: {e}", exc_info=True)
+            self.thermal_connected = False
+            return False
+        
+        finally:
+            # Always clear reconfiguring flag to resume main loop
+            self.reconfiguring = False
+            logger.info("Main loop resumed")
+
     def calibrate_8bit_single_point(self, known_temp_c: float, agc_value: Optional[int] = None) -> bool:
         """
         Perform single-point calibration for 8-bit estimation.
@@ -3944,6 +4110,10 @@ def parse_arguments():
                        help='Enable FLIR Boson SDK for serial control (FFC, gain, temperature)')
     parser.add_argument('--boson-com-port', type=str, default='COM6',
                        help='Boson COM port for SDK control (default: COM6)')
+
+    # Thermal backend selection
+    parser.add_argument('--thermal-backend', type=str, choices=['opencv', 'flirpy'], default='opencv',
+                       help='Thermal camera backend: opencv (8-bit AGC) or flirpy (16-bit Y16 radiometric) (default: opencv)')
 
     # Processing settings
     parser.add_argument('--device', choices=['cuda', 'cpu'], default='cuda',

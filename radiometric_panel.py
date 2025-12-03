@@ -119,27 +119,20 @@ class RadiometricPanel(QWidget):
         self.backend_button_group.addButton(self.opencv_backend_radio, 0)
         backend_layout.addWidget(self.opencv_backend_radio)
 
-        self.usb_backend_radio = QRadioButton("16-bit USB (True Radiometric)")
-        self.usb_backend_radio.setToolTip(
-            "True 16-bit radiometric capture via direct USB\n"
-            "• Requires WinUSB driver (install with Zadig)\n"
-            "• Absolute temperatures (±2°C accuracy)\n"
-            "• 65,536 gray levels\n"
-            "• No SDK control"
-        )
-        self.backend_button_group.addButton(self.usb_backend_radio, 1)
-        backend_layout.addWidget(self.usb_backend_radio)
+        # USB backend deprecated - flirpy provides same functionality without WinUSB driver
+        # self.usb_backend_radio = QRadioButton("16-bit USB (True Radiometric)")
+        # Removed: flirpy provides better solution (16-bit + SDK control, no WinUSB needed)
 
-        self.flirpy_backend_radio = QRadioButton("16-bit flirpy (Best of Both)")
+        self.flirpy_backend_radio = QRadioButton("16-bit T-Linear (flirpy + SDK)")
         self.flirpy_backend_radio.setToolTip(
             "16-bit Y16 radiometric via flirpy library\n"
             "• Works with default UVC driver (no Zadig!)\n"
             "• True absolute temperatures (±2°C accuracy)\n"
-            "• SDK control via COM port (FFC, telemetry)\n"
+            "• SDK control via COM port (FFC, telemetry, T-Linear mode)\n"
             "• Native 9Hz radiometric capture\n"
             "• Simple, reliable implementation"
         )
-        self.backend_button_group.addButton(self.flirpy_backend_radio, 2)
+        self.backend_button_group.addButton(self.flirpy_backend_radio, 1)  # Changed from 2 to 1
         backend_layout.addWidget(self.flirpy_backend_radio)
 
         # Apply backend button
@@ -600,10 +593,7 @@ class RadiometricPanel(QWidget):
             if self.opencv_backend_radio.isChecked():
                 mode = 'opencv'
                 mode_name = '8-bit OpenCV'
-            elif self.usb_backend_radio.isChecked():
-                mode = 'usb'
-                mode_name = '16-bit USB'
-            else:  # flirpy_backend_radio
+            else:  # flirpy_backend_radio (usb backend deprecated)
                 mode = 'flirpy'
                 mode_name = '16-bit flirpy'
 
@@ -643,10 +633,9 @@ class RadiometricPanel(QWidget):
             # Update radio button selection to match current backend
             if current_mode == 'opencv':
                 self.opencv_backend_radio.setChecked(True)
-            elif current_mode == 'usb':
-                self.usb_backend_radio.setChecked(True)
             elif current_mode == 'flirpy':
                 self.flirpy_backend_radio.setChecked(True)
+            # usb backend deprecated - flirpy is the recommended 16-bit solution
 
             # Build status text
             status_text = (
