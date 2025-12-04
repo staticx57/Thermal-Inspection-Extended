@@ -161,9 +161,9 @@ class RadiometricPanel(QWidget):
         unit_layout.addWidget(unit_label)
 
         self.temp_unit_combo = QComboBox()
-        self.temp_unit_combo.addItems(['°C (Celsius)', '°F (Fahrenheit)', 'K (Kelvin)'])
+        self.temp_unit_combo.addItems(['°C (Celsius)', '°F (Fahrenheit)', 'K (Kelvin)', 'Raw (Y16: K×100)'])
         self.temp_unit_combo.setCurrentIndex(0)  # Default to Celsius
-        self.temp_unit_combo.setToolTip("Select temperature unit for all displays")
+        self.temp_unit_combo.setToolTip("Select temperature unit for all displays\\nRaw shows Y16 pixel values (Kelvin × 100)")
         self.temp_unit_combo.currentIndexChanged.connect(self._on_temp_unit_changed)
         unit_layout.addWidget(self.temp_unit_combo)
 
@@ -543,11 +543,21 @@ class RadiometricPanel(QWidget):
         """Update cursor position temperature display."""
         self.cursor_temp_label.setText(f"Cursor ({x}, {y}): {temp_celsius:.1f}°C")
 
-    def set_frame_statistics(self, min_temp: float, max_temp: float, mean_temp: float):
-        """Update frame temperature statistics."""
-        self.min_temp_label.setText(f"Min: {min_temp:.1f}°C")
-        self.max_temp_label.setText(f"Max: {max_temp:.1f}°C")
-        self.mean_temp_label.setText(f"Mean: {mean_temp:.1f}°C")
+    def set_frame_statistics(self, min_temp: float, max_temp: float, mean_temp: float, unit: str = "°C"):
+        """Update frame temperature statistics.
+
+        Args:
+            min_temp: Minimum temperature
+            max_temp: Maximum temperature
+            mean_temp: Mean temperature
+            unit: Temperature unit string (default "°C")
+        """
+        # Ensure unit has degree symbol if it's just a letter
+        if unit in ('C', 'F', 'K'):
+            unit = f"°{unit}"
+        self.min_temp_label.setText(f"Min: {min_temp:.1f}{unit}")
+        self.max_temp_label.setText(f"Max: {max_temp:.1f}{unit}")
+        self.mean_temp_label.setText(f"Mean: {mean_temp:.1f}{unit}")
 
     def clear_temperature_readings(self):
         """Clear all temperature readings."""
@@ -561,7 +571,7 @@ class RadiometricPanel(QWidget):
     def _on_temp_unit_changed(self, index: int):
         """Handle temperature unit combo box change."""
         # Map index to unit code
-        unit_map = {0: 'C', 1: 'F', 2: 'K'}
+        unit_map = {0: 'C', 1: 'F', 2: 'K', 3: 'RAW'}
         unit = unit_map.get(index, 'C')
         logger.info(f"Temperature unit changed to: {unit}")
         self.temperature_unit_changed.emit(unit)
@@ -746,3 +756,14 @@ class RadiometricPanel(QWidget):
         """Update the displayed scene range."""
         self.scene_min_spin.setValue(min_c)
         self.scene_max_spin.setValue(max_c)
+
+    def is_temp_overlay_enabled(self) -> bool:
+        """
+        Check if temperature overlay is enabled.
+
+        Returns:
+            True if temperature overlay should be displayed
+        """
+        # Return True if either radiometric or 8-bit estimation is enabled
+        return (self.enable_checkbox.isChecked() or
+                self.enable_8bit_checkbox.isChecked())

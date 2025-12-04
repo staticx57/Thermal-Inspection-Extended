@@ -2709,8 +2709,8 @@ class ThermalInspectionFusion:
             # 5. Restart threaded capture
             if self.thermal_connected or self.rgb_available:
                 logger.info("Restarting capture threads...")
-                from threaded_camera_capture import ThreadedCameraCapture
-                self.threaded_capture = ThreadedCameraCapture(self.thermal_camera, self.rgb_camera)
+                from threaded_camera_capture import DualThreadedCameraCapture
+                self.threaded_capture = DualThreadedCameraCapture(self.thermal_camera, self.rgb_camera)
                 self.threaded_capture.start()
                 logger.info("[OK] Camera reassignment complete")
             else:
@@ -3582,6 +3582,20 @@ class ThermalInspectionFusion:
                 self.args.radiometric = True
                 logger.info("Radiometric mode enabled")
 
+            # 8.5. Reset thermal analyzer and processor due to resolution change
+            # This prevents size mismatch errors in background modeling and motion detection
+            if hasattr(self, 'thermal_analyzer') and self.thermal_analyzer:
+                logger.info("Resetting thermal analyzer background model...")
+                self.thermal_analyzer.reset_background_model()
+                # CRITICAL FIX: Update analyzer's radiometric state
+                self.thermal_analyzer.is_radiometric = is_radiometric
+                self.thermal_analyzer.temp_unit = TemperatureUnit.CELSIUS if is_radiometric else TemperatureUnit.CELSIUS # Default to C
+                logger.info(f"Updated ThermalAnalyzer radiometric state to: {is_radiometric}")
+
+            if hasattr(self, 'thermal_processor') and self.thermal_processor:
+                logger.info("Resetting thermal processor motion detection...")
+                self.thermal_processor.reset_motion_detection()
+
             # 9. Initialize 8-bit estimation if SDK available
             if hasattr(self.thermal_camera, 'is_sdk_connected') and self.thermal_camera.is_sdk_connected():
                 self._init_8bit_estimation()
@@ -3599,8 +3613,8 @@ class ThermalInspectionFusion:
 
             # 11. Restart threaded capture if it was enabled
             if self.use_threaded_capture:
-                from threaded_camera_capture import ThreadedCameraCapture
-                self.threaded_capture = ThreadedCameraCapture(self.thermal_camera, self.rgb_camera)
+                from threaded_camera_capture import DualThreadedCameraCapture
+                self.threaded_capture = DualThreadedCameraCapture(self.thermal_camera, self.rgb_camera)
                 self.threaded_capture.start()
                 logger.info("Threaded capture restarted")
 

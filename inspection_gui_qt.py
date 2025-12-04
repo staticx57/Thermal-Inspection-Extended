@@ -715,6 +715,14 @@ class InspectionOverlayWidget(QWidget):
         self.offset_x = 0
         self.offset_y = 0
 
+        # Temperature unit for hot/cold spot display
+        self.current_temp_unit = 'C'  # Default to Celsius (C/F/K/RAW)
+
+        # Individual toggles for each detection type
+        self.show_hot_spots = True  # Show hot spots by default
+        self.show_cold_spots = True  # Show cold spots by default
+        self.show_anomalies = True  # Show anomalies by default
+
     def update_rois(self, rois: List[ROI]):
         """Update ROI list for visualization."""
         self.rois = rois
@@ -767,34 +775,58 @@ class InspectionOverlayWidget(QWidget):
         self.selected_roi_id = roi_id
         self.update()
 
-    def _format_temperature_with_unit(self, temp_celsius: float, original_unit: str) -> tuple:
+    def _format_temperature_with_unit(self, temp_celsius: float, original_unit: str, raw_value: Optional[float] = None) -> tuple:
         """
-        Convert temperature from Celsius to current unit and return with unit symbol.
+        Convert temperature to current unit and return with unit symbol.
 
         Args:
-            temp_celsius: Temperature in Celsius
+            temp_celsius: Temperature in Celsius (converted value)
             original_unit: Original unit string from detection ("°C" or " (raw)")
+            raw_value: Raw pixel value (Y16: kelvin×100) if available
 
         Returns:
-            Tuple of (converted_temperature, unit_symbol)
+            Tuple of (display_value, unit_symbol)
         """
-        # If it's raw AGC value, don't convert
+        # If it's 8-bit AGC data (non-radiometric), always show raw values
+        # 8-bit AGC values cannot be converted to absolute temperatures
         if "(raw)" in original_unit:
-            return (temp_celsius, original_unit)
-
-        # Get radiometric converter from app
-        if self.parent() and hasattr(self.parent(), 'app') and self.parent().app:
-            app = self.parent().app
-            if hasattr(app, 'thermal_camera') and app.thermal_camera:
-                if hasattr(app.thermal_camera, 'radiometric_converter'):
-                    converter = app.thermal_camera.radiometric_converter
-                    if converter:
-                        converted_temp = converter.convert_temperature(temp_celsius)
-                        unit_symbol = converter.get_temperature_unit_symbol()
-                        return (converted_temp, unit_symbol)
-
-        # Fallback: return Celsius
+            if self.current_temp_unit == 'RAW':
+                return (temp_celsius, " (raw)")  # Already in raw format
+            else:
+                # In 8-bit mode, even if user selects C/F/K, we can only show raw
+                # Display with note that conversion isn't available
+                return (temp_celsius, " (AGC)")
+        
+        # For 16-bit radiometric data:
+        # If user selected RAW unit, show raw pixel value
+        if self.current_temp_unit == 'RAW':
+            if raw_value is not None:
+                return (raw_value, " (Y16)")
+            else:
+                return (temp_celsius, "°C")  # Fallback
+        
+        # Otherwise convert celsius to selected unit
+        if self.current_temp_unit == 'C':
+            return (temp_celsius, "°C")
+        elif self.current_temp_unit == 'F':
+            temp_f = temp_celsius * 9/5 + 32
+            return (temp_f, "°F")
+        elif self.current_temp_unit == 'K':
+            temp_k = temp_celsius + 273.15
+            return (temp_k, "K")
+        
+        # Fallback to Celsius
         return (temp_celsius, "°C")
+
+    def set_temperature_unit(self, unit: str):
+        """
+        Set the temperature unit for display (C/F/K/RAW).
+        
+        Args:
+            unit: Temperature unit code ('C', 'F', 'K', or 'RAW')
+        """
+        self.current_temp_unit = unit
+        self.update()  # Trigger repaint to update hot/cold spot labels
 
     def paintEvent(self, event):
         """Draw ROIs and thermal detections."""
@@ -886,28 +918,32 @@ class InspectionOverlayWidget(QWidget):
                 wx, wy = self.frame_to_widget(x, y)
                 draw_label(int(wx), int(wy) - 5, roi.label, color)
 
-        # Draw hot spots (with coordinate transformation) - only if info is enabled
-        if self.show_detection_info:
+        # Draw hot spots (with coordinate transformation) - only if enabled
+        if self.show_hot_spots:
             for hot_spot in self.hot_spots:
                 painter.setPen(QPen(QColor(255, 0, 0), 2))  # Red
                 x, y = hot_spot.centroid
                 wx, wy = self.frame_to_widget(x, y)
                 painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
                 # Convert temperature to current unit
-                temp_c, unit_symbol = self._format_temperature_with_unit(hot_spot.max_temp, hot_spot.unit)
-                draw_label(int(wx) + 10, int(wy), f"{temp_c:.1f}{unit_symbol}", QColor(255, 100, 100))
+                temp_val, unit_symbol = self._format_temperature_with_unit(
+                    hot_spot.max_temp, hot_spot.unit, hot_spot.raw_value)
+                draw_label(int(wx) + 10, int(wy), f"{temp_val:.1f}{unit_symbol}", QColor(255, 100, 100))
 
-            # Draw cold spots (with coordinate transformation)
+        # Draw cold spots (with coordinate transformation) - only if enabled
+        if self.show_cold_spots:
             for cold_spot in self.cold_spots:
                 painter.setPen(QPen(QColor(0, 128, 255), 2))  # Light blue
                 x, y = cold_spot.centroid
                 wx, wy = self.frame_to_widget(x, y)
                 painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
                 # Convert temperature to current unit
-                temp_c, unit_symbol = self._format_temperature_with_unit(cold_spot.min_temp, cold_spot.unit)
-                draw_label(int(wx) + 10, int(wy), f"{temp_c:.1f}{unit_symbol}", QColor(100, 200, 255))
+                temp_val, unit_symbol = self._format_temperature_with_unit(
+                    cold_spot.min_temp, cold_spot.unit, cold_spot.raw_value)
+                draw_label(int(wx) + 10, int(wy), f"{temp_val:.1f}{unit_symbol}", QColor(100, 200, 255))
 
-            # Draw anomalies (with coordinate transformation)
+        # Draw anomalies (with coordinate transformation) - only if enabled
+        if self.show_anomalies:
             for anomaly in self.anomalies:
                 painter.setPen(QPen(QColor(255, 255, 0), 3))  # Yellow
                 x, y = anomaly.location
@@ -1851,11 +1887,24 @@ class ThermalAnalysisPanel(QWidget):
         # === Overlay Display ===
         self.general_layout.addWidget(create_section_header("👁 Overlay Display"))
 
-        self.overlay_info_checkbox = QCheckBox("Show Detection Info")
-        self.overlay_info_checkbox.setChecked(False)  # Unchecked by default
-        self.overlay_info_checkbox.setToolTip("Show/hide hot spots, cold spots, and anomalies on video")
-        self.overlay_info_checkbox.setMinimumHeight(28)
-        self.general_layout.addWidget(self.overlay_info_checkbox)
+        # Individual checkboxes for each detection type
+        self.show_hot_spots_checkbox = QCheckBox("Show Hot Spots")
+        self.show_hot_spots_checkbox.setChecked(True)  # Enabled by default
+        self.show_hot_spots_checkbox.setToolTip("Show/hide hot spot markers on video")
+        self.show_hot_spots_checkbox.setMinimumHeight(28)
+        self.general_layout.addWidget(self.show_hot_spots_checkbox)
+
+        self.show_cold_spots_checkbox = QCheckBox("Show Cold Spots")
+        self.show_cold_spots_checkbox.setChecked(True)  # Enabled by default
+        self.show_cold_spots_checkbox.setToolTip("Show/hide cold spot markers on video")
+        self.show_cold_spots_checkbox.setMinimumHeight(28)
+        self.general_layout.addWidget(self.show_cold_spots_checkbox)
+
+        self.show_anomalies_checkbox = QCheckBox("Show Anomalies")
+        self.show_anomalies_checkbox.setChecked(True)  # Enabled by default
+        self.show_anomalies_checkbox.setToolTip("Show/hide thermal anomaly markers on video")
+        self.show_anomalies_checkbox.setMinimumHeight(28)
+        self.general_layout.addWidget(self.show_anomalies_checkbox)
 
         self.general_layout.addWidget(create_separator())
 
@@ -2020,7 +2069,11 @@ class ThermalAnalysisPanel(QWidget):
         self.baseline_btn.toggled.connect(self.baseline_toggled.emit)
         self.roi_list.currentRowChanged.connect(self._on_roi_selected)
         self.roi_palette_combo.currentTextChanged.connect(self._on_roi_palette_combo_changed)
-        self.overlay_info_checkbox.toggled.connect(self.overlay_info_toggled.emit)
+        
+        # Connect individual detection type checkboxes
+        self.show_hot_spots_checkbox.toggled.connect(self._on_show_hot_spots_toggled)
+        self.show_cold_spots_checkbox.toggled.connect(self._on_show_cold_spots_toggled)
+        self.show_anomalies_checkbox.toggled.connect(self._on_show_anomalies_toggled)
 
         # Connect radiometric panel temperature unit change signal
         self.radiometric_panel_general.temperature_unit_changed.connect(self._on_temperature_unit_changed)
@@ -2112,6 +2165,10 @@ class ThermalAnalysisPanel(QWidget):
 
     def _on_temperature_unit_changed(self, unit: str):
         """Handle temperature unit change from radiometric panel."""
+        # Update overlay widget to show hot/cold spots in new unit
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.set_temperature_unit(unit)
+        # Update app-level temperature unit
         if self.app:
             self.app.set_temperature_unit(unit)
 
@@ -2142,6 +2199,30 @@ class ThermalAnalysisPanel(QWidget):
                 logger.warning("[DEBUG] Cannot set max cold spots: window or app not found")
         except Exception as e:
             logger.error(f"[ERROR] Exception in _on_max_cold_spots_changed: {e}", exc_info=True)
+
+    def _on_show_hot_spots_toggled(self, enabled: bool):
+        """Handle show hot spots checkbox toggle."""
+        # Get the main window and update overlay
+        window = self.window()
+        if window and hasattr(window, 'video_widget') and hasattr(window.video_widget, 'overlay'):
+            window.video_widget.overlay.show_hot_spots = enabled
+            window.video_widget.overlay.update()
+
+    def _on_show_cold_spots_toggled(self, enabled: bool):
+        """Handle show cold spots checkbox toggle."""
+        # Get the main window and update overlay
+        window = self.window()
+        if window and hasattr(window, 'video_widget') and hasattr(window.video_widget, 'overlay'):
+            window.video_widget.overlay.show_cold_spots = enabled
+            window.video_widget.overlay.update()
+
+    def _on_show_anomalies_toggled(self, enabled: bool):
+        """Handle show anomalies checkbox toggle."""
+        # Get the main window and update overlay
+        window = self.window()
+        if window and hasattr(window, 'video_widget') and hasattr(window.video_widget, 'overlay'):
+            window.video_widget.overlay.show_anomalies = enabled
+            window.video_widget.overlay.update()
 
     def _on_backend_changed(self, mode: str):
         """Handle backend change request from radiometric panel.
@@ -2215,7 +2296,33 @@ class ThermalAnalysisPanel(QWidget):
                 logger.error(f"[BACKEND] Failed to switch to {mode} backend")
 
             # Update radiometric panel status
-            self.radiometric_panel_general.update_backend_status(mode)
+            backend_info = None
+            try:
+                if hasattr(app, 'camera_manager') and app.camera_manager:
+                    # Using camera_manager (new architecture)
+                    backend_info = app.camera_manager.get_thermal_info()
+                    logger.info("[BACKEND] Got backend info from camera_manager")
+                elif hasattr(app, 'thermal_camera') and app.thermal_camera:
+                    # Using direct thermal_camera (current architecture)
+                    if hasattr(app.thermal_camera, 'get_info'):
+                        backend_info = app.thermal_camera.get_info()
+                        if backend_info:
+                            backend_info['current_mode'] = mode
+                            logger.info(f"[BACKEND] Got backend info from thermal_camera: {backend_info.get('backend', 'unknown')}")
+                        else:
+                            logger.warning("[BACKEND] thermal_camera.get_info() returned None")
+                    else:
+                        logger.warning("[BACKEND] thermal_camera has no get_info() method")
+                else:
+                    logger.warning("[BACKEND] No camera_manager or thermal_camera available for backend info")
+
+                if backend_info:
+                    self.radiometric_panel_general.update_backend_status(backend_info)
+                    logger.info("[BACKEND] Successfully updated radiometric panel status")
+                else:
+                    logger.warning("[BACKEND] No backend info available to update panel")
+            except Exception as e:
+                logger.error(f"[BACKEND] Error updating radiometric panel status: {e}", exc_info=True)
         except Exception as e:
             logger.error(f"[ERROR] Exception in _on_backend_changed: {e}", exc_info=True)
 
@@ -4911,22 +5018,43 @@ class InspectionAppWindow(QMainWindow):
             self.right_panel_tabs.setVisible(True)
             logger.info("✓ Right panel tabs widget created (width=630, visible=True)")
 
-            # === OPTIMIZED TAB STRUCTURE (4 main tabs) ===
+            # === OPTIMIZED TAB STRUCTURE (5 main subtabs under Analysis) ===
             
-            # Tab 1: Analysis & Radiometry (4 subtabs - removed Temperature duplicate)
+            # Analysis tab with 5 subtabs: General, Radiometric, Per-ROI, Environmental, Isotherm
             logger.info("Creating Analysis tab...")
             self.analysis_tabs = QTabWidget()
             
+            # Create General tab (just the general analysis content, no nested radiometric)
             self.analysis_panel = ThermalAnalysisPanel()
-            self.analysis_tabs.addTab(self.analysis_panel, "General")
-            logger.info("  ✓ General analysis panel added (includes Radiometric subtab)")
+            # Only use the "General" tab, ignore the nested "Radiometric" tab
+            general_content = self.analysis_panel.analysis_tabs.widget(0)
+            self.analysis_tabs.addTab(general_content, "General")
+            logger.info("  ✓ General analysis panel added")
             
-            # Restore self.radiometric_panel alias for signal handlers
-            # This fixes the crash where handlers try to access the missing attribute
-            self.radiometric_panel = self.analysis_panel.radiometric_panel_general
+            # Create Radiometric tab directly at top level
+            from radiometric_panel import RadiometricPanel
+            radiometric_tab = QWidget()
+            radiometric_scroll = QScrollArea()
+            radiometric_scroll.setWidgetResizable(True)
+            radiometric_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            radiometric_scroll.setFrameShape(QFrame.Shape.NoFrame)
             
-            # Note: RadiometricPanel is now in General > Radiometric subtab
-            # Removed duplicate "Temperature" top-level tab
+            radiometric_content = QWidget()
+            radiometric_layout = QVBoxLayout(radiometric_content)
+            radiometric_layout.setSpacing(8)
+            radiometric_layout.setContentsMargins(6, 6, 6, 6)
+            
+            self.radiometric_panel = RadiometricPanel()
+            radiometric_layout.addWidget(self.radiometric_panel)
+            radiometric_layout.addStretch()
+            
+            radiometric_scroll.setWidget(radiometric_content)
+            radiometric_tab_layout = QVBoxLayout(radiometric_tab)
+            radiometric_tab_layout.setContentsMargins(0, 0, 0, 0)
+            radiometric_tab_layout.addWidget(radiometric_scroll)
+            
+            self.analysis_tabs.addTab(radiometric_tab, "Radiometric")
+            logger.info("  ✓ Radiometric panel added at top level")
             
             from roi_temperature_panel import ROITemperaturePanel
             self.roi_temp_panel = ROITemperaturePanel()
@@ -5213,6 +5341,17 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("radiometric_panel", "temperature_range_changed", self._on_temperature_range_changed, "(radiometric 8-bit)")
         self._safe_connect("radiometric_panel", "calibrate_single_point_requested", self._on_calibrate_single_point, "(radiometric 8-bit)")
         self._safe_connect("radiometric_panel", "calibrate_two_point_requested", self._on_calibrate_two_point, "(radiometric 8-bit)")
+        
+        # === RADIOMETRIC PANEL (Temperature Unit & Detection Settings) ===
+        self._safe_connect("radiometric_panel", "temperature_unit_changed", self._on_radiometric_temp_unit_changed, "(radiometric unit)")
+        self._safe_connect("radiometric_panel", "max_hot_spots_changed", self._on_radiometric_max_hot_spots_changed, "(radiometric spots)")
+        self._safe_connect("radiometric_panel", "max_cold_spots_changed", self._on_radiometric_max_cold_spots_changed, "(radiometric spots)")
+        self._safe_connect("radiometric_panel", "backend_changed", self._on_radiometric_backend_changed, "(radiometric backend)")
+
+        # === GENERAL ANALYSIS PANEL (Detection Toggles) ===
+        self._safe_connect("analysis_panel.show_hot_spots_checkbox", "toggled", self._on_show_hot_spots_toggled, "(detection toggle)")
+        self._safe_connect("analysis_panel.show_cold_spots_checkbox", "toggled", self._on_show_cold_spots_toggled, "(detection toggle)")
+        self._safe_connect("analysis_panel.show_anomalies_checkbox", "toggled", self._on_show_anomalies_toggled, "(detection toggle)")
 
         # === ENVIRONMENTAL COMPENSATION PANEL ===
         self._safe_connect("env_comp_panel", "emissivity_changed", self._on_emissivity_changed, "(environmental)")
@@ -5515,54 +5654,58 @@ class InspectionAppWindow(QMainWindow):
     
     def _on_calibrate_two_point(self):
         """Handle two-point calibration request."""
-        from PyQt6.QtWidgets import QInputDialog, QMessageBox
-        
-        # Get cold reference temp
-        temp_low, ok1 = QInputDialog.getDouble(
-            self,
-            "Two-Point Calibration - Cold Reference",
-            "Enter cold reference temperature (°C)\\n(e.g., ice water = 0°C):",
-            0.0,  # default
-            -40.0, 100.0,  # min, max
-            1
-        )
-        
-        if not ok1:
-            return
-        
-        # Get hot reference temp
-        temp_high, ok2 = QInputDialog.getDouble(
-            self,
-            "Two-Point Calibration - Hot Reference",
-            "Enter hot reference temperature (°C)\\n(e.g., boiling water = 100°C):",
-            100.0,  # default value
-            0.0, 550.0,  # min, max
-            1
-        )
-        
-        if ok2 and self.app:
-            # We pass None for AGC values to let the app use the latest frame's min/max
-            if hasattr(self.app, 'calibrate_8bit_two_point'):
-                success = self.app.calibrate_8bit_two_point(temp_low, temp_high)
-                if success:
-                    # Update calibration offset and scene range displays
-                    if self.app.temp_estimator:
-                        if hasattr(self.radiometric_panel, 'set_calibration_offset'):
-                            offset = self.app.temp_estimator.calibration_offset
-                            self.radiometric_panel.set_calibration_offset(offset)
-                        if hasattr(self.radiometric_panel, 'set_scene_range'):
-                            self.radiometric_panel.set_scene_range(temp_low, temp_high)
+        if self.app:
+            self.app.calibrate_two_point()
 
-                    QMessageBox.information(
-                        self,
-                        "Calibration Complete",
-                        f"Two-point calibration set:\\n"
-                        f"Cold: {temp_low:.1f}°C\\n"
-                        f"Hot: {temp_high:.1f}°C"
-                    )
-                    logger.info(f"Two-point calibration: {temp_low:.1f}°C to {temp_high:.1f}°C")
-                else:
-                    QMessageBox.warning(self, "Calibration Failed", "Could not perform calibration")
+    def _on_radiometric_temp_unit_changed(self, unit: str):
+        """Handle temperature unit change from top-level radiometric panel."""
+        logger.info(f"Temperature unit changed to: {unit}")
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.set_temperature_unit(unit)
+        if self.app:
+            self.app.set_temperature_unit(unit)
+
+    def _on_radiometric_max_hot_spots_changed(self, count: int):
+        """Handle max hot spots change from top-level radiometric panel."""
+        if self.app:
+            self.app.set_max_hot_spots(count)
+
+    def _on_radiometric_max_cold_spots_changed(self, count: int):
+        """Handle max cold spots change from top-level radiometric panel."""
+        if self.app:
+            self.app.set_max_cold_spots(count)
+
+    def _on_radiometric_backend_changed(self, backend: str):
+        """Handle backend change from top-level radiometric panel."""
+        if self.app:
+            self.app.switch_thermal_backend(backend)
+
+    def _on_show_hot_spots_toggled(self, enabled: bool):
+        """Handle show hot spots checkbox toggle."""
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.show_hot_spots = enabled
+            self.video_widget.overlay.update()
+            logger.info(f"Show hot spots: {enabled}")
+
+    def _on_show_cold_spots_toggled(self, enabled: bool):
+        """Handle show cold spots checkbox toggle."""
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.show_cold_spots = enabled
+            self.video_widget.overlay.update()
+            logger.info(f"Show cold spots: {enabled}")
+
+    def _on_show_anomalies_toggled(self, enabled: bool):
+        """Handle show anomalies checkbox toggle."""
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.show_anomalies = enabled
+            self.video_widget.overlay.update()
+            logger.info(f"Show anomalies: {enabled}")
+
+    def _on_emissivity_changed(self, emissivity: float):
+        """Handle emissivity change."""
+        if self.app:
+            self.app.set_emissivity(emissivity)
+        logger.info(f"Emissivity changed to: {emissivity:.2f}")
 
     # === RADIOMETRIC SPOTMETER HANDLERS (Placeholder for 16-bit radiometric) ===
     

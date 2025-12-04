@@ -73,6 +73,7 @@ class HotSpot:
     area: int
     confidence: float
     unit: str = "°C"
+    raw_value: Optional[float] = None  # Raw pixel value (Y16: kelvin×100 for 16-bit)
     timestamp: float = field(default_factory=time.time)
 
 
@@ -86,6 +87,7 @@ class ColdSpot:
     area: int
     confidence: float
     unit: str = "°C"
+    raw_value: Optional[float] = None  # Raw pixel value (Y16: kelvin×100 for 16-bit)
     timestamp: float = field(default_factory=time.time)
 
 
@@ -195,7 +197,26 @@ class ThermalAnalyzer:
     def set_baseline(self, value: float):
         """Set baseline value for relative measurements."""
         self.baseline_value = value
-        
+
+    def _y16_to_celsius(self, value: float) -> float:
+        """
+        Convert Y16 radiometric value to Celsius.
+
+        Y16 format: pixel_value = Kelvin × 100
+
+        Args:
+            value: Y16 pixel value
+
+        Returns:
+            Temperature in Celsius
+        """
+        return (value / 100.0) - 273.15
+
+    def reset_background_model(self):
+        """Reset background model and frame count (call when frame size changes)."""
+        self.background_model = None
+        self.frame_count = 0
+
     def get_baseline(self) -> Optional[float]:
         """Get current baseline value."""
         return self.baseline_value
@@ -233,22 +254,49 @@ class ThermalAnalyzer:
         if self.calibration_scale != 1.0 or self.calibration_offset != 0.0:
             pixels = pixels * self.calibration_scale + self.calibration_offset
 
-        # Compute statistics
-        mean_val = float(np.mean(pixels))
-        
+        # Compute raw statistics first
+        min_raw = float(np.min(pixels))
+        max_raw = float(np.max(pixels))
+        mean_raw = float(np.mean(pixels))
+        median_raw = float(np.median(pixels))
+        std_raw = float(np.std(pixels))
+        p95_raw = float(np.percentile(pixels, 95))
+        p5_raw = float(np.percentile(pixels, 5))
+
+        # Convert to Celsius if radiometric (Y16 format: value = Kelvin × 100)
+        if self.is_radiometric:
+            min_val = self._y16_to_celsius(min_raw)
+            max_val = self._y16_to_celsius(max_raw)
+            mean_val = self._y16_to_celsius(mean_raw)
+            median_val = self._y16_to_celsius(median_raw)
+            # Std dev doesn't need offset adjustment, just scale
+            std_val = std_raw / 100.0
+            p95_val = self._y16_to_celsius(p95_raw)
+            p5_val = self._y16_to_celsius(p5_raw)
+            temp_range = max_val - min_val
+        else:
+            min_val = min_raw
+            max_val = max_raw
+            mean_val = mean_raw
+            median_val = median_raw
+            std_val = std_raw
+            p95_val = p95_raw
+            p5_val = p5_raw
+            temp_range = max_raw - min_raw
+
         relative_mean = None
         if self.baseline_value is not None:
             relative_mean = mean_val - self.baseline_value
 
         stats = ThermalStatistics(
-            min_temp=float(np.min(pixels)),
-            max_temp=float(np.max(pixels)),
+            min_temp=min_val,
+            max_temp=max_val,
             mean_temp=mean_val,
-            median_temp=float(np.median(pixels)),
-            std_temp=float(np.std(pixels)),
-            temp_range=float(np.max(pixels) - np.min(pixels)),
-            percentile_95=float(np.percentile(pixels, 95)),
-            percentile_5=float(np.percentile(pixels, 5)),
+            median_temp=median_val,
+            std_temp=std_val,
+            temp_range=temp_range,
+            percentile_95=p95_val,
+            percentile_5=p5_val,
             pixel_count=int(pixels.size),
             unit="°C" if self.is_radiometric else " (raw)",
             relative_mean=relative_mean
@@ -310,11 +358,19 @@ class ThermalAnalyzer:
 
             # Extract region statistics
             roi = thermal_frame[y:y+h, x:x+w]
-            max_temp = float(np.max(roi))
-            mean_temp = float(np.mean(roi))
+            max_raw = float(np.max(roi))
+            mean_raw = float(np.mean(roi))
 
-            # Calculate confidence based on how much hotter than threshold
-            confidence = min(1.0, (max_temp - threshold_value) / (threshold_value * 0.5))
+            # Calculate confidence based on how much hotter than threshold (in raw units)
+            confidence = min(1.0, (max_raw - threshold_value) / (threshold_value * 0.5))
+
+            # Convert to Celsius if radiometric (Y16 format: value = Kelvin × 100)
+            if self.is_radiometric:
+                max_temp = self._y16_to_celsius(max_raw)
+                mean_temp = self._y16_to_celsius(mean_raw)
+            else:
+                max_temp = max_raw
+                mean_temp = mean_raw
 
             hot_spot = HotSpot(
                 centroid=(cx, cy),
@@ -323,7 +379,8 @@ class ThermalAnalyzer:
                 mean_temp=mean_temp,
                 area=int(area),
                 confidence=confidence,
-                unit="°C" if self.is_radiometric else " (raw)"
+                unit="°C" if self.is_radiometric else " (raw)",
+                raw_value=max_raw  # Store raw Y16 value (kelvin×100)
             )
             hot_spots.append(hot_spot)
 
@@ -390,11 +447,19 @@ class ThermalAnalyzer:
 
             # Extract region statistics
             roi = thermal_frame[y:y+h, x:x+w]
-            min_temp = float(np.min(roi))
-            mean_temp = float(np.mean(roi))
+            min_raw = float(np.min(roi))
+            mean_raw = float(np.mean(roi))
 
-            # Calculate confidence based on how much colder than threshold
-            confidence = min(1.0, (threshold_value - min_temp) / (threshold_value * 0.5))
+            # Calculate confidence based on how much colder than threshold (in raw units)
+            confidence = min(1.0, (threshold_value - min_raw) / (threshold_value * 0.5))
+
+            # Convert to Celsius if radiometric (Y16 format: value = Kelvin × 100)
+            if self.is_radiometric:
+                min_temp = self._y16_to_celsius(min_raw)
+                mean_temp = self._y16_to_celsius(mean_raw)
+            else:
+                min_temp = min_raw
+                mean_temp = mean_raw
 
             cold_spot = ColdSpot(
                 centroid=(cx, cy),
@@ -403,7 +468,8 @@ class ThermalAnalyzer:
                 mean_temp=mean_temp,
                 area=int(area),
                 confidence=float(confidence),
-                unit="°C" if self.is_radiometric else " (raw)"
+                unit="°C" if self.is_radiometric else " (raw)",
+                raw_value=min_raw  # Store raw Y16 value (kelvin×100)
             )
             cold_spots.append(cold_spot)
 
@@ -527,8 +593,9 @@ class ThermalAnalyzer:
         if thermal_frame is not None:
             thermal_float = thermal_frame.astype(np.float32)
             
-            if self.background_model is None:
+            if self.background_model is None or self.background_model.shape != thermal_float.shape:
                 self.background_model = thermal_float.copy()
+                self.frame_count = 0  # Reset initialization counter on size change
             else:
                 # Update background model (running average)
                 cv2.accumulateWeighted(thermal_float, self.background_model, self.background_alpha)

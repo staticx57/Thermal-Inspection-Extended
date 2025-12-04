@@ -40,6 +40,7 @@ class FlirpyThermalBackend(ThermalBackend):
         self.camera = None
         self._is_opened = False
         self._frame_count = 0
+        self._last_frame = None  # Store last captured frame
 
     def is_available(self) -> bool:
         """
@@ -114,11 +115,23 @@ class FlirpyThermalBackend(ThermalBackend):
             if frame.dtype != np.uint16:
                 logger.warning(f"Expected uint16 frame, got {frame.dtype}")
 
+            # Store last frame for later access
+            self._last_frame = frame
+
             return True, frame
 
         except Exception as e:
             logger.error(f"Error reading frame from flirpy: {e}")
             return False, None
+
+    def read_thermal(self) -> Tuple[bool, Optional[np.ndarray]]:
+        """
+        Alias for read() - read thermal frame.
+
+        Returns:
+            tuple: (success: bool, frame: np.ndarray or None)
+        """
+        return self.read()
 
     def release(self):
         """Close camera and release resources."""
@@ -248,7 +261,398 @@ class FlirpyThermalBackend(ThermalBackend):
         logger.warning("Use BosonSDK wrapper separately when not capturing")
         return None
 
+    def enable_radiometric(self, enable: bool = True):
+        """
+        Enable/disable radiometric mode.
+
+        Note: flirpy backend is always radiometric (Y16 format).
+        This method exists for API compatibility but does nothing.
+
+        Args:
+            enable: Ignored (always radiometric)
+        """
+        if not enable:
+            logger.warning("flirpy backend is always radiometric - cannot disable")
+        # flirpy is always in radiometric mode, nothing to do
+
+    def is_radiometric_enabled(self) -> bool:
+        """
+        Check if radiometric features are currently enabled.
+
+        Returns:
+            True (flirpy always provides radiometric Y16 data)
+        """
+        return self._is_opened  # Always radiometric when camera is open
+
+    def get_spot_temperature(self, x: int, y: int) -> Optional[float]:
+        """
+        Get temperature at a specific pixel coordinate.
+
+        Args:
+            x: X coordinate
+            y: Y coordinate
+
+        Returns:
+            Temperature in Celsius, or None if not available
+        """
+        if not self._is_opened:
+            return None
+
+        ret, frame = self.read()
+        if not ret or frame is None:
+            return None
+
+        try:
+            h, w = frame.shape[:2]
+            if 0 <= x < w and 0 <= y < h:
+                # Y16 format: pixel_value = Kelvin * 100
+                pixel_value = frame[y, x]
+                temp_k = pixel_value / 100.0
+                temp_c = temp_k - 273.15
+                return float(temp_c)
+            return None
+        except Exception as e:
+            logger.error(f"Error getting spot temperature: {e}")
+            return None
+
+    def get_temperature_frame(self) -> Optional[np.ndarray]:
+        """
+        Convert the last captured frame to temperature values.
+
+        Returns:
+            Temperature array (H, W) in Celsius (float32), or None if not available
+        """
+        return self.get_temperature_map()
+
+    def get_roi_temperature_stats(self, roi_mask: np.ndarray) -> Optional[dict]:
+        """
+        Get temperature statistics for a region of interest.
+
+        Args:
+            roi_mask: Boolean mask (H, W) where True = inside ROI
+
+        Returns:
+            Dictionary with temperature statistics, or None if not available
+        """
+        if not self._is_opened:
+            return None
+
+        ret, frame = self.read()
+        if not ret or frame is None:
+            return None
+
+        try:
+            # Y16 format: pixel_value = Kelvin * 100
+            temp_k = frame.astype(np.float32) / 100.0
+            temp_c = temp_k - 273.15
+
+            # Apply ROI mask
+            if roi_mask.shape != temp_c.shape:
+                logger.warning(f"ROI mask shape {roi_mask.shape} doesn't match frame shape {temp_c.shape}")
+                return None
+
+            roi_temps = temp_c[roi_mask]
+            if len(roi_temps) == 0:
+                return None
+
+            min_temp = float(np.min(roi_temps))
+            max_temp = float(np.max(roi_temps))
+
+            # Find min/max locations
+            min_loc = np.unravel_index(np.argmin(temp_c * roi_mask.astype(float) + (~roi_mask) * 1e6), temp_c.shape)
+            max_loc = np.unravel_index(np.argmax(temp_c * roi_mask.astype(float) + (~roi_mask) * -1e6), temp_c.shape)
+
+            return {
+                'min_temp': min_temp,
+                'max_temp': max_temp,
+                'mean_temp': float(np.mean(roi_temps)),
+                'median_temp': float(np.median(roi_temps)),
+                'std_temp': float(np.std(roi_temps)),
+                'min_location': (int(min_loc[1]), int(min_loc[0])),  # (x, y)
+                'max_location': (int(max_loc[1]), int(max_loc[0]))   # (x, y)
+            }
+        except Exception as e:
+            logger.error(f"Error computing ROI temperature stats: {e}")
+            return None
+
     def __repr__(self) -> str:
         """String representation."""
         status = "opened" if self._is_opened else "closed"
         return f"FlirpyThermalBackend(status={status}, frames={self._frame_count})"
+
+    # Additional compatibility methods for inspection_main.py
+
+    def is_sdk_connected(self) -> bool:
+        """
+        Check if SDK is connected.
+
+        Returns:
+            False (flirpy uses UVC, not SDK - SDK control via separate wrapper)
+        """
+        return False
+
+    def is_radiometric_capable(self) -> bool:
+        """
+        Check if camera supports radiometric mode.
+
+        Returns:
+            True (flirpy always provides Y16 radiometric data)
+        """
+        return True
+
+    def get_actual_resolution(self) -> Tuple[int, int]:
+        """
+        Get actual camera resolution.
+
+        Returns:
+            tuple: (width, height)
+        """
+        return self.get_resolution()
+
+    def get_last_raw_frame(self) -> Optional[np.ndarray]:
+        """
+        Get the last captured raw 16-bit frame.
+
+        Returns:
+            np.ndarray: Last captured frame (uint16), or None
+        """
+        return self._last_frame
+
+    def get_frame_temperature_stats(self) -> Optional[dict]:
+        """
+        Get temperature statistics for the entire frame.
+
+        Returns:
+            Dictionary with temperature statistics, or None if not available
+        """
+        if self._last_frame is None:
+            ret, frame = self.read()
+            if not ret or frame is None:
+                return None
+        else:
+            frame = self._last_frame
+
+        try:
+            # Y16 format: pixel_value = Kelvin * 100
+            temp_k = frame.astype(np.float32) / 100.0
+            temp_c = temp_k - 273.15
+
+            min_temp = float(np.min(temp_c))
+            max_temp = float(np.max(temp_c))
+
+            # Find min/max locations
+            min_loc = np.unravel_index(np.argmin(temp_c), temp_c.shape)
+            max_loc = np.unravel_index(np.argmax(temp_c), temp_c.shape)
+
+            return {
+                'min_temp': min_temp,
+                'max_temp': max_temp,
+                'mean_temp': float(np.mean(temp_c)),
+                'median_temp': float(np.median(temp_c)),
+                'std_temp': float(np.std(temp_c)),
+                'min_location': (int(min_loc[1]), int(min_loc[0])),  # (x, y)
+                'max_location': (int(max_loc[1]), int(max_loc[0]))   # (x, y)
+            }
+        except Exception as e:
+            logger.error(f"Error computing frame temperature stats: {e}")
+            return None
+
+    def get_camera_info(self) -> dict:
+        """
+        Get camera information.
+
+        Returns:
+            dict: Camera information
+        """
+        return self.get_info()
+
+    # SDK stub methods - flirpy uses UVC, not SDK
+    # These stubs prevent crashes when code tries to use SDK features
+
+    @property
+    def device_id(self) -> int:
+        """Device ID (stub - returns 0 for flirpy)."""
+        return 0
+
+    @property
+    def radiometric_converter(self):
+        """Radiometric converter (stub - returns None for flirpy)."""
+        return None
+
+    @property
+    def last_frame_16bit(self) -> Optional[np.ndarray]:
+        """Last 16-bit frame (alias for _last_frame)."""
+        return self._last_frame
+
+    @property
+    def sdk(self):
+        """SDK object (stub - returns None for flirpy)."""
+        return None
+
+    def trigger_ffc(self) -> bool:
+        """
+        Trigger Flat Field Correction.
+
+        Returns:
+            False (not supported via flirpy - use SDK wrapper)
+        """
+        logger.warning("FFC trigger not available via flirpy backend - use SDK wrapper")
+        return False
+
+    def connect_sdk(self, com_port: str) -> bool:
+        """
+        Connect to SDK via COM port.
+
+        Args:
+            com_port: COM port string
+
+        Returns:
+            False (flirpy uses UVC, not SDK)
+        """
+        logger.warning("SDK connection not available via flirpy backend")
+        return False
+
+    def disconnect_sdk(self):
+        """Disconnect SDK (no-op for flirpy)."""
+        pass
+
+    def set_gain_mode(self, mode: int) -> bool:
+        """
+        Set gain mode.
+
+        Returns:
+            False (not supported via flirpy)
+        """
+        logger.warning("Gain mode setting not available via flirpy backend")
+        return False
+
+    def set_ffc_mode(self, mode: int) -> bool:
+        """
+        Set FFC mode.
+
+        Returns:
+            False (not supported via flirpy)
+        """
+        logger.warning("FFC mode setting not available via flirpy backend")
+        return False
+
+    def spotmeter_enable(self, enabled: bool) -> bool:
+        """
+        Enable/disable spotmeter.
+
+        Returns:
+            False (not supported via flirpy)
+        """
+        logger.warning("Spotmeter control not available via flirpy backend")
+        return False
+
+    def spotmeter_set_statistics_mode(self, mode: int) -> bool:
+        """
+        Set spotmeter statistics mode.
+
+        Returns:
+            False (not supported via flirpy)
+        """
+        logger.warning("Spotmeter statistics mode not available via flirpy backend")
+        return False
+
+    def get_lens_temperature(self) -> Optional[float]:
+        """
+        Get lens temperature.
+
+        Returns:
+            None (not available via flirpy)
+        """
+        return None
+
+    def get_shutter_temperature(self) -> Optional[float]:
+        """
+        Get shutter temperature.
+
+        Returns:
+            None (not available via flirpy)
+        """
+        return None
+
+    def get_board_temperature(self) -> Optional[float]:
+        """
+        Get board temperature.
+
+        Returns:
+            None (not available via flirpy)
+        """
+        return None
+
+    def set_color_lut(self, lut: int) -> bool:
+        """
+        Set color lookup table.
+
+        Returns:
+            False (not supported via flirpy)
+        """
+        logger.warning("Color LUT setting not available via flirpy backend")
+        return False
+
+    def set_agc_max_gain(self, gain: float) -> bool:
+        """
+        Set AGC max gain.
+
+        Returns:
+            False (not supported via flirpy)
+        """
+        logger.warning("AGC max gain setting not available via flirpy backend")
+        return False
+
+    def set_agc_gamma(self, gamma: float) -> bool:
+        """
+        Set AGC gamma.
+
+        Returns:
+            False (not supported via flirpy)
+        """
+        logger.warning("AGC gamma setting not available via flirpy backend")
+        return False
+
+    def set_agc_linearity(self, percent: float) -> bool:
+        """
+        Set AGC linearity.
+
+        Returns:
+            False (not supported via flirpy)
+        """
+        logger.warning("AGC linearity setting not available via flirpy backend")
+        return False
+
+    def set_detail_enhancement(self, dde: float) -> bool:
+        """
+        Set detail enhancement (DDE).
+
+        Returns:
+            False (not supported via flirpy)
+        """
+        logger.warning("Detail enhancement setting not available via flirpy backend")
+        return False
+
+    def enable_tlinear_mode(self) -> bool:
+        """
+        Enable TLinear mode.
+
+        Returns:
+            False (not supported via flirpy - already radiometric)
+        """
+        logger.warning("TLinear mode not needed for flirpy - already radiometric Y16")
+        return False
+
+    def set_temperature_range(self, min_celsius: float, max_celsius: float) -> bool:
+        """
+        Set temperature range for display.
+
+        Args:
+            min_celsius: Minimum temperature
+            max_celsius: Maximum temperature
+
+        Returns:
+            False (not supported via flirpy)
+        """
+        logger.warning("Temperature range setting not available via flirpy backend")
+        return False

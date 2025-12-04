@@ -166,6 +166,12 @@ class ThermalProcessor:
 
         return palettes
 
+    def reset_motion_detection(self):
+        """Reset motion detection state (call when frame size changes)."""
+        self.prev_frame = None
+        self.motion_history.clear()
+        self.prev_normalized_distance = None
+
     def initialize(self) -> bool:
         """Initialize processor with VPI or OpenCV fallback."""
         try:
@@ -298,6 +304,13 @@ class ThermalProcessor:
             # Initialize previous frame
             if self.prev_frame is None:
                 self.prev_frame = gray.copy()
+                return []
+            
+            # Check for frame size change
+            if self.prev_frame.shape != gray.shape:
+                logger.info(f"Frame size changed from {self.prev_frame.shape} to {gray.shape} - resetting motion detection")
+                self.prev_frame = gray.copy()
+                self.motion_history.clear()
                 return []
             
             # Ensure matching dtypes for absdiff
