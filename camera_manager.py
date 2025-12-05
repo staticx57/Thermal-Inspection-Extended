@@ -85,14 +85,15 @@ class CameraManager:
             })
 
         # Check flirpy backend
-        flirpy_backend = FlirpyThermalBackend()
+        flirpy_backend = FlirpyThermalBackend(com_port='COM7')  # Default COM port
         if flirpy_backend.is_available():
             available.append({
                 'mode': self.MODE_FLIRPY,
-                'name': 'flirpy (16-bit Y16)',
-                'description': '16-bit Y16 radiometric via flirpy (UVC driver)',
+                'name': 'flirpy (16-bit Y16 + SDK)',
+                'description': '16-bit Y16 radiometric via flirpy with SDK control',
                 'radiometric': True,
-                'available': True
+                'available': True,
+                'sdk_support': True
             })
 
         if not available:
@@ -136,7 +137,10 @@ class CameraManager:
         elif mode == self.MODE_USB:
             backend = PyUSBThermalBackend()
         elif mode == self.MODE_FLIRPY:
-            backend = FlirpyThermalBackend()
+            backend = FlirpyThermalBackend(
+                com_port=com_port,
+                auto_configure=True  # Auto-configure T-Linear mode
+            )
         else:
             raise ValueError(f"Unknown thermal backend mode: {mode}. Use 'opencv', 'usb', or 'flirpy'")
 

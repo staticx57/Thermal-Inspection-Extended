@@ -89,6 +89,11 @@ class ROITemperaturePanel(QWidget):
             roi_data: Dictionary mapping roi_id -> stats dict
                      from ROIRadiometricAnalyzer.analyze_all_rois()
         """
+        # Allow empty dict to clear the display
+        if roi_data is None:
+            return
+            
+        # logger.debug(f"ROITemperaturePanel received data for {len(roi_data)} ROIs")
         self.roi_data = roi_data
         self._refresh_display()
     

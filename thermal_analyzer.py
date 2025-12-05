@@ -10,6 +10,9 @@ from typing import List, Dict, Tuple, Optional, Any
 from enum import Enum
 from collections import deque
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class TemperatureUnit(Enum):
@@ -17,6 +20,7 @@ class TemperatureUnit(Enum):
     CELSIUS = "C"
     FAHRENHEIT = "F"
     KELVIN = "K"
+    RAW = "RAW"  # Y16 raw values (Kelvin × 100)
 
 
 class AnomalyType(Enum):
@@ -198,6 +202,52 @@ class ThermalAnalyzer:
         """Set baseline value for relative measurements."""
         self.baseline_value = value
 
+    def set_radiometric_mode(self, enabled: bool):
+        """
+        Enable or disable radiometric mode.
+        
+        Args:
+            enabled: True for radiometric (temperature), False for raw (AGC)
+        """
+        self.is_radiometric = enabled
+        # Update unit based on mode
+        if not self.is_radiometric:
+            # If not radiometric, we can't display temperature units
+            # We'll stick to the configured unit preference but output will be raw
+            pass
+
+    def set_temperature_unit(self, unit: str):
+        """
+        Set temperature unit preference.
+
+        Args:
+            unit: 'C', 'F', 'K', or 'RAW'
+        """
+        try:
+            # Map string to enum
+            unit_map = {
+                'C': TemperatureUnit.CELSIUS,
+                'F': TemperatureUnit.FAHRENHEIT,
+                'K': TemperatureUnit.KELVIN,
+                'RAW': TemperatureUnit.RAW
+            }
+            if unit in unit_map:
+                self.temp_unit = unit_map[unit]
+                logger.info(f"[THERMAL_ANALYZER] Temperature unit set to: {unit}")
+        except Exception as e:
+            logger.error(f"[THERMAL_ANALYZER] Error setting temperature unit: {e}")
+
+    def _get_unit_symbol(self) -> str:
+        """Get the unit symbol string for the current temperature unit."""
+        if self.temp_unit == TemperatureUnit.FAHRENHEIT:
+            return "°F"
+        elif self.temp_unit == TemperatureUnit.KELVIN:
+            return "K"
+        elif self.temp_unit == TemperatureUnit.RAW:
+            return " (Y16)"
+        else:
+            return "°C"
+
     def _y16_to_celsius(self, value: float) -> float:
         """
         Convert Y16 radiometric value to Celsius.
@@ -288,6 +338,30 @@ class ThermalAnalyzer:
         if self.baseline_value is not None:
             relative_mean = mean_val - self.baseline_value
 
+        # Convert to target unit
+        min_val = self.convert_temperature(min_val, TemperatureUnit.CELSIUS, self.temp_unit)
+        max_val = self.convert_temperature(max_val, TemperatureUnit.CELSIUS, self.temp_unit)
+        mean_val = self.convert_temperature(mean_val, TemperatureUnit.CELSIUS, self.temp_unit)
+        median_val = self.convert_temperature(median_val, TemperatureUnit.CELSIUS, self.temp_unit)
+        p95_val = self.convert_temperature(p95_val, TemperatureUnit.CELSIUS, self.temp_unit)
+        p5_val = self.convert_temperature(p5_val, TemperatureUnit.CELSIUS, self.temp_unit)
+        
+        # Scale relative values (std dev, range)
+        # Note: These are differences, so we only apply scaling factor, not offset
+        if self.temp_unit == TemperatureUnit.FAHRENHEIT:
+            std_val = std_val * 1.8
+            temp_range = temp_range * 1.8
+            if relative_mean is not None:
+                relative_mean = relative_mean * 1.8
+        elif self.temp_unit == TemperatureUnit.RAW:
+            # RAW is Y16 (Kelvin × 100), so scale by 100
+            std_val = std_val * 100
+            temp_range = temp_range * 100
+            if relative_mean is not None:
+                relative_mean = relative_mean * 100
+
+        unit_symbol = self._get_unit_symbol()
+
         stats = ThermalStatistics(
             min_temp=min_val,
             max_temp=max_val,
@@ -298,7 +372,7 @@ class ThermalAnalyzer:
             percentile_95=p95_val,
             percentile_5=p5_val,
             pixel_count=int(pixels.size),
-            unit="°C" if self.is_radiometric else " (raw)",
+            unit=unit_symbol if self.is_radiometric else " (raw)",
             relative_mean=relative_mean
         )
 
@@ -372,6 +446,13 @@ class ThermalAnalyzer:
                 max_temp = max_raw
                 mean_temp = mean_raw
 
+            # Convert to target unit
+            if self.is_radiometric:
+                max_temp = self.convert_temperature(max_temp, TemperatureUnit.CELSIUS, self.temp_unit)
+                mean_temp = self.convert_temperature(mean_temp, TemperatureUnit.CELSIUS, self.temp_unit)
+
+            unit_symbol = self._get_unit_symbol()
+
             hot_spot = HotSpot(
                 centroid=(cx, cy),
                 bbox=(x, y, x+w, y+h),  # Convert to x1,y1,x2,y2 format
@@ -379,7 +460,7 @@ class ThermalAnalyzer:
                 mean_temp=mean_temp,
                 area=int(area),
                 confidence=confidence,
-                unit="°C" if self.is_radiometric else " (raw)",
+                unit=unit_symbol if self.is_radiometric else " (raw)",
                 raw_value=max_raw  # Store raw Y16 value (kelvin×100)
             )
             hot_spots.append(hot_spot)
@@ -461,6 +542,13 @@ class ThermalAnalyzer:
                 min_temp = min_raw
                 mean_temp = mean_raw
 
+            # Convert to target unit
+            if self.is_radiometric:
+                min_temp = self.convert_temperature(min_temp, TemperatureUnit.CELSIUS, self.temp_unit)
+                mean_temp = self.convert_temperature(mean_temp, TemperatureUnit.CELSIUS, self.temp_unit)
+
+            unit_symbol = self._get_unit_symbol()
+
             cold_spot = ColdSpot(
                 centroid=(cx, cy),
                 bbox=(x, y, x+w, y+h),  # Convert to x1,y1,x2,y2 format
@@ -468,7 +556,7 @@ class ThermalAnalyzer:
                 mean_temp=mean_temp,
                 area=int(area),
                 confidence=float(confidence),
-                unit="°C" if self.is_radiometric else " (raw)",
+                unit=unit_symbol if self.is_radiometric else " (raw)",
                 raw_value=min_raw  # Store raw Y16 value (kelvin×100)
             )
             cold_spots.append(cold_spot)
@@ -747,6 +835,19 @@ class ThermalAnalyzer:
         Returns:
             Converted temperature
         """
+        # RAW mode: return Y16 value (Kelvin × 100) without conversion
+        if to_unit == TemperatureUnit.RAW:
+            # Convert from Celsius to Y16 (Kelvin × 100)
+            if from_unit == TemperatureUnit.CELSIUS:
+                return (temp + 273.15) * 100
+            elif from_unit == TemperatureUnit.FAHRENHEIT:
+                temp_c = (temp - 32) * 5/9
+                return (temp_c + 273.15) * 100
+            elif from_unit == TemperatureUnit.KELVIN:
+                return temp * 100
+            else:
+                return temp  # Already raw
+
         # Convert to Celsius first
         if from_unit == TemperatureUnit.CELSIUS:
             temp_c = temp
@@ -754,6 +855,9 @@ class ThermalAnalyzer:
             temp_c = (temp - 32) * 5/9
         elif from_unit == TemperatureUnit.KELVIN:
             temp_c = temp - 273.15
+        elif from_unit == TemperatureUnit.RAW:
+            # RAW is Y16 (Kelvin × 100), convert to Celsius
+            temp_c = (temp / 100) - 273.15
         else:
             temp_c = temp
 
@@ -764,6 +868,8 @@ class ThermalAnalyzer:
             return temp_c * 9/5 + 32
         elif to_unit == TemperatureUnit.KELVIN:
             return temp_c + 273.15
+        else:
+            return temp_c
 
     # ========================================================================
     # Manual Threshold Detection

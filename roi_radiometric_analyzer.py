@@ -148,6 +148,10 @@ class ROIRadiometricAnalyzer:
             
             stats = self.analyze_roi(roi, frame_16bit)
             results[roi.roi_id] = stats
+            
+            # DEBUG: Log first ROI stats
+            if len(results) == 1:
+                logger.debug(f"Analyzed ROI {roi.roi_id}: {stats}")
         
         logger.debug(f"Analyzed {len(results)} active ROIs")
         return results

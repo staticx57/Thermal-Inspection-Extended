@@ -608,6 +608,22 @@ class ThermalProcessor:
                     gray = cv2.cvtColor(thermal_frame, cv2.COLOR_BGR2GRAY)
                 else:
                     gray = thermal_frame
+                
+                # Normalize to 8-bit if needed
+                if gray.dtype == np.uint16:
+                    gray_min = np.min(gray)
+                    gray_max = np.max(gray)
+                    if gray_max > gray_min:
+                        gray = ((gray - gray_min) / (gray_max - gray_min) * 255).astype(np.uint8)
+                    else:
+                        gray = np.zeros_like(gray, dtype=np.uint8)
+                elif gray.dtype != np.uint8:
+                    gray_max = gray.max()
+                    if gray_max > 0:
+                        gray = (gray / gray_max * 255).astype(np.uint8)
+                    else:
+                        gray = gray.astype(np.uint8)
+                
                 return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
             h, w = thermal_frame.shape[:2]
@@ -665,6 +681,23 @@ class ThermalProcessor:
                 gray = cv2.cvtColor(thermal_frame, cv2.COLOR_BGR2GRAY)
             else:
                 gray = thermal_frame
+
+            # Normalize to 8-bit if needed (cv2.cvtColor COLOR_GRAY2BGR expects 8-bit)
+            if gray.dtype == np.uint16:
+                # 16-bit Y16 radiometric data - normalize to 8-bit for visualization
+                gray_min = np.min(gray)
+                gray_max = np.max(gray)
+                if gray_max > gray_min:
+                    gray = ((gray - gray_min) / (gray_max - gray_min) * 255).astype(np.uint8)
+                else:
+                    gray = np.zeros_like(gray, dtype=np.uint8)
+            elif gray.dtype != np.uint8:
+                # Other bit depths - convert to 8-bit
+                gray_max = gray.max()
+                if gray_max > 0:
+                    gray = (gray / gray_max * 255).astype(np.uint8)
+                else:
+                    gray = gray.astype(np.uint8)
 
             # Convert grayscale to BGR format
             grayscale_frame = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)

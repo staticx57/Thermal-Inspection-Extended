@@ -805,7 +805,26 @@ class InspectionOverlayWidget(QWidget):
             else:
                 return (temp_celsius, "°C")  # Fallback
         
+        # If units match, return as is
+        # Note: We handle the case where original is "°C" and current is 'C' (no degree symbol in key)
+        if (self.current_temp_unit == 'C' and "C" in original_unit) or \
+           (self.current_temp_unit == 'F' and "F" in original_unit) or \
+           (self.current_temp_unit == 'K' and "K" in original_unit):
+            return (temp_celsius, original_unit)
+
         # Otherwise convert celsius to selected unit
+        # We assume input is Celsius if units don't match, unless it's explicitly F or K
+        # But ThermalAnalyzer now returns values in the selected unit, so mismatch should be rare
+        # (only during switching).
+        
+        # If input is actually F but we want C (rare case of mismatch)
+        if "F" in original_unit:
+            # Convert F to C first
+            temp_celsius = (temp_celsius - 32) * 5/9
+        elif "K" in original_unit:
+            # Convert K to C first
+            temp_celsius = temp_celsius - 273.15
+
         if self.current_temp_unit == 'C':
             return (temp_celsius, "°C")
         elif self.current_temp_unit == 'F':
@@ -815,7 +834,6 @@ class InspectionOverlayWidget(QWidget):
             temp_k = temp_celsius + 273.15
             return (temp_k, "K")
         
-        # Fallback to Celsius
         return (temp_celsius, "°C")
 
     def set_temperature_unit(self, unit: str):
@@ -1691,14 +1709,14 @@ class ControlPanel(QWidget):
     def _connect_signals(self):
         """Connect button signals."""
         self.record_btn.toggled.connect(self.record_toggled.emit)
-        self.snapshot_btn.clicked.connect(self.snapshot_clicked.emit)
+        self.snapshot_btn.clicked.connect(lambda: self.snapshot_clicked.emit())
         self.freeze_btn.toggled.connect(self.freeze_frame_toggled.emit)
-        self.camera_btn.clicked.connect(self.camera_clicked.emit)
-        self.auto_roi_btn.clicked.connect(self.auto_roi_clicked.emit)
-        self.draw_roi_btn.clicked.connect(self.draw_roi_clicked.emit)
-        self.clear_roi_btn.clicked.connect(self.clear_rois_clicked.emit)
-        self.view_mode_btn.clicked.connect(self.view_mode_clicked.emit)
-        self.theme_btn.clicked.connect(self.day_night_clicked.emit)
+        self.camera_btn.clicked.connect(lambda: self.camera_clicked.emit())
+        self.auto_roi_btn.clicked.connect(lambda: self.auto_roi_clicked.emit())
+        self.draw_roi_btn.clicked.connect(lambda: self.draw_roi_clicked.emit())
+        self.clear_roi_btn.clicked.connect(lambda: self.clear_rois_clicked.emit())
+        self.view_mode_btn.clicked.connect(lambda: self.view_mode_clicked.emit())
+        self.theme_btn.clicked.connect(lambda: self.day_night_clicked.emit())
 
     def update_record_button(self, recording: bool):
         """Update record button state."""
@@ -2038,33 +2056,6 @@ class ThermalAnalysisPanel(QWidget):
 
         self.analysis_tabs.addTab(general_tab, "General")
 
-        # ===================================================================
-        # === Radiometric Analysis Tab ===
-        # ===================================================================
-        radiometric_tab = QWidget()
-        radiometric_scroll = QScrollArea()
-        radiometric_scroll.setWidgetResizable(True)
-        radiometric_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        radiometric_scroll.setFrameShape(QFrame.Shape.NoFrame)
-
-        radiometric_content = QWidget()
-        radiometric_layout = QVBoxLayout(radiometric_content)
-        radiometric_layout.setSpacing(8)
-        radiometric_layout.setContentsMargins(6, 6, 6, 6)
-        
-        # Use the actual RadiometricPanel with all tools
-        self.radiometric_panel_general = RadiometricPanel()
-        radiometric_layout.addWidget(self.radiometric_panel_general)
-
-        radiometric_layout.addStretch()
-
-        radiometric_scroll.setWidget(radiometric_content)
-        radiometric_tab_layout = QVBoxLayout(radiometric_tab)
-        radiometric_tab_layout.setContentsMargins(0, 0, 0, 0)
-        radiometric_tab_layout.addWidget(radiometric_scroll)
-
-        self.analysis_tabs.addTab(radiometric_tab, "Radiometric")
-
         # Connect signals
         self.baseline_btn.toggled.connect(self.baseline_toggled.emit)
         self.roi_list.currentRowChanged.connect(self._on_roi_selected)
@@ -2074,16 +2065,6 @@ class ThermalAnalysisPanel(QWidget):
         self.show_hot_spots_checkbox.toggled.connect(self._on_show_hot_spots_toggled)
         self.show_cold_spots_checkbox.toggled.connect(self._on_show_cold_spots_toggled)
         self.show_anomalies_checkbox.toggled.connect(self._on_show_anomalies_toggled)
-
-        # Connect radiometric panel temperature unit change signal
-        self.radiometric_panel_general.temperature_unit_changed.connect(self._on_temperature_unit_changed)
-
-        # Connect radiometric panel spot count change signals
-        self.radiometric_panel_general.max_hot_spots_changed.connect(self._on_max_hot_spots_changed)
-        self.radiometric_panel_general.max_cold_spots_changed.connect(self._on_max_cold_spots_changed)
-
-        # Connect radiometric panel backend change signal
-        self.radiometric_panel_general.backend_changed.connect(self._on_backend_changed)
 
     def _populate_palette_combo(self, combo: QComboBox):
         """Populate a combo box with categorized palettes."""
@@ -2151,6 +2132,20 @@ class ThermalAnalysisPanel(QWidget):
             roi = self.current_rois[row]
             self.roi_selected.emit(roi.roi_id)
             self.selected_roi_index = row
+            
+            # Update palette combo to match ROI's current palette
+            if roi.custom_palette:
+                # Find index for this palette
+                text = f"  {roi.custom_palette}"
+                index = self.roi_palette_combo.findText(text)
+                if index >= 0:
+                    self.roi_palette_combo.blockSignals(True)
+                    self.roi_palette_combo.setCurrentIndex(index)
+                    self.roi_palette_combo.blockSignals(False)
+            else:
+                # Default/Global - Reset to first item or specific "Global" item if it exists
+                # For now, we'll just leave it or set to index 0 if we had a "Global" option
+                pass
         else:
             self.selected_roi_index = -1
 
@@ -2163,42 +2158,15 @@ class ThermalAnalysisPanel(QWidget):
                 roi = self.current_rois[self.selected_roi_index]
                 self.roi_palette_changed.emit(roi.roi_id, clean_name)
 
-    def _on_temperature_unit_changed(self, unit: str):
-        """Handle temperature unit change from radiometric panel."""
-        # Update overlay widget to show hot/cold spots in new unit
-        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
-            self.video_widget.overlay.set_temperature_unit(unit)
-        # Update app-level temperature unit
-        if self.app:
-            self.app.set_temperature_unit(unit)
+    def select_roi(self, roi_id: str):
+        """Select ROI in list by ID."""
+        for i in range(self.roi_list.count()):
+            item = self.roi_list.item(i)
+            if item.data(Qt.ItemDataRole.UserRole) == roi_id:
+                self.roi_list.setCurrentRow(i)
+                break
 
-    def _on_max_hot_spots_changed(self, count: int):
-        """Handle max hot spots count change from radiometric panel."""
-        try:
-            logger.info(f"[DEBUG] GUI received max_hot_spots signal: {count}")
-            # Access app through parent window
-            window = self.window()
-            if window and hasattr(window, 'app') and window.app:
-                window.app.set_max_hot_spots(count)
-                logger.info(f"[DEBUG] app.set_max_hot_spots({count}) completed")
-            else:
-                logger.warning("[DEBUG] Cannot set max hot spots: window or app not found")
-        except Exception as e:
-            logger.error(f"[ERROR] Exception in _on_max_hot_spots_changed: {e}", exc_info=True)
 
-    def _on_max_cold_spots_changed(self, count: int):
-        """Handle max cold spots count change from radiometric panel."""
-        try:
-            logger.info(f"[DEBUG] GUI received max_cold_spots signal: {count}")
-            # Access app through parent window
-            window = self.window()
-            if window and hasattr(window, 'app') and window.app:
-                window.app.set_max_cold_spots(count)
-                logger.info(f"[DEBUG] app.set_max_cold_spots({count}) completed")
-            else:
-                logger.warning("[DEBUG] Cannot set max cold spots: window or app not found")
-        except Exception as e:
-            logger.error(f"[ERROR] Exception in _on_max_cold_spots_changed: {e}", exc_info=True)
 
     def _on_show_hot_spots_toggled(self, enabled: bool):
         """Handle show hot spots checkbox toggle."""
@@ -2224,108 +2192,6 @@ class ThermalAnalysisPanel(QWidget):
             window.video_widget.overlay.show_anomalies = enabled
             window.video_widget.overlay.update()
 
-    def _on_backend_changed(self, mode: str):
-        """Handle backend change request from radiometric panel.
-
-        This is the UNIFIED CONTROL for radiometric settings.
-        When user selects a backend, we automatically configure the camera hardware mode:
-        - 'flirpy' (16-bit) → Enable T-Linear radiometric mode via SDK (Boson/Lepton)
-        - 'opencv' (8-bit) → Enable Colorized mode via SDK (Boson/Lepton)
-        - 'usb' (16-bit) → Enable T-Linear radiometric mode via SDK (Boson/Lepton)
-        """
-        try:
-            logger.info(f"[BACKEND] GUI received backend_changed signal: {mode}")
-
-            # Access app through parent window (ThermalAnalysisPanel is a QWidget, not the main window)
-            window = self.window()
-            if not window or not hasattr(window, 'app') or not window.app:
-                logger.warning("[BACKEND] Cannot switch backend: window or app not available")
-                return
-
-            app = window.app
-
-            # STEP 1: Automatically configure camera hardware mode based on backend
-            # This provides unified control - user selects backend, system handles camera config
-            if hasattr(app, 'thermal_camera') and app.thermal_camera:
-                thermal_cam = app.thermal_camera
-
-                # Check if SDK is available for mode control
-                if hasattr(thermal_cam, 'sdk') and thermal_cam.sdk and hasattr(thermal_cam, 'sdk_connected') and thermal_cam.sdk_connected:
-                    # Determine required camera mode based on backend
-                    if mode == 'flirpy' or mode == 'usb':
-                        # 16-bit backends require T-Linear radiometric mode
-                        enable_radiometric = True
-                        mode_name = "T-Linear Radiometric (16-bit)"
-                        logger.info(f"[BACKEND] Backend '{mode}' requires 16-bit -> Setting camera to T-Linear mode")
-                    else:  # mode == 'opencv'
-                        # 8-bit backend uses Colorized mode
-                        enable_radiometric = False
-                        mode_name = "Colorized (8-bit)"
-                        logger.info(f"[BACKEND] Backend '{mode}' uses 8-bit -> Setting camera to Colorized mode")
-
-                    # Set camera mode via SDK
-                    try:
-                        sdk = thermal_cam.sdk
-                        if hasattr(sdk, 'set_usb_video_ir16_mode'):
-                            # set_usb_video_ir16_mode takes integer: 0=Colorized/AGC, 1=T-Linear
-                            mode_value = 1 if enable_radiometric else 0
-                            success = sdk.set_usb_video_ir16_mode(mode_value)
-
-                            if success:
-                                logger.info(f"[BACKEND] Successfully set camera to {mode_name}")
-                                # Update Boson panel status display (if it exists)
-                                if hasattr(window, 'boson_panel') and hasattr(window.boson_panel, 'update_radiometric_mode_status'):
-                                    window.boson_panel.update_radiometric_mode_status(enable_radiometric, success=True)
-                            else:
-                                logger.warning(f"[BACKEND] Failed to set camera to {mode_name}")
-                        else:
-                            logger.warning("[BACKEND] SDK does not support set_usb_video_ir16_mode()")
-                    except Exception as e:
-                        logger.warning(f"[BACKEND] Could not set camera mode: {e}")
-                else:
-                    logger.info("[BACKEND] SDK not available - skipping camera mode configuration")
-
-            # STEP 2: Backend switching
-            # Call the new switch_thermal_backend method for runtime switching
-            logger.info(f"[BACKEND] Switching to {mode} backend...")
-            success = app.switch_thermal_backend(mode)
-            
-            if success:
-                logger.info(f"[BACKEND] Successfully switched to {mode} backend")
-            else:
-                logger.error(f"[BACKEND] Failed to switch to {mode} backend")
-
-            # Update radiometric panel status
-            backend_info = None
-            try:
-                if hasattr(app, 'camera_manager') and app.camera_manager:
-                    # Using camera_manager (new architecture)
-                    backend_info = app.camera_manager.get_thermal_info()
-                    logger.info("[BACKEND] Got backend info from camera_manager")
-                elif hasattr(app, 'thermal_camera') and app.thermal_camera:
-                    # Using direct thermal_camera (current architecture)
-                    if hasattr(app.thermal_camera, 'get_info'):
-                        backend_info = app.thermal_camera.get_info()
-                        if backend_info:
-                            backend_info['current_mode'] = mode
-                            logger.info(f"[BACKEND] Got backend info from thermal_camera: {backend_info.get('backend', 'unknown')}")
-                        else:
-                            logger.warning("[BACKEND] thermal_camera.get_info() returned None")
-                    else:
-                        logger.warning("[BACKEND] thermal_camera has no get_info() method")
-                else:
-                    logger.warning("[BACKEND] No camera_manager or thermal_camera available for backend info")
-
-                if backend_info:
-                    self.radiometric_panel_general.update_backend_status(backend_info)
-                    logger.info("[BACKEND] Successfully updated radiometric panel status")
-                else:
-                    logger.warning("[BACKEND] No backend info available to update panel")
-            except Exception as e:
-                logger.error(f"[BACKEND] Error updating radiometric panel status: {e}", exc_info=True)
-        except Exception as e:
-            logger.error(f"[ERROR] Exception in _on_backend_changed: {e}", exc_info=True)
-
     def update_detection_results(self, motion_count: int, edge_count: int, anomaly_count: int):
         """Update detection results display."""
         text = (
@@ -2336,9 +2202,16 @@ class ThermalAnalysisPanel(QWidget):
         self.detection_label.setText(text)
 
     def update_rois(self, rois: List[ROI]):
-        """Update ROI summary."""
+        """Update ROI summary and list."""
         self.current_rois = rois
         count = len(rois)
+        
+        # Update ROI List Widget
+        self.roi_list.clear()
+        for roi in rois:
+            item = QListWidgetItem(f"{roi.label} ({roi.roi_type.value})")
+            item.setData(Qt.ItemDataRole.UserRole, roi.roi_id)
+            self.roi_list.addItem(item)
         
         if count == 0:
             self.roi_summary_label.setText("No active ROIs")
@@ -5659,11 +5532,17 @@ class InspectionAppWindow(QMainWindow):
 
     def _on_radiometric_temp_unit_changed(self, unit: str):
         """Handle temperature unit change from top-level radiometric panel."""
-        logger.info(f"Temperature unit changed to: {unit}")
+        logger.info(f"[MAIN_WINDOW] _on_radiometric_temp_unit_changed called with unit: {unit}")
         if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
             self.video_widget.overlay.set_temperature_unit(unit)
+            logger.info(f"[MAIN_WINDOW] Updated overlay to unit: {unit}")
+        else:
+            logger.warning("[MAIN_WINDOW] video_widget or overlay not found")
         if self.app:
             self.app.set_temperature_unit(unit)
+            logger.info(f"[MAIN_WINDOW] Called app.set_temperature_unit({unit})")
+        else:
+            logger.warning("[MAIN_WINDOW] app not found")
 
     def _on_radiometric_max_hot_spots_changed(self, count: int):
         """Handle max hot spots change from top-level radiometric panel."""
@@ -5965,12 +5844,13 @@ class InspectionAppWindow(QMainWindow):
                 logger.info(f"Boson SDK connected on {com_port}")
 
                 # Enable 8-bit estimation controls now that SDK is connected
+                # Do NOT auto-enable - user must enable after calibration
                 if hasattr(self.radiometric_panel, 'set_8bit_estimation_available'):
                     self.radiometric_panel.set_8bit_estimation_available(
                         available=True,
-                        auto_enabled=True  # Auto-check the checkbox
+                        auto_enabled=False  # Don't auto-check - requires calibration
                     )
-                    logger.info("8-bit estimation controls enabled")
+                    logger.info("8-bit estimation controls available (not auto-enabled)")
 
                 # Update status banner
                 if hasattr(self.radiometric_panel, 'update_active_mode_status') and hasattr(self.app, 'get_active_temperature_mode'):
@@ -6427,12 +6307,10 @@ class InspectionAppWindow(QMainWindow):
     def _on_roi_selected(self, roi_id: str):
         """Handle ROI selection from overlay."""
         logger.info(f"ROI selected: {roi_id}")
-        # Update analysis panel to show selected ROI stats
-        if self.app and hasattr(self.app, 'roi_manager'):
-            roi = self.app.roi_manager.get_roi(roi_id)
-            if roi:
-                # Could update a detail panel here
-                pass
+        
+        # Update analysis panel selection
+        if hasattr(self, 'analysis_panel'):
+            self.analysis_panel.select_roi(roi_id)
 
     def _on_roi_palette_changed(self, roi_id: str, palette_name: str):
         """Handle ROI palette change."""
@@ -6454,8 +6332,11 @@ class InspectionAppWindow(QMainWindow):
 
     def _on_roi_delete(self, roi_id: str):
         """Handle ROI deletion."""
-        if self.app and hasattr(self.app, 'roi_manager'):
-            self.app.roi_manager.delete_roi(roi_id)
+        if self.app:
+            if hasattr(self.app, 'delete_roi'):
+                self.app.delete_roi(roi_id)
+            elif hasattr(self.app, 'roi_manager'):
+                self.app.roi_manager.delete_roi(roi_id)
             logger.info(f"ROI {roi_id} deleted")
 
     def update_frame(self, frame: np.ndarray):

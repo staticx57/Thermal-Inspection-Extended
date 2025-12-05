@@ -165,6 +165,7 @@ class RadiometricPanel(QWidget):
         self.temp_unit_combo.setCurrentIndex(0)  # Default to Celsius
         self.temp_unit_combo.setToolTip("Select temperature unit for all displays\\nRaw shows Y16 pixel values (Kelvin × 100)")
         self.temp_unit_combo.currentIndexChanged.connect(self._on_temp_unit_changed)
+        logger.info("[RADIOMETRIC_PANEL] Connected temp_unit_combo.currentIndexChanged signal")
         unit_layout.addWidget(self.temp_unit_combo)
 
         unit_group.setLayout(unit_layout)
@@ -570,11 +571,14 @@ class RadiometricPanel(QWidget):
 
     def _on_temp_unit_changed(self, index: int):
         """Handle temperature unit combo box change."""
+        logger.info(f"[RADIOMETRIC_PANEL] _on_temp_unit_changed called with index: {index}")
         # Map index to unit code
         unit_map = {0: 'C', 1: 'F', 2: 'K', 3: 'RAW'}
         unit = unit_map.get(index, 'C')
-        logger.info(f"Temperature unit changed to: {unit}")
+        logger.info(f"[RADIOMETRIC_PANEL] Mapped to unit: {unit}")
+        logger.info(f"[RADIOMETRIC_PANEL] Emitting temperature_unit_changed signal with: {unit}")
         self.temperature_unit_changed.emit(unit)
+        logger.info(f"[RADIOMETRIC_PANEL] Signal emitted successfully")
 
     def _on_max_hot_spots_changed(self, index: int):
         """Handle max hot spots combo box change."""

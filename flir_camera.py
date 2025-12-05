@@ -767,11 +767,14 @@ class FLIRBosonCamera:
                     com_port = f"COM{com_port}"
 
             # Create SDK instance
-            self.sdk = BosonSDK(com_port=com_port or 'COM7')
+            actual_port = com_port or 'COM7'
+            self.sdk = BosonSDK(com_port=actual_port)
 
             # Attempt connection
             if self.sdk.open():
                 self.sdk_connected = True
+                # Store the successfully connected COM port
+                self.com_port = actual_port
                 logger.info("[OK] Boson SDK connected successfully")
 
                 # Log camera info

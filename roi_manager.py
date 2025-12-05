@@ -243,6 +243,7 @@ class ROIManager:
             ROI ID
         """
         self.rois[roi.roi_id] = roi
+        print(f"DEBUG: ROIManager added ROI {roi.roi_id} (Total: {len(self.rois)})")
         return roi.roi_id
 
     def create_manual_roi(self, roi_type: ROIType, points: List[Tuple[int, int]],
