@@ -89,8 +89,15 @@ class CameraInfo:
             (256, 320),  # Boson 320 (rotated)
         ]
 
-        # Check resolution first (most reliable for thermal)
-        if self.resolution in thermal_resolutions:
+        # Check resolution with fuzzy matching (DirectShow may report ±10 pixels)
+        def is_near_thermal_res(res, tolerance=10):
+            for thermal_res in thermal_resolutions:
+                if (abs(res[0] - thermal_res[0]) <= tolerance and 
+                    abs(res[1] - thermal_res[1]) <= tolerance):
+                    return True
+            return False
+        
+        if self.resolution in thermal_resolutions or is_near_thermal_res(self.resolution):
             return CameraType.THERMAL
 
         # Check name for thermal keywords
@@ -149,6 +156,7 @@ class CameraInfo:
             Priority value (int) - only meaningful within camera type
         """
         name_lower = self.name.lower()
+        width, height = self.resolution
 
         # THERMAL CAMERAS (graded separately)
         if self.camera_type == CameraType.THERMAL:
@@ -160,23 +168,21 @@ class CameraInfo:
         if self.camera_type == CameraType.RGB:
             # Firefly/Blackfly via Spinnaker = highest RGB priority
             if self.interface == 'spinnaker':
-                return 0  # CHANGED: Highest RGB priority (was 10)
+                return 0  # Highest RGB priority
 
-            # External USB camera heuristic
+            # High Resolution (4K/1080p) = High Priority
+            # This ensures external 4K cams beat internal 720p webcams
+            if width >= 1920 or height >= 1080:
+                logger.info(f"Assigning Priority 0 to High-Res RGB: {self.name} ({width}x{height})")
+                return 1  # Priority 1 (just below Firefly)
+
+            # External USB camera heuristic (Standard Def)
             # Device 0 with VGA (640x480) is likely built-in on laptops
-            if self.device_id == 0 and self.resolution == (640, 480):
-                return 2  # CHANGED: Built-in laptop webcam (was 30)
+            if self.device_id == 0 and width <= 640:
+                return 3  # Built-in laptop webcam (Low priority)
 
-            # Higher resolution cameras are likely external
-            width, height = self.resolution
-            if width >= 1280 or height >= 720:
-                return 1  # CHANGED: External USB camera (was 20)
-
-            # Lower resolution non-Firefly cameras
-            if self.device_id == 0:
-                return 2  # CHANGED: Likely built-in (was 30)
-            else:
-                return 1  # CHANGED: Likely external (was 20)
+            # Standard external USB
+            return 2  # Standard external UVC
 
         # Unknown type
         return 999
@@ -655,7 +661,22 @@ class CameraDetector:
 
                 if cap is not None and cap.isOpened():
                     logger.info(f"  Camera {device_id} opened successfully, analyzing frames...")
-                    # ROBUST DETECTION: Read actual frames to identify camera type
+                    
+                    # PROBE FOR HIGH RESOLUTION (4K/1080p)
+                    # Many 4K webcams default to 640x480 unless requested
+                    detected_resolution = (640, 480) # Default fallback
+                    
+                    # Try setting 4K first
+                    try:
+                        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
+                        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
+                        time.sleep(0.1)
+                        if cap.get(cv2.CAP_PROP_FRAME_WIDTH) >= 3840:
+                             logger.info(f"  - Camera {device_id} accepted 4K request")
+                    except:
+                        pass
+                        
+                    # ROBUST DETECTION: Read actual frames to identify camera type and real max res
                     is_thermal, resolution = CameraDetector._identify_camera_by_frames(cap, device_id)
                     
                     # Get camera name
@@ -670,6 +691,9 @@ class CameraDetector:
                     if is_thermal:
                         name = f"FLIR Boson {resolution[0]}x{resolution[1]} (Camera {device_id})"
                         logger.info(f"[OK] Thermal camera identified via frame analysis: {name}")
+                    elif resolution[0] >= 1920:
+                         name = f"High-Res Camera {device_id} ({resolution[0]}x{resolution[1]})"
+                         logger.info(f"[OK] High-Res RGB camera identified: {name}")
                     
                     cap.release()
                     cap = None
@@ -878,7 +902,7 @@ class CameraDetector:
                 return cam
 
         # No thermal camera detected
-        logger.warning("✗ No thermal camera detected")
+        logger.warning("[FAIL] No thermal camera detected")
         return None
 
     @staticmethod

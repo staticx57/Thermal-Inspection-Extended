@@ -43,6 +43,10 @@ class ThreadedCameraCapture:
             logger.warning(f"{self.name}: Already running")
             return
 
+        if self.camera is None:
+            logger.warning(f"{self.name}: No camera object provided - capture thread will not start")
+            return
+
         self.running = True
         self.thread = threading.Thread(target=self._capture_loop, daemon=True, name=f"{self.name}Thread")
         self.thread.start()

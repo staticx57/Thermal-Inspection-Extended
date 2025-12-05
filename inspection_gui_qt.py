@@ -36,6 +36,19 @@ from parallax_panel import ParallaxPanel
 logger = logging.getLogger(__name__)
 
 
+from dataclasses import dataclass
+
+@dataclass
+class MeasurementPoint:
+    """Spot measurement point."""
+    x: int
+    y: int
+    label: str
+    color: tuple = (255, 255, 0)  # RGB
+    temperature: Optional[float] = None
+    unit: str = "°C"
+
+
 # ============================================================================
 # Qt Styling (QSS - CSS-like)
 # ============================================================================
@@ -683,6 +696,7 @@ class InspectionOverlayWidget(QWidget):
     from PyQt6.QtCore import pyqtSignal
     roi_created = pyqtSignal(object)  # Emits newly created ROI
     roi_selected = pyqtSignal(str)    # Emits selected ROI ID
+    spot_meter_clicked = pyqtSignal(int, int) # Emits (x, y) coordinates of spot meter click
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -701,6 +715,7 @@ class InspectionOverlayWidget(QWidget):
 
         # Measurement points
         self.measurement_points: List = []  # List of MeasurementPoint objects
+        self.spot_meter_mode = False        # Toggle for spot metering mode
 
         # ROI drawing state
         self.drawing_mode = False
@@ -722,6 +737,18 @@ class InspectionOverlayWidget(QWidget):
         self.show_hot_spots = True  # Show hot spots by default
         self.show_cold_spots = True  # Show cold spots by default
         self.show_anomalies = True  # Show anomalies by default
+
+    def set_spot_meter_mode(self, enabled: bool):
+        """Enable or disable spot metering mode."""
+        self.spot_meter_mode = enabled
+        if enabled:
+            self.setCursor(Qt.CursorShape.CrossCursor)
+            # Disable drawing mode if enabling spot meter
+            if self.drawing_mode:
+                self.disable_drawing_mode()
+        else:
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+        self.update()
 
     def update_rois(self, rois: List[ROI]):
         """Update ROI list for visualization."""
@@ -1059,6 +1086,12 @@ class InspectionOverlayWidget(QWidget):
 
     def mousePressEvent(self, event):
         """Handle mouse press for ROI drawing and selection."""
+        if self.spot_meter_mode:
+            # Spot metering: click to add measurement point
+            click_x, click_y = self.widget_to_frame(event.pos().x(), event.pos().y())
+            self.spot_meter_clicked.emit(click_x, click_y)
+            return
+
         if not self.drawing_mode:
             # Check if clicking on existing ROI for selection
             # Transform click to frame coordinates
@@ -1087,6 +1120,7 @@ class InspectionOverlayWidget(QWidget):
 
                     # Set primary selection to clicked ROI
                     self.set_selected_roi(clicked_roi.roi_id)
+                    logger.debug(f"[OVERLAY] Emitting roi_selected for {clicked_roi.roi_id}")
                     self.roi_selected.emit(clicked_roi.roi_id)
 
                 elif shift_pressed:
@@ -1114,6 +1148,7 @@ class InspectionOverlayWidget(QWidget):
                     self.selected_roi_ids.clear()
                     self.selected_roi_ids.add(clicked_roi.roi_id)
                     self.set_selected_roi(clicked_roi.roi_id)
+                    logger.debug(f"[OVERLAY] Emitting roi_selected for {clicked_roi.roi_id}")
                     self.roi_selected.emit(clicked_roi.roi_id)
 
                 self.update()  # Redraw to show selection changes
@@ -1410,6 +1445,8 @@ class VideoWidget(QLabel):
     """
     # Signal for cursor position (emits x, y in frame coordinates)
     cursor_moved = pyqtSignal(int, int)
+    # Signal for spot meter creation (emits x, y in frame coordinates)
+    spot_meter_clicked = pyqtSignal(int, int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1569,39 +1606,38 @@ class VideoWidget(QLabel):
         """Handle mouse click to add measurement points."""
         super().mousePressEvent(event)
 
-        # Only handle left clicks in add point mode
-        if not self.add_point_mode or event.button() != Qt.MouseButton.LeftButton:
-            return
+    def mouseMoveEvent(self, event):
+        """Track mouse for cursor temperature and coordinate mapping."""
+        x = event.position().x()
+        y = event.position().y()
+        
+        # Convert to frame coordinates
+        frame_x, frame_y = self._widget_to_frame_coords(x, y)
+        
+        if frame_x is not None and frame_y is not None:
+            self.cursor_moved.emit(frame_x, frame_y)
+            
+        super().mouseMoveEvent(event)
 
-        # Only process if we have valid frame dimensions
-        if self._frame_width == 0 or self._frame_height == 0 or not self._last_qpixmap:
-            return
-
-        # Get mouse position and convert to frame coordinates
-        mouse_x = event.pos().x()
-        mouse_y = event.pos().y()
-
-        # Calculate pixmap position within widget
-        pixmap_width = self._last_qpixmap.width()
-        pixmap_height = self._last_qpixmap.height()
-        widget_width = self.width()
-        widget_height = self.height()
-        pixmap_x = (widget_width - pixmap_width) // 2
-        pixmap_y = (widget_height - pixmap_height) // 2
-
-        # Check if click is within pixmap bounds
-        if mouse_x < pixmap_x or mouse_x >= pixmap_x + pixmap_width:
-            return
-        if mouse_y < pixmap_y or mouse_y >= pixmap_y + pixmap_height:
-            return
-
-        # Convert to pixmap coordinates
-        pixmap_local_x = mouse_x - pixmap_x
-        pixmap_local_y = mouse_y - pixmap_y
-
+    def _widget_to_frame_coords(self, wx, wy):
+        """Convert widget coordinates to frame coordinates."""
+        if self._last_qpixmap is None or self._frame_width == 0 or self._frame_height == 0:
+            return None, None
+            
+        # Get pixmap dimensions (scaled image size)
+        pm_width = self._last_qpixmap.width()
+        pm_height = self._last_qpixmap.height()
+        
+        # Calculate offsets (centering)
+        offset_x = (self.width() - pm_width) / 2
+        offset_y = (self.height() - pm_height) / 2
+        
+        # Check if click is inside the image area
+        if (wx < offset_x or wx > offset_x + pm_width or
+            wy < offset_y or wy > offset_y + pm_height):
+            return None, None
+            
         # Map to frame coordinates
-        frame_x = int((pixmap_local_x / pixmap_width) * self._frame_width)
-        frame_y = int((pixmap_local_y / pixmap_height) * self._frame_height)
 
         # Clamp to frame bounds
         frame_x = max(0, min(frame_x, self._frame_width - 1))
@@ -1963,7 +1999,22 @@ class ThermalAnalysisPanel(QWidget):
         self.baseline_btn.setCheckable(True)
         self.baseline_btn.setToolTip("Lock current mean temperature as baseline for relative measurements")
         self.baseline_btn.setMinimumHeight(32)
+        self.baseline_btn.setMinimumHeight(32)
         self.general_layout.addWidget(self.baseline_btn)
+
+        # Spot Meter control
+        spot_layout = QHBoxLayout()
+        self.spot_meter_btn = QPushButton("✚ Spot Meter")
+        self.spot_meter_btn.setCheckable(True)
+        self.spot_meter_btn.setToolTip("Click on video to add temperature measurement points")
+        self.spot_meter_btn.setMinimumHeight(32)
+        spot_layout.addWidget(self.spot_meter_btn)
+
+        self.clear_spots_btn = QPushButton("Clear Points")
+        self.clear_spots_btn.setToolTip("Remove all spot meters")
+        self.clear_spots_btn.setMinimumHeight(32)
+        spot_layout.addWidget(self.clear_spots_btn)
+        self.general_layout.addLayout(spot_layout)
 
         self.general_layout.addWidget(create_separator())
 
@@ -2031,6 +2082,8 @@ class ThermalAnalysisPanel(QWidget):
         self.roi_palette_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         # Populate with categorized palettes (same as global)
         self._populate_palette_combo(self.roi_palette_combo)
+        # Connect ROI palette signal
+        self.roi_palette_combo.currentTextChanged.connect(self._on_roi_palette_combo_changed)
         roi_palette_layout.addWidget(self.roi_palette_combo, 1)
         self.general_layout.addLayout(roi_palette_layout)
 
@@ -2058,6 +2111,8 @@ class ThermalAnalysisPanel(QWidget):
 
         # Connect signals
         self.baseline_btn.toggled.connect(self.baseline_toggled.emit)
+        self.spot_meter_btn.toggled.connect(self._on_spot_meter_toggled)
+        self.clear_spots_btn.clicked.connect(self._on_clear_spots_clicked)
         self.roi_list.currentRowChanged.connect(self._on_roi_selected)
         self.roi_palette_combo.currentTextChanged.connect(self._on_roi_palette_combo_changed)
         
@@ -2130,6 +2185,7 @@ class ThermalAnalysisPanel(QWidget):
         """Handle ROI selection in list."""
         if 0 <= row < len(self.current_rois):
             roi = self.current_rois[row]
+            logger.debug(f"Panel internal selection: Row {row} -> ROI {roi.roi_id}")
             self.roi_selected.emit(roi.roi_id)
             self.selected_roi_index = row
             
@@ -2139,6 +2195,7 @@ class ThermalAnalysisPanel(QWidget):
                 text = f"  {roi.custom_palette}"
                 index = self.roi_palette_combo.findText(text)
                 if index >= 0:
+                    logger.debug(f"Syncing palette combo to {text} for ROI {roi.roi_id}")
                     self.roi_palette_combo.blockSignals(True)
                     self.roi_palette_combo.setCurrentIndex(index)
                     self.roi_palette_combo.blockSignals(False)
@@ -2147,6 +2204,7 @@ class ThermalAnalysisPanel(QWidget):
                 # For now, we'll just leave it or set to index 0 if we had a "Global" option
                 pass
         else:
+            logger.debug(f"Panel internal selection: Invalid row {row}")
             self.selected_roi_index = -1
 
     def _on_roi_palette_combo_changed(self, palette_name: str):
@@ -2156,15 +2214,24 @@ class ThermalAnalysisPanel(QWidget):
         if clean_name and not clean_name.startswith("───"):
             if 0 <= self.selected_roi_index < len(self.current_rois):
                 roi = self.current_rois[self.selected_roi_index]
+                logger.info(f"Setting ROI {roi.roi_id} palette to {clean_name}")
                 self.roi_palette_changed.emit(roi.roi_id, clean_name)
 
     def select_roi(self, roi_id: str):
         """Select ROI in list by ID."""
+        logger.debug(f"Panel selecting ROI: {roi_id}")
+        found = False
         for i in range(self.roi_list.count()):
             item = self.roi_list.item(i)
-            if item.data(Qt.ItemDataRole.UserRole) == roi_id:
+            item_id = item.data(Qt.ItemDataRole.UserRole)
+            if item_id == roi_id:
+                logger.debug(f"ROI {roi_id} found at index {i}, selecting...")
                 self.roi_list.setCurrentRow(i)
+                found = True
                 break
+        
+        if not found:
+            logger.warning(f"ROI {roi_id} not found in ROI list (count: {self.roi_list.count()})")
 
 
 
@@ -2203,21 +2270,54 @@ class ThermalAnalysisPanel(QWidget):
 
     def update_rois(self, rois: List[ROI]):
         """Update ROI summary and list."""
+        
+        # 1. Check if update is needed (compare IDs)
+        current_ids = [r.roi_id for r in self.current_rois]
+        new_ids = [r.roi_id for r in rois]
+        
         self.current_rois = rois
         count = len(rois)
         
-        # Update ROI List Widget
-        self.roi_list.clear()
-        for roi in rois:
-            item = QListWidgetItem(f"{roi.label} ({roi.roi_type.value})")
-            item.setData(Qt.ItemDataRole.UserRole, roi.roi_id)
-            self.roi_list.addItem(item)
+        # Only rebuild list if ROIs changed
+        if current_ids != new_ids:
+            # Preservation of selection
+            selected_id = None
+            if self.selected_roi_index >= 0 and self.selected_roi_index < len(current_ids):
+                selected_id = current_ids[self.selected_roi_index]
+            
+            logger.debug(f"Rebuilding ROI list (was {len(current_ids)}, now {len(rois)})")
+            
+            # Update ROI List Widget
+            self.roi_list.blockSignals(True) # Block signals to prevent spurious selection changes during rebuild
+            self.roi_list.clear()
+            for roi in rois:
+                # Add palette indicator if custom palette is set
+                label = f"{roi.label} ({roi.roi_type.value})"
+                if roi.custom_palette:
+                    label += " 🎨" # Visual indicator
+                    
+                item = QListWidgetItem(label)
+                item.setData(Qt.ItemDataRole.UserRole, roi.roi_id)
+                self.roi_list.addItem(item)
+            
+            # Restore selection if possible
+            if selected_id:
+                for i in range(self.roi_list.count()):
+                    if self.roi_list.item(i).data(Qt.ItemDataRole.UserRole) == selected_id:
+                        self.roi_list.setCurrentRow(i)
+                        self.selected_roi_index = i # Update index
+                        break
+            else:
+                self.selected_roi_index = -1
+                
+            self.roi_list.blockSignals(False) # Unblock AFTER restoration
         
+        # Still update text summaries
         if count == 0:
             self.roi_summary_label.setText("No active ROIs")
             return
             
-        # Calculate some basic stats if needed, for now just list types
+        # Calculate some basic stats if needed
         types = {}
         for roi in rois:
             t = roi.roi_type.value
@@ -4809,6 +4909,9 @@ class InspectionAppWindow(QMainWindow):
         # Connection tracking for defensive pattern
         self._connected_signals = set()
 
+        # Measurement points for spot metering
+        self.measurement_points: List[MeasurementPoint] = []
+
         # Build UI
         self._build_ui()
 
@@ -4834,7 +4937,13 @@ class InspectionAppWindow(QMainWindow):
         # Check if tabs have content
         logger.info(f"Tab count: {self.right_panel_tabs.count()}")
         for i in range(self.right_panel_tabs.count()):
-            logger.info(f"Tab {i}: {self.right_panel_tabs.tabText(i)}")
+            # Safe logging avoiding unicode errors on Windows consoles
+            try:
+                text = self.right_panel_tabs.tabText(i)
+                safe_text = text.encode('ascii', 'replace').decode('ascii')
+                logger.debug(f"Tab {i}: {safe_text}")
+            except Exception:
+                pass
             
         # Trigger a slight resize to force layout recalculation
         self.resize(self.width() + 1, self.height())
@@ -4853,13 +4962,13 @@ class InspectionAppWindow(QMainWindow):
             central.setObjectName("central_widget")
             # Removed hardcoded style that was blocking theme switching
             self.setCentralWidget(central)
-            logger.info("✓ Central widget created")
+            logger.info("[OK] Central widget created")
 
             # Main layout container
             main_layout = QHBoxLayout(central)
             main_layout.setContentsMargins(0, 0, 0, 0)
             main_layout.setSpacing(0)
-            logger.info("✓ Main layout created")
+            logger.info("[OK] Main layout created")
 
             # Left side: Video + Controls
             left_widget = QWidget()
@@ -4870,26 +4979,27 @@ class InspectionAppWindow(QMainWindow):
 
             # Video widget
             self.video_widget = VideoWidget()
+            self.video_widget.spot_meter_clicked.connect(self._on_spot_meter_clicked)
             # Removed minimum size constraint to allow proper scaling
             left_layout.addWidget(self.video_widget, stretch=1)
-            logger.info("✓ Video widget created")
+            logger.info("[OK] Video widget created")
 
             # Control panel
             self.control_panel = ControlPanel()
             self.control_panel.setMinimumHeight(120)
             self.control_panel.setMaximumHeight(150)  # Limit control panel height
             left_layout.addWidget(self.control_panel, stretch=0)
-            logger.info("✓ Control panel created")
+            logger.info("[OK] Control panel created")
 
             main_layout.addWidget(left_widget, stretch=5)  # Increased from 3 to 5 for even more video space
-            logger.info("✓ Left widget added to main layout")
+            logger.info("[OK] Left widget added to main layout")
 
             # RIGHT PANEL TABS - THIS IS WHAT THE USER IS MISSING
             self.right_panel_tabs = QTabWidget()
             self.right_panel_tabs.setObjectName("right_panel")
             self.right_panel_tabs.setFixedWidth(630)  # Increased from 420 to 630 (50% larger)
             self.right_panel_tabs.setVisible(True)
-            logger.info("✓ Right panel tabs widget created (width=630, visible=True)")
+            logger.info("[OK] Right panel tabs widget created (width=630, visible=True)")
 
             # === OPTIMIZED TAB STRUCTURE (5 main subtabs under Analysis) ===
             
@@ -4902,7 +5012,7 @@ class InspectionAppWindow(QMainWindow):
             # Only use the "General" tab, ignore the nested "Radiometric" tab
             general_content = self.analysis_panel.analysis_tabs.widget(0)
             self.analysis_tabs.addTab(general_content, "General")
-            logger.info("  ✓ General analysis panel added")
+            logger.info("  [OK] General analysis panel added")
             
             # Create Radiometric tab directly at top level
             from radiometric_panel import RadiometricPanel
@@ -4927,25 +5037,25 @@ class InspectionAppWindow(QMainWindow):
             radiometric_tab_layout.addWidget(radiometric_scroll)
             
             self.analysis_tabs.addTab(radiometric_tab, "Radiometric")
-            logger.info("  ✓ Radiometric panel added at top level")
+            logger.info("  [OK] Radiometric panel added at top level")
             
             from roi_temperature_panel import ROITemperaturePanel
             self.roi_temp_panel = ROITemperaturePanel()
             self.analysis_tabs.addTab(self.roi_temp_panel, "Per-ROI")
-            logger.info("  ✓ Per-ROI temperature panel added")
+            logger.info("  [OK] Per-ROI temperature panel added")
             
             from environmental_compensation_panel import EnvironmentalCompensationPanel
             self.env_comp_panel = EnvironmentalCompensationPanel()
             self.analysis_tabs.addTab(self.env_comp_panel, "Environmental")
-            logger.info("  ✓ Environmental compensation panel added")
+            logger.info("  [OK] Environmental compensation panel added")
             
             from isotherm_panel import IsothermPanel
             self.isotherm_panel = IsothermPanel()
             self.analysis_tabs.addTab(self.isotherm_panel, "Isotherm")
-            logger.info("  ✓ Isotherm panel added")
+            logger.info("  [OK] Isotherm panel added")
             
             self.right_panel_tabs.addTab(self.analysis_tabs, "📊 Analysis")
-            logger.info("✓ Analysis tab added to right panel")
+            logger.info("[OK] Analysis tab added to right panel")
             
             # Tab 2: Detection & Anomaly
             logger.info("Creating Detection tab...")
@@ -4953,7 +5063,7 @@ class InspectionAppWindow(QMainWindow):
             self.right_panel_tabs.addTab(self.combined_anomaly_widget, "🔍 Detection")
             self.anomaly_widget = self.combined_anomaly_widget.automatic_widget
             self.manual_threshold_widget = self.combined_anomaly_widget.manual_widget
-            logger.info("✓ Detection tab added to right panel")
+            logger.info("[OK] Detection tab added to right panel")
             
             # Tab 3: Cameras (Hardware & Calibration - 5 subtabs)
             logger.info("Creating Cameras tab...")
@@ -4961,34 +5071,34 @@ class InspectionAppWindow(QMainWindow):
             
             self.boson_panel = BosonControlPanel()
             self.cameras_tabs.addTab(self.boson_panel, "Boson")
-            logger.info("  ✓ Boson panel added")
+            logger.info("  [OK] Boson panel added")
             
             self.firefly_panel = FireflyControlPanel()
             self.cameras_tabs.addTab(self.firefly_panel, "Firefly")
-            logger.info("  ✓ Firefly panel added")
+            logger.info("  [OK] Firefly panel added")
 
             from lepton_control_panel import LeptonControlPanel
             self.lepton_panel = LeptonControlPanel()
             self.cameras_tabs.addTab(self.lepton_panel, "Lepton")
-            logger.info("  ✓ Lepton panel added")
+            logger.info("  [OK] Lepton panel added")
             
             from calibration_panel import CalibrationPanel
             self.calibration_panel = CalibrationPanel()
             self.cameras_tabs.addTab(self.calibration_panel, "Calibration")
-            logger.info("  ✓ Calibration panel added")
+            logger.info("  [OK] Calibration panel added")
             
             self.parallax_panel = ParallaxPanel()
             self.cameras_tabs.addTab(self.parallax_panel, "Parallax")
-            logger.info("  ✓ Parallax panel added")
+            logger.info("  [OK] Parallax panel added")
             
             self.right_panel_tabs.addTab(self.cameras_tabs, "🎥 Cameras")
-            logger.info("✓ Cameras tab added to right panel")
+            logger.info("[OK] Cameras tab added to right panel")
             
             # Tab 4: Settings
             logger.info("Creating Settings tab...")
             self.settings_panel = SettingsPanel()
             self.right_panel_tabs.addTab(self.settings_panel, "🛠️ Settings")
-            logger.info("✓ Settings tab added to right panel")
+            logger.info("[OK] Settings tab added to right panel")
 
             # ADD RIGHT PANEL TO MAIN LAYOUT
             main_layout.addWidget(self.right_panel_tabs, stretch=0)
@@ -4998,7 +5108,7 @@ class InspectionAppWindow(QMainWindow):
             self.right_panel_tabs.setVisible(True)
             self.right_panel_tabs.show()  # Force show
             
-            logger.info("✓✓✓ RIGHT PANEL TABS ADDED TO MAIN LAYOUT ✓✓✓")
+            logger.info("[OK] RIGHT PANEL TABS ADDED TO MAIN LAYOUT [OK]")
             logger.info(f"    Right panel tab count: {self.right_panel_tabs.count()}")
             logger.info(f"    Right panel visible: {self.right_panel_tabs.isVisible()}")
             logger.info(f"    Right panel width: {self.right_panel_tabs.width()}")
@@ -5006,13 +5116,13 @@ class InspectionAppWindow(QMainWindow):
             # Info panel (overlay on video widget)
             self.info_panel = InfoPanel(self.video_widget)
             self.info_panel.move(10, 10)
-            logger.info("✓ Info panel created")
+            logger.info("[OK] Info panel created")
 
             # Connect signals
             self._connect_signals()
             
             logger.info("=" * 60)
-            logger.info("✓✓✓ UI LAYOUT BUILD COMPLETE ✓✓✓")
+            logger.info("[OK] UI LAYOUT BUILD COMPLETE [OK]")
             logger.info("=" * 60)
             
         except Exception as e:
@@ -5244,8 +5354,13 @@ class InspectionAppWindow(QMainWindow):
 
         # === VIDEO WIDGET ===
         self._safe_connect("video_widget", "cursor_moved", self._on_cursor_moved, "(video)")
+
+        # === SPOT METER SIGNALS ===
+        self._safe_connect("radiometric_panel", "spot_meter_toggled", self._on_spot_meter_toggled, "(spot meter)")
+        self._safe_connect("radiometric_panel", "clear_spot_meters_requested", self._on_clear_spots_clicked, "(spot meter)")
+        self._safe_connect("video_widget.overlay", "spot_meter_clicked", self._on_spot_meter_clicked, "(spot meter)")
         
-        logger.info("✓ Signal connections complete (defensive mode)")
+        logger.info("[OK] Signal connections complete (defensive mode)")
 
         # === INITIALIZE BOSON PANEL IF SDK ALREADY CONNECTED ===
         # The SDK may auto-connect during startup (--enable-boson-sdk flag)
@@ -5585,6 +5700,63 @@ class InspectionAppWindow(QMainWindow):
         if self.app:
             self.app.set_emissivity(emissivity)
         logger.info(f"Emissivity changed to: {emissivity:.2f}")
+
+    # === SPOT METER HANDLERS (Enhancement #1) ===
+
+    def _on_spot_meter_toggled(self, checked: bool):
+        """Handle spot meter toggle button."""
+        if hasattr(self, 'video_widget'):
+            self.video_widget.set_add_point_mode(checked)
+            msg = "Spot meter mode: ON (Click on video to measure)" if checked else "Spot meter mode: OFF"
+            self.statusBar().showMessage(msg, 3000)
+            logger.info(msg)
+
+    def _on_clear_spots_clicked(self):
+        """Clear all spot measurement points."""
+        self.measurement_points.clear()
+        if hasattr(self, 'video_widget'):
+            self.video_widget.update_measurement_points(self.measurement_points)
+        logger.info("Cleared all spot meters")
+
+    def _on_spot_meter_clicked(self, x: int, y: int):
+        """Handle click on video to add spot measurement point."""
+        # Create unique label (SP1, SP2, ...)
+        idx = len(self.measurement_points) + 1
+        label = f"SP{idx}"
+        
+        # Create point
+        point = MeasurementPoint(x=x, y=y, label=label)
+        self.measurement_points.append(point)
+        
+        # Update overlay immediately (will show -- temp until next frame update)
+        if hasattr(self, 'video_widget'):
+            self.video_widget.update_measurement_points(self.measurement_points)
+            
+        logger.info(f"Added spot meter {label} at ({x}, {y})")
+
+    def get_spot_meter_coords(self) -> List[Tuple[int, int, str]]:
+        """Get coordinates of all active spot meters."""
+        return [(p.x, p.y, p.label) for p in self.measurement_points]
+    
+    def update_spot_meter_values(self, values: List[Dict]):
+        """
+        Update temperatures for spot meters.
+        
+        Args:
+            values: List of dicts with {'label': str, 'temperature': float, 'unit': str}
+        """
+        updated = False
+        val_map = {v['label']: v for v in values}
+        
+        for point in self.measurement_points:
+            if point.label in val_map:
+                data = val_map[point.label]
+                point.temperature = data['temperature']
+                point.unit = data['unit']
+                updated = True
+                
+        if updated and hasattr(self, 'video_widget'):
+            self.video_widget.update_measurement_points(self.measurement_points)
 
     # === RADIOMETRIC SPOTMETER HANDLERS (Placeholder for 16-bit radiometric) ===
     
@@ -6314,15 +6486,19 @@ class InspectionAppWindow(QMainWindow):
 
     def _on_roi_palette_changed(self, roi_id: str, palette_name: str):
         """Handle ROI palette change."""
-        if self.app and hasattr(self.app, 'palette_manager'):
-            from palette_manager import PaletteType
-            try:
-                # Convert string name to PaletteType enum
-                palette_type = PaletteType(palette_name)
-                self.app.palette_manager.set_roi_palette(roi_id, palette_type)
-                logger.info(f"ROI {roi_id} palette set to: {palette_name}")
-            except (KeyError, ValueError) as e:
-                logger.error(f"Unknown palette: {palette_name} - {e}")
+        if self.app:
+            if hasattr(self.app, 'set_roi_palette'):
+                # Use unified handler that updates both ROI object and PaletteManager
+                self.app.set_roi_palette(roi_id, palette_name)
+                logger.info(f"ROI {roi_id} palette updated to: {palette_name}")
+            elif hasattr(self.app, 'palette_manager'):
+                # Fallback for legacy
+                from palette_manager import PaletteType
+                try:
+                    palette_type = PaletteType(palette_name)
+                    self.app.palette_manager.set_roi_palette(roi_id, palette_type)
+                except Exception as e:
+                    logger.error(f"Error setting palette: {e}")
 
     def _on_roi_palette_cleared(self, roi_id: str):
         """Handle ROI palette clear."""

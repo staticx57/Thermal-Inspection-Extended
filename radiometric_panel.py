@@ -30,6 +30,8 @@ class RadiometricPanel(QWidget):
     spotmeter_enabled_changed = pyqtSignal(bool)
     spotmeter_mode_changed = pyqtSignal(str)
     sensor_temps_requested = pyqtSignal()
+    spot_meter_toggled = pyqtSignal(bool)  # Toggle add mode
+    clear_spot_meters_requested = pyqtSignal() # Clear all spots
 
     # 8-Bit Estimation Signals (NEW)
     estimation_8bit_enabled_changed = pyqtSignal(bool)
@@ -389,6 +391,26 @@ class RadiometricPanel(QWidget):
 
         readings_group.setLayout(readings_layout)
         layout.addWidget(readings_group)
+
+        # ====================================================================
+        # Interactive Tools Section
+        # ====================================================================
+        tools_group = QGroupBox("Interactive Tools")
+        tools_layout = QVBoxLayout()
+        tools_layout.setSpacing(6)
+
+        self.add_spot_meter_btn = QPushButton("✚ Add Spot Meter")
+        self.add_spot_meter_btn.setCheckable(True)
+        self.add_spot_meter_btn.setToolTip("Click on the video feed to add a spot temperature measurement")
+        self.add_spot_meter_btn.toggled.connect(self.spot_meter_toggled.emit)
+        tools_layout.addWidget(self.add_spot_meter_btn)
+
+        self.clear_spot_meters_btn = QPushButton("Clear All Spot Meters")
+        self.clear_spot_meters_btn.clicked.connect(self.clear_spot_meters_requested.emit)
+        tools_layout.addWidget(self.clear_spot_meters_btn)
+
+        tools_group.setLayout(tools_layout)
+        layout.addWidget(tools_group)
 
         # Hardware Spotmeter Section
         spotmeter_group = QGroupBox("⚡ Hardware Spotmeter")

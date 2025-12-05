@@ -12,6 +12,7 @@ Compatible with:
 import cv2
 import numpy as np
 import logging
+import time
 from typing import Tuple, Optional
 
 logging.basicConfig(level=logging.INFO)
@@ -80,29 +81,79 @@ class RGBCameraUVC:
                 self.cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
                 self.camera_type = "CSI Camera (GStreamer)"
             else:
+            # Use V4L2 for USB cameras (Linux) or default backend (Windows)
                 # Use V4L2 for USB cameras (Linux) or default backend (Windows)
                 logger.info(f"Opening UVC webcam {self.device_id}")
-                try:
-                    # Try V4L2 first (Linux)
-                    self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_V4L2)
-                except:
-                    # Fall back to default backend (Windows/Mac)
-                    self.cap = cv2.VideoCapture(self.device_id)
-                self.camera_type = "UVC Webcam"
+                
+                # Retry mechanism to handle "Resource detected but busy" scenarios
+                # This often happens if the camera was recently scanned by CameraDetector
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        import platform
+                        if platform.system() == 'Windows':
+                            # Windows: Try DSHOW first (most reliable for USB webcams)
+                            self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_DSHOW)
+                            if not self.cap.isOpened():
+                                # Fallback to MSMF/default
+                                self.cap = cv2.VideoCapture(self.device_id)
+                        else:
+                            # Linux: Try V4L2 first
+                            self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_V4L2)
+                    except:
+                        # Fall back to default backend
+                        self.cap = cv2.VideoCapture(self.device_id)
+                        
+                    if self.cap.isOpened():
+                        break
+                        
+                    logger.warning(f"Attempt {attempt+1}/{max_retries}: Failed to open camera {self.device_id} - retrying...")
+                    time.sleep(0.5)  # Wait for resource release
+
+            self.camera_type = "UVC Webcam"
 
             if not self.cap.isOpened():
-                logger.error(f"Failed to open camera {self.device_id}")
+                logger.error(f"Failed to open camera {self.device_id} after {max_retries} attempts")
                 return False
 
             # Configure camera properties (for USB cameras)
             if not self.use_gstreamer:
-                # If resolution is 0x0, use maximum available resolution
+                # If resolution is 0x0, use maximum available resolution by trying high-res standards
                 if self.width == 0 or self.height == 0:
-                    logger.info("Resolution not specified - using camera's maximum resolution...")
-                    # Query current (likely max) resolution
+                    logger.info("Resolution not specified - attempting to negotiate maximum resolution...")
+                    
+                    # Try setting common high resolutions in descending order
+                    resolutions_to_try = [
+                        (3840, 2160), # 4K
+                        (2560, 1440), # 2K
+                        (1920, 1080), # 1080p
+                        (1280, 720),  # 720p
+                        (640, 480)    # VGA (Fallback)
+                    ]
+                    
+                    for w, h in resolutions_to_try:
+                        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
+                        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
+                        actual_w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        actual_h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                        
+                        # If we got what we asked for (or better), break
+                        # Note: DSHOW defaults to 640x480 if request fails
+                        if actual_w >= w and actual_h >= h:
+                            # Verify with a frame read to ensure graph is stable
+                            time.sleep(0.2) # Allow graph to rebuild
+                            if self.cap.grab():
+                                logger.info(f"Negotiated resolution: {actual_w}x{actual_h}")
+                                break
+                            else:
+                                logger.warning(f"Resolution {w}x{h} accepted but frame grab failed")
+                        
+                        time.sleep(0.1) # Don't hammer the DSHOW backend
+                            
+                    # Final update of stored resolution
                     self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                     self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                    logger.info(f"Using maximum resolution: {self.width}x{self.height}")
+                    logger.info(f"Using resolution: {self.width}x{self.height}")
                 else:
                     # Set requested resolution
                     self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
@@ -131,7 +182,6 @@ class RGBCameraUVC:
             logger.info(f"Resolution: {actual_width}x{actual_height} @ {actual_fps} FPS")
 
             # Warm up camera (discard first few frames and allow camera to initialize)
-            import time
             time.sleep(0.3)  # Longer delay to let camera stabilize after opening
 
             # Warm up by reading and discarding frames

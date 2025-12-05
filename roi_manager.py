@@ -598,6 +598,122 @@ class ROIManager:
         for roi in self.rois.values():
             roi.selected = False
 
+    # ========================================================================
+    # Cleanup / NMS Methods (NEW)
+    # ========================================================================
+
+    def calculate_iou(self, boxA, boxB) -> float:
+        """
+        Calculate Intersection over Union (IoU) of two bounding boxes.
+
+        Args:
+            boxA, boxB: (x, y, w, h) tuples
+
+        Returns:
+            IoU score (0.0 to 1.0)
+        """
+        # Determine coordinates of intersection rectangle
+        xA = max(boxA[0], boxB[0])
+        yA = max(boxA[1], boxB[1])
+        xB = min(boxA[0] + boxA[2], boxB[0] + boxB[2])
+        yB = min(boxA[1] + boxA[3], boxB[1] + boxB[3])
+
+        # Compute area of intersection
+        interWidth = max(0, xB - xA)
+        interHeight = max(0, yB - yA)
+        interArea = interWidth * interHeight
+
+        # Compute area of both rectangles
+        boxAArea = boxA[2] * boxA[3]
+        boxBArea = boxB[2] * boxB[3]
+
+        # Compute IoU
+        iou = interArea / float(boxAArea + boxBArea - interArea)
+        return iou
+
+    def cleanup_overlapping_rois(self, iou_threshold: float = 0.05):
+        """
+        Remove overlapping Auto-ROIs using NMS (Non-Maximum Suppression).
+        Prioritizes ROIs based on source type.
+        
+        Priority: MANUAL > TEMPERATURE > GRADIENT > MOTION > EDGE
+
+        Args:
+            iou_threshold: Overlap threshold to suppress lower priority ROI (0.05 = aggressive)
+        """
+        # Define priority map (higher number = higher priority)
+        priority_map = {
+            ROISource.MANUAL: 100,
+            ROISource.AUTO_TEMPERATURE: 80,
+            ROISource.AUTO_GRADIENT: 60,
+            ROISource.AUTO_MOTION: 40,
+            ROISource.AUTO_EDGE: 20
+        }
+
+        # Get all ROIs
+        all_rois = list(self.rois.values())
+        
+        # Group by priority
+        # Sort by priority descending, then by area descending (prefer larger boxes if same type)
+        all_rois.sort(key=lambda r: (
+            priority_map.get(r.roi_source, 0),
+            r.get_bbox()[2] * r.get_bbox()[3]
+        ), reverse=True)
+
+        to_delete = []
+
+        # Iterate via NMS
+        # Since list is sorted by priority/size, we keep the first one and suppress any subsequent
+        # ones that overlap significantly.
+        active_rois = []
+        
+        for roi in all_rois:
+            # Always keep Manual ROIs, never suppress them (though they might suppress others)
+            if roi.roi_source == ROISource.MANUAL:
+                active_rois.append(roi)
+                continue
+
+            suppress = False
+            bbox = roi.get_bbox()
+
+            for kept_roi in active_rois:
+                # Check overlap (IoU)
+                overlap = self.calculate_iou(bbox, kept_roi.get_bbox())
+                
+                # Check containment (Intersection / Area of candidate ROI)
+                # This handles the case where a small ROI is fully inside a huge ROI (IoU is small, but containment is 1.0)
+                boxA = bbox
+                boxB = kept_roi.get_bbox()
+                xA = max(boxA[0], boxB[0])
+                yA = max(boxA[1], boxB[1])
+                xB = min(boxA[0] + boxA[2], boxB[0] + boxB[2])
+                yB = min(boxA[1] + boxA[3], boxB[1] + boxB[3])
+                interArea = max(0, xB - xA) * max(0, yB - yA)
+                candidateArea = boxA[2] * boxA[3]
+                containment = interArea / float(candidateArea) if candidateArea > 0 else 0
+
+                if overlap > 0.01 or containment > 0.01:
+                    pass # print(f"DEBUG: Check {roi.label} vs {kept_roi.label}: IoU={overlap:.4f}, Cont={containment:.4f}")
+
+                if overlap > iou_threshold or containment > 0.70:
+                    # Overlap found with a higher priority/larger ROI
+                    # containment > 0.7 means 70% of the candidate box is inside the kept box
+                    suppress = True
+                    # print(f"DEBUG: Suppressing {roi.label} (overlap {overlap:.4f}, containment {containment:.4f})")
+                    break
+            
+            if suppress:
+                to_delete.append(roi.roi_id)
+            else:
+                active_rois.append(roi)
+
+        # Delete suppressed ROIs
+        for roi_id in to_delete:
+            self.delete_roi(roi_id)
+            
+        if len(to_delete) > 0:
+            print(f"DEBUG: NMS cleanup removed {len(to_delete)} overlapping Auto-ROIs")
+
     def get_selected_rois(self) -> List[ROI]:
         """Get list of selected ROIs."""
         return [roi for roi in self.rois.values() if roi.selected]

@@ -531,9 +531,11 @@ class ThermalInspectionFusion:
                     device_id = thermal_info.device_id
                     logger.info(f"Auto-detected thermal camera at index {device_id}")
                 else:
-                    # Fallback to 0 if detection fails (better than None)
-                    device_id = 0
-                    logger.warning("Could not auto-detect thermal camera, defaulting to index 0")
+                    # No thermal camera found - don't blindly grab index 0 (might be RGB)
+                    logger.warning("[WARN] No thermal camera detected - will use placeholder")
+                    self.thermal_camera = None
+                    self.thermal_connected = False
+                    return False
             
             logger.info(f"DEBUG: Final device_id: {device_id}")
 
@@ -616,7 +618,7 @@ class ThermalInspectionFusion:
                             mode_info['description']
                         )
                     
-                    logger.info(f"✓ Radiometric panel initialized (capable={is_radiometric}, sdk={sdk_connected}, 8bit={self.temp_estimation_enabled})")
+                    logger.info(f"[OK] Radiometric panel initialized (capable={is_radiometric}, sdk={sdk_connected}, 8bit={self.temp_estimation_enabled})")
                 
                 # Update ThermalAnalyzer radiometric state
                 if self.thermal_analyzer:
@@ -1031,6 +1033,8 @@ class ThermalInspectionFusion:
                 # Note: overlay_info_toggled is handled by GUI internally or needs handler?
                 # Let's add handler if we want to toggle overlay rendering in main loop
                 if hasattr(ap, 'overlay_info_toggled'): ap.overlay_info_toggled.connect(self.toggle_overlay_info)
+                # CONNECTED: ROI palette change signal
+                if hasattr(ap, 'roi_palette_changed'): ap.roi_palette_changed.connect(self.set_roi_palette)
 
             # 3. Radiometric Panel
             if hasattr(self.gui, 'radiometric_panel'):
@@ -1076,7 +1080,7 @@ class ThermalInspectionFusion:
                 # Sensor temperature refresh signal
                 if hasattr(rp, 'sensor_temps_requested'): rp.sensor_temps_requested.connect(self._update_sensor_temperatures)
 
-            logger.info("✓ GUI signals connected")
+            logger.info("[OK] GUI signals connected")
 
         except Exception as e:
             logger.error(f"Failed to connect GUI signals: {e}", exc_info=True)
@@ -1093,6 +1097,43 @@ class ThermalInspectionFusion:
         """Toggle overlay information display."""
         self.show_overlay_info = enabled
         logger.info(f"Overlay info: {'ON' if enabled else 'OFF'}")
+
+    def set_palette(self, palette_name: str):
+        """Set global palette."""
+        try:
+            from palette_manager import PaletteType
+            # Clean up name if it comes from combo box styling
+            clean_name = palette_name.strip().lstrip("─ ")
+            if clean_name and not clean_name.startswith("───"):
+                pt = PaletteType(clean_name)
+                self.palette_manager.set_global_palette(pt)
+                logger.info(f"Global palette changed to: {clean_name}")
+        except Exception as e:
+            logger.error(f"Failed to set palette {palette_name}: {e}")
+
+    def set_roi_palette(self, roi_id: str, palette_name: str):
+        """
+        Set palette for a specific ROI.
+        Connected to ThermalAnalysisPanel.roi_palette_changed signal.
+        """
+        try:
+            logger.info(f"Applying palette '{palette_name}' to ROI {roi_id}")
+            
+            # 1. Update ROI in ROI Manager (Primary method for apply_composite_palette)
+            roi = self.roi_manager.get_roi(roi_id)
+            if roi:
+                roi.custom_palette = palette_name
+                logger.debug(f"ROI {roi_id} custom_palette updated to {palette_name}")
+            else:
+                logger.warning(f"ROI {roi_id} not found in manager!")
+                
+            # 2. Update PaletteManager config (Legacy/Backup)
+            from palette_manager import PaletteType
+            pt = PaletteType(palette_name)
+            self.palette_manager.set_roi_palette(roi_id, pt)
+            
+        except Exception as e:
+            logger.error(f"Failed to set ROI palette: {e}")
 
 
     def process_frame(self, thermal_frame: np.ndarray, rgb_frame: Optional[np.ndarray] = None) -> Dict:
@@ -1199,6 +1240,10 @@ class ThermalInspectionFusion:
 
                     if self.auto_roi_methods.get('edge', True):
                         edge_rois = self.roi_manager.detect_edge_rois(thermal_frame)
+
+                    # NMS Cleanup (Refinement)
+                    # Remove overlapping ROIs based on priority (Manual > Temp > Gradient > Motion > Edge)
+                    self.roi_manager.cleanup_overlapping_rois()
             t_prof['after_auto_roi'] = time.time()
 
             # 4. Thermal analysis for each ROI
@@ -1263,17 +1308,8 @@ class ThermalInspectionFusion:
                             'std_temp': stats.std_temp
                         }
 
-                        # Update trend tracking
-                        self.thermal_analyzer.update_trend(roi.roi_id, stats.mean_temp)
-
-            t_prof['after_roi_analysis'] = time.time()
-
-            # 5. Global thermal analysis (whole frame)
-            t_prof['before_thermal_analysis'] = time.time()
-
-            # OPTIMIZATION: Parallel detection tasks (Phase 1)
+            # 5. Global thermal analysis (Parallel vs Sequential)
             if self.enable_parallel_processing and self.detection_executor:
-                # Submit all detection tasks in parallel
                 future_stats = self.detection_executor.submit(
                     self.thermal_analyzer.analyze_frame, thermal_frame
                 )
@@ -1464,6 +1500,44 @@ class ThermalInspectionFusion:
                     viz_mode=self.manual_threshold_viz_mode
                 )
                 result['thermal_colorized'] = thermal_colorized
+
+            # 5d. Update Spot Meters (Enhancement #1)
+            # Update temperatures for all user-defined spot meters
+            if self.gui and hasattr(self.gui, 'get_spot_meter_coords'):
+                coords = self.gui.get_spot_meter_coords()
+                if coords:
+                    spot_values = []
+                    temp_map_for_spots = None
+                    unit = "°C"
+                    
+                    # Strategy 1: Use 16-bit radiometric data (Best Accuracy)
+                    if self.thermal_camera and self.thermal_camera.is_radiometric_enabled():
+                         if hasattr(self.thermal_camera, 'get_last_raw_frame'):
+                             raw = self.thermal_camera.get_last_raw_frame()
+                             if raw is not None and raw.dtype == np.uint16:
+                                 # Convert Kelvinx100 to Celsius: (K*100 - 27315) / 100.0
+                                 temp_map_for_spots = (raw.astype(float) - 27315.0) / 100.0
+                    
+                    # Strategy 2: Use 8-bit estimation (Fallback)
+                    if temp_map_for_spots is None and self.temp_estimation_enabled and self.temp_estimator:
+                         if self.thermal_camera and self.thermal_camera.is_sdk_connected:
+                             fpa = self.thermal_camera.get_fpa_temperature()
+                             if fpa:
+                                 # Re-calculate map for spot metering
+                                 temp_map_for_spots = self.temp_estimator.estimate_temperature_map(thermal_frame, fpa[1])
+
+                    # Extract temperatures
+                    if temp_map_for_spots is not None:
+                        h, w = temp_map_for_spots.shape
+                        for x, y, label in coords:
+                            # Check bounds and valid data
+                            if 0 <= x < w and 0 <= y < h:
+                                val = temp_map_for_spots[y, x]
+                                if not np.isnan(val):
+                                    spot_values.append({'label': label, 'temperature': float(val), 'unit': unit})
+                        
+                        # Send updates to GUI
+                        self.gui.update_spot_meter_values(spot_values)
 
             # 6. Create fused frame if RGB available
             t_prof['before_fusion'] = time.time()
@@ -2249,6 +2323,10 @@ class ThermalInspectionFusion:
                 # Detect ROIs based on thermal gradients
                 gradient_rois = self.roi_manager.detect_gradient_rois(self.last_thermal_frame)
                 logger.info(f"Auto-detected {len(temp_rois)} temperature ROIs and {len(gradient_rois)} gradient ROIs")
+                
+                # NMS Cleanup (Refinement)
+                # Remove overlapping ROIs based on priority (Manual > Temp > Gradient > Motion > Edge)
+                self.roi_manager.cleanup_overlapping_rois()
     
     def clear_rois(self):
         """Clear all ROIs."""
@@ -3746,15 +3824,24 @@ class ThermalInspectionFusion:
                 self.threaded_capture.stop()
                 self.threaded_capture = None
 
-            # 2. Save COM port from current camera before releasing (only if SDK was connected)
+            # 2. Save COM port and device ID from current camera before releasing
             current_com_port = None
-            if self.thermal_camera and hasattr(self.thermal_camera, 'com_port'):
+            thermal_device_id = None
+            if self.thermal_camera:
+                # Save device ID for reuse (avoids camera detection which probes ALL cameras)
+                if hasattr(self.thermal_camera, 'device_id'):
+                    thermal_device_id = self.thermal_camera.device_id
+                elif hasattr(self.thermal_camera, 'device'):
+                    thermal_device_id = self.thermal_camera.device
+                logger.info(f"Preserving thermal device ID: {thermal_device_id}")
+                
                 # Only preserve COM port if SDK was successfully connected
-                if hasattr(self.thermal_camera, 'is_sdk_connected') and self.thermal_camera.is_sdk_connected:
-                    current_com_port = self.thermal_camera.com_port
-                    logger.info(f"Preserving COM port from current camera: {current_com_port}")
-                else:
-                    logger.info(f"SDK not connected on current camera, will not preserve COM port")
+                if hasattr(self.thermal_camera, 'com_port'):
+                    if hasattr(self.thermal_camera, 'is_sdk_connected') and self.thermal_camera.is_sdk_connected:
+                        current_com_port = self.thermal_camera.com_port
+                        logger.info(f"Preserving COM port from current camera: {current_com_port}")
+                    else:
+                        logger.info(f"SDK not connected on current camera, will not preserve COM port")
 
             # 3. Release current thermal camera
             if self.thermal_camera:
@@ -3762,22 +3849,31 @@ class ThermalInspectionFusion:
                 self.thermal_camera.release()
                 self.thermal_camera = None
 
+            # 3.5. Save RGB camera info and release (NO camera detection - it probes all devices!)
+            rgb_device_id = None
+            rgb_camera_source = 'opencv'  # Default
+            if self.rgb_camera:
+                # Save device ID for reinitialization later
+                if hasattr(self.rgb_camera, 'device_id'):
+                    rgb_device_id = self.rgb_camera.device_id
+                elif hasattr(self.rgb_camera, 'device'):
+                    rgb_device_id = self.rgb_camera.device
+                if hasattr(self.rgb_camera, 'camera_source'):
+                    rgb_camera_source = self.rgb_camera.camera_source
+                logger.info(f"Releasing RGB camera (device {rgb_device_id})...")
+                self.rgb_camera.release()
+                self.rgb_camera = None
+
             # 4. Get SDK parameters - prioritize: current camera COM port > args > default
             enable_sdk = getattr(self.args, 'enable_boson_sdk', True)
             com_port = current_com_port or getattr(self.args, 'boson_com_port', None) or 'COM7'
             logger.info(f"Using COM port: {com_port} for new backend")
 
-            # 5. Auto-detect device ID
-            device_id = getattr(self.args, 'thermal_device', None)
+            # 5. Use saved device ID (NO camera detection - find_thermal_camera() probes ALL cameras!)
+            device_id = thermal_device_id
             if device_id is None:
-                from camera_detector import CameraDetector
-                thermal_info = CameraDetector.find_thermal_camera()
-                if thermal_info:
-                    device_id = thermal_info.device_id
-                    logger.info(f"Auto-detected thermal camera at index {device_id}")
-                else:
-                    device_id = 0
-                    logger.warning("Could not auto-detect thermal camera, defaulting to index 0")
+                device_id = getattr(self.args, 'thermal_device', 2)  # Default to 2 (typical Boson index)
+                logger.warning(f"No saved thermal device ID, using args/default: {device_id}")
 
             # 6. Create new backend using factory
             self.thermal_camera = create_thermal_backend(
@@ -3904,8 +4000,32 @@ class ThermalInspectionFusion:
                     self.gui.radiometric_panel.update_backend_status(backend_info)
                     logger.info(f"✓ Backend status updated: {backend_type}")
 
-            # 11. Restart threaded capture if it was enabled
+            # 11. Reinitialize RGB camera (was released for detection) and restart threaded capture
             if self.use_threaded_capture:
+                # Reinitialize RGB camera using saved device ID (don't probe cameras - that breaks flirpy)
+                if self.rgb_camera is None and rgb_device_id is not None:
+                    logger.info(f"Reinitializing RGB camera at device {rgb_device_id}...")
+                    try:
+                        from camera_factory import create_rgb_camera
+                        
+                        # Reuse saved device ID - DON'T call detect_all_cameras() as it probes thermal
+                        # Note: create_rgb_camera uses camera_type and camera_index, not device_id
+                        self.rgb_camera = create_rgb_camera(
+                            camera_type='uvc',  # Force UVC since we know device ID
+                            camera_index=rgb_device_id,
+                            resolution=(0, 0),  # Auto-negotiate best resolution
+                            use_max_resolution=True
+                        )
+                        
+                        if self.rgb_camera.open():
+                            logger.info(f"[OK] RGB camera reinitialized at device {rgb_device_id}")
+                        else:
+                            logger.warning("Failed to open RGB camera after switch")
+                            self.rgb_camera = None
+                    except Exception as e:
+                        logger.error(f"Error reinitializing RGB camera: {e}")
+                        self.rgb_camera = None
+                
                 from threaded_camera_capture import DualThreadedCameraCapture
                 self.threaded_capture = DualThreadedCameraCapture(self.thermal_camera, self.rgb_camera)
                 self.threaded_capture.start()

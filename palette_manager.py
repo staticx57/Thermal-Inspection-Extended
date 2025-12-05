@@ -9,6 +9,9 @@ from typing import Dict, List, Optional, Tuple
 from enum import Enum
 from dataclasses import dataclass, field
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class PaletteType(Enum):
@@ -751,9 +754,13 @@ class PaletteManager:
         output = self.apply_palette(thermal_frame, self.global_palette)
 
         # Apply ROI-specific palettes (from roi_palettes dict - legacy)
+        if self.roi_palettes:
+            logger.debug(f"Applying {len(self.roi_palettes)} ROI palettes from config")
+        
         for roi_id, palette_config in self.roi_palettes.items():
             roi = roi_manager.get_roi(roi_id)
             if roi is None or not roi.active:
+                logger.warning(f"ROI {roi_id} not found or inactive in manager")
                 continue
 
             # Get ROI mask
@@ -767,6 +774,7 @@ class PaletteManager:
             # Blend ROI palette onto output
             mask_3ch = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
             output = np.where(mask_3ch > 0, roi_colorized, output)
+            logger.debug(f"Applied palette {palette_config.palette_type.value} to ROI {roi_id} (mask sum: {np.sum(mask)})")
 
         # Apply custom palettes from ROI.custom_palette field (NEW!)
         for roi in roi_manager.get_all_rois(active_only=True):
