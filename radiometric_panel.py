@@ -99,58 +99,7 @@ class RadiometricPanel(QWidget):
         status_group.setLayout(status_layout)
         layout.addWidget(status_group)
 
-        # ====================================================================
-        # CAMERA BACKEND SELECTOR
-        # ====================================================================
-        backend_group = QGroupBox("Camera Backend")
-        backend_layout = QVBoxLayout()
-        backend_layout.setSpacing(6)
 
-        # Backend selection radio buttons
-        self.backend_button_group = QButtonGroup()
-
-        self.opencv_backend_radio = QRadioButton("8-bit OpenCV (T-Linear AGC)")
-        self.opencv_backend_radio.setChecked(True)  # Default to OpenCV
-        self.opencv_backend_radio.setToolTip(
-            "8-bit thermal capture with T-Linear processing\n"
-            "• Works with current UVC driver\n"
-            "• SDK control (FFC, AGC modes)\n"
-            "• Excellent visual quality\n"
-            "• Relative temperatures only"
-        )
-        self.backend_button_group.addButton(self.opencv_backend_radio, 0)
-        backend_layout.addWidget(self.opencv_backend_radio)
-
-        # USB backend deprecated - flirpy provides same functionality without WinUSB driver
-        # self.usb_backend_radio = QRadioButton("16-bit USB (True Radiometric)")
-        # Removed: flirpy provides better solution (16-bit + SDK control, no WinUSB needed)
-
-        self.flirpy_backend_radio = QRadioButton("16-bit T-Linear (flirpy + SDK)")
-        self.flirpy_backend_radio.setToolTip(
-            "16-bit Y16 radiometric via flirpy library\n"
-            "• Works with default UVC driver (no Zadig!)\n"
-            "• True absolute temperatures (±2°C accuracy)\n"
-            "• SDK control via COM port (FFC, telemetry, T-Linear mode)\n"
-            "• Native 9Hz radiometric capture\n"
-            "• Simple, reliable implementation"
-        )
-        self.backend_button_group.addButton(self.flirpy_backend_radio, 1)  # Changed from 2 to 1
-        backend_layout.addWidget(self.flirpy_backend_radio)
-
-        # Apply backend button
-        self.apply_backend_btn = QPushButton("Apply Backend Change")
-        self.apply_backend_btn.setToolTip("Switch to selected backend (will restart camera)")
-        self.apply_backend_btn.clicked.connect(self._on_apply_backend)
-        backend_layout.addWidget(self.apply_backend_btn)
-
-        # Backend status display
-        self.backend_status_label = QLabel("Backend: Not initialized")
-        self.backend_status_label.setStyleSheet("color: #666; font-style: italic;")
-        self.backend_status_label.setWordWrap(True)
-        backend_layout.addWidget(self.backend_status_label)
-
-        backend_group.setLayout(backend_layout)
-        layout.addWidget(backend_group)
 
         # ====================================================================
         # TEMPERATURE UNIT SELECTOR
@@ -622,30 +571,7 @@ class RadiometricPanel(QWidget):
         except Exception as e:
             logger.error(f"[ERROR] Exception in _on_max_cold_spots_changed: {e}", exc_info=True)
 
-    def _on_apply_backend(self):
-        """Handle backend change button click."""
-        try:
-            # Determine which backend is selected
-            if self.opencv_backend_radio.isChecked():
-                mode = 'opencv'
-                mode_name = '8-bit OpenCV'
-            else:  # flirpy_backend_radio (usb backend deprecated)
-                mode = 'flirpy'
-                mode_name = '16-bit flirpy'
 
-            logger.info(f"[BACKEND] User requested backend change to: {mode} ({mode_name})")
-
-            # Emit signal for backend change
-            self.backend_changed.emit(mode)
-
-            # Update status (will be updated by app after successful change)
-            self.backend_status_label.setText(f"Switching to {mode_name}...")
-            self.backend_status_label.setStyleSheet("color: #FF8C00; font-style: italic;")
-
-        except Exception as e:
-            logger.error(f"[ERROR] Exception in _on_apply_backend: {e}", exc_info=True)
-            self.backend_status_label.setText(f"Error: {e}")
-            self.backend_status_label.setStyleSheet("color: red; font-style: italic;")
 
     def update_backend_status(self, backend_info: dict):
         """
@@ -656,8 +582,6 @@ class RadiometricPanel(QWidget):
         """
         try:
             if not backend_info:
-                self.backend_status_label.setText("Backend: Not initialized")
-                self.backend_status_label.setStyleSheet("color: #666; font-style: italic;")
                 return
 
             backend_name = backend_info.get('backend', 'Unknown')
@@ -666,35 +590,39 @@ class RadiometricPanel(QWidget):
             resolution = backend_info.get('resolution', (0, 0))
             current_mode = backend_info.get('current_mode', 'unknown')
 
-            # Update radio button selection to match current backend
-            if current_mode == 'opencv':
-                self.opencv_backend_radio.setChecked(True)
-            elif current_mode == 'flirpy':
-                self.flirpy_backend_radio.setChecked(True)
-            # usb backend deprecated - flirpy is the recommended 16-bit solution
+
 
             # Build status text
-            status_text = (
-                f"Backend: {backend_name}\n"
-                f"Bit Depth: {bit_depth}-bit\n"
-                f"Resolution: {resolution[0]}×{resolution[1]}\n"
-                f"Radiometric: {'Yes ±2°C' if radiometric else 'No (AGC)'}"
-            )
+            # status_text = (
+            #     f"Backend: {backend_name}\n"
+            #     f"Bit Depth: {bit_depth}-bit\n"
+            #     f"Resolution: {resolution[0]}×{resolution[1]}\n"
+            #     f"Radiometric: {'Yes' if radiometric else 'No'}"
+            # )
+            # self.backend_status_label.setText(status_text)
+            # self.backend_status_label.setStyleSheet("color: #d4e8ff;")
 
-            self.backend_status_label.setText(status_text)
-
-            # Color based on radiometric capability
+            # Update Top Status Banner & Labels
             if radiometric:
-                self.backend_status_label.setStyleSheet("color: #00AA00; font-style: normal; font-weight: bold;")
-            else:
-                self.backend_status_label.setStyleSheet("color: #0066CC; font-style: normal;")
-
-            logger.info(f"[BACKEND] Status updated: {backend_name}, {bit_depth}-bit, radiometric={radiometric}")
+                self.status_banner.setText("Active: Radiometric (16-bit)")
+                self.status_banner.setStyleSheet("""
+                    QLabel {
+                        background-color: #2e7d32;
+                        color: white;
+                        font-size: 14pt;
+                        font-weight: bold;
+                        padding: 12px;
+                        border-radius: 5px;
+                        border: 2px solid #4caf50;
+                        padding: 12px;
+                        border-radius: 5px;
+                        border: 2px solid #777;
+                    }
+                """)
 
         except Exception as e:
             logger.error(f"[ERROR] Exception in update_backend_status: {e}", exc_info=True)
-            self.backend_status_label.setText("Error updating status")
-            self.backend_status_label.setStyleSheet("color: red; font-style: italic;")
+            self.status_banner.setText("Error updating status")
 
     def get_temperature_range(self) -> tuple:
         """Get configured temperature range."""

@@ -6,7 +6,7 @@ Optimized for Jetson Orin and x86-64 platforms
 """
 import sys
 import numpy as np
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 import logging
 from pathlib import Path
 
@@ -32,6 +32,7 @@ from thermal_analyzer import ThermalStatistics, HotSpot, ColdSpot, ThermalAnomal
 from firefly_control_panel import FireflyControlPanel
 from radiometric_panel import RadiometricPanel
 from parallax_panel import ParallaxPanel
+from fusion_panel import FusionPanel
 
 logger = logging.getLogger(__name__)
 
@@ -681,6 +682,192 @@ QLabel#info_panel {
 }
 """
 
+LUNA_THEME = """
+QMainWindow, QWidget { background-color: #ECE9D8; color: #000000; font-family: 'Tahoma', 'Segoe UI'; font-size: 9pt; }
+QPushButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #E0E0E0);
+    color: #000000; border: 2px solid #003C74;
+    border-radius: 4px; padding: 7px; font-weight: bold;
+    min-height: 20px;
+}
+QPushButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFF7E0, stop:1 #FFE0A0);
+    border-color: #E68B2C; border-width: 2px;
+}
+QPushButton:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #C0C0C0, stop:1 #D0D0D0);
+    border-color: #003C74;
+}
+QPushButton:checked {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #A0C0FF, stop:1 #6090FF);
+    color: #FFFFFF; border-color: #0054E3;
+}
+QGroupBox {
+    border: 2px solid #0054E3; border-radius: 5px; margin-top: 20px;
+    padding-top: 5px;
+    background-color: #FAFAF8; color: #000000; font-weight: bold;
+}
+QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 10px; padding: 0 3px; color: #0054E3; font-size: 11pt; }
+QLabel { color: #000000; background-color: transparent; }
+QCheckBox { spacing: 5px; color: #000000; font-weight: bold; }
+QCheckBox::indicator { width: 13px; height: 13px; border: 1px solid #003C74; background-color: #FFFFFF; }
+QCheckBox::indicator:checked { background-color: #0054E3; }
+QRadioButton { spacing: 5px; color: #000000; font-weight: bold; }
+QRadioButton::indicator { width: 13px; height: 13px; border: 2px solid #003C74; border-radius: 7px; background-color: #FFFFFF; }
+QRadioButton::indicator:checked { background-color: #0054E3; }
+QTabWidget::pane { border: 2px solid #003C74; background-color: #ECE9D8; }
+QTabBar::tab {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #F0EFE8, stop:1 #D8D6C8);
+    color: #000000; border: 1px solid #7F9DB9;
+    padding: 8px 14px; margin-right: 2px; font-weight: bold;
+}
+QTabBar::tab:selected {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #F0F0F0);
+    border-bottom-color: #FFFFFF; border-width: 2px; border-bottom-width: 0px;
+}
+QListWidget { background-color: #FFFFFF; color: #000000; border: 2px solid #7F9DB9; }
+QLineEdit, QTextEdit { background-color: #FFFFFF; color: #000000; border: 1px solid #7F9DB9; padding: 3px; selection-background-color: #316AC5; selection-color: #FFFFFF; }
+QSpinBox, QDoubleSpinBox, QComboBox { background-color: #FFFFFF; color: #000000; border: 1px solid #7F9DB9; padding: 3px; }
+QComboBox::drop-down { border-left: 1px solid #7F9DB9; background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #F0EFE8, stop:1 #D8D6C8); }
+QComboBox::down-arrow { image: none; border: 2px solid #003C74; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid #003C74; margin-right: 4px; }
+QSlider::groove:horizontal { border: 1px solid #7F9DB9; height: 6px; background: #E0E0E0; }
+QSlider::handle:horizontal { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #D0D0D0);
+    border: 2px solid #003C74; width: 14px; margin: -5px 0; border-radius: 7px; }
+QScrollBar:vertical { border: 1px solid #7F9DB9; background: #ECE9D8; width: 16px; }
+QScrollBar::handle:vertical { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #FFFFFF, stop:1 #D8D6C8); min-height: 20px; border: 1px solid #7F9DB9; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
+QScrollBar:horizontal { border: 1px solid #7F9DB9; background: #ECE9D8; height: 16px; }
+QScrollBar::handle:horizontal { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #D8D6C8); min-width: 20px; border: 1px solid #7F9DB9; }
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; }
+"""
+
+SILVER_THEME = """
+QMainWindow, QWidget { background-color: #E0DFE3; color: #000000; font-family: 'Tahoma', 'Segoe UI'; font-size: 9pt; }
+QPushButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FAFAFA, stop:1 #D8D8D8);
+    color: #000000; border: 2px solid #606060;
+    border-radius: 4px; padding: 7px; font-weight: bold;
+    min-height: 20px;
+}
+QPushButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #E8E8E8);
+    border-color: #909090; border-width: 2px;
+}
+QPushButton:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #B0B0B0, stop:1 #C8C8C8);
+    border-color: #505050;
+}
+QPushButton:checked {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #A0A0B0, stop:1 #707080);
+    color: #FFFFFF; border-color: #404050;
+}
+QGroupBox {
+    border: 2px solid #707070; border-radius: 5px; margin-top: 20px;
+    padding-top: 5px;
+    background-color: #F0EFF3; color: #000000; font-weight: bold;
+}
+QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 10px; padding: 0 3px; color: #404040; font-size: 11pt; }
+QLabel { color: #000000; background-color: transparent; }
+QCheckBox { spacing: 5px; color: #000000; font-weight: bold; }
+QCheckBox::indicator { width: 13px; height: 13px; border: 1px solid #606060; background-color: #FFFFFF; }
+QCheckBox::indicator:checked { background-color: #707070; }
+QRadioButton { spacing: 5px; color: #000000; font-weight: bold; }
+QRadioButton::indicator { width: 13px; height: 13px; border: 2px solid #606060; border-radius: 7px; background-color: #FFFFFF; }
+QRadioButton::indicator:checked { background-color: #707070; }
+QTabWidget::pane { border: 2px solid #707070; background-color: #E0DFE3; }
+QTabBar::tab {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ECECF0, stop:1 #C8C8D0);
+    color: #000000; border: 1px solid #707070;
+    padding: 8px 14px; margin-right: 2px; font-weight: bold;
+}
+QTabBar::tab:selected {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #F0F0F0);
+    border-bottom-color: #FFFFFF; border-width: 2px; border-bottom-width: 0px;
+}
+QListWidget { background-color: #FFFFFF; color: #000000; border: 2px solid #707070; }
+QLineEdit, QTextEdit { background-color: #FFFFFF; color: #000000; border: 1px solid #707070; padding: 3px; selection-background-color: #6B6B83; selection-color: #FFFFFF; }
+QSpinBox, QDoubleSpinBox, QComboBox { background-color: #FFFFFF; color: #000000; border: 1px solid #707070; padding: 3px; }
+QComboBox::drop-down { border-left: 1px solid #707070; background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ECECF0, stop:1 #C8C8D0); }
+QComboBox::down-arrow { image: none; border: 2px solid #606060; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid #606060; margin-right: 4px; }
+QSlider::groove:horizontal { border: 1px solid #707070; height: 6px; background: #D0D0D0; }
+QSlider::handle:horizontal { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #F0F0F0, stop:1 #C0C0C0);
+    border: 2px solid #606060; width: 14px; margin: -5px 0; border-radius: 7px; }
+QScrollBar:vertical { border: 1px solid #707070; background: #E0DFE3; width: 16px; }
+QScrollBar::handle:vertical { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #FAFAFA, stop:1 #C8C8D0); min-height: 20px; border: 1px solid #707070; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
+QScrollBar:horizontal { border: 1px solid #707070; background: #E0DFE3; height: 16px; }
+QScrollBar::handle:horizontal { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FAFAFA, stop:1 #C8C8D0); min-width: 20px; border: 1px solid #707070; }
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; }
+"""
+
+OLIVE_THEME = """
+QMainWindow, QWidget { background-color: #F6F7F2; color: #000000; font-family: 'Tahoma', 'Segoe UI'; font-size: 9pt; }
+QPushButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #F8F8DC, stop:1 #E0E0B8);
+    color: #000000; border: 2px solid #607450;
+    border-radius: 4px; padding: 7px; font-weight: bold;
+    min-height: 20px;
+}
+QPushButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFEA, stop:1 #F0F0C8);
+    border-color: #E68B2C; border-width: 2px;
+}
+QPushButton:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #C8C8A0, stop:1 #D8D8B0);
+    border-color: #506840;
+}
+QPushButton:checked {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #A0BF90, stop:1 #708060);
+    color: #FFFFFF; border-color: #506840;
+}
+QGroupBox {
+    border: 2px solid #A5BFA0; border-radius: 5px; margin-top: 20px;
+    padding-top: 5px;
+    background-color: #FCFCF7; color: #000000; font-weight: bold;
+}
+QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 10px; padding: 0 3px; color: #607450; font-size: 11pt; }
+QLabel { color: #000000; background-color: transparent; }
+QCheckBox { spacing: 5px; color: #000000; font-weight: bold; }
+QCheckBox::indicator { width: 13px; height: 13px; border: 1px solid #607450; background-color: #FFFFFF; }
+QCheckBox::indicator:checked { background-color: #A5BFA0; }
+QRadioButton { spacing: 5px; color: #000000; font-weight: bold; }
+QRadioButton::indicator { width: 13px; height: 13px; border: 2px solid #607450; border-radius: 7px; background-color: #FFFFFF; }
+QRadioButton::indicator:checked { background-color: #A5BFA0; }
+QTabWidget::pane { border: 2px solid #A5BFA0; background-color: #F6F7F2; }
+QTabBar::tab {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #F0F2EC, stop:1 #D8DAD0);
+    color: #000000; border: 1px solid #A5BFA0;
+    padding: 8px 14px; margin-right: 2px; font-weight: bold;
+}
+QTabBar::tab:selected {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #F8F8F0);
+    border-bottom-color: #FFFFFF; border-width: 2px; border-bottom-width: 0px;
+}
+QListWidget { background-color: #FFFFFF; color: #000000; border: 2px solid #A5BFA0; }
+QLineEdit, QTextEdit { background-color: #FFFFFF; color: #000000; border: 1px solid #A5BFA0; padding: 3px; selection-background-color: #739E6D; selection-color: #FFFFFF; }
+QSpinBox, QDoubleSpinBox, QComboBox { background-color: #FFFFFF; color: #000000; border: 1px solid #A5BFA0; padding: 3px; }
+QComboBox::drop-down { border-left: 1px solid #A5BFA0; background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #F0F2EC, stop:1 #D8DAD0); }
+QComboBox::down-arrow { image: none; border: 2px solid #607450; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid #607450; margin-right: 4px; }
+QSlider::groove:horizontal { border: 1px solid #A5BFA0; height: 6px; background: #E8E8D8; }
+QSlider::handle:horizontal { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #F8F8DC, stop:1 #D8D8B8);
+    border: 2px solid #607450; width: 14px; margin: -5px 0; border-radius: 7px; }
+QScrollBar:vertical { border: 1px solid #A5BFA0; background: #F6F7F2; width: 16px; }
+QScrollBar::handle:vertical { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #F8F8DC, stop:1 #D8DAD0); min-height: 20px; border: 1px solid #A5BFA0; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
+QScrollBar:horizontal { border: 1px solid #A5BFA0; background: #F6F7F2; height: 16px; }
+QScrollBar::handle:horizontal { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #F8F8DC, stop:1 #D8DAD0); min-width: 20px; border: 1px solid #A5BFA0; }
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; }
+"""
+
+THEMES = {
+    "Dark Mode": DARK_THEME,
+    "Light Mode": LIGHT_THEME,
+    "Solarized": SOLARIZED_THEME,
+    "Colorful": COLORFUL_THEME,
+    "Win XP Luna": LUNA_THEME,
+    "Silver": SILVER_THEME,
+    "Olive": OLIVE_THEME
+}
 
 # ============================================================================
 # Inspection Overlay Widget
@@ -700,7 +887,7 @@ class InspectionOverlayWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)  # Enable mouse interaction
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)  # Let VideoWidget handle clicks
         self.setStyleSheet("background: transparent;")
 
         self.rois: List[ROI] = []
@@ -1013,16 +1200,17 @@ class InspectionOverlayWidget(QWidget):
             painter.setPen(QPen(point_color, 2))
             painter.setBrush(QColor(r, g, b, 100))  # Semi-transparent fill
 
-            # Outer circle
-            painter.drawEllipse(int(wx) - 8, int(wy) - 8, 16, 16)
+            # Draw crosshair
+            cross_size = 10
+            painter.drawLine(int(wx) - cross_size, int(wy), int(wx) + cross_size, int(wy))
+            painter.drawLine(int(wx), int(wy) - cross_size, int(wx), int(wy) + cross_size)
+            # Draw center circle
+            painter.drawEllipse(int(wx) - 3, int(wy) - 3, 6, 6)
 
-            # Inner cross
-            painter.drawLine(int(wx) - 5, int(wy), int(wx) + 5, int(wy))
-            painter.drawLine(int(wx), int(wy) - 5, int(wx), int(wy) + 5)
-
-            # Draw label with temperature
+            # Draw label with temperature and unit
             if point.temperature is not None:
-                label_text = f"{point.label}: {point.temperature:.1f}°C"
+                unit = getattr(point, 'unit', '')
+                label_text = f"{point.label}: {point.temperature:.1f}{unit}"
             else:
                 label_text = f"{point.label}: --"
             draw_label(int(wx) + 12, int(wy) + 5, label_text, point_color)
@@ -1090,6 +1278,7 @@ class InspectionOverlayWidget(QWidget):
             # Spot metering: click to add measurement point
             click_x, click_y = self.widget_to_frame(event.pos().x(), event.pos().y())
             self.spot_meter_clicked.emit(click_x, click_y)
+            event.accept() # Stop propagation to VideoWidget
             return
 
         if not self.drawing_mode:
@@ -1469,6 +1658,8 @@ class VideoWidget(QLabel):
 
         # Embedded inspection overlay
         self.overlay = InspectionOverlayWidget(self)
+        # Relay spot meter clicks from overlay to main window
+        self.overlay.spot_meter_clicked.connect(self.spot_meter_clicked.emit)
 
     def update_frame(self, frame: np.ndarray):
         """Update displayed frame with performance optimization."""
@@ -1487,11 +1678,11 @@ class VideoWidget(QLabel):
         else:
             rgb_frame = frame
 
-        # Create QImage (reuse buffer if possible)
-        bytes_per_line = 3 * width
-        qimage = QImage(rgb_frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
-
-        # Deep copy to take ownership (crucial for thread safety)
+        # Fix for video corruption:
+        # 1. Use QImage.copy() to ensure deep copy of data
+        # 2. Ensure data survives until copy is made
+        # 3. Use contiguous array
+        qimage = QImage(rgb_frame.data, width, height, 3 * width, QImage.Format.Format_RGB888)
         self._last_qimage = qimage.copy()
 
         # Scale to widget size and display
@@ -1525,6 +1716,9 @@ class VideoWidget(QLabel):
             self.setCursor(Qt.CursorShape.CrossCursor)
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
+        
+        # Sync with overlay which handles mouse events
+        self.overlay.set_spot_meter_mode(enabled)
 
     def update_measurement_points(self, points):
         """Update measurement points on overlay."""
@@ -1603,8 +1797,23 @@ class VideoWidget(QLabel):
         self.overlay.update()
 
     def mousePressEvent(self, event):
-        """Handle mouse click to add measurement points."""
+        """Handle mouse click."""
+        # Process click if in add point mode
+        if self.add_point_mode:
+            x = event.pos().x()
+            y = event.pos().y()
+            
+            # Convert to frame coordinates
+            frame_x, frame_y = self._widget_to_frame_coords(x, y)
+
+            if frame_x is not None and frame_y is not None:
+                logger.info(f"VideoWidget request spot at ({frame_x}, {frame_y})")
+                self.spot_meter_clicked.emit(frame_x, frame_y)
+        
         super().mousePressEvent(event)
+
+
+
 
     def mouseMoveEvent(self, event):
         """Track mouse for cursor temperature and coordinate mapping."""
@@ -1638,15 +1847,17 @@ class VideoWidget(QLabel):
             return None, None
             
         # Map to frame coordinates
+        rel_x = wx - offset_x
+        rel_y = wy - offset_y
+        
+        frame_x = int(rel_x * (self._frame_width / pm_width))
+        frame_y = int(rel_y * (self._frame_height / pm_height))
 
         # Clamp to frame bounds
         frame_x = max(0, min(frame_x, self._frame_width - 1))
         frame_y = max(0, min(frame_y, self._frame_height - 1))
 
-        # Notify parent window to add measurement point
-        parent_window = self.window()
-        if hasattr(parent_window, '_on_add_measurement_point'):
-            parent_window._on_add_measurement_point(frame_x, frame_y)
+        return frame_x, frame_y
 
 
 # ============================================================================
@@ -1778,10 +1989,13 @@ class ControlPanel(QWidget):
         """Update theme button display - shows current theme."""
         # Theme icons and display names
         theme_info = {
-            "dark": ("🌙", "Dark"),
-            "light": ("☀", "Light"),
-            "solarized": ("🌅", "Solarized"),
-            "colorful": ("🎨", "Colorful"),
+            "Dark Mode": ("🌙", "Dark"),
+            "Light Mode": ("☀", "Light"),
+            "Solarized": ("🌅", "Solarized"),
+            "Colorful": ("🎨", "Colorful"),
+            "Win XP Luna": ("🖼", "XP Luna"),
+            "Silver": ("💿", "XP Silver"),
+            "Olive": ("🌿", "XP Olive"),
             "auto": ("🔄", "Auto")
         }
 
@@ -1877,6 +2091,13 @@ class ThermalAnalysisPanel(QWidget):
     roi_palette_changed = pyqtSignal(str, str)  # Emits (ROI ID, palette name)
     roi_palette_cleared = pyqtSignal(str)  # Emits ROI ID when palette is cleared
     overlay_info_toggled = pyqtSignal(bool)
+    show_hot_spots_toggled = pyqtSignal(bool)
+    show_cold_spots_toggled = pyqtSignal(bool)
+    show_anomalies_toggled = pyqtSignal(bool)
+
+    # Spot Meter Signals
+    spot_meter_toggled = pyqtSignal(bool)
+    clear_spots_clicked = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1978,31 +2199,10 @@ class ThermalAnalysisPanel(QWidget):
 
         self.roi_summary_label = QLabel("No active ROIs")
         self.roi_summary_label.setWordWrap(True)
+        font = QFont("Consolas", 10)
         self.roi_summary_label.setFont(font)
         self.general_layout.addWidget(self.roi_summary_label)
 
-        self.general_layout.addWidget(create_separator())
-
-        # === Temperature Statistics ===
-        self.general_layout.addWidget(create_section_header("📊 Temperature Statistics"))
-
-        self.stats_label = QLabel("No data")
-        self.stats_label.setWordWrap(True)
-        self.stats_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        font = QFont("Consolas", 10)  # Larger, more readable font
-        self.stats_label.setFont(font)
-        self.stats_label.setStyleSheet("padding: 8px;")
-        self.general_layout.addWidget(self.stats_label)
-
-        # Baseline control
-        self.baseline_btn = QPushButton("🔒 Lock Baseline")
-        self.baseline_btn.setCheckable(True)
-        self.baseline_btn.setToolTip("Lock current mean temperature as baseline for relative measurements")
-        self.baseline_btn.setMinimumHeight(32)
-        self.baseline_btn.setMinimumHeight(32)
-        self.general_layout.addWidget(self.baseline_btn)
-
-        # Spot Meter control
         spot_layout = QHBoxLayout()
         self.spot_meter_btn = QPushButton("✚ Spot Meter")
         self.spot_meter_btn.setCheckable(True)
@@ -2089,6 +2289,28 @@ class ThermalAnalysisPanel(QWidget):
 
         self.general_layout.addWidget(create_separator())
 
+        self.general_layout.addWidget(create_separator())
+
+        # === Temperature Statistics ===
+        self.general_layout.addWidget(create_section_header("📊 Temperature Statistics"))
+
+        self.stats_label = QLabel("No data")
+        self.stats_label.setWordWrap(True)
+        self.stats_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        font = QFont("Consolas", 10)
+        self.stats_label.setFont(font)
+        self.stats_label.setStyleSheet("padding: 8px;")
+        self.general_layout.addWidget(self.stats_label)
+
+        # Baseline control
+        self.baseline_btn = QPushButton("🔒 Lock Baseline")
+        self.baseline_btn.setCheckable(True)
+        self.baseline_btn.setToolTip("Lock current mean temperature as baseline for relative measurements")
+        self.baseline_btn.setMinimumHeight(32)
+        self.general_layout.addWidget(self.baseline_btn)
+
+        self.general_layout.addWidget(create_separator())
+
         # === Temperature Trend ===
         self.general_layout.addWidget(create_section_header("📈 Temperature Trend"))
 
@@ -2116,10 +2338,10 @@ class ThermalAnalysisPanel(QWidget):
         self.roi_list.currentRowChanged.connect(self._on_roi_selected)
         self.roi_palette_combo.currentTextChanged.connect(self._on_roi_palette_combo_changed)
         
-        # Connect individual detection type checkboxes
-        self.show_hot_spots_checkbox.toggled.connect(self._on_show_hot_spots_toggled)
-        self.show_cold_spots_checkbox.toggled.connect(self._on_show_cold_spots_toggled)
-        self.show_anomalies_checkbox.toggled.connect(self._on_show_anomalies_toggled)
+        # Connect individual detection type checkboxes via signals
+        self.show_hot_spots_checkbox.toggled.connect(self.show_hot_spots_toggled.emit)
+        self.show_cold_spots_checkbox.toggled.connect(self.show_cold_spots_toggled.emit)
+        self.show_anomalies_checkbox.toggled.connect(self.show_anomalies_toggled.emit)
 
     def _populate_palette_combo(self, combo: QComboBox):
         """Populate a combo box with categorized palettes."""
@@ -2235,29 +2457,25 @@ class ThermalAnalysisPanel(QWidget):
 
 
 
-    def _on_show_hot_spots_toggled(self, enabled: bool):
-        """Handle show hot spots checkbox toggle."""
-        # Get the main window and update overlay
-        window = self.window()
-        if window and hasattr(window, 'video_widget') and hasattr(window.video_widget, 'overlay'):
-            window.video_widget.overlay.show_hot_spots = enabled
-            window.video_widget.overlay.update()
+    # Handlers for detection toggles are now signals emitted directly
+    # _on_show_hot_spots_toggled, _on_show_cold_spots_toggled, _on_show_anomalies_toggled
+    # are removed in favor of direct signal emission to parent InspectionAppWindow
 
-    def _on_show_cold_spots_toggled(self, enabled: bool):
-        """Handle show cold spots checkbox toggle."""
-        # Get the main window and update overlay
-        window = self.window()
-        if window and hasattr(window, 'video_widget') and hasattr(window.video_widget, 'overlay'):
-            window.video_widget.overlay.show_cold_spots = enabled
-            window.video_widget.overlay.update()
+    # Direct signal emission handlers
+    def _on_spot_meter_toggled(self, checked: bool):
+        """Handle spot meter toggle button."""
+        logger.info(f"ThermalAnalysisPanel: Spot meter toggled to {checked}, emitting signal")
+        self.spot_meter_toggled.emit(checked)
 
-    def _on_show_anomalies_toggled(self, enabled: bool):
-        """Handle show anomalies checkbox toggle."""
-        # Get the main window and update overlay
-        window = self.window()
-        if window and hasattr(window, 'video_widget') and hasattr(window.video_widget, 'overlay'):
-            window.video_widget.overlay.show_anomalies = enabled
-            window.video_widget.overlay.update()
+    def _on_clear_spots_clicked(self):
+        """Handle clear spots button click."""
+        logger.info("ThermalAnalysisPanel: Clear spots clicked, emitting signal")
+        self.clear_spots_clicked.emit()
+
+    def _on_clear_spots_clicked(self):
+        """Handle clear spots button click."""
+        logger.info("ThermalAnalysisPanel: Clear spots clicked, emitting signal")
+        self.clear_spots_clicked.emit()
 
     def update_detection_results(self, motion_count: int, edge_count: int, anomaly_count: int):
         """Update detection results display."""
@@ -3952,7 +4170,7 @@ class BosonControlPanel(QWidget):
             self.radiometric_mode_status.setText("Mode change failed ✗")
             self.radiometric_mode_status.setStyleSheet("font-weight: bold; padding: 4px; background-color: #440000; border-radius: 3px; color: #ff4444;")
 
-    def update_connection_status(self, connected: bool):
+    def update_connection_status(self, connected: bool, port: str = None):
         """Update SDK connection status and button states."""
         if connected:
             self.connection_status_label.setText("● Connected")
@@ -4198,32 +4416,17 @@ class SettingsPanel(QGroupBox):
 
     # Signals
     device_changed = pyqtSignal(str)
+    backend_changed = pyqtSignal(str)
+    theme_changed = pyqtSignal(str)  # New signal
     palette_changed = pyqtSignal(str)
     baseline_lock_toggled = pyqtSignal(bool)
-    fusion_mode_changed = pyqtSignal(str)
-    fusion_alpha_changed = pyqtSignal(float)
-    fusion_priority_changed = pyqtSignal(str)
-    fusion_strength_changed = pyqtSignal(float)
-    fusion_fuzziness_changed = pyqtSignal(float)
-    fusion_color_mode_changed = pyqtSignal(str)  # "color" or "grayscale"
-    edge_strength_changed = pyqtSignal(float)
-    edge_fuzziness_changed = pyqtSignal(float)
-    edge_color_changed = pyqtSignal(str)  # Color for edge overlay
-    detail_strength_changed = pyqtSignal(float)  # Detail Injection/Relief Fusion strength
-    detail_quality_changed = pyqtSignal(float)   # Detail Injection/Relief Fusion quality level
-    save_rois_clicked = pyqtSignal()
-    load_rois_clicked = pyqtSignal()
-    overlay_info_toggled = pyqtSignal(bool)
-    show_stats_toggled = pyqtSignal(bool)
-    show_trends_toggled = pyqtSignal(bool)
-    show_detections_toggled = pyqtSignal(bool)
-    view_mode_changed = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__("Configuration", parent)
         self._init_ui()
 
     def _init_ui(self):
+        """Initialize widget UI components."""
         layout = QVBoxLayout()
         layout.setSpacing(12)  # Space between group boxes to prevent overlap
 
@@ -4250,265 +4453,53 @@ class SettingsPanel(QGroupBox):
         
         layout.addWidget(proc_group)
 
-        # Fusion Settings
-        fusion_group = QGroupBox("Fusion")
-        fusion_layout = QVBoxLayout(fusion_group)
-        fusion_layout.setSpacing(10)  # Consistent spacing for all elements
-        fusion_layout.setContentsMargins(8, 8, 8, 8)  # Add padding inside group
+        # System Settings
+        sys_group = QGroupBox("System Configuration")
+        sys_layout = QVBoxLayout(sys_group)
+        sys_layout.setSpacing(10)
+        sys_layout.setContentsMargins(8, 8, 8, 8)
 
-        # Mode
-        mode_layout = QHBoxLayout()
-        mode_layout.addWidget(QLabel("Mode:"))
-        self.fusion_mode_combo = QComboBox()
-        self.fusion_mode_combo.setMinimumHeight(28)  # Taller for full text visibility
-        self.fusion_mode_combo.addItems([
-            "alpha_blend", "detail_inject", "relief_fusion", "edge_enhanced", "thermal_overlay",
-            "side_by_side", "picture_in_picture", "max_intensity",
-            "feature_weighted"
-        ])
-        self.fusion_mode_combo.currentTextChanged.connect(self.fusion_mode_changed.emit)
-        mode_layout.addWidget(self.fusion_mode_combo)
-        fusion_layout.addLayout(mode_layout)
+        # Theme Selection
+        theme_layout = QHBoxLayout()
+        theme_layout.addWidget(QLabel("Theme:"))
+        self.theme_combo = QComboBox()
+        self.theme_combo.setMinimumHeight(28)
+        self.theme_combo.addItems(list(THEMES.keys()))
+        self.theme_combo.currentTextChanged.connect(self.theme_changed.emit)
+        theme_layout.addWidget(self.theme_combo)
+        sys_layout.addLayout(theme_layout)
 
-        # Alpha
-        alpha_layout = QHBoxLayout()
-        alpha_layout.addWidget(QLabel("Alpha:"))
-        self.alpha_slider = QSlider(Qt.Orientation.Horizontal)
-        self.alpha_slider.setRange(0, 100)
-        self.alpha_slider.setValue(50)
-        self.alpha_slider.valueChanged.connect(
-            lambda v: self.fusion_alpha_changed.emit(v / 100.0)
-        )
-        alpha_layout.addWidget(self.alpha_slider)
-        fusion_layout.addLayout(alpha_layout)
+        # Backend Selection
+        backend_layout = QHBoxLayout()
+        backend_layout.addWidget(QLabel("Backend:"))
+        self.backend_combo = QComboBox()
+        self.backend_combo.setMinimumHeight(28)
+        self.backend_combo.addItems(["OpenCV (8-bit)", "Flirpy (16-bit Radiometric)"])
+        self.backend_combo.setToolTip("Select thermal camera backend. Flirpy required for temperature measurement.")
+        self.backend_combo.currentTextChanged.connect(self.backend_changed.emit)
+        backend_layout.addWidget(self.backend_combo)
+        sys_layout.addLayout(backend_layout)
 
-        # Priority
-        priority_layout = QHBoxLayout()
-        priority_layout.addWidget(QLabel("Priority:"))
-        self.priority_combo = QComboBox()
-        self.priority_combo.setMinimumHeight(28)  # Taller for full text visibility
-        self.priority_combo.addItems(["Thermal", "RGB", "Balanced"])
-        self.priority_combo.currentTextChanged.connect(self.fusion_priority_changed.emit)
-        priority_layout.addWidget(self.priority_combo)
-        fusion_layout.addLayout(priority_layout)
+        # COM Port
+        com_layout = QHBoxLayout()
+        com_layout.addWidget(QLabel("SDK COM Port:"))
+        self.com_port_edit = QComboBox()
+        self.com_port_edit.setEditable(True)
+        self.com_port_edit.setMinimumHeight(28)
+        self.com_port_edit.addItems(["COM3", "COM4", "COM5", "/dev/ttyACM0"])
+        # self.com_port_edit.currentTextChanged.connect(self.com_port_changed.emit) # TODO: Implement signal
+        com_layout.addWidget(self.com_port_edit)
+        sys_layout.addLayout(com_layout)
 
-        # RGB Color Mode (Grayscale vs Color)
-        color_mode_layout = QHBoxLayout()
-        color_mode_layout.addWidget(QLabel("RGB Mode:"))
-        self.fusion_color_mode_combo = QComboBox()
-        self.fusion_color_mode_combo.setMinimumHeight(28)  # Taller for full text visibility
-        self.fusion_color_mode_combo.addItems(["Color", "Grayscale"])
-        self.fusion_color_mode_combo.setToolTip("Use color or grayscale from RGB camera for fusion")
-        self.fusion_color_mode_combo.currentTextChanged.connect(
-            lambda v: self.fusion_color_mode_changed.emit(v.lower())
-        )
-        color_mode_layout.addWidget(self.fusion_color_mode_combo)
-        fusion_layout.addLayout(color_mode_layout)
+        # Paths
+        paths_layout = QHBoxLayout()
+        self.paths_btn = QPushButton("📂 Storage Paths")
+        paths_layout.addWidget(self.paths_btn)
+        sys_layout.addLayout(paths_layout)
 
-        # Fusion Strength
-        strength_layout = QHBoxLayout()
-        strength_label = QLabel("Strength:")
-        strength_layout.addWidget(strength_label)
-        self.fusion_strength_slider = QSlider(Qt.Orientation.Horizontal)
-        self.fusion_strength_slider.setRange(0, 100)
-        self.fusion_strength_slider.setValue(70)
-        self.fusion_strength_slider.setToolTip("Fusion blending strength (0-100)")
-        self.fusion_strength_value = QLabel("70")
-        self.fusion_strength_slider.valueChanged.connect(
-            lambda v: [self.fusion_strength_value.setText(str(v)),
-                      self.fusion_strength_changed.emit(v / 100.0)]
-        )
-        strength_layout.addWidget(self.fusion_strength_slider)
-        strength_layout.addWidget(self.fusion_strength_value)
-        fusion_layout.addLayout(strength_layout)
+        layout.addWidget(sys_group)
 
-        # Fusion Fuzziness
-        fuzz_layout = QHBoxLayout()
-        fuzz_label = QLabel("Fuzziness:")
-        fuzz_layout.addWidget(fuzz_label)
-        self.fusion_fuzziness_slider = QSlider(Qt.Orientation.Horizontal)
-        self.fusion_fuzziness_slider.setRange(0, 100)
-        self.fusion_fuzziness_slider.setValue(30)
-        self.fusion_fuzziness_slider.setToolTip("Edge blending smoothness (0-100)")
-        self.fusion_fuzziness_value = QLabel("30")
-        self.fusion_fuzziness_slider.valueChanged.connect(
-            lambda v: [self.fusion_fuzziness_value.setText(str(v)),
-                      self.fusion_fuzziness_changed.emit(v / 100.0)]
-        )
-        fuzz_layout.addWidget(self.fusion_fuzziness_slider)
-        fuzz_layout.addWidget(self.fusion_fuzziness_value)
-        fusion_layout.addLayout(fuzz_layout)
-
-        layout.addWidget(fusion_group)
-
-        # Adaptive Fusion Settings (changes based on selected fusion mode)
-        self.fusion_settings_group = QGroupBox("Fusion Settings")
-        self.fusion_settings_layout = QVBoxLayout(self.fusion_settings_group)
-        self.fusion_settings_layout.setSpacing(10)
-        self.fusion_settings_layout.setContentsMargins(8, 8, 8, 8)
-
-        # Edge Enhanced Settings (initially visible)
-        self.edge_settings_widget = QWidget()
-        edge_settings_layout = QVBoxLayout(self.edge_settings_widget)
-        edge_settings_layout.setContentsMargins(0, 0, 0, 0)
-        edge_settings_layout.setSpacing(10)
-
-        # Edge Strength
-        edge_strength_layout = QHBoxLayout()
-        edge_strength_label = QLabel("Strength:")
-        edge_strength_layout.addWidget(edge_strength_label)
-        self.edge_strength_slider = QSlider(Qt.Orientation.Horizontal)
-        self.edge_strength_slider.setRange(0, 100)
-        self.edge_strength_slider.setValue(50)
-        self.edge_strength_slider.setToolTip("How many edges to detect (higher = more edges shown)")
-        self.edge_strength_value = QLabel("50")
-        self.edge_strength_slider.valueChanged.connect(
-            lambda v: [self.edge_strength_value.setText(str(v)),
-                      self.edge_strength_changed.emit(v / 100.0)]
-        )
-        edge_strength_layout.addWidget(self.edge_strength_slider)
-        edge_strength_layout.addWidget(self.edge_strength_value)
-        edge_settings_layout.addLayout(edge_strength_layout)
-
-        # Edge Fuzziness
-        edge_fuzz_layout = QHBoxLayout()
-        edge_fuzz_label = QLabel("Fuzziness:")
-        edge_fuzz_layout.addWidget(edge_fuzz_label)
-        self.edge_fuzziness_slider = QSlider(Qt.Orientation.Horizontal)
-        self.edge_fuzziness_slider.setRange(0, 100)
-        self.edge_fuzziness_slider.setValue(20)
-        self.edge_fuzziness_slider.setToolTip("Edge sharpness (lower = sharper edges, more detail; higher = softer edges)")
-        self.edge_fuzziness_value = QLabel("20")
-        self.edge_fuzziness_slider.valueChanged.connect(
-            lambda v: [self.edge_fuzziness_value.setText(str(v)),
-                      self.edge_fuzziness_changed.emit(v / 100.0)]
-        )
-        edge_fuzz_layout.addWidget(self.edge_fuzziness_slider)
-        edge_fuzz_layout.addWidget(self.edge_fuzziness_value)
-        edge_settings_layout.addLayout(edge_fuzz_layout)
-
-        # Edge Color
-        edge_color_layout = QHBoxLayout()
-        edge_color_layout.addWidget(QLabel("Edge Color:"))
-        self.edge_color_combo = QComboBox()
-        self.edge_color_combo.setMinimumHeight(28)
-        self.edge_color_combo.addItems(["White", "Cyan", "Green", "Yellow", "Red", "Magenta"])
-        self.edge_color_combo.setToolTip("Color for edge overlay visualization")
-        self.edge_color_combo.currentTextChanged.connect(
-            lambda v: self.edge_color_changed.emit(v.lower())
-        )
-        edge_color_layout.addWidget(self.edge_color_combo)
-        edge_settings_layout.addLayout(edge_color_layout)
-
-        # Detail Injection/Relief Fusion Settings (initially hidden)
-        self.detail_settings_widget = QWidget()
-        detail_settings_layout = QVBoxLayout(self.detail_settings_widget)
-        detail_settings_layout.setContentsMargins(0, 0, 0, 0)
-        detail_settings_layout.setSpacing(10)
-
-        # Detail Strength
-        detail_strength_layout = QHBoxLayout()
-        detail_strength_label = QLabel("Strength:")
-        detail_strength_layout.addWidget(detail_strength_label)
-        self.detail_strength_slider = QSlider(Qt.Orientation.Horizontal)
-        self.detail_strength_slider.setRange(0, 100)
-        self.detail_strength_slider.setValue(70)
-        self.detail_strength_slider.setToolTip("Detail overlay strength (higher = more visible structure)")
-        self.detail_strength_value = QLabel("70")
-        self.detail_strength_slider.valueChanged.connect(
-            lambda v: [self.detail_strength_value.setText(str(v)),
-                      self.detail_strength_changed.emit(v / 100.0)]
-        )
-        detail_strength_layout.addWidget(self.detail_strength_slider)
-        detail_strength_layout.addWidget(self.detail_strength_value)
-        detail_settings_layout.addLayout(detail_strength_layout)
-
-        # Detail Quality
-        detail_quality_layout = QHBoxLayout()
-        detail_quality_label = QLabel("Quality:")
-        detail_quality_layout.addWidget(detail_quality_label)
-        self.detail_quality_slider = QSlider(Qt.Orientation.Horizontal)
-        self.detail_quality_slider.setRange(0, 100)
-        self.detail_quality_slider.setValue(50)
-        self.detail_quality_slider.setToolTip("Detail quality/level (higher = more detail extraction)")
-        self.detail_quality_value = QLabel("50")
-        self.detail_quality_slider.valueChanged.connect(
-            lambda v: [self.detail_quality_value.setText(str(v)),
-                      self.detail_quality_changed.emit(v / 100.0)]
-        )
-        detail_quality_layout.addWidget(self.detail_quality_slider)
-        detail_quality_layout.addWidget(self.detail_quality_value)
-        detail_settings_layout.addLayout(detail_quality_layout)
-
-        # Add widgets to fusion settings group
-        self.fusion_settings_layout.addWidget(self.edge_settings_widget)
-        self.fusion_settings_layout.addWidget(self.detail_settings_widget)
-        self.detail_settings_widget.hide()  # Initially hidden
-
-        # Connect fusion mode change to update visible settings
-        self.fusion_mode_combo.currentTextChanged.connect(self._update_fusion_settings)
-
-        layout.addWidget(self.fusion_settings_group)
-
-        # ROI Settings
-        roi_group = QGroupBox("ROI Management")
-        roi_layout = QVBoxLayout(roi_group)
-        roi_layout.setSpacing(10)  # Consistent spacing
-        roi_layout.setContentsMargins(8, 8, 8, 8)  # Add padding inside group
-
-        btn_layout = QHBoxLayout()
-        self.save_btn = QPushButton("💾 Save")
-        self.save_btn.clicked.connect(self.save_rois_clicked.emit)
-        self.load_btn = QPushButton("📂 Load")
-        self.load_btn.clicked.connect(self.load_rois_clicked.emit)
-        btn_layout.addWidget(self.save_btn)
-        btn_layout.addWidget(self.load_btn)
-        roi_layout.addLayout(btn_layout)
-
-        self.overlay_check = QCheckBox("Show Overlay Info")
-        self.overlay_check.setChecked(True)
-        self.overlay_check.toggled.connect(self.overlay_info_toggled.emit)
-        roi_layout.addWidget(self.overlay_check)
-
-        layout.addWidget(roi_group)
-
-        # Display Settings
-        display_group = QGroupBox("Display Options")
-        display_layout = QVBoxLayout(display_group)
-        display_layout.setSpacing(10)  # Consistent spacing
-        display_layout.setContentsMargins(8, 8, 8, 8)  # Add padding inside group
-
-        # View Mode
-        view_layout = QHBoxLayout()
-        view_layout.addWidget(QLabel("View Mode:"))
-        self.view_mode_combo = QComboBox()
-        self.view_mode_combo.setMinimumHeight(28)  # Taller for full text visibility
-        self.view_mode_combo.addItems([
-            "Thermal Only", "RGB Only", "Fusion",
-            "Side-by-Side", "Picture-in-Picture"
-        ])
-        self.view_mode_combo.currentTextChanged.connect(self.view_mode_changed.emit)
-        view_layout.addWidget(self.view_mode_combo)
-        display_layout.addLayout(view_layout)
-
-        self.show_stats_check = QCheckBox("Show Statistics")
-        self.show_stats_check.setChecked(True)
-        self.show_stats_check.toggled.connect(self.show_stats_toggled.emit)
-        display_layout.addWidget(self.show_stats_check)
-
-        self.show_trends_check = QCheckBox("Show Trends")
-        self.show_trends_check.setChecked(True)
-        self.show_trends_check.toggled.connect(self.show_trends_toggled.emit)
-        display_layout.addWidget(self.show_trends_check)
-
-        self.show_detections_check = QCheckBox("Show Detections")
-        self.show_detections_check.setChecked(False)  # Unchecked by default
-        self.show_detections_check.toggled.connect(self.show_detections_toggled.emit)
-        display_layout.addWidget(self.show_detections_check)
-
-        layout.addWidget(display_group)
         layout.addStretch()
-
         self.setLayout(layout)
 
     def _populate_palette_combo(self, combo: QComboBox):
@@ -4573,19 +4564,6 @@ class SettingsPanel(QGroupBox):
         clean_name = palette_name.strip()
         if clean_name:
             self.palette_changed.emit(clean_name)
-
-    def _update_fusion_settings(self, fusion_mode: str):
-        """Update visible fusion settings based on selected fusion mode."""
-        # Hide all settings first
-        self.edge_settings_widget.hide()
-        self.detail_settings_widget.hide()
-
-        # Show appropriate settings based on mode
-        if fusion_mode == "edge_enhanced":
-            self.edge_settings_widget.show()
-        elif fusion_mode in ["detail_inject", "relief_fusion"]:
-            self.detail_settings_widget.show()
-        # Other modes don't need specific settings widgets (use global fusion controls)
 
 # ============================================================================
 # Boson SDK Panel
@@ -5093,6 +5071,13 @@ class InspectionAppWindow(QMainWindow):
             
             self.right_panel_tabs.addTab(self.cameras_tabs, "🎥 Cameras")
             logger.info("[OK] Cameras tab added to right panel")
+
+            # Tab 4: Fusion (NEW)
+            logger.info("Creating Fusion tab...")
+            self.fusion_panel = FusionPanel()
+            self.right_panel_tabs.addTab(self.fusion_panel, "🧬 Fusion")
+            logger.info("[OK] Fusion tab added to right panel")
+
             
             # Tab 4: Settings
             logger.info("Creating Settings tab...")
@@ -5112,6 +5097,11 @@ class InspectionAppWindow(QMainWindow):
             logger.info(f"    Right panel tab count: {self.right_panel_tabs.count()}")
             logger.info(f"    Right panel visible: {self.right_panel_tabs.isVisible()}")
             logger.info(f"    Right panel width: {self.right_panel_tabs.width()}")
+
+            # Signals from analysis panel
+            self.analysis_panel.show_hot_spots_toggled.connect(self._on_show_hot_spots_toggled)
+            self.analysis_panel.show_cold_spots_toggled.connect(self._on_show_cold_spots_toggled)
+            self.analysis_panel.show_anomalies_toggled.connect(self._on_show_anomalies_toggled)
 
             # Info panel (overlay on video widget)
             self.info_panel = InfoPanel(self.video_widget)
@@ -5198,6 +5188,215 @@ class InspectionAppWindow(QMainWindow):
             logger.debug(traceback.format_exc())
             return False
 
+    def _on_radiometric_backend_changed(self, backend_text: str):
+        """
+        Handle backend switch requests relative to 16-bit radiometric mode.
+        Maps GUI dropdown text to internal backend IDs ('flirpy' or 'opencv').
+        """
+        # Map GUI string to backend ID
+        if "Flirpy" in backend_text:
+            backend_id = "flirpy"
+        else:
+            backend_id = "opencv"
+
+        logger.info(f"Radiometric backend switch requested: {backend_text} -> {backend_id}")
+        
+        if self.app:
+            self.app.switch_thermal_backend(backend_id)
+        else:
+            logger.warning("Backend switch requested but no app instance available")
+
+    def _on_radiometric_max_cold_spots_changed(self, count: int):
+        """Handle change in max cold spots."""
+        if self.app and hasattr(self.app, 'thermal_analyzer'):
+            self.app.thermal_analyzer.max_cold_spots = count
+            logger.info(f"Max cold spots set to: {count}")
+
+    def _on_radiometric_max_hot_spots_changed(self, count: int):
+        """Handle change in max hot spots."""
+        if self.app and hasattr(self.app, 'thermal_analyzer'):
+            self.app.thermal_analyzer.max_hot_spots = count
+            logger.info(f"Max hot spots set to: {count}")
+    
+    def _on_show_hot_spots_toggled(self, enabled: bool):
+        """Handle hot spots display toggle."""
+        if self.app and hasattr(self.app, 'thermal_analyzer'):
+            # Assuming thermal_analyzer has show_hot_spots
+            pass
+    
+    def _on_show_cold_spots_toggled(self, enabled: bool):
+        """Handle cold spots display toggle."""
+        if self.app and hasattr(self.app, 'thermal_analyzer'):
+            pass
+
+    def _on_show_anomalies_toggled(self, enabled: bool):
+        """Handle anomalies display toggle."""
+        if self.app and hasattr(self.app, 'thermal_analyzer'):
+            pass
+    
+    def _on_radiometric_enable_changed(self, enabled: bool):
+        """Handle radiometric mode toggle."""
+        pass
+
+    def _on_radiometric_range_apply(self):
+        """Handle manual range apply."""
+        pass
+
+    def _on_load_lut(self):
+        """load color look up table"""
+        pass
+
+    def _on_radiometric_method_changed(self):
+        """method changed"""
+        pass
+    
+    def _on_spotmeter_enabled_changed(self, enabled: bool):
+        """spotmeter"""
+        pass
+
+    def _on_spotmeter_mode_changed(self, mode: str):
+        """mode"""
+        pass
+
+    def _on_sensor_temps_requested(self):
+        """sensor temps"""
+        pass
+
+    def _on_8bit_estimation_toggled(self, enabled: bool):
+        """8bit est"""
+        pass
+
+    def _on_temperature_range_changed(self, low: float, high: float):
+        """temp range"""
+        pass
+
+    def _on_calibrate_single_point(self, temp: float):
+        """calib single"""
+        pass
+
+    def _on_calibrate_two_point(self, t1: float, t2: float):
+        """calib two"""
+        pass
+
+    def _on_radiometric_temp_unit_changed(self, unit: str):
+        """unit changed"""
+        pass
+
+    # === FUSION HANDLERS ===
+    def _on_fusion_mode_changed(self, mode: str):
+        pass
+    def _on_fusion_alpha_changed(self, val: float):
+        pass
+    def _on_fusion_priority_changed(self, val: str):
+        pass
+    def _on_fusion_strength_changed(self, val: float):
+        pass
+    def _on_fusion_fuzziness_changed(self, val: float):
+        pass
+    def _on_fusion_color_mode_changed(self, val: str):
+        pass
+    def _on_edge_strength_changed(self, val: float):
+        pass
+    def _on_edge_fuzziness_changed(self, val: float):
+        pass
+    def _on_edge_color_changed(self, val: str):
+        pass
+    def _on_detail_strength_changed(self, val: float):
+        pass
+    def _on_detail_quality_changed(self, val: str):
+        pass
+
+    # === ANALYSIS HANDLERS ===
+    def _on_global_palette_changed(self, val: str):
+        pass
+    def _on_roi_palette_changed(self, id: str, val: str):
+        pass
+    def _on_roi_palette_cleared(self, id: str):
+        pass
+    def _on_overlay_info_toggle(self, enabled: bool):
+        pass
+
+    # === ENVIRONMENTAL COMP HANDLERS ===
+    def _on_emissivity_changed(self, val: float):
+        pass
+    def _on_atmospheric_temp_changed(self, val: float):
+        pass
+    def _on_atmospheric_transmission_changed(self, val: float):
+        pass
+
+    # === ISOTHERM HANDLERS ===
+    def _on_isotherm_enabled_changed(self, enabled: bool):
+        pass
+    def _on_isotherm_mode_changed(self, mode: str):
+        pass
+    def _on_isotherm_low_threshold_changed(self, val: float):
+        pass
+    def _on_isotherm_high_threshold_changed(self, val: float):
+        pass
+    def _on_isotherm_color_changed(self, val: str):
+        pass
+
+    # === ROI & VIDEO HANDLERS ===
+    def _on_roi_created(self, roi_data):
+        pass
+    def _on_roi_selected(self, roi_id):
+        pass
+    def _on_cursor_moved(self, pos):
+        pass
+
+    # === SPOT METER HANDLERS ===
+    def _on_spot_meter_toggled(self, enabled: bool):
+        """Handle toggle of spot meter add mode."""
+        if hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.set_spot_meter_mode(enabled)
+            # Update cursor
+            if enabled:
+                self.video_widget.setCursor(Qt.CursorShape.CrossCursor)
+            else:
+                self.video_widget.setCursor(Qt.CursorShape.ArrowCursor)
+        logger.info(f"Spot meter mode: {enabled}")
+
+    def _on_clear_spots_clicked(self):
+        """Clear all spot meters."""
+        self.measurement_points.clear()
+        if hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.update_measurement_points([])
+        logger.info("Cleared all spot meters")
+
+    def _on_spot_meter_clicked(self, x, y):
+        """Handle click to add spot meter."""
+        try:
+            # Ensure coordinates are integers
+            x, y = int(x), int(y)
+            count = len(self.measurement_points) + 1
+            
+            # Create a simple measurement point
+            # Note: Temperature will be updated in the main update loop (update_thermal_data)
+            point = MeasurementPoint(
+                x=x, 
+                y=y, 
+                label=f"S{count}",
+                color=(255, 255, 0) # Cyan/Yellow
+            )
+            
+            self.measurement_points.append(point)
+            
+            # Update overlay
+            if hasattr(self.video_widget, 'overlay'):
+                self.video_widget.overlay.update_measurement_points(self.measurement_points)
+                
+                # Turn off toggle after adding one point (optional user preference)
+                # self.control_panel.spot_meter_btn.setChecked(False)
+                
+            logger.info(f"Added spot meter at ({x}, {y})")
+            
+        except Exception as e:
+            logger.error(f"Error adding spot meter: {e}")
+    
+    # === BASELINE HANDLER ===
+    def _on_baseline_toggle(self, enabled: bool):
+        pass
+
     def _connect_signals(self):
         """Connect control panel signals to handlers using defensive pattern."""
         logger.info("Connecting signals with defensive checks...")
@@ -5216,31 +5415,34 @@ class InspectionAppWindow(QMainWindow):
 
         # === SETTINGS PANEL ===
         self._safe_connect("settings_panel", "device_changed", self._on_device_changed, "(settings)")
+        self._safe_connect("settings_panel", "backend_changed", self._on_radiometric_backend_changed, "(settings)")
+        self._safe_connect("settings_panel", "theme_changed", self._on_theme_changed, "(settings)")
         self._safe_connect("settings_panel", "baseline_lock_toggled", self._on_baseline_toggle, "(settings)")
-        self._safe_connect("settings_panel", "fusion_mode_changed", self._on_fusion_mode_changed, "(settings)")
-        self._safe_connect("settings_panel", "fusion_alpha_changed", self._on_fusion_alpha_changed, "(settings)")
-        self._safe_connect("settings_panel", "fusion_priority_changed", self._on_fusion_priority_changed, "(settings)")
-        self._safe_connect("settings_panel", "fusion_strength_changed", self._on_fusion_strength_changed, "(settings)")
-        self._safe_connect("settings_panel", "fusion_fuzziness_changed", self._on_fusion_fuzziness_changed, "(settings)")
-        self._safe_connect("settings_panel", "fusion_color_mode_changed", self._on_fusion_color_mode_changed, "(settings)")
-        self._safe_connect("settings_panel", "edge_strength_changed", self._on_edge_strength_changed, "(settings)")
-        self._safe_connect("settings_panel", "edge_fuzziness_changed", self._on_edge_fuzziness_changed, "(settings)")
-        self._safe_connect("settings_panel", "edge_color_changed", self._on_edge_color_changed, "(settings)")
-        self._safe_connect("settings_panel", "detail_strength_changed", self._on_detail_strength_changed, "(settings)")
-        self._safe_connect("settings_panel", "detail_quality_changed", self._on_detail_quality_changed, "(settings)")
-        self._safe_connect("settings_panel", "save_rois_clicked", self._on_save_rois, "(settings)")
-        self._safe_connect("settings_panel", "load_rois_clicked", self._on_load_rois, "(settings)")
-        self._safe_connect("settings_panel", "overlay_info_toggled", self._on_overlay_info_toggle, "(settings)")
-        self._safe_connect("settings_panel", "show_stats_toggled", self._on_show_stats_toggle, "(settings)")
-        self._safe_connect("settings_panel", "show_trends_toggled", self._on_show_trends_toggle, "(settings)")
-        self._safe_connect("settings_panel", "show_detections_toggled", self._on_show_detections_toggle, "(settings)")
-        self._safe_connect("settings_panel", "view_mode_changed", self._on_view_mode_changed, "(settings)")
+        # Fusion signals moved to FusionPanel
+
+
+        # === FUSION PANEL ===
+        self._safe_connect("fusion_panel", "fusion_mode_changed", self._on_fusion_mode_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "fusion_alpha_changed", self._on_fusion_alpha_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "fusion_priority_changed", self._on_fusion_priority_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "fusion_strength_changed", self._on_fusion_strength_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "fusion_fuzziness_changed", self._on_fusion_fuzziness_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "fusion_color_mode_changed", self._on_fusion_color_mode_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "edge_strength_changed", self._on_edge_strength_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "edge_fuzziness_changed", self._on_edge_fuzziness_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "edge_color_changed", self._on_edge_color_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "detail_strength_changed", self._on_detail_strength_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "detail_quality_changed", self._on_detail_quality_changed, "(fusion)")
 
         # === ANALYSIS PANEL ===
         self._safe_connect("analysis_panel", "palette_changed", self._on_global_palette_changed, "(analysis)")
         self._safe_connect("analysis_panel", "roi_palette_changed", self._on_roi_palette_changed, "(analysis)")
         self._safe_connect("analysis_panel", "roi_palette_cleared", self._on_roi_palette_cleared, "(analysis)")
         self._safe_connect("analysis_panel", "overlay_info_toggled", self._on_overlay_info_toggle, "(analysis)")
+        self._safe_connect("analysis_panel", "spot_meter_toggled", self._on_spot_meter_toggled, "(analysis)")
+        # Handled in Signal Integration
+        if hasattr(self.analysis_panel, 'clear_spots_clicked'):
+             self._safe_connect("analysis_panel", "clear_spots_clicked", self._on_clear_spots_clicked, "(analysis)")
 
         # === ANOMALY WIDGET ===
         self._safe_connect("anomaly_widget", "anomaly_priority_toggled", self._on_anomaly_priority_toggle, "(anomaly)")
@@ -5448,6 +5650,10 @@ class InspectionAppWindow(QMainWindow):
         if hasattr(self, 'statusBar'):
             self.statusBar().showMessage(f"Developer Mode: {mode_text} (Press Ctrl+D to toggle)", 5000)
 
+    def _on_theme_changed(self, theme: str):
+        """Handle theme change from settings."""
+        self._apply_theme(theme)
+
     def _apply_theme(self, theme: str):
         """Apply color theme."""
         self.current_theme = theme
@@ -5459,27 +5665,41 @@ class InspectionAppWindow(QMainWindow):
             import datetime
             hour = datetime.datetime.now().hour
             # Day mode: 7 AM - 7 PM, Night mode: 7 PM - 7 AM
-            actual_theme = "light" if 7 <= hour < 19 else "dark"
+            actual_theme = "Light Mode" if 7 <= hour < 19 else "Dark Mode"
 
-        if actual_theme == "dark":
-            self.setStyleSheet(DARK_THEME)
-        elif actual_theme == "light":
-            self.setStyleSheet(LIGHT_THEME)
-        elif actual_theme == "solarized":
-            self.setStyleSheet(SOLARIZED_THEME)
-        elif actual_theme == "colorful":
-            self.setStyleSheet(COLORFUL_THEME)
-
-        # Update button to show current mode
-        if theme == "auto":
-            self.control_panel.update_theme_button(f"auto ({actual_theme})")
+        # Apply theme from dictionary
+        if actual_theme in THEMES:
+            self.setStyleSheet(THEMES[actual_theme])
+        elif actual_theme == "light": # Legacy fallback
+            self.setStyleSheet(THEMES.get("Light Mode", LIGHT_THEME))
+        elif actual_theme == "dark": # Legacy fallback
+            self.setStyleSheet(THEMES.get("Dark Mode", DARK_THEME))
         else:
-            self.control_panel.update_theme_button(theme)
+            logger.warning(f"Unknown theme: {actual_theme}")
+
+        # Update button to show current mode (if control panel exists)
+        if hasattr(self, 'control_panel'):
+            if theme == "auto":
+                self.control_panel.update_theme_button(f"auto ({actual_theme})")
+            else:
+                self.control_panel.update_theme_button(theme)
 
     def _on_theme_cycle(self):
         """Cycle through themes."""
-        themes = ["light", "dark", "solarized", "colorful", "auto"]
-        current_idx = themes.index(self.current_theme) if self.current_theme in themes else 0
+        # Use keys from THEMES dictionary plus 'auto'
+        # Ensure consistent ordering
+        themes = list(THEMES.keys()) + ["auto"]
+        
+        # Handle legacy or mismatched current theme
+        current = self.current_theme
+        if current not in themes:
+            # Try to map legacy names
+            if current == "light": current = "Light Mode"
+            elif current == "dark": current = "Dark Mode"
+            elif current == "colorful": current = "Colorful"
+            elif current == "solarized": current = "Solarized"
+            
+        current_idx = themes.index(current) if current in themes else 0
         next_theme = themes[(current_idx + 1) % len(themes)]
         self._apply_theme(next_theme)
         logger.info(f"Theme: {next_theme}")
@@ -5663,16 +5883,8 @@ class InspectionAppWindow(QMainWindow):
         """Handle max hot spots change from top-level radiometric panel."""
         if self.app:
             self.app.set_max_hot_spots(count)
-
-    def _on_radiometric_max_cold_spots_changed(self, count: int):
-        """Handle max cold spots change from top-level radiometric panel."""
-        if self.app:
-            self.app.set_max_cold_spots(count)
-
-    def _on_radiometric_backend_changed(self, backend: str):
-        """Handle backend change from top-level radiometric panel."""
-        if self.app:
-            self.app.switch_thermal_backend(backend)
+            self.video_widget.overlay.update()
+            logger.info(f"Max hot spots set to: {count}")
 
     def _on_show_hot_spots_toggled(self, enabled: bool):
         """Handle show hot spots checkbox toggle."""
@@ -5713,13 +5925,39 @@ class InspectionAppWindow(QMainWindow):
 
     def _on_clear_spots_clicked(self):
         """Clear all spot measurement points."""
+        logger.info("Main Window: _on_clear_spots_clicked called")
         self.measurement_points.clear()
         if hasattr(self, 'video_widget'):
             self.video_widget.update_measurement_points(self.measurement_points)
         logger.info("Cleared all spot meters")
 
+    def get_spot_meter_coords(self) -> List[Tuple[int, int, str]]:
+        """Get coordinates of all active spot meters."""
+        return [(p.x, p.y, p.label) for p in self.measurement_points]
+    
+    def update_spot_meter_values(self, values: List[Dict]):
+        """
+        Update temperatures for spot meters.
+        
+        Args:
+            values: List of dicts with {'label': str, 'temperature': float, 'unit': str}
+        """
+        updated = False
+        val_map = {v['label']: v for v in values}
+        
+        for point in self.measurement_points:
+            if point.label in val_map:
+                data = val_map[point.label]
+                point.temperature = data['temperature']
+                point.unit = data['unit']
+                updated = True
+                
+        if updated and hasattr(self, 'video_widget'):
+            self.video_widget.update_measurement_points(self.measurement_points)
+
     def _on_spot_meter_clicked(self, x: int, y: int):
         """Handle click on video to add spot measurement point."""
+        logger.info(f"Main Window: _on_spot_meter_clicked at ({x}, {y})")
         # Create unique label (SP1, SP2, ...)
         idx = len(self.measurement_points) + 1
         label = f"SP{idx}"
@@ -6250,32 +6488,70 @@ class InspectionAppWindow(QMainWindow):
 
     def _on_isotherm_enabled_changed(self, enabled: bool):
         """Handle isotherm highlighting enable/disable."""
-        if self.app and hasattr(self.app, 'isotherm_enabled'):
-            self.app.isotherm_enabled = enabled
+        if self.app:
+            if hasattr(self.app, 'set_isotherm_enabled'):
+                self.app.set_isotherm_enabled(enabled)
+            else:
+                self.app.isotherm_enabled = enabled
             logger.info(f"Isotherm highlighting: {'enabled' if enabled else 'disabled'}")
 
     def _on_isotherm_mode_changed(self, mode: str):
         """Handle isotherm mode change."""
-        if self.app and hasattr(self.app, 'isotherm_mode'):
-            self.app.isotherm_mode = mode
+        if self.app:
+            if hasattr(self.app, 'set_isotherm_mode'):
+                self.app.set_isotherm_mode(mode)
+            else:
+                self.app.isotherm_mode = mode
             logger.info(f"Isotherm mode: {mode}")
 
     def _on_isotherm_low_threshold_changed(self, threshold: float):
         """Handle isotherm low threshold change."""
-        if self.app and hasattr(self.app, 'isotherm_low_threshold'):
-            self.app.isotherm_low_threshold = threshold
+        if self.app:
+            if hasattr(self.app, 'set_isotherm_low_threshold'):
+                self.app.set_isotherm_low_threshold(threshold)
+            else:
+                self.app.isotherm_low_threshold = threshold
 
     def _on_isotherm_high_threshold_changed(self, threshold: float):
         """Handle isotherm high threshold change."""
-        if self.app and hasattr(self.app, 'isotherm_high_threshold'):
-            self.app.isotherm_high_threshold = threshold
+        if self.app:
+            if hasattr(self.app, 'set_isotherm_high_threshold'):
+                self.app.set_isotherm_high_threshold(threshold)
+            else:
+                self.app.isotherm_high_threshold = threshold
 
     def _on_isotherm_color_changed(self, color: str):
         """Handle isotherm color change."""
-        if self.app and hasattr(self.app, 'isotherm_color'):
-            self.app.isotherm_color = color
+        if self.app:
+            # Call the setter method which converts color name to BGR
+            if hasattr(self.app, 'set_isotherm_color'):
+                self.app.set_isotherm_color(color)
+            else:
+                self.app.isotherm_color = color
             logger.info(f"Isotherm color set to: {color}")
-    
+
+    def update_radiometric_panel_availability(self, is_radiometric: bool):
+        """Enable/disable panels that require radiometric mode.
+
+        Args:
+            is_radiometric: True if radiometric mode is active (16-bit), False otherwise (8-bit)
+        """
+        # Isotherm panel - only available in radiometric mode
+        if hasattr(self, 'isotherm_panel'):
+            self.isotherm_panel.setEnabled(is_radiometric)
+            if not is_radiometric:
+                logger.debug("Isotherm panel disabled (8-bit mode)")
+            else:
+                logger.debug("Isotherm panel enabled (16-bit mode)")
+
+        # Environmental compensation panel - only available in radiometric mode
+        if hasattr(self, 'env_comp_panel'):
+            self.env_comp_panel.setEnabled(is_radiometric)
+            if not is_radiometric:
+                logger.debug("Environmental panel disabled (8-bit mode)")
+            else:
+                logger.debug("Environmental panel enabled (16-bit mode)")
+
     # ========================================================================
     # Radiometric Tab Placeholder Creation Methods
     # ========================================================================

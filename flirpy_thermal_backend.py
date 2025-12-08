@@ -26,8 +26,13 @@ try:
 except ImportError:
     FLIRPY_AVAILABLE = False
 
-# Remove BosonSDK dependency to solve COM port conflict
-SDK_AVAILABLE = False 
+# Import BosonSDK for T-Linear control via COM port
+try:
+    from boson_sdk_wrapper import BosonSDK
+    SDK_AVAILABLE = True
+except ImportError:
+    SDK_AVAILABLE = False
+    logger.warning("BosonSDK not available - T-Linear mode may not work") 
 
 logger = logging.getLogger(__name__)
 
@@ -89,11 +94,14 @@ class FlirpyThermalBackend(ThermalBackend):
 
     def open(self) -> bool:
         """
-        Open FLIR Boson camera via flirpy (Single-Path).
+        Open FLIR Boson camera via flirpy (Sequential Access Pattern).
         
         This method:
-        1. Opens flirpy for 16-bit Y16 capture AND camera control
-        2. Configures T-Linear mode via flirpy commands
+        1. FIRST: Connects BosonSDK to configure T-Linear mode
+        2. THEN: Closes SDK to release COM port
+        3. FINALLY: Opens flirpy for 16-bit Y16 video capture
+        
+        This sequential pattern avoids COM port conflicts between SDK and flirpy.
         
         Returns:
             bool: True if successful
@@ -105,12 +113,15 @@ class FlirpyThermalBackend(ThermalBackend):
         try:
             logger.info(f"Opening Boson camera via flirpy (Port: {self._com_port})...")
             
-            # Initialize Boson with COM port for control
-            # flirpy handles both video and serial control internally
+            # STEP 1: Configure T-Linear mode via SDK FIRST (before flirpy takes the port)
+            if self._auto_configure and SDK_AVAILABLE:
+                self._configure_tlinear_before_flirpy()
+            
+            # STEP 2: Initialize flirpy Boson for video capture
+            # flirpy will now use the COM port (SDK released it above)
             self.camera = Boson(port=self._com_port)
             
-            # Verify connection
-            # Try to read FPA temp to confirm serial connection
+            # Verify serial connection via flirpy
             try:
                 temp = self.camera.get_fpa_temperature()
                 logger.info(f"✓ Serial connection established (FPA Temp: {temp:.1f}°C)")
@@ -123,9 +134,22 @@ class FlirpyThermalBackend(ThermalBackend):
             self._frame_count = 0
             logger.info("✓ Boson camera opened via flirpy")
             
-            # Configure T-Linear mode if requested
-            if self._auto_configure and self._sdk_connected:
-                self._configure_tlinear()
+            # Run FFC for clean calibration
+            if self._sdk_connected:
+                try:
+                    self.camera.do_ffc()
+                    logger.info("FFC triggered")
+                except Exception as e:
+                    logger.warning(f"FFC failed: {e}")
+                
+                # Verify T-Linear mode is working
+                if self._tlinear_enabled:
+                    import time
+                    time.sleep(0.3)  # Allow frames to stabilize after FFC
+                    if self._verify_tlinear():
+                        logger.info("✓ Radiometric output verified")
+                    else:
+                        logger.warning("⚠ T-Linear verification failed - may be in AGC mode")
             
             return True
 
@@ -135,33 +159,103 @@ class FlirpyThermalBackend(ThermalBackend):
             self._is_opened = False
             return False
 
-    def _configure_tlinear(self):
-        """Configure camera for T-Linear radiometric output via flirpy."""
-        if not self.camera:
-            return
-
+    def _configure_tlinear_before_flirpy(self):
+        """
+        Configure camera for T-Linear radiometric output via SDK.
+        
+        IMPORTANT: This must be called BEFORE flirpy opens the camera,
+        because both SDK and flirpy need exclusive access to the COM port.
+        The SDK will be closed after configuration to release the port for flirpy.
+        """
         try:
-            logger.info("Configuring T-Linear mode via flirpy...")
+            logger.info("Configuring T-Linear mode via SDK (before flirpy)...")
             
-            # For now, rely on camera being pre-configured in T-Linear mode
-            # The send() API in flirpy is different - it's camera.send(packet)
-            # where packet is already formatted. This is complex to construct.
-            # 
-            # However, if the camera is already in T-Linear mode (default for many Bosons),
-            # we just need to run FFC to ensure clean calibration.
+            # Create temporary SDK connection
+            sdk = BosonSDK(com_port=self._com_port)
+            if not sdk.open():
+                logger.warning("Failed to connect BosonSDK - T-Linear may not be enabled")
+                self._tlinear_enabled = False
+                return
             
-            # Run FFC to ensure clean calibration
-            self.camera.do_ffc()
-            logger.info("✓ FFC Triggered")
+            logger.info(f"✓ BosonSDK connected on {self._com_port}")
             
-            self._tlinear_enabled = True
-            logger.info("✓ Camera configured (FFC performed)")
-            logger.info("⚠ Note: Assuming camera is pre-configured in T-Linear mode")
-            logger.info("  If temperatures are incorrect, configure via FLIR app first")
+            # Enable T-Linear mode (USB Video IR16 Mode = 2)
+            try:
+                if sdk.set_usb_video_ir16_mode(2):
+                    logger.info("✓ T-Linear mode enabled (USB IR16 Mode = 2)")
+                    self._tlinear_enabled = True
+                else:
+                    logger.warning("Failed to set USB IR16 mode to T-Linear")
+                    self._tlinear_enabled = False
+            except Exception as e:
+                logger.error(f"Error setting T-Linear mode: {e}")
+                self._tlinear_enabled = False
+            
+            # Also enable T-Linear control if available
+            try:
+                sdk.enable_tlinear_control()
+            except Exception as e:
+                logger.debug(f"T-Linear control enable failed (may not be supported): {e}")
+            
+            # CRITICAL: Close SDK to release COM port for flirpy
+            sdk.close()
+            logger.info("✓ SDK closed, COM port released for flirpy")
+            self._sdk = None  # Don't keep SDK reference - flirpy will own the port
 
         except Exception as e:
             logger.error(f"Failed to configure T-Linear: {e}")
             self._tlinear_enabled = False
+
+    def _configure_tlinear(self):
+        """Legacy method - now just logs warning if called directly."""
+        logger.warning("_configure_tlinear called but flirpy already owns COM port")
+        logger.warning("T-Linear should be configured via _configure_tlinear_before_flirpy()")
+
+    def _verify_tlinear(self) -> bool:
+        """Verify T-Linear mode is active by checking frame properties.
+        
+        T-Linear Y16 format: pixel values represent Kelvin * 100
+        Expected room temp range: 20000-35000 (~0°C to 75°C)
+        
+        Returns:
+            bool: True if T-Linear appears to be working correctly
+        """
+        try:
+            ret, frame = self.read()
+            if not ret or frame is None:
+                logger.warning("⚠ Cannot verify T-Linear: no frame available")
+                return False
+            
+            # Must be 16-bit
+            if frame.dtype != np.uint16:
+                logger.warning(f"⚠ Expected uint16, got {frame.dtype} - not T-Linear")
+                return False
+            
+            min_val = int(frame.min())
+            max_val = int(frame.max())
+            
+            # T-Linear Y16 range check (Kelvin * 100)
+            # Typical room temps: 20000-35000 (approx -73°C to 77°C covers most cases)
+            if 20000 < min_val < 35000 and 25000 < max_val < 40000:
+                temp_min = (min_val / 100.0) - 273.15
+                temp_max = (max_val / 100.0) - 273.15
+                logger.info(f"✓ T-Linear verified: {temp_min:.1f}°C to {temp_max:.1f}°C")
+                return True
+            
+            # AGC/raw 14-bit range: typically 0-16383
+            if max_val < 20000:
+                logger.warning(f"⚠ Likely 14-bit AGC data (range: {min_val}-{max_val})")
+                return False
+            
+            # Unusual range but could still be valid
+            temp_min = (min_val / 100.0) - 273.15
+            temp_max = (max_val / 100.0) - 273.15
+            logger.info(f"Frame range: {min_val}-{max_val} ({temp_min:.1f}°C to {temp_max:.1f}°C)")
+            return True
+            
+        except Exception as e:
+            logger.error(f"T-Linear verification failed: {e}")
+            return False
 
     def close(self):
         """Close camera."""

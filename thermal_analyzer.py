@@ -271,6 +271,91 @@ class ThermalAnalyzer:
         """Get current baseline value."""
         return self.baseline_value
 
+    def calculate_spot_temperature(self, raw_val: float, converter=None, force_estimation: bool = False) -> Tuple[float, str]:
+        """
+        Calculate temperature and unit string for a single spot.
+        
+        Args:
+            raw_val: Raw pixel value
+            converter: Optional radiometric converter (pixel_to_temperature)
+            force_estimation: If True, force estimation mode even if radiometric
+            
+        Returns:
+            (temperature_value, unit_string)
+        """
+        temp = 0.0
+        unit = ''
+        
+        # Decide mode based on capabilities
+        # Decide mode based on capabilities
+        if self.is_radiometric and not force_estimation:
+            # === STATE 1: 16-BIT RADIOMETRIC (REAL DATA) ===
+            # Get base temperature in Celsius
+            try:
+                if converter:
+                    temp_c = converter.pixel_to_temperature(raw_val)
+                else:
+                    # Fallback to standard Y16 (used by hot/cold spots)
+                    temp_c = self._y16_to_celsius(raw_val)
+            except Exception:
+                # Fallback if calculation fails (rare)
+                # Just treat as raw counts scaled down slightly to avoid massive numbers
+                temp_c = (float(raw_val) - 0) * 0.1
+                
+            # Apply target unit conversion
+            temp = self.convert_temperature(temp_c, TemperatureUnit.CELSIUS, self.temp_unit)
+            unit = self._get_unit_symbol()
+                
+        elif force_estimation:
+            # === STATE 2: 8-BIT ESTIMATION (APPROXIMATE) ===
+            # This state is ONLY entered if explicitly forced (e.g. by 8-bit estimation toggle)
+            
+            # Simple linear mapping (fallback)
+            temp_c = (float(raw_val) - 0) * 0.1
+            
+            # Apply conversion
+            temp = self.convert_temperature(temp_c, TemperatureUnit.CELSIUS, self.temp_unit)
+            
+            # Add (est) suffix
+            symbol = self._get_unit_symbol()
+            unit = f"{symbol} (est)"
+
+        else:
+            # === STATE 3: AGC / RAW (NO RADIOMETRY) ===
+            # Just show the raw pixel value
+            temp = float(raw_val)
+            unit = ' (AGC)'
+            
+        return temp, unit
+
+    def convert_temperature(self, value: float, from_unit: TemperatureUnit, to_unit: TemperatureUnit) -> float:
+        """Helper to convert temperature between units."""
+        if from_unit == to_unit:
+            return value
+            
+        # First convert to Celsius
+        celsius = value
+        if from_unit == TemperatureUnit.FAHRENHEIT:
+            celsius = (value - 32) * 5/9
+        elif from_unit == TemperatureUnit.KELVIN:
+            celsius = value - 273.15
+        elif from_unit == TemperatureUnit.RAW:
+             # Y16 to Celsius
+             celsius = (value / 100.0) - 273.15
+
+        # Then convert to target
+        if to_unit == TemperatureUnit.CELSIUS:
+            return celsius
+        elif to_unit == TemperatureUnit.FAHRENHEIT:
+            return (celsius * 9/5) + 32
+        elif to_unit == TemperatureUnit.KELVIN:
+            return celsius + 273.15
+        elif to_unit == TemperatureUnit.RAW:
+            # Celsius to Y16
+            return (celsius + 273.15) * 100.0
+            
+        return celsius
+
 
     def analyze_frame(self, thermal_frame: np.ndarray,
                      roi_mask: Optional[np.ndarray] = None) -> ThermalStatistics:

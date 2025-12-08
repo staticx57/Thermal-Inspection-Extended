@@ -370,7 +370,7 @@ class SettingsEditorWindow(QMainWindow):
         theme_layout = QFormLayout()
 
         self.gui_theme = QComboBox()
-        self.gui_theme.addItems(["dark", "light", "auto"])
+        self.gui_theme.addItems(["dark", "light", "solarized", "colorful", "windows_xp", "windows_xp_silver", "windows_xp_olive", "auto"])
         self.gui_theme.currentTextChanged.connect(self._mark_unsaved)
         theme_layout.addRow("Main App Theme:", self.gui_theme)
         

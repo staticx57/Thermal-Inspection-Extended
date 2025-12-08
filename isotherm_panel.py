@@ -43,14 +43,14 @@ class IsothermPanel(QWidget):
         # === Mode Selection ===
         mode_group = QGroupBox("Detection Mode")
         mode_layout = QVBoxLayout(mode_group)
-        
-        mode_layout.addWidget(QLabel("Highlight regions:"))
+
+        mode_layout.addWidget(QLabel("Highlight pixels:"))
         self.mode_combo = QComboBox()
         self.mode_combo.addItems([
-            "Above Threshold",
-            "Below Threshold", 
-            "Between Thresholds",
-            "Outside Thresholds"
+            "Above High (> High)",
+            "Below Low (< Low)",
+            "Between Range (Low ≤ T ≤ High)",
+            "Outside Range (< Low OR > High)"
         ])
         self.mode_combo.currentTextChanged.connect(self._on_mode_changed)
         mode_layout.addWidget(self.mode_combo)
@@ -125,10 +125,10 @@ class IsothermPanel(QWidget):
     def _on_mode_changed(self, text):
         """Handle mode change."""
         mode_map = {
-            "Above Threshold": "above",
-            "Below Threshold": "below",
-            "Between Thresholds": "between",
-            "Outside Thresholds": "outside"
+            "Above High (> High)": "above",
+            "Below Low (< Low)": "below",
+            "Between Range (Low ≤ T ≤ High)": "between",
+            "Outside Range (< Low OR > High)": "outside"
         }
         self.mode_changed.emit(mode_map.get(text, "above"))
     
@@ -137,14 +137,14 @@ class IsothermPanel(QWidget):
         self.low_spinbox.setValue(low)
         self.high_spinbox.setValue(high)
         self.color_combo.setCurrentText(color)
-        
+
         mode_text_map = {
-            "above": "Above Threshold",
-            "below": "Below Threshold",
-            "between": "Between Thresholds",
-            "outside": "Outside Thresholds"
+            "above": "Above High (> High)",
+            "below": "Below Low (< Low)",
+            "between": "Between Range (Low ≤ T ≤ High)",
+            "outside": "Outside Range (< Low OR > High)"
         }
-        self.mode_combo.setCurrentText(mode_text_map.get(mode, "Above Threshold"))
-        
+        self.mode_combo.setCurrentText(mode_text_map.get(mode, "Above High (> High)"))
+
         if not self.enable_check.isChecked():
             self.enable_check.setChecked(True)

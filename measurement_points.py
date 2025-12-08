@@ -22,9 +22,10 @@ class MeasurementPoint:
         point_id: Unique identifier
         x: X coordinate in frame
         y: Y coordinate in frame
-        temperature: Current temperature in Celsius (None if not available)
+        temperature: Current temperature in user-selected units (None if not available)
         label: User-defined label (e.g., "Motor", "Bearing")
         color: RGB color tuple for visualization
+        unit: Temperature unit symbol (e.g., "°C", "°F", "K")
     """
     point_id: str
     x: int
@@ -32,6 +33,7 @@ class MeasurementPoint:
     temperature: Optional[float] = None
     label: str = ""
     color: Tuple[int, int, int] = (255, 255, 0)  # Yellow default
+    unit: str = "°C"  # Default unit
 
 
 class MeasurementPointManager:
@@ -104,12 +106,13 @@ class MeasurementPointManager:
         self._next_id = 1
         logger.info(f"Cleared {count} measurement points")
 
-    def update_temperatures(self, temp_frame: np.ndarray) -> int:
+    def update_temperatures(self, temp_frame: np.ndarray, unit: str = "°C") -> int:
         """
         Update temperatures for all points from temperature frame.
 
         Args:
-            temp_frame: Temperature frame (H, W) in Celsius
+            temp_frame: Temperature frame (H, W) in user-selected units
+            unit: Temperature unit symbol (e.g., "°C", "°F", "K")
 
         Returns:
             Number of points updated
@@ -124,6 +127,7 @@ class MeasurementPointManager:
             # Check bounds
             if 0 <= point.x < w and 0 <= point.y < h:
                 point.temperature = float(temp_frame[point.y, point.x])
+                point.unit = unit  # Update unit for display
                 updated += 1
             else:
                 point.temperature = None

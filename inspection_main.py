@@ -312,6 +312,7 @@ class ThermalInspectionFusion:
         self.frame_count = 0
         self.fps = 0.0
         self.device = getattr(args, 'device', 'cuda')
+        self.temperature_unit = 'C' # Default to Celsius
         
         # Performance settings
         self.target_fps_rgb = 30
@@ -326,6 +327,11 @@ class ThermalInspectionFusion:
         # Camera specific flags
         self.is_flir_boson = False
         self.reconfiguring = False  # Flag to pause main loop during camera reconfiguration
+
+        # Persisted device IDs for stable switching
+        self.effective_thermal_device_id = None
+        self.effective_rgb_device_id = None
+        self.rgb_camera_source = 'uvc'
 
         # Inspection mode settings
         self.inspection_mode = getattr(args, 'mode', 'realtime')  # realtime or playback
@@ -441,8 +447,8 @@ class ThermalInspectionFusion:
         logger.info("INITIALIZING CAMERAS (ROBUST MODE)")
         logger.info("="*70)
 
-        # Get SDK parameters from args
-        enable_sdk = getattr(self.args, 'enable_boson_sdk', False)
+        # Get SDK parameters from args - DEFAULT TO TRUE for auto-connect (Bug #17)
+        enable_sdk = getattr(self.args, 'enable_boson_sdk', True)
         com_port = getattr(self.args, 'boson_com_port', 'COM7')
 
         # Use robust initializer with thermal-first priority
@@ -460,6 +466,15 @@ class ThermalInspectionFusion:
             self.is_flir_boson = True  # Assuming Boson if thermal detected
             thermal_success = True
 
+            # Persist device ID for backend switching (Critical for stability)
+            if hasattr(thermal_cam, 'device_id'):
+                self.effective_thermal_device_id = thermal_cam.device_id
+            elif hasattr(thermal_cam, 'device'):
+                self.effective_thermal_device_id = thermal_cam.device
+            else:
+                self.effective_thermal_device_id = getattr(self.args, 'thermal_device', 2)
+            logger.info(f"Persisted thermal device ID: {self.effective_thermal_device_id}")
+
             # Log SDK status if enabled
             if hasattr(thermal_cam, 'is_sdk_connected') and thermal_cam.is_sdk_connected:
                 logger.info("=" * 60)
@@ -471,6 +486,33 @@ class ThermalInspectionFusion:
 
                 # Initialize 8-bit temperature estimator when SDK connects
                 self._init_8bit_estimation()
+            
+            # Auto-Scan for SDK if enabled but failed to connect (Robustness)
+            elif enable_sdk and (not hasattr(thermal_cam, 'is_sdk_connected') or not thermal_cam.is_sdk_connected):
+                logger.warning(f"SDK failed to connect on default port {com_port}, attempting auto-scan...")
+                try:
+                    available_ports = self.scan_boson_com_ports()
+                    for port in available_ports:
+                        if port == com_port: continue # Skip already failed port
+                        
+                        logger.info(f"Trying SDK connection on {port}...")
+                        if thermal_cam.connect_sdk(port):
+                            logger.info(f"[OK] Found Boson SDK on {port}!")
+                            # Update args so it persists for future switches
+                            self.args.boson_com_port = port
+                            
+                            # Log info
+                            info = thermal_cam.get_camera_info()
+                            if info:
+                                logger.info(f"  Camera SN: {info.serial_number}")
+                                
+                            # Initialize estimator
+                            self._init_8bit_estimation()
+                            break
+                        else:
+                            logger.debug(f"Failed on {port}")
+                except Exception as e:
+                    logger.error(f"Error during SDK auto-scan: {e}")
 
             # Auto-enable radiometric if available
             if hasattr(thermal_cam, 'enable_radiometric_mode'):
@@ -488,6 +530,15 @@ class ThermalInspectionFusion:
             self.rgb_camera = rgb_cam
             self.rgb_available = True
             rgb_success = True
+
+            # Persist RGB info for backend switching
+            if hasattr(rgb_cam, 'device_id'):
+                self.effective_rgb_device_id = rgb_cam.device_id
+            elif hasattr(rgb_cam, 'device'):
+                self.effective_rgb_device_id = rgb_cam.device
+            
+            self.rgb_camera_source = getattr(rgb_cam, 'camera_source', 'uvc')
+            logger.info(f"Persisted RGB device ID: {self.effective_rgb_device_id}, Source: {self.rgb_camera_source}")
         else:
             if not getattr(self.args, 'disable_rgb', False):
                 logger.warning("RGB camera initialization failed - thermal-only mode")
@@ -597,13 +648,17 @@ class ThermalInspectionFusion:
                         enabled=self.args.radiometric,
                         mode=mode_desc
                     )
-                    
+
+                    # Update panel availability (isotherm, environmental)
+                    if hasattr(self.gui, 'update_radiometric_panel_availability'):
+                        self.gui.update_radiometric_panel_availability(self.args.radiometric)
+
                     # Enable hardware spotmeter checkbox if SDK is connected
                     if sdk_connected and hasattr(self.gui.radiometric_panel, 'hw_spotmeter_checkbox'):
                         self.gui.radiometric_panel.hw_spotmeter_checkbox.setEnabled(True)
                     
-                    # Enable 8-bit estimation controls if SDK is connected
-                    if sdk_connected and hasattr(self.gui.radiometric_panel, 'set_8bit_estimation_available'):
+                    # Enable 8-bit estimation controls (always enable if GUI present, regardless of SDK)
+                    if hasattr(self.gui.radiometric_panel, 'set_8bit_estimation_available'):
                         self.gui.radiometric_panel.set_8bit_estimation_available(
                             available=True,
                             auto_enabled=self.temp_estimation_enabled
@@ -617,6 +672,20 @@ class ThermalInspectionFusion:
                             mode_info['accuracy'],
                             mode_info['description']
                         )
+                    
+                    # Update backend status (Fix Bug #17)
+                    if hasattr(self.gui.radiometric_panel, 'update_backend_status'):
+                        backend_type = getattr(self.args, 'thermal_backend', 'opencv')
+                        
+                        backend_info = {
+                            'backend': backend_type,
+                            'bit_depth': '16' if is_radiometric else '8',
+                            'radiometric': is_radiometric,
+                            'resolution': actual_res,
+                            'current_mode': backend_type
+                        }
+                        self.gui.radiometric_panel.update_backend_status(backend_info)
+                        logger.info(f"✓ Initial backend status updated: {backend_type} (Radiometric: {is_radiometric})")
                     
                     logger.info(f"[OK] Radiometric panel initialized (capable={is_radiometric}, sdk={sdk_connected}, 8bit={self.temp_estimation_enabled})")
                 
@@ -754,6 +823,68 @@ class ThermalInspectionFusion:
             self.rgb_camera = None
             return False
 
+    def switch_thermal_backend(self, backend_type: str):
+        """
+        Switch thermal camera backend at runtime.
+        
+        Args:
+            backend_type (str): 'opencv' or 'flirpy'
+        """
+        if backend_type == getattr(self.args, 'thermal_backend', 'opencv'):
+            logger.info(f"Backend already set to {backend_type}, ignoring switch request.")
+            return
+
+        logger.info(f"Switching thermal backend to: {backend_type}")
+
+        # 1. Release current camera
+        if self.thermal_camera:
+            self.thermal_camera.release()
+            self.thermal_camera = None
+            self.thermal_connected = False
+            logger.info("Released current thermal camera")
+
+        # 2. Update backend argument
+        self.args.thermal_backend = backend_type
+        
+        # 3. Re-initialize cameras
+        # We use robust init which handles the backend flag
+        thermal_connected, _ = self._init_cameras_robust()
+        
+        if thermal_connected:
+             logger.info(f"Successfully switched to {backend_type} backend")
+             # Trigger deferred initialization to update GUI status
+             self._perform_deferred_initialization()
+        else:
+             logger.error(f"Failed to switch to {backend_type} backend - Camera not found")
+
+    def _setup_gui(self):
+        """Initialize the Qt GUI."""
+        if self.args.headless:
+            self.gui_type = 'headless'
+            return
+
+        # Check explicit OpenCV request or fallback from main
+        if self.args.use_opencv_gui:
+            self.gui_type = 'opencv'
+            return
+
+        try:
+            # Import here to avoid circular dependencies
+            from inspection_gui_qt import InspectionAppWindow
+            
+            # Create window
+            self.gui = InspectionAppWindow(self)
+            self.gui_type = 'qt'
+            logger.info("Qt GUI initialized successfully")
+            
+        except ImportError as e:
+            logger.warning(f"Failed to import Qt GUI: {e}")
+            logger.warning("Falling back to OpenCV GUI")
+            self.gui_type = 'opencv'
+        except Exception as e:
+            logger.error(f"Failed to initialize Qt GUI: {e}", exc_info=True)
+            self.gui_type = 'opencv'
+
     def initialize(self) -> bool:
         """
         Initialize all inspection components.
@@ -768,6 +899,9 @@ class ThermalInspectionFusion:
                    f"({self.platform_info['machine']})")
         logger.info(f"Mode: {self.inspection_mode}")
         logger.info(f"Device: {self.device}")
+
+        # 0. Initialize GUI (Restored)
+        self._setup_gui()
 
         try:
             # 1. Connect cameras using robust auto-detection
@@ -797,6 +931,62 @@ class ThermalInspectionFusion:
             else:
                 actual_res = (self.args.width, self.args.height)
                 logger.info(f"Using default resolution: {actual_res[0]}x{actual_res[1]}")
+
+            # 3. Initialize Radiometric GUI (Fix Bug #17)
+            # Must run after camera connection, regardless of init method (Robust/Legacy)
+            if self.thermal_connected and self.thermal_camera:
+                # Detect radiometric mode (if not already done)
+                is_radiometric = self._detect_radiometric_mode()
+                if is_radiometric:
+                    self.args.radiometric = True
+                
+                if self.gui and hasattr(self.gui, 'radiometric_panel'):
+                    sdk_connected = getattr(self.thermal_camera, 'is_sdk_connected', False)
+                    mode_desc = "16-bit Radiometric" if is_radiometric else "8-bit AGC"
+
+                    # Basic status
+                    self.gui.radiometric_panel.set_radiometric_status(
+                        capable=is_radiometric,
+                        enabled=self.args.radiometric,
+                        mode=mode_desc
+                    )
+
+                    # Update panel availability (isotherm, environmental)
+                    if hasattr(self.gui, 'update_radiometric_panel_availability'):
+                        self.gui.update_radiometric_panel_availability(self.args.radiometric)
+
+                    # Hardware spotmeter
+                    if sdk_connected and hasattr(self.gui.radiometric_panel, 'hw_spotmeter_checkbox'):
+                        self.gui.radiometric_panel.hw_spotmeter_checkbox.setEnabled(True)
+                    
+                    # 8-bit estimation controls
+                    if hasattr(self.gui.radiometric_panel, 'set_8bit_estimation_available'):
+                        self.gui.radiometric_panel.set_8bit_estimation_available(
+                            available=True,
+                            auto_enabled=self.temp_estimation_enabled
+                        )
+                    
+                    # Active mode status banner
+                    if hasattr(self.gui.radiometric_panel, 'update_active_mode_status'):
+                        mode_info = self.get_active_temperature_mode()
+                        self.gui.radiometric_panel.update_active_mode_status(
+                            mode_info['mode'],
+                            mode_info['accuracy'],
+                            mode_info['description']
+                        )
+                    
+                    # Backend status (Critical Fix)
+                    if hasattr(self.gui.radiometric_panel, 'update_backend_status'):
+                        backend_type = getattr(self.args, 'thermal_backend', 'opencv')
+                        backend_info = {
+                            'backend': backend_type,
+                            'bit_depth': '16' if is_radiometric else '8',
+                            'radiometric': is_radiometric,
+                            'resolution': actual_res,
+                            'current_mode': backend_type
+                        }
+                        self.gui.radiometric_panel.update_backend_status(backend_info)
+                        logger.info(f"✓ Initial backend status updated: {backend_type} (Radiometric: {is_radiometric})")
 
             # 4. Initialize fusion processor (PARAMOUNT!)
             if self.rgb_available:
@@ -1135,6 +1325,75 @@ class ThermalInspectionFusion:
         except Exception as e:
             logger.error(f"Failed to set ROI palette: {e}")
 
+    def _apply_isotherm_overlay(self, thermal_frame: np.ndarray, colorized_frame: np.ndarray) -> np.ndarray:
+        """Apply isotherm temperature highlighting overlay.
+        
+        Args:
+            thermal_frame: Grayscale thermal frame (raw values or temperature)
+            colorized_frame: Colorized thermal frame to overlay on
+            
+        Returns:
+            Frame with isotherm regions highlighted
+        """
+        try:
+            mode = getattr(self, 'isotherm_mode', 'above')
+            low = getattr(self, 'isotherm_low_threshold', 10)
+            high = getattr(self, 'isotherm_high_threshold', 50)
+            color = getattr(self, 'isotherm_color_bgr', (0, 0, 255))  # Default red
+            
+            # Prepare frame for thresholding (convert to Celsius if 16-bit)
+            proc_frame = thermal_frame
+            if thermal_frame.dtype == np.uint16:
+                # Convert Kelvin (centi-Kelvin) to Celsius
+                # Standard T-Linear: (K*100 - 27315) / 100
+                proc_frame = (thermal_frame.astype(float) - 27315.0) / 100.0
+            
+            # Create mask based on mode
+            if mode == 'above':
+                mask = proc_frame > high
+            elif mode == 'below':
+                mask = proc_frame < low
+            elif mode == 'between':
+                mask = (proc_frame >= low) & (proc_frame <= high)
+            elif mode == 'outside':
+                mask = (proc_frame < low) | (proc_frame > high)
+            else:
+                mask = proc_frame > high
+
+            # Debug logging for isotherm
+            if hasattr(self, '_isotherm_debug_counter'):
+                self._isotherm_debug_counter += 1
+            else:
+                self._isotherm_debug_counter = 0
+
+            if self._isotherm_debug_counter % 30 == 0:  # Log every 30 frames
+                min_temp = proc_frame.min()
+                max_temp = proc_frame.max()
+                mean_temp = proc_frame.mean()
+                matched_pixels = mask.sum()
+                logger.debug(f"Isotherm: mode={mode}, low={low:.1f}, high={high:.1f}, "
+                           f"temp_range=[{min_temp:.1f}, {max_temp:.1f}], mean={mean_temp:.1f}, "
+                           f"matched={matched_pixels} pixels")
+
+            # Apply color overlay where mask is True
+            result = colorized_frame.copy()
+            if mask.any():
+                # Create colored overlay
+                overlay = np.zeros_like(colorized_frame)
+                overlay[mask] = color
+                
+                # Blend with original (50% opacity)
+                alpha = 0.5
+                result = cv2.addWeighted(colorized_frame, 1 - alpha, overlay, alpha, 0)
+                # Restore non-masked areas
+                result[~mask] = colorized_frame[~mask]
+            
+            return result
+            
+        except Exception as e:
+            logger.debug(f"Isotherm overlay error: {e}")
+            return colorized_frame
+
 
     def process_frame(self, thermal_frame: np.ndarray, rgb_frame: Optional[np.ndarray] = None) -> Dict:
         """
@@ -1197,6 +1456,11 @@ class ThermalInspectionFusion:
                             )
 
             result['thermal_colorized'] = thermal_colorized
+
+            # 2c. Apply Isotherm Highlighting (if enabled)
+            if getattr(self, 'isotherm_enabled', False):
+                thermal_colorized = self._apply_isotherm_overlay(thermal_frame, thermal_colorized)
+                result['thermal_colorized'] = thermal_colorized
 
             # 2c. Update 8-bit temperature estimation (if enabled)
             t_prof['before_temp_estimation'] = time.time()
@@ -1307,6 +1571,10 @@ class ThermalInspectionFusion:
                             'mean_temp': stats.mean_temp,
                             'std_temp': stats.std_temp
                         }
+
+
+            t_prof['after_roi_analysis'] = time.time() # Corrected missing timestamp
+            t_prof['before_thermal_analysis'] = time.time()
 
             # 5. Global thermal analysis (Parallel vs Sequential)
             if self.enable_parallel_processing and self.detection_executor:
@@ -1525,6 +1793,12 @@ class ThermalInspectionFusion:
                              if fpa:
                                  # Re-calculate map for spot metering
                                  temp_map_for_spots = self.temp_estimator.estimate_temperature_map(thermal_frame, fpa[1])
+                    
+                    # Strategy 3: Use raw 8-bit values (Basic Fallback)
+                    # When neither radiometric nor estimation is available, show raw values
+                    if temp_map_for_spots is None and thermal_frame is not None:
+                        temp_map_for_spots = thermal_frame.astype(float)
+                        unit = " (raw)"  # Indicate these are uncalibrated raw values
 
                     # Extract temperatures
                     if temp_map_for_spots is not None:
@@ -1631,6 +1905,72 @@ class ThermalInspectionFusion:
 
         return result
 
+    def _perform_deferred_initialization(self):
+        """
+        Perform initialization tasks that require the GUI loop to be running.
+        This fixes issues where status updates are lost if sent before app.exec().
+        """
+        if self.gui_type != 'qt' or not self.gui:
+            return
+
+        try:
+            logger.info("Executing deferred GUI initialization...")
+
+            # 1. Update Backend Status (Fix Bug #17)
+            if hasattr(self.gui, 'radiometric_panel') and hasattr(self.gui.radiometric_panel, 'update_backend_status'):
+                # Re-detect properties to be sure
+                is_radiometric = self._detect_radiometric_mode()
+                backend_type = getattr(self.args, 'thermal_backend', 'opencv')
+                
+                if self.thermal_connected and self.thermal_camera:
+                    actual_res = self.thermal_camera.get_actual_resolution()
+                    # Ensure we have a valid mode string for the banner
+                    if is_radiometric:
+                        mode_str = "T-Linear Radiometric (16-bit)"
+                    else:
+                        mode_str = "UVC Colorized (8-bit)"
+                else:
+                    actual_res = (self.args.width, self.args.height)
+                    mode_str = "Initializing..."
+
+                backend_info = {
+                    'backend': backend_type,
+                    'bit_depth': '16' if is_radiometric else '8',
+                    'radiometric': is_radiometric,
+                    'resolution': actual_res,
+                    'current_mode': mode_str  # Use human-readable mode string
+                }
+                self.gui.radiometric_panel.update_backend_status(backend_info)
+                logger.info(f"Deferred backend status update: {backend_info}")
+
+            # 2. Update Camera Info & Connection Status
+            if hasattr(self.gui, 'boson_panel'):
+                # Update Connection Status
+                if hasattr(self.gui.boson_panel, 'update_connection_status'):
+                    is_sdk = self.thermal_camera and getattr(self.thermal_camera, 'is_sdk_connected', False)
+                    port = getattr(self.args, 'com_port', None)
+                    self.gui.boson_panel.update_connection_status(is_sdk, port)
+                    logger.info(f"Deferred connection status: connected={is_sdk}, port={port}")
+
+                # Update Camera Info
+                if self.thermal_camera and hasattr(self.thermal_camera, 'get_camera_info'):
+                    cam_info = self.thermal_camera.get_camera_info()
+                    logger.info(f"Deferred Camera Info: {cam_info}")
+                    if cam_info and hasattr(self.gui.boson_panel, 'update_camera_info'):
+                        self.gui.boson_panel.update_camera_info(cam_info)
+                        logger.info("Deferred camera info update sent to boson_panel")
+            
+            # 3. Force 8-bit toggle update
+            if hasattr(self.gui, 'radiometric_panel'):
+                self.gui.radiometric_panel.set_8bit_estimation_available(
+                    available=True,
+                    auto_enabled=self.temp_estimation_enabled
+                )
+
+        except Exception as e:
+            logger.error(f"Error during deferred GUI initialization: {e}", exc_info=True)
+
+
     def run(self):
         """Main inspection application loop."""
         logger.info("Starting inspection loop...")
@@ -1648,12 +1988,18 @@ class ThermalInspectionFusion:
 
         try:
             while self.running:
-                # 0. Check if reconfiguring (pause loop if so)
                 if self.reconfiguring:
                     time.sleep(0.1)
                     if self.gui_type == 'qt' and self.qt_app:
                         self.qt_app.processEvents()
                     continue
+
+                # Deferred GUI initialization (one-shot)
+                if not getattr(self, '_deferred_init_done', False):
+                    self._perform_deferred_initialization()
+                    self._deferred_init_done = True
+                    # Initialize last_deferred_update time
+                    self._last_deferred_update = time.time()
 
                 loop_start = time.time()
                 t_markers = {'start': loop_start}  # Timing markers for profiling
@@ -1736,19 +2082,6 @@ class ThermalInspectionFusion:
                         self.thermal_camera = None
                         self.is_flir_boson = False # Reset flag
 
-                    t_markers['after_thermal_read'] = time.time()
-
-                    # RGB capture
-                    if self.rgb_camera and self.rgb_available:
-                        try:
-                            ret_rgb, rgb_frame = self.rgb_camera.read()
-                            if not ret_rgb:
-                                rgb_frame = None
-                        except Exception as e:
-                            logger.debug(f"RGB camera error: {e}")
-                            rgb_frame = None
-
-                    t_markers['after_placeholder'] = time.time()
                     t_markers['after_rgb_read'] = time.time()
 
                 # Create placeholder if no thermal
@@ -1760,6 +2093,15 @@ class ThermalInspectionFusion:
 
                 # Store thermal frame for Auto-ROI detection
                 self.last_thermal_frame = thermal_frame
+                
+                # Fix for top-line corruption (hardware/driver artifact):
+                # Mask top 8 rows to prevent false cold/hot spot detections
+                if thermal_frame is not None and thermal_frame.shape[0] > 8:
+                    # Option 1: Set to 0 (might be cold spot if 0 is cold)
+                    # Option 2: Clone row 8 (better for visualization)
+                    # Option 3: Mask with invalid value if handled?
+                    # We'll use row 8 replication to be visually unobtrusive
+                    thermal_frame[:8, :] = thermal_frame[8, :]
                 
                 # 4. Process frames through inspection pipeline
                 result = self.process_frame(thermal_frame, rgb_frame)
@@ -1893,15 +2235,100 @@ class ThermalInspectionFusion:
                             if self.thermal_camera and hasattr(self.thermal_camera, 'radiometric_converter'):
                                 conv = self.thermal_camera.radiometric_converter
                                 if conv:
+                                    # Update center
                                     center_temp_c = conv.pixel_to_celsius(center_pixel)
                                     self.gui.radiometric_panel.set_center_temperature(center_temp_c)
-                        
+
+                                    # Update Spot Meters
+                                    if hasattr(self.gui, 'measurement_points') and self.gui.measurement_points:
+                                        spot_updates = []
+                                        for p in self.gui.measurement_points:
+                                            # Boundary check
+                                            if 0 <= p.x < w and 0 <= p.y < h:
+                                                raw_val = thermal_frame_16bit[p.y, p.x]
+                                                t_c = conv.pixel_to_celsius(raw_val)
+                                                spot_updates.append({
+                                                    'label': p.label,
+                                                    'temperature': t_c,
+                                                    'unit': 'C'
+                                                })
+                                        
+                                        if spot_updates:
+                                            self.gui.update_spot_meter_values(spot_updates)
+
                         # Update cursor temperature if cursor position is available
                         # (This would be set by mouse move events in the GUI)
                         # For now, we'll use center as a placeholder
 
                     # Update ROIs
                     self.gui.update_rois(result.get('rois', []))
+
+                    # Update Spot Meters (Enhancement #1)
+                    if hasattr(self.gui, 'get_spot_meter_coords'):
+                        # 1. Get current spot meters from GUI
+                        spots = self.gui.get_spot_meter_coords() # List of (x, y, label)
+                        
+                        if spots:
+                            spot_updates = []
+                            h, w = thermal_frame.shape[:2]
+                            
+                            # Determine source frame and converter
+                            # Prefer 16-bit frame if available for accuracy
+                            t_frame_source = result.get('thermal_16bit')
+                            is_16bit = False
+                            
+                            if t_frame_source is not None:
+                                is_16bit = True
+                            else:
+                                t_frame_source = thermal_frame # Fallback
+                                # Robust check: logic might have passed 16-bit frame as main 'thermal'
+                                if t_frame_source is not None:
+                                     if t_frame_source.dtype == np.uint16 or np.max(t_frame_source) > 255:
+                                         is_16bit = True
+                                
+                            use_radiometric = False
+                            converter = None
+                            
+                            # Only use radiometric converter if we have 16-bit data AND a converter
+                            if is_16bit and self.thermal_camera and hasattr(self.thermal_camera, 'radiometric_converter') and self.thermal_camera.radiometric_converter:
+                                use_radiometric = True
+                                converter = self.thermal_camera.radiometric_converter
+                            
+                            for x, y, label in spots:
+                                # Boundary check
+                                if 0 <= x < w and 0 <= y < h:
+                                    raw_val = t_frame_source[y, x]
+                                    
+                                    temp = 0.0
+                                    unit = ''
+
+                                    # Delegate calculation to ThermalAnalyzer for consistency
+                                    if self.thermal_analyzer:
+                                        # Determine if we should force estimation (e.g., if args.radiometric is true but no converter)
+                                        # Note: calculate_spot_temperature handles the logic internally
+                                        temp, unit = self.thermal_analyzer.calculate_spot_temperature(
+                                            raw_val=raw_val,
+                                            converter=converter,
+                                            force_estimation=(self.args.radiometric and not is_16bit)
+                                        )
+                                    else:
+                                        # Fallback if analyzer not ready (should rarely happen)
+                                        temp = float(raw_val)
+                                        unit = ' (raw)'
+
+                                    # Debug logging once per second
+                                    if self.frame_count % 60 == 0:
+                                         logger.info(f"Spot {label}: raw={raw_val}, temp={temp:.1f}{unit}, target={self.temperature_unit}")
+
+                                    spot_updates.append({
+                                        'label': label,
+                                        'temperature': temp,
+                                        'unit': unit
+                                    })
+                                    
+                            # 2. Send updates back to GUI
+                            if spot_updates:
+                                self.gui.update_spot_meter_values(spot_updates)
 
                     # Update Boson panel (every 60 frames to reduce overhead)
                     if self.frame_count % 60 == 0:
@@ -2209,6 +2636,7 @@ class ThermalInspectionFusion:
             unit: 'C', 'F', 'K', or 'RAW'
         """
         logger.info(f"Setting temperature unit to: {unit}")
+        self.temperature_unit = unit
         
         # Update ThermalAnalyzer
         if self.thermal_analyzer:
@@ -2260,6 +2688,174 @@ class ThermalInspectionFusion:
         }
         self.manual_threshold_viz_mode = mode_map.get(mode, ThresholdVisualization.GRAYSCALE_NON_ANOMALY)
         logger.info(f"Manual threshold viz mode: {mode} -> {self.manual_threshold_viz_mode}")
+
+    # === ENVIRONMENTAL COMPENSATION METHODS ===
+
+    def set_emissivity(self, value: float):
+        """Set target emissivity for temperature compensation.
+        
+        Args:
+            value: Emissivity value (0.0-1.0), typically 0.95 for most objects
+        """
+        self.emissivity = max(0.01, min(1.0, value))
+        # Apply to thermal camera if SDK connected
+        if self.thermal_camera and hasattr(self.thermal_camera, 'set_emissivity'):
+            self.thermal_camera.set_emissivity(self.emissivity)
+        logger.info(f"Emissivity set to: {self.emissivity:.2f}")
+
+    def set_atmospheric_temperature(self, temp_celsius: float):
+        """Set atmospheric/ambient temperature for compensation.
+        
+        Args:
+            temp_celsius: Ambient temperature in Celsius
+        """
+        self.atmospheric_temp = temp_celsius
+        # Apply to thermal camera if SDK connected
+        if self.thermal_camera and hasattr(self.thermal_camera, 'set_atmospheric_temperature'):
+            self.thermal_camera.set_atmospheric_temperature(self.atmospheric_temp)
+        logger.info(f"Atmospheric temperature set to: {self.atmospheric_temp:.1f}°C")
+
+    def set_atmospheric_transmission(self, transmission: float):
+        """Set atmospheric transmission coefficient.
+        
+        Args:
+            transmission: Transmission (0.0-1.0), 1.0=clear, 0.9=typical 1-2m, 0.8=humid/far
+        """
+        self.atmospheric_transmission = max(0.0, min(1.0, transmission))
+        # Apply to thermal camera if SDK connected  
+        if self.thermal_camera and hasattr(self.thermal_camera, 'set_atmospheric_transmission'):
+            self.thermal_camera.set_atmospheric_transmission(self.atmospheric_transmission)
+        logger.info(f"Atmospheric transmission set to: {self.atmospheric_transmission:.2f}")
+
+    # === RADIOMETRIC CONTROL METHODS ===
+
+    def set_temperature_unit(self, unit: str):
+        """Set temperature display unit (C, F, K).
+        
+        Args:
+            unit: 'C' for Celsius, 'F' for Fahrenheit, 'K' for Kelvin
+        """
+        self.temperature_unit = unit.upper()
+        # Update thermal analyzer
+        if hasattr(self, 'thermal_analyzer') and self.thermal_analyzer:
+            self.thermal_analyzer.set_temperature_unit(unit)
+        logger.info(f"Temperature unit set to: {self.temperature_unit}")
+
+    def set_max_hot_spots(self, count: int):
+        """Set maximum number of hot spots to detect and display.
+        
+        Args:
+            count: Maximum hot spots (0=unlimited, typical 1-10)
+        """
+        self.max_hot_spots = count
+        logger.info(f"Max hot spots set to: {count}")
+
+    def set_max_cold_spots(self, count: int):
+        """Set maximum number of cold spots to detect and display.
+        
+        Args:
+            count: Maximum cold spots (0=unlimited, typical 1-10)
+        """
+        self.max_cold_spots = count
+        logger.info(f"Max cold spots set to: {count}")
+
+    def set_temp_estimation_enabled(self, enabled: bool):
+        """Enable/disable 8-bit temperature estimation mode.
+        
+        Args:
+            enabled: True to enable 8-bit estimation
+        """
+        self.temp_estimation_enabled = enabled
+        logger.info(f"8-bit temperature estimation: {'ON' if enabled else 'OFF'}")
+
+    def set_temperature_range(self, min_c: float, max_c: float):
+        """Set expected temperature range for 8-bit estimation.
+        
+        Args:
+            min_c: Minimum expected temperature (Celsius)
+            max_c: Maximum expected temperature (Celsius)
+        """
+        self.temp_range_min = min_c
+        self.temp_range_max = max_c
+        if hasattr(self, 'temp_estimator') and self.temp_estimator:
+            self.temp_estimator.set_range(min_c, max_c)
+        logger.info(f"Temperature range: {min_c:.1f}°C to {max_c:.1f}°C")
+
+    def calibrate_single_point(self):
+        """Request single-point temperature calibration."""
+        if hasattr(self, 'temp_estimator') and self.temp_estimator:
+            # Single point calibration uses current spot meter if available
+            logger.info("Single-point calibration: Click on known temperature reference")
+            # Flag will be checked in main loop
+            self._calibration_mode = 'single_point'
+        else:
+            logger.warning("Temperature estimator not available for calibration")
+
+    def calibrate_two_point(self):
+        """Request two-point temperature calibration."""
+        if hasattr(self, 'temp_estimator') and self.temp_estimator:
+            logger.info("Two-point calibration: Click on two known temperature references")
+            self._calibration_mode = 'two_point'
+        else:
+            logger.warning("Temperature estimator not available for calibration")
+
+    # === ISOTHERM CONTROL METHODS ===
+
+    def set_isotherm_enabled(self, enabled: bool):
+        """Enable/disable isotherm temperature highlighting.
+        
+        Args:
+            enabled: True to enable isotherm overlay
+        """
+        self.isotherm_enabled = enabled
+        logger.info(f"Isotherm highlighting: {'ON' if enabled else 'OFF'}")
+
+    def set_isotherm_mode(self, mode: str):
+        """Set isotherm detection mode.
+        
+        Args:
+            mode: 'above', 'below', 'between', or 'outside'
+        """
+        self.isotherm_mode = mode
+        logger.info(f"Isotherm mode: {mode}")
+
+    def set_isotherm_low_threshold(self, value: float):
+        """Set isotherm low temperature threshold.
+        
+        Args:
+            value: Temperature threshold in current unit
+        """
+        self.isotherm_low_threshold = value
+        logger.info(f"Isotherm low threshold: {value:.1f}")
+
+    def set_isotherm_high_threshold(self, value: float):
+        """Set isotherm high temperature threshold.
+        
+        Args:
+            value: Temperature threshold in current unit
+        """
+        self.isotherm_high_threshold = value
+        logger.info(f"Isotherm high threshold: {value:.1f}")
+
+    def set_isotherm_color(self, color: str):
+        """Set isotherm highlight color.
+        
+        Args:
+            color: Color name (Red, Yellow, Green, Blue, Magenta, Cyan, White)
+        """
+        # Map color names to BGR tuples for OpenCV
+        color_map = {
+            'red': (0, 0, 255),
+            'yellow': (0, 255, 255),
+            'green': (0, 255, 0),
+            'blue': (255, 0, 0),
+            'magenta': (255, 0, 255),
+            'cyan': (255, 255, 0),
+            'white': (255, 255, 255)
+        }
+        self.isotherm_color_name = color
+        self.isotherm_color_bgr = color_map.get(color.lower(), (0, 0, 255))
+        logger.info(f"Isotherm color: {color}")
 
     def cycle_fusion_mode(self):
         """Cycle fusion mode."""
@@ -3281,6 +3877,10 @@ class ThermalInspectionFusion:
                 mode = "16-bit Radiometric" if capable else "8-bit UVC"
                 self.gui.radiometric_panel.set_radiometric_status(capable, enabled, mode)
 
+                # Update panel availability (isotherm, environmental)
+                if hasattr(self.gui, 'update_radiometric_panel_availability'):
+                    self.gui.update_radiometric_panel_availability(enabled)
+
                 # Clear readings if disabled
                 if not enabled:
                     self.gui.radiometric_panel.clear_temperature_readings()
@@ -3326,6 +3926,10 @@ class ThermalInspectionFusion:
             mode = "16-bit Radiometric" if capable else "8-bit UVC"
             self.gui.radiometric_panel.set_radiometric_status(capable, enabled, mode)
 
+            # Update panel availability (isotherm, environmental)
+            if hasattr(self.gui, 'update_radiometric_panel_availability'):
+                self.gui.update_radiometric_panel_availability(enabled)
+
             # Update temperature readings if enabled
             if enabled and capable:
                 # Get frame statistics
@@ -3348,7 +3952,12 @@ class ThermalInspectionFusion:
                 if self.measurement_points:
                     temp_frame = self._get_temperature_frame()
                     if temp_frame is not None:
-                        self.measurement_points.update_temperatures(temp_frame)
+                        # Get unit symbol from thermal_analyzer (same as hot/cold spots)
+                        unit_symbol = "°C"  # Default
+                        if self.thermal_analyzer:
+                            unit_symbol = self.thermal_analyzer._get_unit_symbol()
+
+                        self.measurement_points.update_temperatures(temp_frame, unit_symbol)
                         points = self.measurement_points.get_all_points()
                         self.gui.radiometric_panel.update_measurement_points(points)
 
@@ -3529,44 +4138,104 @@ class ThermalInspectionFusion:
 
     def _get_temperature_frame(self) -> Optional[np.ndarray]:
         """
-        Get temperature frame in Celsius from radiometric camera.
+        Get temperature frame in the user's selected units from thermal camera.
+
+        Uses the same conversion logic as hot/cold spots for consistency.
 
         Returns:
-            Temperature frame (H, W) float32, or None if not available
+            Temperature frame (H, W) float32 in user-selected units, or None if not available
         """
         if not self.thermal_camera:
             return None
 
-        if not hasattr(self.thermal_camera, 'radiometric_converter'):
-            return None
+        # Strategy 1: 16-bit radiometric mode (best accuracy)
+        if self.thermal_camera.is_radiometric_enabled():
+            if not hasattr(self.thermal_camera, 'radiometric_converter'):
+                return None
 
-        converter = self.thermal_camera.radiometric_converter
-        if not converter:
-            return None
+            converter = self.thermal_camera.radiometric_converter
+            if not converter:
+                return None
 
-        # Get last 16-bit frame
-        if not hasattr(self.thermal_camera, 'last_frame_16bit'):
-            return None
+            # Get last 16-bit frame
+            if not hasattr(self.thermal_camera, 'last_frame_16bit'):
+                return None
 
-        frame_16bit = self.thermal_camera.last_frame_16bit
-        if frame_16bit is None:
-            return None
+            frame_16bit = self.thermal_camera.last_frame_16bit
+            if frame_16bit is None:
+                return None
 
-        try:
-            # Convert to temperature
-            temp_frame = converter.pixel_to_celsius(frame_16bit)
+            try:
+                # Convert to Celsius first (same as hot/cold spots)
+                if self.thermal_analyzer and self.thermal_analyzer.is_radiometric:
+                    # Use thermal_analyzer's Y16 conversion for consistency (vectorized)
+                    # Y16 format: value = Kelvin × 100, so temp_c = (value / 100.0) - 273.15
+                    temp_frame_c = (frame_16bit.astype(np.float32) / 100.0) - 273.15
 
-            # Apply calibration if enabled
-            if (self.calibration_enabled and
-                RADIOMETRIC_CALIBRATION_AVAILABLE and
-                self.radiometric_calibrator and
-                self.radiometric_calibrator.is_calibrated):
-                temp_frame = self.radiometric_calibrator.apply_calibration_to_frame(temp_frame)
+                    # Convert to user's selected unit
+                    from thermal_analyzer import TemperatureUnit
+                    if self.thermal_analyzer.temp_unit == TemperatureUnit.FAHRENHEIT:
+                        temp_frame = (temp_frame_c * 9.0/5.0) + 32.0
+                    elif self.thermal_analyzer.temp_unit == TemperatureUnit.KELVIN:
+                        temp_frame = temp_frame_c + 273.15
+                    else:  # CELSIUS
+                        temp_frame = temp_frame_c
+                else:
+                    # Fallback to converter
+                    temp_frame = converter.pixel_to_celsius(frame_16bit)
 
-            return temp_frame
-        except Exception as e:
-            logger.debug(f"Error getting temperature frame: {e}")
-            return None
+                # Apply calibration if enabled
+                if (self.calibration_enabled and
+                    RADIOMETRIC_CALIBRATION_AVAILABLE and
+                    self.radiometric_calibrator and
+                    self.radiometric_calibrator.is_calibrated):
+                    temp_frame = self.radiometric_calibrator.apply_calibration_to_frame(temp_frame)
+
+                return temp_frame
+            except Exception as e:
+                logger.debug(f"Error getting temperature frame: {e}")
+                return None
+
+        # Strategy 2: 8-bit estimation mode (if enabled)
+        elif self.temp_estimation_enabled and self.temp_estimator:
+            if not hasattr(self, 'last_thermal_frame') or self.last_thermal_frame is None:
+                return None
+
+            if not self.thermal_camera.is_sdk_connected:
+                return None
+
+            fpa = self.thermal_camera.get_fpa_temperature()
+            if not fpa:
+                return None
+
+            try:
+                # Get thermal frame (8-bit)
+                thermal_frame = self.last_thermal_frame
+                if thermal_frame.ndim == 3:
+                    thermal_frame = cv2.cvtColor(thermal_frame, cv2.COLOR_BGR2GRAY)
+
+                # Estimate temperature map (returns Celsius)
+                temp_frame_c = self.temp_estimator.estimate_temperature_map(thermal_frame, fpa[1])
+
+                # Convert to user's selected unit (same as hot/cold spots)
+                if self.thermal_analyzer:
+                    from thermal_analyzer import TemperatureUnit
+                    if self.thermal_analyzer.temp_unit == TemperatureUnit.FAHRENHEIT:
+                        temp_frame = (temp_frame_c * 9.0/5.0) + 32.0
+                    elif self.thermal_analyzer.temp_unit == TemperatureUnit.KELVIN:
+                        temp_frame = temp_frame_c + 273.15
+                    else:  # CELSIUS
+                        temp_frame = temp_frame_c
+                else:
+                    temp_frame = temp_frame_c
+
+                return temp_frame
+            except Exception as e:
+                logger.debug(f"Error estimating temperature frame: {e}")
+                return None
+
+        # Strategy 3: No radiometric or estimation available
+        return None
 
     # ========================================================================
     # Radiometric Calibration Control
@@ -3808,6 +4477,13 @@ class ThermalInspectionFusion:
         """
         logger.info(f"=== Switching thermal backend to: {backend_type} ===")
         
+        # 0. Prevent redundant switches (Fix for Bug #16)
+        # Note: We check against current internal state or args
+        current_backend = getattr(self.args, 'thermal_backend', None)
+        if current_backend == backend_type and self.thermal_connected:
+            logger.info(f"Backend {backend_type} already active and connected. Ignoring switch request.")
+            return True
+        
         # Check if already reconfiguring
         if self.reconfiguring:
             logger.warning("Backend switch already in progress...")
@@ -3869,11 +4545,14 @@ class ThermalInspectionFusion:
             com_port = current_com_port or getattr(self.args, 'boson_com_port', None) or 'COM7'
             logger.info(f"Using COM port: {com_port} for new backend")
 
-            # 5. Use saved device ID (NO camera detection - find_thermal_camera() probes ALL cameras!)
-            device_id = thermal_device_id
+            # 5. Use saved device ID (stable)
+            device_id = getattr(self, 'effective_thermal_device_id', None)
             if device_id is None:
-                device_id = getattr(self.args, 'thermal_device', 2)  # Default to 2 (typical Boson index)
+                # Fallback to args or default
+                device_id = getattr(self.args, 'thermal_device', 2)
                 logger.warning(f"No saved thermal device ID, using args/default: {device_id}")
+            else:
+                logger.info(f"Using persisted thermal device ID: {device_id}")
 
             # 6. Create new backend using factory
             self.thermal_camera = create_thermal_backend(
@@ -3913,8 +4592,8 @@ class ThermalInspectionFusion:
                 # readings will be wrong (e.g. -65C).
                 try:
                     from boson_sdk_wrapper import BosonSDK
-                    # Use default COM port or auto-detect
-                    sdk = BosonSDK(com_port='COM7') 
+                    # Use resolved COM port
+                    sdk = BosonSDK(com_port=com_port) 
                     if sdk.open():
                         logger.info("Connected to SDK to verify T-Linear mode")
                         current_mode = sdk.get_usb_video_ir16_mode()
@@ -3977,7 +4656,11 @@ class ThermalInspectionFusion:
                     mode=mode_desc
                 )
                 logger.info(f"✓ GUI radiometric panel updated for {backend_type} backend")
-                
+
+                # Update panel availability (isotherm, environmental)
+                if hasattr(self.gui, 'update_radiometric_panel_availability'):
+                    self.gui.update_radiometric_panel_availability(self.args.radiometric)
+
                 # Update active mode status banner
                 if hasattr(self.gui.radiometric_panel, 'update_active_mode_status'):
                     mode_info = self.get_active_temperature_mode()
@@ -4003,16 +4686,22 @@ class ThermalInspectionFusion:
             # 11. Reinitialize RGB camera (was released for detection) and restart threaded capture
             if self.use_threaded_capture:
                 # Reinitialize RGB camera using saved device ID (don't probe cameras - that breaks flirpy)
-                if self.rgb_camera is None and rgb_device_id is not None:
-                    logger.info(f"Reinitializing RGB camera at device {rgb_device_id}...")
+                rgb_id = getattr(self, 'effective_rgb_device_id', 0)
+                # Ensure we have a valid ID (not None)
+                if rgb_id is None: 
+                    rgb_id = getattr(self.args, 'rgb_device', 0)
+
+                rgb_source = getattr(self, 'rgb_camera_source', 'uvc')
+
+                if self.rgb_camera is None and rgb_id is not None:
+                    logger.info(f"Reinitializing RGB camera ({rgb_source}) at device {rgb_id}...")
                     try:
                         from camera_factory import create_rgb_camera
                         
                         # Reuse saved device ID - DON'T call detect_all_cameras() as it probes thermal
-                        # Note: create_rgb_camera uses camera_type and camera_index, not device_id
                         self.rgb_camera = create_rgb_camera(
-                            camera_type='uvc',  # Force UVC since we know device ID
-                            camera_index=rgb_device_id,
+                            camera_type=rgb_source,  # Use correctly saved source (e.g. firefly)
+                            camera_index=rgb_id,
                             resolution=(0, 0),  # Auto-negotiate best resolution
                             use_max_resolution=True
                         )
@@ -4250,7 +4939,12 @@ class ThermalInspectionFusion:
             # Update temperature immediately if available
             temp_frame = self._get_temperature_frame()
             if temp_frame is not None:
-                self.measurement_points.update_temperatures(temp_frame)
+                # Get unit symbol from thermal_analyzer (same as hot/cold spots)
+                unit_symbol = "°C"  # Default
+                if self.thermal_analyzer:
+                    unit_symbol = self.thermal_analyzer._get_unit_symbol()
+
+                self.measurement_points.update_temperatures(temp_frame, unit_symbol)
 
             # Update GUI
             if self.gui and hasattr(self.gui, 'video_widget'):
