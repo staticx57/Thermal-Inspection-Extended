@@ -610,6 +610,11 @@ class ThermalInspectionFusion:
                 actual_res = self.thermal_camera.get_actual_resolution()
                 logger.info(f"[OK] Thermal camera connected: {actual_res[0]}x{actual_res[1]}")
 
+                # Propagate resolution to GUI overlay for coordinate mapping
+                if self.gui and hasattr(self.gui, 'video_widget') and hasattr(self.gui.video_widget, 'overlay'):
+                   if hasattr(self.gui.video_widget.overlay, 'set_thermal_resolution'):
+                       self.gui.video_widget.overlay.set_thermal_resolution(actual_res[0], actual_res[1])
+
                 # Set FLIR Boson flag
                 self.is_flir_boson = True
 
@@ -4629,6 +4634,11 @@ class ThermalInspectionFusion:
             else:
                 actual_res = self.thermal_camera.get_resolution()
             logger.info(f"[OK] Thermal camera connected: {actual_res[0]}x{actual_res[1]} ({backend_type} backend)")
+
+            # Propagate resolution to GUI overlay for coordinate mapping
+            if self.gui and hasattr(self.gui, 'video_widget') and hasattr(self.gui.video_widget, 'overlay'):
+                if hasattr(self.gui.video_widget.overlay, 'set_thermal_resolution'):
+                    self.gui.video_widget.overlay.set_thermal_resolution(actual_res[0], actual_res[1])
 
             # 8. Set radiometric mode based on backend type
             # flirpy backend = 16-bit T-Linear radiometric mode

@@ -75,7 +75,7 @@
     - [ ] Implement exponential backoff for connection failures
     - [ ] Add "Camera Busy" state handling (orphaned process detection)
     - [ ] Silence repetitive logs in ThreadedCameraCapture
-- [/] **Enhancement #12: Spot meter management and data export** 🔄 IN PROGRESS
+- [x] **Enhancement #12: Spot meter management and data export** ✅ COMPLETED
     - [x] **GUI Panel: Spot Meter Management (Analysis > General tab)** ✅ PHASE 1 COMPLETE
         - [x] Create dedicated `SpotMeterPanel` widget (similar to ROI panels)
         - [x] List view showing all active spot meters with:
@@ -88,11 +88,23 @@
             - [x] Click spot meter in list to highlight on video feed
             - [x] Click spot meter on video to add (select sync TODO)
             - [x] Keyboard navigation (Delete key, F2 for rename)
-        - [x] Spot meter actions:
-            - [x] Rename spot meter (double-click or context menu)
-            - [x] Delete individual spot meter
-            - [x] Clear all spot meters
-            - [x] Toggle visibility per spot meter
+            - [x] Fix Spot Meter List Item readability on light themes (Use color icons)
+    - [x] **New Dependency**: `pyqtgraph` added for History Graph
+    - [x] Implement History Graph for Spot Meters
+        - [x] **Snapshot Metadata**
+        - [x] Modify `media_recorder.py:SnapshotManager.capture_snapshot` to accept `spot_meters` argument
+        - [x] Implement serialization of spot data to JSON metadata in `capture_snapshot`
+        - [x] Update `inspection_main.py:_take_snapshot` to retrieve spot meters from panel
+    - [x] **Session Logging**
+        - [x] Add periodic logging of spot meter values to `inspection_main.py` main loop
+        - [x] Log spot meter values when taking a snapshot
+    - [x] **Advanced Features (Phase 6)**
+        - [x] Spot Meter Presets (Grid, Lines, Center)
+        - [x] Compare Mode (ΔT)
+        - [x] Alert Thresholds with visual feedback
+        - [x] History Graph (Real-time plotting with `pyqtgraph`)
+        - [x] Resolved layout/scaling issues with History Graph
+        - [x] Export to CSV/JSON (including history) meter
             - [x] Lock position (prevent accidental movement)
         - [x] Statistics display:
             - [x] Min/Max/Average across all spot meters
@@ -104,11 +116,11 @@
         - [x] Export spot meter history to CSV/JSON format
         - [x] Add timestamps for each spot meter reading (in SpotMeterData)
         - [x] SpotMeterLogger class for real-time logging
-    - [ ] **Advanced Features** (Future)
-        - [ ] Spot meter templates/presets (e.g., "9-point grid")
-        - [ ] Compare mode: Track temperature difference between two spots
-        - [ ] Alert thresholds: Notify when spot exceeds/drops below temperature
-        - [ ] Spot meter history graph (temperature over time per spot)
+    - [x] **Advanced Features** ✅ COMPLETED
+        - [x] Spot meter templates/presets (e.g., "9-point grid")
+        - [x] Compare mode: Track temperature difference between two spots
+        - [x] Alert thresholds: Notify when spot exceeds/drops below temperature
+        - [x] Spot meter history graph (temperature over time per spot)
 
 ## Recently Completed Enhancements
 - [x] **Enhancement #1: User-defined spot metering** ✅ COMPLETED

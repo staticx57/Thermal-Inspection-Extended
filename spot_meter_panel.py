@@ -11,7 +11,12 @@ from PyQt6.QtWidgets import (
     QListWidget, QListWidgetItem, QGroupBox, QMenu, QInputDialog,
     QMessageBox, QFrame, QAbstractItemView, QFileDialog, QComboBox,
     QCheckBox, QDialog, QFormLayout, QSpinBox, QDoubleSpinBox,
-    QScrollArea
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QListWidget, QListWidgetItem, QGroupBox, QMenu, QInputDialog,
+    QMessageBox, QFrame, QAbstractItemView, QFileDialog, QComboBox,
+    QCheckBox, QDialog, QFormLayout, QSpinBox, QDoubleSpinBox,
+    QScrollArea, QSizePolicy, QRadioButton, QDialogButtonBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor, QAction, QIcon, QPixmap, QBrush
@@ -86,18 +91,35 @@ class TemperatureHistoryGraph(QWidget):
         
         # Remove curves for deselected spots
         for spot_id in existing_ids - current_ids:
-            self.plot.removeItem(self.curves[spot_id])
-            del self.curves[spot_id]
+            if spot_id in self.curves: # Check existence defensively
+                self.plot.removeItem(self.curves[spot_id])
+                del self.curves[spot_id]
             
+        if not selected_spots:
+            return
+
+        # Determine unit from first selected spot
+        unit = selected_spots[0].unit
+        if "AGC" in unit:
+             self.plot.setLabel('left', 'Raw Value', units='AGC')
+        else:
+             self.plot.setLabel('left', 'Temperature', units=unit.replace("°",""))
+
         # Update or add curves
         for spot in selected_spots:
             if not spot.history:
                 continue
                 
             times, temps = zip(*spot.history)
-            # Normalize time to relative (0 = now)
-            now = time.time()
-            rel_times = [t - now for t in times]
+            # Normalize time to relative (0 = start of session)
+            # Normalize time to relative (0 = start of visible history)
+            # This ensures positive time axis that scrolls right
+            start_t = times[0]
+            rel_times = [t - start_t for t in times]
+            
+            # DEBUG: Check if we have variation
+            if len(temps) > 10:
+                logger.debug(f"Spot {spot.label} history (last 5): {temps[-5:]} | Range: {min(temps)} - {max(temps)}")
             
             spot_color = spot.color # (r, g, b)
             
@@ -138,7 +160,17 @@ class SpotMeterData:
             
     def add_history(self, temperature: float):
         """Add a temperature reading to history (keeps last 1000)."""
-        self.history.append((time.time(), temperature))
+        if temperature is None:
+            return
+            
+        # Optional: Filter obvious outliers if needed (e.g. <-200C)
+        # For now, just ensure it's a number
+        try:
+            val = float(temperature)
+        except (ValueError, TypeError):
+            return
+
+        self.history.append((time.time(), val))
         if len(self.history) > 1000:
             self.history.pop(0)
             
@@ -285,6 +317,8 @@ class SpotMeterPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.spots: Dict[str, SpotMeterData] = {}
+        self.start_time = time.time()
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._setup_ui()
         
     def _setup_ui(self):
@@ -447,10 +481,10 @@ class SpotMeterPanel(QWidget):
         self.history_graph = TemperatureHistoryGraph()
         self.history_graph.setVisible(False)
         self.history_graph.setMinimumHeight(200)
+        self.history_graph.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        # Pass start_time to graph for relative calculation
+        self.history_graph.start_time = self.start_time 
         layout.addWidget(self.history_graph)
-        
-        # Add stretch to keep items at top
-        layout.addStretch()
         
         # Initial button state
         self._update_button_states()
@@ -738,6 +772,35 @@ class SpotMeterPanel(QWidget):
                     item.update_display()
                 self.spot_renamed.emit(spot_id, new_name)
                 logger.info(f"Spot meter renamed: {spot_id} -> {new_name}")
+
+    def _on_set_alert(self):
+        """Configure alert for selected spot meter."""
+        items = self.spot_list.selectedItems()
+        if not items:
+            return
+            
+        spot_id = items[0].data(Qt.ItemDataRole.UserRole)
+        data = self.spots.get(spot_id)
+        if not data:
+            return
+            
+        dialog = SpotMeterAlertDialog(data.alert, unit=data.unit, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            data.alert = dialog.result_alert
+            # Check immediately
+            if data and data.alert:
+             if data.alert.check(data.temperature):
+                 logger.warning(f"ALERT: {data.label} is {data.alert.type} {data.alert.threshold} (Val: {data.temperature})")
+                 self.alert_triggered.emit(spot_id, data.alert.type, data.temperature)
+            logger.info(f"Alert configured for {data.label}: {data.alert}")
+                
+    def check_alerts(self, spot_id: str, temperature: float):
+        """Check alert for specific spot."""
+        data = self.spots.get(spot_id)
+        if data and data.alert:
+             if data.alert.check(temperature):
+                 logger.warning(f"ALERT: {data.label} is {data.alert.type} {data.alert.threshold} (Val: {temperature})")
+                 self.alert_triggered.emit(spot_id, data.alert.type, temperature)
                 
     def _on_delete_clicked(self):
         """Delete selected spot meter(s)."""
@@ -822,11 +885,20 @@ class SpotMeterPanel(QWidget):
         try:
             from spot_meter_exporter import SpotMeterExporter
             spots = list(self.spots.values())
-            if SpotMeterExporter.export_to_csv(spots, filepath):
-                QMessageBox.information(
-                    self, "Export Complete",
-                    f"Exported {len(spots)} spot meters to:\n{filepath}"
-                )
+            
+            # Export Snapshot
+            success = SpotMeterExporter.export_to_csv(spots, filepath)
+            
+            # Export History (if available)
+            history_path = filepath.replace('.csv', '_history.csv')
+            history_success = SpotMeterExporter.export_history_to_csv(spots, history_path)
+            
+            msg = f"Exported {len(spots)} spot meters to:\n{filepath}"
+            if history_success:
+                msg += f"\n\nMap history exported to:\n{history_path}"
+                
+            if success:
+                QMessageBox.information(self, "Export Complete", msg)
         except ImportError:
             # Fallback if exporter not available
             self._export_csv_fallback(filepath)
@@ -848,6 +920,65 @@ class SpotMeterPanel(QWidget):
             self._export_json_fallback(filepath)
         except Exception as e:
             QMessageBox.warning(self, "Export Failed", f"Error: {e}")
+
+class SpotMeterAlertDialog(QDialog):
+    """Dialog to configure spot meter alert."""
+    
+    def __init__(self, current_alert: Optional[SpotMeterAlert], unit: str = "°C", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Configure Alert")
+        self.setModal(True)
+        self.result_alert = None
+        
+        layout = QVBoxLayout(self)
+        
+        # Threshold
+        thresh_layout = QHBoxLayout()
+        thresh_layout.addWidget(QLabel(f"Threshold ({unit}):"))
+        self.thresh_spin = QDoubleSpinBox()
+        self.thresh_spin.setRange(-100.0, 1000.0)
+        self.thresh_spin.setDecimals(1)
+        if current_alert:
+            self.thresh_spin.setValue(current_alert.threshold)
+        else:
+            self.thresh_spin.setValue(30.0)
+        thresh_layout.addWidget(self.thresh_spin)
+        layout.addLayout(thresh_layout)
+        
+        # Type (Above/Below)
+        type_group = QGroupBox("Condition")
+        type_layout = QVBoxLayout(type_group)
+        self.above_radio = QRadioButton("Alert when ABOVE threshold")
+        self.below_radio = QRadioButton("Alert when BELOW threshold")
+        
+        if current_alert and current_alert.type == 'below':
+            self.below_radio.setChecked(True)
+        else:
+            self.above_radio.setChecked(True)
+            
+        type_layout.addWidget(self.above_radio)
+        type_layout.addWidget(self.below_radio)
+        layout.addWidget(type_group)
+        
+        # Enabled
+        self.enabled_cb = QCheckBox("Enable Alert")
+        self.enabled_cb.setChecked(current_alert.enabled if current_alert else True)
+        layout.addWidget(self.enabled_cb)
+        
+        # Buttons
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(self._on_accept)
+        btns.rejected.connect(self.reject)
+        layout.addWidget(btns)
+        
+    def _on_accept(self):
+        alert_type = 'above' if self.above_radio.isChecked() else 'below'
+        self.result_alert = SpotMeterAlert(
+            threshold=self.thresh_spin.value(),
+            type=alert_type,
+            enabled=self.enabled_cb.isChecked()
+        )
+        self.accept()
             
     def _export_csv_fallback(self, filepath: str):
         """Simple CSV export fallback."""
@@ -894,65 +1025,7 @@ class SpotMeterPanel(QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Export Failed", f"Error: {e}")
             
-    def _on_set_alert(self):
-        """Configure alert for selected spot(s). (New in Phase 6)"""
-        items = self.spot_list.selectedItems()
-        if not items:
-            return
-            
-        item = items[0]
-        spot_id = item.data(Qt.ItemDataRole.UserRole)
-        data = self.spots.get(spot_id)
-        
-        if data:
-            # Dialog to get threshold
-            dialog = QDialog(self)
-            dialog.setWindowTitle("Set Alert Threshold")
-            form = QFormLayout(dialog)
-            
-            spin = QDoubleSpinBox()
-            spin.setRange(-50, 500)
-            spin.setValue(data.alert.threshold if data.alert else 30.0)
-            spin.setSuffix(data.unit)
-            
-            type_combo = QComboBox()
-            type_combo.addItems(["Above (>)", "Below (<)"])
-            if data.alert and data.alert.type == 'below':
-                type_combo.setCurrentIndex(1)
-                
-            enable_cb = QCheckBox("Enable Alert")
-            enable_cb.setChecked(data.alert.enabled if data.alert else True)
-            
-            form.addRow("Threshold:", spin)
-            form.addRow("Condition:", type_combo)
-            form.addRow(enable_cb)
-            
-            btns = QHBoxLayout()
-            ok_btn = QPushButton("OK")
-            ok_btn.clicked.connect(dialog.accept)
-            btns.addWidget(ok_btn)
-            form.addRow(btns)
-            
-            if dialog.exec() == QDialog.DialogCode.Accepted:
-                threshold = spin.value()
-                c_type = "above" if type_combo.currentIndex() == 0 else "below"
-                enabled = enable_cb.isChecked()
-                
-                # Apply to all selected? For now, just first one or loop
-                for it in items:
-                    sid = it.data(Qt.ItemDataRole.UserRole)
-                    sdata = self.spots.get(sid)
-                    if sdata:
-                        sdata.alert = SpotMeterAlert(threshold=threshold, type=c_type, enabled=enabled)
-                        logger.info(f"Alert set for {sdata.label}: {c_type} {threshold}")
-                        
-    def check_alerts(self, spot_id: str, temperature: float):
-        """Check alert for specific spot."""
-        data = self.spots.get(spot_id)
-        if data and data.alert:
-             if data.alert.check(temperature):
-                 logger.warning(f"ALERT: {data.label} is {data.alert.type} {data.alert.threshold} (Val: {temperature})")
-                 self.alert_triggered.emit(spot_id, data.alert.type, temperature)
+
                 
     def _show_context_menu(self, position):
         """Show context menu for spot meter actions."""
@@ -965,14 +1038,13 @@ class SpotMeterPanel(QWidget):
         rename_action = menu.addAction("✏️ Rename...")
         rename_action.triggered.connect(self._on_rename_clicked)
         
-        delete_action = menu.addAction("🗑️ Delete")
-        delete_action.triggered.connect(self._on_delete_clicked)
-        
-        menu.addSeparator()
-        
-        # New: Alert
-        alert_action = menu.addAction("⚠️ Set Alert...")
-        alert_action.triggered.connect(self._on_set_alert)
+        selected_items = self.spot_list.selectedItems()
+        if selected_items:
+            menu.addSeparator()
+            menu.addAction("⚠️ Set Alert...", self._on_set_alert)
+            menu.addSeparator()
+            delete_action = menu.addAction("🗑️ Delete")
+            delete_action.triggered.connect(self._on_delete_clicked)
         
         menu.addSeparator()
         

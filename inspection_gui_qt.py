@@ -973,42 +973,66 @@ class InspectionOverlayWidget(QWidget):
         
         self.update()
 
+    def set_thermal_resolution(self, w: int, h: int):
+        """Set thermal sensor resolution for coordinate scaling."""
+        self.thermal_resolution = (w, h)
+        # logger.debug(f"Overlay thermal resolution set to: {w}x{h}") # Assuming logger is defined
+
     def _should_draw_thermal_overlays(self) -> bool:
         """Check if thermal-based overlays should be drawn in current view mode."""
-        # Don't draw thermal overlays when showing RGB-only
+        # Draw in all modes containing thermal data (including Fusion)
         if self.current_view_mode == 'rgb':
             return False
         return True
 
     def _transform_thermal_coords(self, x: float, y: float) -> tuple:
         """
-        Transform thermal frame coordinates to display coordinates.
-        Handles PIP mode where thermal is in a small inset.
+        Transform thermal sensor coordinates to display coordinates.
+        Handles scaling from thermal res to display res, AND PIP mode.
         
         Args:
-            x, y: Thermal frame coordinates
+            x, y: Thermal sensor coordinates (e.g., 0-640)
             
         Returns:
             Widget coordinates (wx, wy)
         """
+        # 1. Scale Thermal -> Display Frame
+        if not hasattr(self, 'thermal_resolution') or not self.thermal_resolution:
+            # Fallback if resolution not set (assume 1:1)
+            frame_x, frame_y = x, y
+        else:
+            tw, th = self.thermal_resolution
+            fw, fh = self.frame_size
+            
+            # Avoid divide by zero
+            if tw == 0 or th == 0:
+                return self.frame_to_widget(x, y)
+                
+            scale_x = fw / tw
+            scale_y = fh / th
+            frame_x = x * scale_x
+            frame_y = y * scale_y
+
+        # 2. Handle PIP
         if self.pip_rect is not None:
             # In PIP mode with thermal as inset - transform to inset position
             pip_x, pip_y, pip_w, pip_h = self.pip_rect
             frame_w, frame_h = self.frame_size
             
-            # Scale thermal coords to PIP inset size
-            scale_x = pip_w / frame_w
-            scale_y = pip_h / frame_h
+            # Scale frame coords to PIP inset size
+            # Note: frame_x is already in 'frame_w' space
+            pip_scale_x = pip_w / frame_w
+            pip_scale_y = pip_h / frame_h
             
             # Transform to PIP position
-            thermal_x = pip_x + x * scale_x
-            thermal_y = pip_y + y * scale_y
+            final_x = pip_x + frame_x * pip_scale_x
+            final_y = pip_y + frame_y * pip_scale_y
             
             # Then apply widget coordinate transformation
-            return self.frame_to_widget(thermal_x, thermal_y)
+            return self.frame_to_widget(final_x, final_y)
         else:
             # Normal mode - use standard frame to widget transformation
-            return self.frame_to_widget(x, y)
+            return self.frame_to_widget(frame_x, frame_y)
 
     def set_spot_meter_mode(self, enabled: bool, emit_signal: bool = True):
         """Enable or disable spot metering mode.
@@ -1387,8 +1411,21 @@ class InspectionOverlayWidget(QWidget):
         """Handle mouse press for ROI drawing and selection."""
         if self.spot_meter_mode:
             # Spot metering: click to add measurement point
-            click_x, click_y = self.widget_to_frame(event.pos().x(), event.pos().y())
-            self.spot_meter_clicked.emit(click_x, click_y)
+            click_wx, click_wy = self.widget_to_frame(event.pos().x(), event.pos().y())
+            
+            # Convert Display Frame -> Thermal Sensor Coords
+            if hasattr(self, 'thermal_resolution') and self.thermal_resolution:
+                tw, th = self.thermal_resolution
+                fw, fh = self.frame_size
+                if fw > 0 and fh > 0:
+                    click_x = click_wx * (tw / fw)
+                    click_y = click_wy * (th / fh)
+                else:
+                    click_x, click_y = click_wx, click_wy
+            else:
+                click_x, click_y = click_wx, click_wy
+                
+            self.spot_meter_clicked.emit(int(click_x), int(click_y))
             event.accept() # Stop propagation to VideoWidget
             return
 
@@ -2485,11 +2522,8 @@ class ThermalAnalysisPanel(QWidget):
         
         spot_layout.addWidget(create_separator())
         
-        # Spot Meter Panel (list, stats, actions, export)
         self.spot_meter_panel = SpotMeterPanel()
         spot_layout.addWidget(self.spot_meter_panel)
-        
-        spot_layout.addStretch()
         
         self.analysis_tabs.addTab(spot_tab, "Spot Meters")
 
@@ -6303,25 +6337,7 @@ class InspectionAppWindow(QMainWindow):
         """Get coordinates of all active spot meters."""
         return [(p.x, p.y, p.label) for p in self.measurement_points]
     
-    def update_spot_meter_values(self, values: List[Dict]):
-        """
-        Update temperatures for spot meters.
-        
-        Args:
-            values: List of dicts with {'label': str, 'temperature': float, 'unit': str}
-        """
-        updated = False
-        val_map = {v['label']: v for v in values}
-        
-        for point in self.measurement_points:
-            if point.label in val_map:
-                data = val_map[point.label]
-                point.temperature = data['temperature']
-                point.unit = data['unit']
-                updated = True
-                
-        if updated and hasattr(self, 'video_widget'):
-            self.video_widget.update_measurement_points(self.measurement_points)
+
 
     def _on_spot_meter_clicked(self, x: int, y: int):
         """Handle click on video to add spot measurement point."""
