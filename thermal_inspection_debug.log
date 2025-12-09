@@ -54005,3 +54005,385 @@ TypeError: BosonControlPanel.update_connection_status() takes 2 positional argum
 2025-12-09 10:11:34,465 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=2.5ms, palette=3.6ms, auto_roi=0.0ms, roi_analysis=6.9ms, thermal_analysis=18.4ms, anomaly_priority=0.0ms, fusion=12.6ms, display_select=0.0ms, draw_rois=0.0ms
 2025-12-09 10:11:34,465 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 2 edges, 3 hot spots
 2025-12-09 10:11:34,956 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 2 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:11:36,910 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=51, temp=51.0 (AGC), target=C
+2025-12-09 10:11:36,911 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=127, temp=127.0 (AGC), target=C
+2025-12-09 10:11:36,913 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=173, temp=173.0 (AGC), target=C
+2025-12-09 10:11:41,269 - __main__ - INFO - [inspection_main.py:2330] - Frame 6600: 13.6 FPS (73.5ms/frame)
+2025-12-09 10:11:41,269 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.9ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=39.8ms, gui_update=17.8ms, processEvents=16.1ms
+2025-12-09 10:11:41,270 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=2.0ms, palette=3.2ms, auto_roi=0.0ms, roi_analysis=6.6ms, thermal_analysis=15.7ms, anomaly_priority=0.0ms, fusion=10.7ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:11:41,271 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 1 edges, 2 hot spots
+2025-12-09 10:11:41,319 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=49, temp=49.0 (AGC), target=C
+2025-12-09 10:11:41,320 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=125, temp=125.0 (AGC), target=C
+2025-12-09 10:11:41,322 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=170, temp=170.0 (AGC), target=C
+2025-12-09 10:11:41,895 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 4 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:11:45,605 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=51, temp=51.0 (AGC), target=C
+2025-12-09 10:11:45,606 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=127, temp=127.0 (AGC), target=C
+2025-12-09 10:11:45,607 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=169, temp=169.0 (AGC), target=C
+2025-12-09 10:11:48,073 - __main__ - INFO - [inspection_main.py:2330] - Frame 6700: 15.1 FPS (66.1ms/frame)
+2025-12-09 10:11:48,075 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.6ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=38.9ms, gui_update=15.8ms, processEvents=12.5ms
+2025-12-09 10:11:48,075 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=2.0ms, palette=2.4ms, auto_roi=0.0ms, roi_analysis=6.7ms, thermal_analysis=14.6ms, anomaly_priority=0.0ms, fusion=10.6ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:11:48,075 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 1 edges, 2 hot spots
+2025-12-09 10:11:48,677 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 4 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:11:49,396 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=51, temp=51.0 (AGC), target=C
+2025-12-09 10:11:49,397 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=126, temp=126.0 (AGC), target=C
+2025-12-09 10:11:49,398 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=172, temp=172.0 (AGC), target=C
+2025-12-09 10:11:53,149 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=49, temp=49.0 (AGC), target=C
+2025-12-09 10:11:53,150 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=128, temp=128.0 (AGC), target=C
+2025-12-09 10:11:53,150 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=169, temp=169.0 (AGC), target=C
+2025-12-09 10:11:54,282 - __main__ - INFO - [inspection_main.py:2330] - Frame 6800: 16.4 FPS (61.0ms/frame)
+2025-12-09 10:11:54,283 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.5ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=41.0ms, gui_update=16.2ms, processEvents=14.2ms
+2025-12-09 10:11:54,284 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=1.1ms, palette=4.3ms, auto_roi=0.0ms, roi_analysis=4.2ms, thermal_analysis=18.6ms, anomaly_priority=0.0ms, fusion=10.1ms, display_select=1.0ms, draw_rois=0.0ms
+2025-12-09 10:11:54,285 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 1 edges, 2 hot spots
+2025-12-09 10:11:54,821 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 6 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:11:56,762 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=51, temp=51.0 (AGC), target=C
+2025-12-09 10:11:56,764 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=121, temp=121.0 (AGC), target=C
+2025-12-09 10:11:56,764 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=169, temp=169.0 (AGC), target=C
+2025-12-09 10:12:00,658 - __main__ - INFO - [inspection_main.py:2330] - Frame 6900: 15.2 FPS (65.6ms/frame)
+2025-12-09 10:12:00,659 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.9ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=49.3ms, gui_update=21.4ms, processEvents=18.5ms
+2025-12-09 10:12:00,660 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=1.2ms, palette=4.2ms, auto_roi=0.0ms, roi_analysis=8.9ms, thermal_analysis=20.1ms, anomaly_priority=0.0ms, fusion=12.9ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:12:00,660 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 1 edges, 3 hot spots
+2025-12-09 10:12:00,722 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=51, temp=51.0 (AGC), target=C
+2025-12-09 10:12:00,723 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=128, temp=128.0 (AGC), target=C
+2025-12-09 10:12:00,723 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=172, temp=172.0 (AGC), target=C
+2025-12-09 10:12:01,290 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 5 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:12:04,725 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=52, temp=52.0 (AGC), target=C
+2025-12-09 10:12:04,726 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=125, temp=125.0 (AGC), target=C
+2025-12-09 10:12:04,726 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=171, temp=171.0 (AGC), target=C
+2025-12-09 10:12:07,197 - __main__ - INFO - [inspection_main.py:2330] - Frame 7000: 15.6 FPS (64.3ms/frame)
+2025-12-09 10:12:07,198 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.6ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=42.1ms, gui_update=13.1ms, processEvents=12.0ms
+2025-12-09 10:12:07,199 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=2.7ms, palette=3.2ms, auto_roi=0.0ms, roi_analysis=7.1ms, thermal_analysis=18.6ms, anomaly_priority=0.0ms, fusion=9.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:12:07,200 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 1 edges, 3 hot spots
+2025-12-09 10:12:07,741 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 5 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:12:08,531 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=56, temp=56.0 (AGC), target=C
+2025-12-09 10:12:08,531 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=129, temp=129.0 (AGC), target=C
+2025-12-09 10:12:08,531 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=174, temp=174.0 (AGC), target=C
+2025-12-09 10:12:12,321 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=49, temp=49.0 (AGC), target=C
+2025-12-09 10:12:12,322 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=117, temp=117.0 (AGC), target=C
+2025-12-09 10:12:12,322 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=162, temp=162.0 (AGC), target=C
+2025-12-09 10:12:13,572 - __main__ - INFO - [inspection_main.py:2330] - Frame 7100: 15.9 FPS (63.0ms/frame)
+2025-12-09 10:12:13,573 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.7ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=38.1ms, gui_update=17.2ms, processEvents=15.3ms
+2025-12-09 10:12:13,574 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=1.6ms, palette=4.1ms, auto_roi=0.0ms, roi_analysis=6.7ms, thermal_analysis=14.7ms, anomaly_priority=0.0ms, fusion=9.2ms, display_select=0.0ms, draw_rois=0.6ms
+2025-12-09 10:12:13,574 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 3 edges, 3 hot spots
+2025-12-09 10:12:14,107 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 5 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:12:16,047 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=42, temp=42.0 (AGC), target=C
+2025-12-09 10:12:16,048 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=100, temp=100.0 (AGC), target=C
+2025-12-09 10:12:16,049 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=158, temp=158.0 (AGC), target=C
+2025-12-09 10:12:19,824 - __main__ - INFO - [inspection_main.py:2330] - Frame 7200: 15.7 FPS (63.6ms/frame)
+2025-12-09 10:12:19,824 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=3.2ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=45.9ms, gui_update=16.2ms, processEvents=14.2ms
+2025-12-09 10:12:19,825 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=2.5ms, palette=6.0ms, auto_roi=0.0ms, roi_analysis=8.4ms, thermal_analysis=16.3ms, anomaly_priority=0.0ms, fusion=11.8ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:12:19,826 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 3 edges, 3 hot spots
+2025-12-09 10:12:19,872 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=42, temp=42.0 (AGC), target=C
+2025-12-09 10:12:19,872 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=100, temp=100.0 (AGC), target=C
+2025-12-09 10:12:19,873 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=161, temp=161.0 (AGC), target=C
+2025-12-09 10:12:20,393 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 5 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:12:23,576 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=51, temp=51.0 (AGC), target=C
+2025-12-09 10:12:23,576 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=122, temp=122.0 (AGC), target=C
+2025-12-09 10:12:23,577 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=172, temp=172.0 (AGC), target=C
+2025-12-09 10:12:26,125 - __main__ - INFO - [inspection_main.py:2330] - Frame 7300: 15.8 FPS (63.3ms/frame)
+2025-12-09 10:12:26,126 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=0.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=39.8ms, gui_update=15.1ms, processEvents=13.4ms
+2025-12-09 10:12:26,126 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=2.3ms, palette=3.8ms, auto_roi=0.0ms, roi_analysis=6.8ms, thermal_analysis=15.7ms, anomaly_priority=0.0ms, fusion=10.6ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:12:26,126 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 3 edges, 2 hot spots
+2025-12-09 10:12:26,719 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 4 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:12:27,448 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=66, temp=66.0 (AGC), target=C
+2025-12-09 10:12:27,449 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=106, temp=106.0 (AGC), target=C
+2025-12-09 10:12:27,450 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=157, temp=157.0 (AGC), target=C
+2025-12-09 10:12:31,373 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=73, temp=73.0 (AGC), target=C
+2025-12-09 10:12:31,373 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=107, temp=107.0 (AGC), target=C
+2025-12-09 10:12:31,375 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=198, temp=198.0 (AGC), target=C
+2025-12-09 10:12:32,566 - __main__ - INFO - [inspection_main.py:2330] - Frame 7400: 15.5 FPS (64.7ms/frame)
+2025-12-09 10:12:32,567 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.6ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=41.4ms, gui_update=12.5ms, processEvents=10.8ms
+2025-12-09 10:12:32,567 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=3.7ms, palette=3.9ms, auto_roi=0.0ms, roi_analysis=6.1ms, thermal_analysis=15.6ms, anomaly_priority=0.0ms, fusion=12.1ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:12:32,567 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 2 edges, 1 hot spots
+2025-12-09 10:12:33,137 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 3 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:12:35,032 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=71, temp=71.0 (AGC), target=C
+2025-12-09 10:12:35,032 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=104, temp=104.0 (AGC), target=C
+2025-12-09 10:12:35,034 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=198, temp=198.0 (AGC), target=C
+2025-12-09 10:12:38,616 - __main__ - INFO - [inspection_main.py:2330] - Frame 7500: 16.6 FPS (60.4ms/frame)
+2025-12-09 10:12:38,616 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.6ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=29.5ms, gui_update=18.9ms, processEvents=15.7ms
+2025-12-09 10:12:38,616 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=1.6ms, palette=1.9ms, auto_roi=0.0ms, roi_analysis=3.7ms, thermal_analysis=11.3ms, anomaly_priority=0.0ms, fusion=9.5ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:12:38,619 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 2 edges, 1 hot spots
+2025-12-09 10:12:38,657 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=71, temp=71.0 (AGC), target=C
+2025-12-09 10:12:38,660 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=104, temp=104.0 (AGC), target=C
+2025-12-09 10:12:38,661 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=197, temp=197.0 (AGC), target=C
+2025-12-09 10:12:39,157 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 3 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:12:42,367 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=68, temp=68.0 (AGC), target=C
+2025-12-09 10:12:42,369 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=104, temp=104.0 (AGC), target=C
+2025-12-09 10:12:42,370 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=201, temp=201.0 (AGC), target=C
+2025-12-09 10:12:44,796 - __main__ - INFO - [inspection_main.py:2330] - Frame 7600: 16.2 FPS (61.8ms/frame)
+2025-12-09 10:12:44,796 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=2.7ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=42.3ms, gui_update=16.8ms, processEvents=14.1ms
+2025-12-09 10:12:44,799 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=2.3ms, palette=3.7ms, auto_roi=0.0ms, roi_analysis=7.1ms, thermal_analysis=15.5ms, anomaly_priority=0.0ms, fusion=13.6ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:12:44,799 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 2 edges, 1 hot spots
+2025-12-09 10:12:45,363 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 6 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:12:46,107 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=42, temp=42.0 (AGC), target=C
+2025-12-09 10:12:46,107 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=130, temp=130.0 (AGC), target=C
+2025-12-09 10:12:46,107 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=174, temp=174.0 (AGC), target=C
+2025-12-09 10:12:50,075 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=46, temp=46.0 (AGC), target=C
+2025-12-09 10:12:50,075 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=134, temp=134.0 (AGC), target=C
+2025-12-09 10:12:50,076 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=174, temp=174.0 (AGC), target=C
+2025-12-09 10:12:51,347 - __main__ - INFO - [inspection_main.py:2330] - Frame 7700: 15.3 FPS (65.4ms/frame)
+2025-12-09 10:12:51,348 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.9ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=46.5ms, gui_update=12.6ms, processEvents=10.3ms
+2025-12-09 10:12:51,348 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=2.1ms, palette=4.3ms, auto_roi=0.0ms, roi_analysis=9.9ms, thermal_analysis=17.8ms, anomaly_priority=0.0ms, fusion=11.3ms, display_select=0.0ms, draw_rois=0.5ms
+2025-12-09 10:12:51,349 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 0 edges, 3 hot spots
+2025-12-09 10:12:51,937 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 7 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:12:54,074 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=46, temp=46.0 (AGC), target=C
+2025-12-09 10:12:54,075 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=135, temp=135.0 (AGC), target=C
+2025-12-09 10:12:54,075 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=180, temp=180.0 (AGC), target=C
+2025-12-09 10:12:57,900 - __main__ - INFO - [inspection_main.py:2330] - Frame 7800: 15.5 FPS (64.6ms/frame)
+2025-12-09 10:12:57,901 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.7ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=35.8ms, gui_update=13.9ms, processEvents=12.3ms
+2025-12-09 10:12:57,901 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=0.5ms, palette=3.7ms, auto_roi=0.0ms, roi_analysis=7.4ms, thermal_analysis=14.2ms, anomaly_priority=0.0ms, fusion=8.5ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:12:57,901 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 0 edges, 3 hot spots
+2025-12-09 10:12:57,934 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=42, temp=42.0 (AGC), target=C
+2025-12-09 10:12:57,935 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=138, temp=138.0 (AGC), target=C
+2025-12-09 10:12:57,935 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=178, temp=178.0 (AGC), target=C
+2025-12-09 10:12:58,310 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 6 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:13:01,327 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=43, temp=43.0 (AGC), target=C
+2025-12-09 10:13:01,328 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=134, temp=134.0 (AGC), target=C
+2025-12-09 10:13:01,329 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=173, temp=173.0 (AGC), target=C
+2025-12-09 10:13:04,097 - __main__ - INFO - [inspection_main.py:2330] - Frame 7900: 14.1 FPS (71.0ms/frame)
+2025-12-09 10:13:04,099 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.3ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=41.6ms, gui_update=16.5ms, processEvents=14.9ms
+2025-12-09 10:13:04,100 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=1.9ms, palette=1.7ms, auto_roi=0.0ms, roi_analysis=6.9ms, thermal_analysis=15.6ms, anomaly_priority=0.0ms, fusion=13.8ms, display_select=0.0ms, draw_rois=0.5ms
+2025-12-09 10:13:04,100 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 0 edges, 3 hot spots
+2025-12-09 10:13:04,727 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 8 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:13:05,622 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=43, temp=43.0 (AGC), target=C
+2025-12-09 10:13:05,622 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=133, temp=133.0 (AGC), target=C
+2025-12-09 10:13:05,623 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=179, temp=179.0 (AGC), target=C
+2025-12-09 10:13:09,857 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=43, temp=43.0 (AGC), target=C
+2025-12-09 10:13:09,858 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=133, temp=133.0 (AGC), target=C
+2025-12-09 10:13:09,858 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=174, temp=174.0 (AGC), target=C
+2025-12-09 10:13:11,155 - __main__ - INFO - [inspection_main.py:2330] - Frame 8000: 14.7 FPS (68.1ms/frame)
+2025-12-09 10:13:11,157 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.8ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=46.7ms, gui_update=15.0ms, processEvents=12.7ms
+2025-12-09 10:13:11,157 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=1.8ms, palette=3.1ms, auto_roi=0.0ms, roi_analysis=9.1ms, thermal_analysis=19.3ms, anomaly_priority=0.0ms, fusion=11.4ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:13:11,158 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 0 edges, 3 hot spots
+2025-12-09 10:13:11,800 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 3 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:13:13,852 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=39, temp=39.0 (AGC), target=C
+2025-12-09 10:13:13,852 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=134, temp=134.0 (AGC), target=C
+2025-12-09 10:13:13,855 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=174, temp=174.0 (AGC), target=C
+2025-12-09 10:13:17,719 - __main__ - INFO - [inspection_main.py:2330] - Frame 8100: 15.3 FPS (65.3ms/frame)
+2025-12-09 10:13:17,720 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=2.3ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=61.3ms, gui_update=17.6ms, processEvents=15.6ms
+2025-12-09 10:13:17,720 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=1.5ms, palette=4.2ms, auto_roi=0.0ms, roi_analysis=10.0ms, thermal_analysis=30.4ms, anomaly_priority=0.0ms, fusion=13.6ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:13:17,721 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 0 edges, 3 hot spots
+2025-12-09 10:13:17,769 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=43, temp=43.0 (AGC), target=C
+2025-12-09 10:13:17,770 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=129, temp=129.0 (AGC), target=C
+2025-12-09 10:13:17,770 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=178, temp=178.0 (AGC), target=C
+2025-12-09 10:13:18,331 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 7 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:13:21,873 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=50, temp=50.0 (AGC), target=C
+2025-12-09 10:13:21,873 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=134, temp=134.0 (AGC), target=C
+2025-12-09 10:13:21,874 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=180, temp=180.0 (AGC), target=C
+2025-12-09 10:13:24,326 - __main__ - INFO - [inspection_main.py:2330] - Frame 8200: 15.6 FPS (64.0ms/frame)
+2025-12-09 10:13:24,327 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=2.3ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=42.5ms, gui_update=13.5ms, processEvents=11.4ms
+2025-12-09 10:13:24,327 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=1.6ms, palette=3.1ms, auto_roi=0.0ms, roi_analysis=9.4ms, thermal_analysis=15.8ms, anomaly_priority=0.0ms, fusion=11.5ms, display_select=1.1ms, draw_rois=0.0ms
+2025-12-09 10:13:24,329 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 0 edges, 3 hot spots
+2025-12-09 10:13:24,927 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 7 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:13:25,611 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=47, temp=47.0 (AGC), target=C
+2025-12-09 10:13:25,611 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=130, temp=130.0 (AGC), target=C
+2025-12-09 10:13:25,612 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=178, temp=178.0 (AGC), target=C
+2025-12-09 10:13:29,462 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=46, temp=46.0 (AGC), target=C
+2025-12-09 10:13:29,464 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=153, temp=153.0 (AGC), target=C
+2025-12-09 10:13:29,464 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=180, temp=180.0 (AGC), target=C
+2025-12-09 10:13:30,794 - __main__ - INFO - [inspection_main.py:2330] - Frame 8300: 15.0 FPS (66.8ms/frame)
+2025-12-09 10:13:30,794 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.8ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=56.0ms, gui_update=19.9ms, processEvents=18.4ms
+2025-12-09 10:13:30,795 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=0.0ms, palette=6.3ms, auto_roi=0.0ms, roi_analysis=12.5ms, thermal_analysis=21.5ms, anomaly_priority=0.0ms, fusion=13.2ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:13:30,796 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 0 edges, 3 hot spots
+2025-12-09 10:13:31,539 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 8 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:13:33,685 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=46, temp=46.0 (AGC), target=C
+2025-12-09 10:13:33,686 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=130, temp=130.0 (AGC), target=C
+2025-12-09 10:13:33,687 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=180, temp=180.0 (AGC), target=C
+2025-12-09 10:13:37,490 - __main__ - INFO - [inspection_main.py:2330] - Frame 8400: 15.5 FPS (64.6ms/frame)
+2025-12-09 10:13:37,491 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.7ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=42.0ms, gui_update=19.6ms, processEvents=17.7ms
+2025-12-09 10:13:37,491 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=1.4ms, palette=3.4ms, auto_roi=0.0ms, roi_analysis=7.7ms, thermal_analysis=17.2ms, anomaly_priority=0.0ms, fusion=9.8ms, display_select=0.0ms, draw_rois=1.5ms
+2025-12-09 10:13:37,493 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 0 edges, 3 hot spots
+2025-12-09 10:13:37,541 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=44, temp=44.0 (AGC), target=C
+2025-12-09 10:13:37,543 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=130, temp=130.0 (AGC), target=C
+2025-12-09 10:13:37,544 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=179, temp=179.0 (AGC), target=C
+2025-12-09 10:13:38,105 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 7 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:13:41,480 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=49, temp=49.0 (AGC), target=C
+2025-12-09 10:13:41,481 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=129, temp=129.0 (AGC), target=C
+2025-12-09 10:13:41,483 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=174, temp=174.0 (AGC), target=C
+2025-12-09 10:13:44,126 - __main__ - INFO - [inspection_main.py:2330] - Frame 8500: 14.8 FPS (67.6ms/frame)
+2025-12-09 10:13:44,127 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=54.7ms, gui_update=19.1ms, processEvents=16.1ms
+2025-12-09 10:13:44,128 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=2.1ms, palette=6.1ms, auto_roi=0.0ms, roi_analysis=11.2ms, thermal_analysis=20.9ms, anomaly_priority=0.0ms, fusion=10.9ms, display_select=0.0ms, draw_rois=1.0ms
+2025-12-09 10:13:44,129 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 0 edges, 3 hot spots
+2025-12-09 10:13:44,702 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 6 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:13:45,356 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=47, temp=47.0 (AGC), target=C
+2025-12-09 10:13:45,357 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=130, temp=130.0 (AGC), target=C
+2025-12-09 10:13:45,357 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=179, temp=179.0 (AGC), target=C
+2025-12-09 10:13:49,309 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=47, temp=47.0 (AGC), target=C
+2025-12-09 10:13:49,310 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=129, temp=129.0 (AGC), target=C
+2025-12-09 10:13:49,311 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=175, temp=175.0 (AGC), target=C
+2025-12-09 10:13:50,580 - __main__ - INFO - [inspection_main.py:2330] - Frame 8600: 15.1 FPS (66.3ms/frame)
+2025-12-09 10:13:50,581 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=47.9ms, gui_update=23.3ms, processEvents=21.7ms
+2025-12-09 10:13:50,582 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=1.9ms, palette=4.7ms, auto_roi=0.0ms, roi_analysis=9.9ms, thermal_analysis=18.7ms, anomaly_priority=0.0ms, fusion=11.2ms, display_select=0.4ms, draw_rois=0.0ms
+2025-12-09 10:13:50,583 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 0 edges, 3 hot spots
+2025-12-09 10:13:51,186 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 7 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:13:53,197 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=48, temp=48.0 (AGC), target=C
+2025-12-09 10:13:53,199 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=130, temp=130.0 (AGC), target=C
+2025-12-09 10:13:53,199 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=173, temp=173.0 (AGC), target=C
+2025-12-09 10:13:56,850 - __main__ - INFO - [inspection_main.py:2330] - Frame 8700: 16.2 FPS (61.8ms/frame)
+2025-12-09 10:13:56,851 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.5ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=36.8ms, gui_update=15.0ms, processEvents=12.5ms
+2025-12-09 10:13:56,852 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=1.5ms, palette=3.0ms, auto_roi=0.0ms, roi_analysis=7.8ms, thermal_analysis=12.4ms, anomaly_priority=0.0ms, fusion=11.6ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:13:56,852 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 0 edges, 3 hot spots
+2025-12-09 10:13:56,900 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=47, temp=47.0 (AGC), target=C
+2025-12-09 10:13:56,901 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=130, temp=130.0 (AGC), target=C
+2025-12-09 10:13:56,903 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=178, temp=178.0 (AGC), target=C
+2025-12-09 10:13:57,462 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 5 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:14:00,587 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=49, temp=49.0 (AGC), target=C
+2025-12-09 10:14:00,587 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=130, temp=130.0 (AGC), target=C
+2025-12-09 10:14:00,588 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=178, temp=178.0 (AGC), target=C
+2025-12-09 10:14:03,138 - __main__ - INFO - [inspection_main.py:2330] - Frame 8800: 15.7 FPS (63.5ms/frame)
+2025-12-09 10:14:03,138 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=2.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=49.9ms, gui_update=18.1ms, processEvents=16.2ms
+2025-12-09 10:14:03,140 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=1.6ms, palette=3.7ms, auto_roi=0.0ms, roi_analysis=10.2ms, thermal_analysis=19.8ms, anomaly_priority=0.0ms, fusion=11.7ms, display_select=1.5ms, draw_rois=0.0ms
+2025-12-09 10:14:03,140 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 0 edges, 3 hot spots
+2025-12-09 10:14:03,837 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 5 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:14:04,531 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=42, temp=42.0 (AGC), target=C
+2025-12-09 10:14:04,531 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=120, temp=120.0 (AGC), target=C
+2025-12-09 10:14:04,532 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=169, temp=169.0 (AGC), target=C
+2025-12-09 10:14:08,545 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=49, temp=49.0 (AGC), target=C
+2025-12-09 10:14:08,547 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=128, temp=128.0 (AGC), target=C
+2025-12-09 10:14:08,548 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=180, temp=180.0 (AGC), target=C
+2025-12-09 10:14:09,857 - __main__ - INFO - [inspection_main.py:2330] - Frame 8900: 14.9 FPS (67.3ms/frame)
+2025-12-09 10:14:09,858 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=2.6ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=65.6ms, gui_update=25.6ms, processEvents=22.6ms
+2025-12-09 10:14:09,859 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=3.0ms, palette=3.5ms, auto_roi=0.0ms, roi_analysis=12.2ms, thermal_analysis=30.1ms, anomaly_priority=0.0ms, fusion=14.3ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:14:09,859 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 0 edges, 3 hot spots
+2025-12-09 10:14:10,493 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 6 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:14:12,545 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=48, temp=48.0 (AGC), target=C
+2025-12-09 10:14:12,547 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=128, temp=128.0 (AGC), target=C
+2025-12-09 10:14:12,548 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=178, temp=178.0 (AGC), target=C
+2025-12-09 10:14:16,352 - __main__ - INFO - [inspection_main.py:2330] - Frame 9000: 15.6 FPS (64.2ms/frame)
+2025-12-09 10:14:16,353 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=2.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=47.7ms, gui_update=23.0ms, processEvents=21.0ms
+2025-12-09 10:14:16,354 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=1.5ms, palette=3.0ms, auto_roi=0.0ms, roi_analysis=9.9ms, thermal_analysis=19.0ms, anomaly_priority=0.0ms, fusion=11.9ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:14:16,355 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 0 edges, 3 hot spots
+2025-12-09 10:14:16,405 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=50, temp=50.0 (AGC), target=C
+2025-12-09 10:14:16,407 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=130, temp=130.0 (AGC), target=C
+2025-12-09 10:14:16,407 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=175, temp=175.0 (AGC), target=C
+2025-12-09 10:14:16,992 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 6 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:14:20,351 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=53, temp=53.0 (AGC), target=C
+2025-12-09 10:14:20,352 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=130, temp=130.0 (AGC), target=C
+2025-12-09 10:14:20,352 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=174, temp=174.0 (AGC), target=C
+2025-12-09 10:14:22,921 - __main__ - INFO - [inspection_main.py:2330] - Frame 9100: 15.4 FPS (64.8ms/frame)
+2025-12-09 10:14:22,922 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.6ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=41.0ms, gui_update=18.0ms, processEvents=14.9ms
+2025-12-09 10:14:22,922 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=1.0ms, palette=3.0ms, auto_roi=0.0ms, roi_analysis=9.2ms, thermal_analysis=17.8ms, anomaly_priority=0.0ms, fusion=8.4ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:14:22,922 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 0 edges, 3 hot spots
+2025-12-09 10:14:23,619 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 5 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:14:24,277 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=51, temp=51.0 (AGC), target=C
+2025-12-09 10:14:24,278 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=129, temp=129.0 (AGC), target=C
+2025-12-09 10:14:24,279 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=179, temp=179.0 (AGC), target=C
+2025-12-09 10:14:28,010 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=50, temp=50.0 (AGC), target=C
+2025-12-09 10:14:28,011 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=155, temp=155.0 (AGC), target=C
+2025-12-09 10:14:28,011 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=165, temp=165.0 (AGC), target=C
+2025-12-09 10:14:29,356 - __main__ - INFO - [inspection_main.py:2330] - Frame 9200: 15.4 FPS (64.7ms/frame)
+2025-12-09 10:14:29,357 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=2.6ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=40.9ms, gui_update=14.7ms, processEvents=12.8ms
+2025-12-09 10:14:29,358 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=1.0ms, palette=5.5ms, auto_roi=0.0ms, roi_analysis=7.4ms, thermal_analysis=15.4ms, anomaly_priority=0.0ms, fusion=9.9ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:14:29,358 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 1 edges, 3 hot spots
+2025-12-09 10:14:29,997 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 4 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:14:32,019 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=46, temp=46.0 (AGC), target=C
+2025-12-09 10:14:32,020 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=155, temp=155.0 (AGC), target=C
+2025-12-09 10:14:32,021 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=168, temp=168.0 (AGC), target=C
+2025-12-09 10:14:36,062 - __main__ - INFO - [inspection_main.py:2330] - Frame 9300: 14.7 FPS (68.2ms/frame)
+2025-12-09 10:14:36,062 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=2.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=44.9ms, gui_update=18.6ms, processEvents=16.7ms
+2025-12-09 10:14:36,063 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=2.4ms, palette=3.2ms, auto_roi=0.0ms, roi_analysis=7.9ms, thermal_analysis=18.0ms, anomaly_priority=0.0ms, fusion=12.7ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:14:36,064 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 2 edges, 3 hot spots
+2025-12-09 10:14:36,126 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=43, temp=43.0 (AGC), target=C
+2025-12-09 10:14:36,127 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=153, temp=153.0 (AGC), target=C
+2025-12-09 10:14:36,127 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=166, temp=166.0 (AGC), target=C
+2025-12-09 10:14:36,765 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 6 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:14:40,304 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=46, temp=46.0 (AGC), target=C
+2025-12-09 10:14:40,305 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=158, temp=158.0 (AGC), target=C
+2025-12-09 10:14:40,305 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=169, temp=169.0 (AGC), target=C
+2025-12-09 10:14:43,268 - __main__ - INFO - [inspection_main.py:2330] - Frame 9400: 13.6 FPS (73.6ms/frame)
+2025-12-09 10:14:43,268 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=2.1ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=51.7ms, gui_update=26.2ms, processEvents=21.9ms
+2025-12-09 10:14:43,268 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=2.4ms, palette=4.6ms, auto_roi=0.0ms, roi_analysis=10.3ms, thermal_analysis=19.4ms, anomaly_priority=0.0ms, fusion=11.8ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:14:43,270 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 2 edges, 3 hot spots
+2025-12-09 10:14:44,065 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 7 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:14:45,002 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=49, temp=49.0 (AGC), target=C
+2025-12-09 10:14:45,002 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=157, temp=157.0 (AGC), target=C
+2025-12-09 10:14:45,003 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=169, temp=169.0 (AGC), target=C
+2025-12-09 10:14:49,637 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=36, temp=36.0 (AGC), target=C
+2025-12-09 10:14:49,637 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=130, temp=130.0 (AGC), target=C
+2025-12-09 10:14:49,637 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=147, temp=147.0 (AGC), target=C
+2025-12-09 10:14:50,936 - __main__ - INFO - [inspection_main.py:2330] - Frame 9500: 14.2 FPS (70.4ms/frame)
+2025-12-09 10:14:50,936 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=3.7ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=41.9ms, gui_update=15.6ms, processEvents=12.2ms
+2025-12-09 10:14:50,936 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=0.0ms, palette=5.2ms, auto_roi=0.0ms, roi_analysis=5.8ms, thermal_analysis=16.3ms, anomaly_priority=0.0ms, fusion=13.1ms, display_select=0.7ms, draw_rois=0.0ms
+2025-12-09 10:14:50,936 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 2 motion, 1 edges, 3 hot spots
+2025-12-09 10:14:51,587 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 6 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:14:53,526 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=48, temp=48.0 (AGC), target=C
+2025-12-09 10:14:53,527 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=161, temp=161.0 (AGC), target=C
+2025-12-09 10:14:53,527 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=166, temp=166.0 (AGC), target=C
+2025-12-09 10:14:57,293 - __main__ - INFO - [inspection_main.py:2330] - Frame 9600: 15.7 FPS (63.5ms/frame)
+2025-12-09 10:14:57,295 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=0.7ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=46.3ms, gui_update=19.5ms, processEvents=17.2ms
+2025-12-09 10:14:57,295 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=2.6ms, palette=2.0ms, auto_roi=0.0ms, roi_analysis=8.9ms, thermal_analysis=19.3ms, anomaly_priority=0.0ms, fusion=12.6ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:14:57,296 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 1 edges, 3 hot spots
+2025-12-09 10:14:57,346 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=48, temp=48.0 (AGC), target=C
+2025-12-09 10:14:57,348 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=160, temp=160.0 (AGC), target=C
+2025-12-09 10:14:57,348 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=167, temp=167.0 (AGC), target=C
+2025-12-09 10:14:57,912 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 3 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:15:00,794 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=40, temp=40.0 (AGC), target=C
+2025-12-09 10:15:00,794 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=153, temp=153.0 (AGC), target=C
+2025-12-09 10:15:00,795 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=159, temp=159.0 (AGC), target=C
+2025-12-09 10:15:02,962 - __main__ - INFO - [inspection_main.py:2330] - Frame 9700: 18.2 FPS (55.0ms/frame)
+2025-12-09 10:15:02,963 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=0.5ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=41.7ms, gui_update=15.7ms, processEvents=12.5ms
+2025-12-09 10:15:02,964 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=2.3ms, palette=5.1ms, auto_roi=0.0ms, roi_analysis=6.6ms, thermal_analysis=15.8ms, anomaly_priority=0.0ms, fusion=12.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:15:02,964 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 1 edges, 3 hot spots
+2025-12-09 10:15:03,520 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 5 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:15:04,112 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=47, temp=47.0 (AGC), target=C
+2025-12-09 10:15:04,113 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=155, temp=155.0 (AGC), target=C
+2025-12-09 10:15:04,114 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=165, temp=165.0 (AGC), target=C
+2025-12-09 10:15:07,536 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=41, temp=41.0 (AGC), target=C
+2025-12-09 10:15:07,536 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=149, temp=149.0 (AGC), target=C
+2025-12-09 10:15:07,536 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=162, temp=162.0 (AGC), target=C
+2025-12-09 10:15:08,607 - __main__ - INFO - [inspection_main.py:2330] - Frame 9800: 17.4 FPS (57.4ms/frame)
+2025-12-09 10:15:08,608 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=35.3ms, gui_update=13.4ms, processEvents=12.8ms
+2025-12-09 10:15:08,608 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=1.6ms, palette=2.1ms, auto_roi=0.0ms, roi_analysis=5.7ms, thermal_analysis=16.6ms, anomaly_priority=0.0ms, fusion=8.6ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:15:08,610 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 0 edges, 3 hot spots
+2025-12-09 10:15:09,138 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 7 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:15:10,847 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=41, temp=41.0 (AGC), target=C
+2025-12-09 10:15:10,848 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=148, temp=148.0 (AGC), target=C
+2025-12-09 10:15:10,848 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=161, temp=161.0 (AGC), target=C
+2025-12-09 10:15:15,016 - __main__ - INFO - [inspection_main.py:2330] - Frame 9900: 14.3 FPS (70.0ms/frame)
+2025-12-09 10:15:15,016 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.6ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=46.9ms, gui_update=20.8ms, processEvents=19.3ms
+2025-12-09 10:15:15,017 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=3.1ms, palette=3.2ms, auto_roi=0.0ms, roi_analysis=9.3ms, thermal_analysis=18.1ms, anomaly_priority=0.0ms, fusion=11.7ms, display_select=1.0ms, draw_rois=0.0ms
+2025-12-09 10:15:15,017 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 1 edges, 3 hot spots
+2025-12-09 10:15:15,067 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=50, temp=50.0 (AGC), target=C
+2025-12-09 10:15:15,067 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=157, temp=157.0 (AGC), target=C
+2025-12-09 10:15:15,068 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=168, temp=168.0 (AGC), target=C
+2025-12-09 10:15:15,734 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 5 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:15:19,010 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=48, temp=48.0 (AGC), target=C
+2025-12-09 10:15:19,011 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=157, temp=157.0 (AGC), target=C
+2025-12-09 10:15:19,011 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=170, temp=170.0 (AGC), target=C
+2025-12-09 10:15:21,549 - __main__ - INFO - [inspection_main.py:2330] - Frame 10000: 15.6 FPS (64.2ms/frame)
+2025-12-09 10:15:21,549 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=2.9ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=38.4ms, gui_update=15.6ms, processEvents=13.3ms
+2025-12-09 10:15:21,551 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=2.9ms, palette=1.7ms, auto_roi=0.0ms, roi_analysis=6.2ms, thermal_analysis=15.1ms, anomaly_priority=0.0ms, fusion=10.0ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:15:21,551 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 1 edges, 3 hot spots
+2025-12-09 10:15:22,141 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 4 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:15:22,848 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=48, temp=48.0 (AGC), target=C
+2025-12-09 10:15:22,851 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=157, temp=157.0 (AGC), target=C
+2025-12-09 10:15:22,852 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=169, temp=169.0 (AGC), target=C
+2025-12-09 10:15:26,968 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=48, temp=48.0 (AGC), target=C
+2025-12-09 10:15:26,969 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=155, temp=155.0 (AGC), target=C
+2025-12-09 10:15:26,970 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=166, temp=166.0 (AGC), target=C
+2025-12-09 10:15:28,222 - __main__ - INFO - [inspection_main.py:2330] - Frame 10100: 14.7 FPS (67.9ms/frame)
+2025-12-09 10:15:28,222 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=0.0ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=32.5ms, gui_update=11.3ms, processEvents=9.7ms
+2025-12-09 10:15:28,224 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=3.0ms, palette=4.1ms, auto_roi=0.0ms, roi_analysis=4.9ms, thermal_analysis=11.0ms, anomaly_priority=0.0ms, fusion=8.3ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:15:28,225 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 1 edges, 3 hot spots
+2025-12-09 10:15:28,798 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 6 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:15:30,526 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=47, temp=47.0 (AGC), target=C
+2025-12-09 10:15:30,527 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=151, temp=151.0 (AGC), target=C
+2025-12-09 10:15:30,527 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=169, temp=169.0 (AGC), target=C
+2025-12-09 10:15:34,281 - __main__ - INFO - [inspection_main.py:2330] - Frame 10200: 15.8 FPS (63.1ms/frame)
+2025-12-09 10:15:34,282 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.7ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=47.8ms, gui_update=22.4ms, processEvents=19.7ms
+2025-12-09 10:15:34,283 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=2.0ms, palette=4.0ms, auto_roi=0.0ms, roi_analysis=8.8ms, thermal_analysis=18.4ms, anomaly_priority=0.0ms, fusion=11.9ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:15:34,284 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 1 edges, 3 hot spots
+2025-12-09 10:15:34,343 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=50, temp=50.0 (AGC), target=C
+2025-12-09 10:15:34,344 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=157, temp=157.0 (AGC), target=C
+2025-12-09 10:15:34,344 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=166, temp=166.0 (AGC), target=C
+2025-12-09 10:15:35,042 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 5 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:15:38,079 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=51, temp=51.0 (AGC), target=C
+2025-12-09 10:15:38,081 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=157, temp=157.0 (AGC), target=C
+2025-12-09 10:15:38,081 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=168, temp=168.0 (AGC), target=C
+2025-12-09 10:15:39,858 - __main__ - INFO - [inspection_main.py:2330] - Frame 10300: 20.0 FPS (49.9ms/frame)
+2025-12-09 10:15:39,858 - __main__ - INFO - [inspection_main.py:2331] -   Main loop: thermal_read=1.5ms, placeholder=0.0ms, rgb_read=0.0ms, process_frame=34.7ms, gui_update=1.0ms, processEvents=0.0ms
+2025-12-09 10:15:39,859 - __main__ - INFO - [inspection_main.py:2348] -   process_frame breakdown: thermal_proc=0.7ms, palette=4.2ms, auto_roi=0.0ms, roi_analysis=5.7ms, thermal_analysis=15.2ms, anomaly_priority=0.0ms, fusion=7.5ms, display_select=0.0ms, draw_rois=0.0ms
+2025-12-09 10:15:39,859 - __main__ - INFO - [inspection_main.py:2353] -   Detections: 0 ROIs, 0 motion, 2 edges, 3 hot spots
+2025-12-09 10:15:40,203 - thermal_processor - INFO - [thermal_processor.py:447] - Edge detection: 6 contours found, min_area=50, max_area=98688.0
+2025-12-09 10:15:40,606 - __main__ - INFO - [inspection_main.py:2287] - Spot SP1: raw=51, temp=51.0 (AGC), target=C
+2025-12-09 10:15:40,608 - __main__ - INFO - [inspection_main.py:2287] - Spot SP2: raw=157, temp=157.0 (AGC), target=C
+2025-12-09 10:15:40,610 - __main__ - INFO - [inspection_main.py:2287] - Spot SP3: raw=168, temp=168.0 (AGC), target=C

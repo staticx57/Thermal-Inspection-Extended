@@ -338,6 +338,10 @@ class ThermalInspectionFusion:
         self.recording_enabled = False
         self.frame_frozen = False
         self.video_writer = None
+        
+        # Logging state (Enhancement #12)
+        self.last_spot_log_time = 0
+        self.spot_log_interval = 10.0  # Log every 10 seconds
 
         # Media recorder (NEW - Phase 6)
         self.video_recorder: Optional[VideoRecorder] = None
