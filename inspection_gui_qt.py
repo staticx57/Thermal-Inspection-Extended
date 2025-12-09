@@ -885,10 +885,13 @@ class InspectionOverlayWidget(QWidget):
     roi_created = pyqtSignal(object)  # Emits newly created ROI
     roi_selected = pyqtSignal(str)    # Emits selected ROI ID
     spot_meter_clicked = pyqtSignal(int, int) # Emits (x, y) coordinates of spot meter click
+    # Signals for mode changes (to sync button states)
+    spot_meter_mode_changed = pyqtSignal(bool)  # Emitted when spot meter mode changes internally
+    drawing_mode_changed = pyqtSignal(bool)     # Emitted when drawing mode changes internally
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)  # Let VideoWidget handle clicks
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)  # Overlay handles ROI selection
         self.setStyleSheet("background: transparent;")
 
         self.rois: List[ROI] = []
@@ -1006,9 +1009,17 @@ class InspectionOverlayWidget(QWidget):
             # Normal mode - use standard frame to widget transformation
             return self.frame_to_widget(x, y)
 
-    def set_spot_meter_mode(self, enabled: bool):
-        """Enable or disable spot metering mode."""
+    def set_spot_meter_mode(self, enabled: bool, emit_signal: bool = True):
+        """Enable or disable spot metering mode.
+
+        Args:
+            enabled: Whether to enable spot meter mode
+            emit_signal: Whether to emit spot_meter_mode_changed signal (False to avoid loops)
+        """
+        if self.spot_meter_mode == enabled:
+            return  # No change needed
         self.spot_meter_mode = enabled
+        
         if enabled:
             self.setCursor(Qt.CursorShape.CrossCursor)
             # Disable drawing mode if enabling spot meter
@@ -1017,6 +1028,9 @@ class InspectionOverlayWidget(QWidget):
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
         self.update()
+        # Emit signal so parent can sync button states
+        if emit_signal:
+            self.spot_meter_mode_changed.emit(enabled)
 
     def update_rois(self, rois: List[ROI]):
         """Update ROI list for visualization."""
@@ -1332,6 +1346,9 @@ class InspectionOverlayWidget(QWidget):
 
     def enable_drawing_mode(self, roi_type: ROIType = ROIType.RECTANGLE):
         """Enable ROI drawing mode."""
+        # Disable spot meter mode first (mutual exclusion)
+        if self.spot_meter_mode:
+            self.set_spot_meter_mode(False)
         self.drawing_mode = True
         self.drawing_type = roi_type
         self.draw_start_pos = None
@@ -1339,15 +1356,21 @@ class InspectionOverlayWidget(QWidget):
         self.temp_polygon_points = []
         self.setCursor(Qt.CursorShape.CrossCursor)
         logger.info(f"Drawing mode enabled: {roi_type}")
+        # Emit signal so parent can sync button states
+        self.drawing_mode_changed.emit(True)
 
     def disable_drawing_mode(self):
         """Disable ROI drawing mode."""
+        was_drawing = self.drawing_mode
         self.drawing_mode = False
         self.draw_start_pos = None
         self.draw_current_pos = None
         self.temp_polygon_points = []
         self.setCursor(Qt.CursorShape.ArrowCursor)
         logger.info("Drawing mode disabled")
+        # Emit signal so parent can sync button states
+        if was_drawing:
+            self.drawing_mode_changed.emit(False)
 
     def set_show_detection_info(self, show: bool):
         """Toggle visibility of detection info (hot spots, cold spots, anomalies)."""
@@ -1740,8 +1763,8 @@ class VideoWidget(QLabel):
 
         # Embedded inspection overlay
         self.overlay = InspectionOverlayWidget(self)
-        # Relay spot meter clicks from overlay to main window
-        self.overlay.spot_meter_clicked.connect(self.spot_meter_clicked.emit)
+        # NOTE: Overlay spot_meter_clicked is connected directly in InspectionAppWindow,
+        # not relayed through VideoWidget to prevent double-firing (Bug #23)
 
     def update_frame(self, frame: np.ndarray):
         """Update displayed frame with performance optimization."""
@@ -1798,9 +1821,10 @@ class VideoWidget(QLabel):
             self.setCursor(Qt.CursorShape.CrossCursor)
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
-        
+
         # Sync with overlay which handles mouse events
-        self.overlay.set_spot_meter_mode(enabled)
+        # Use emit_signal=False since we're setting from button click, not internal change
+        self.overlay.set_spot_meter_mode(enabled, emit_signal=False)
 
     def update_measurement_points(self, points):
         """Update measurement points on overlay."""
@@ -1879,17 +1903,22 @@ class VideoWidget(QLabel):
         self.overlay.update()
 
     def mousePressEvent(self, event):
-        """Handle mouse click."""
-        # Process click if in add point mode
-        if self.add_point_mode:
+        """Handle mouse click for calibration points only.
+        
+        NOTE: Spot meter clicks are handled by overlay.spot_meter_mode.
+        This handler is ONLY for calibration point mode.
+        """
+        # Only process when in add_point_mode AND overlay is NOT in spot meter mode
+        # (overlay handles spot meters, VideoWidget handles calibration)
+        if self.add_point_mode and not self.overlay.spot_meter_mode:
             x = event.pos().x()
             y = event.pos().y()
             
-            # Convert to frame coordinates
+            # Convert to frame coordinates  
             frame_x, frame_y = self._widget_to_frame_coords(x, y)
 
             if frame_x is not None and frame_y is not None:
-                logger.info(f"VideoWidget request spot at ({frame_x}, {frame_y})")
+                logger.info(f"VideoWidget calibration point at ({frame_x}, {frame_y})")
                 self.spot_meter_clicked.emit(frame_x, frame_y)
         
         super().mousePressEvent(event)
@@ -5109,7 +5138,9 @@ class InspectionAppWindow(QMainWindow):
 
             # Video widget
             self.video_widget = VideoWidget()
-            self.video_widget.spot_meter_clicked.connect(self._on_spot_meter_clicked)
+            # Overlay handles ALL spot meter clicks (single source of truth for interactive tools)
+            # VideoWidget.spot_meter_clicked is reserved for calibration mode (when overlay not in spot_meter_mode)
+            self.video_widget.overlay.spot_meter_clicked.connect(self._on_spot_meter_clicked)
             # Removed minimum size constraint to allow proper scaling
             left_layout.addWidget(self.video_widget, stretch=1)
             logger.info("[OK] Video widget created")
@@ -5496,55 +5527,31 @@ class InspectionAppWindow(QMainWindow):
     def _on_cursor_moved(self, pos):
         pass
 
-    # === SPOT METER HANDLERS ===
-    def _on_spot_meter_toggled(self, enabled: bool):
-        """Handle toggle of spot meter add mode."""
-        if hasattr(self.video_widget, 'overlay'):
-            self.video_widget.overlay.set_spot_meter_mode(enabled)
-            # Update cursor
-            if enabled:
-                self.video_widget.setCursor(Qt.CursorShape.CrossCursor)
-            else:
-                self.video_widget.setCursor(Qt.CursorShape.ArrowCursor)
-        logger.info(f"Spot meter mode: {enabled}")
+    # === SPOT METER MODE SYNC HANDLERS ===
+    # Note: _on_spot_meter_toggled is defined later in the file (Enhancement #1 section)
+    # These handlers sync button states when modes change internally
 
-    def _on_clear_spots_clicked(self):
-        """Clear all spot meters."""
-        self.measurement_points.clear()
-        if hasattr(self.video_widget, 'overlay'):
-            self.video_widget.overlay.update_measurement_points([])
-        logger.info("Cleared all spot meters")
+    def _on_overlay_spot_meter_mode_changed(self, enabled: bool):
+        """Handle spot meter mode change from overlay (sync button state)."""
+        # Update button states to match overlay state
+        if hasattr(self, 'analysis_panel') and hasattr(self.analysis_panel, 'spot_meter_btn'):
+            self.analysis_panel.spot_meter_btn.blockSignals(True)
+            self.analysis_panel.spot_meter_btn.setChecked(enabled)
+            self.analysis_panel.spot_meter_btn.blockSignals(False)
+        logger.debug(f"Synced spot meter button state: {enabled}")
 
-    def _on_spot_meter_clicked(self, x, y):
-        """Handle click to add spot meter."""
-        try:
-            # Ensure coordinates are integers
-            x, y = int(x), int(y)
-            count = len(self.measurement_points) + 1
-            
-            # Create a simple measurement point
-            # Note: Temperature will be updated in the main update loop (update_thermal_data)
-            point = MeasurementPoint(
-                x=x, 
-                y=y, 
-                label=f"S{count}",
-                color=(255, 255, 0) # Cyan/Yellow
-            )
-            
-            self.measurement_points.append(point)
-            
-            # Update overlay
-            if hasattr(self.video_widget, 'overlay'):
-                self.video_widget.overlay.update_measurement_points(self.measurement_points)
-                
-                # Turn off toggle after adding one point (optional user preference)
-                # self.control_panel.spot_meter_btn.setChecked(False)
-                
-            logger.info(f"Added spot meter at ({x}, {y})")
-            
-        except Exception as e:
-            logger.error(f"Error adding spot meter: {e}")
-    
+    def _on_overlay_drawing_mode_changed(self, enabled: bool):
+        """Handle drawing mode change from overlay (sync button state)."""
+        # Update draw ROI button state to match overlay state
+        if hasattr(self, 'control_panel') and hasattr(self.control_panel, 'draw_roi_btn'):
+            self.control_panel.draw_roi_btn.blockSignals(True)
+            self.control_panel.draw_roi_btn.setChecked(enabled)
+            self.control_panel.draw_roi_btn.blockSignals(False)
+        logger.debug(f"Synced draw ROI button state: {enabled}")
+
+    # _on_clear_spots_clicked and _on_spot_meter_clicked are defined later in the file
+    # See "SPOT METER HANDLERS" section around line 6100
+
     # === BASELINE HANDLER ===
     def _on_baseline_toggle(self, enabled: bool):
         pass
@@ -5721,7 +5728,11 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("radiometric_panel", "spot_meter_toggled", self._on_spot_meter_toggled, "(spot meter)")
         self._safe_connect("radiometric_panel", "clear_spot_meters_requested", self._on_clear_spots_clicked, "(spot meter)")
         self._safe_connect("video_widget.overlay", "spot_meter_clicked", self._on_spot_meter_clicked, "(spot meter)")
-        
+
+        # === MODE SYNC SIGNALS (fix for spot meter / ROI conflict) ===
+        self._safe_connect("video_widget.overlay", "spot_meter_mode_changed", self._on_overlay_spot_meter_mode_changed, "(mode sync)")
+        self._safe_connect("video_widget.overlay", "drawing_mode_changed", self._on_overlay_drawing_mode_changed, "(mode sync)")
+
         logger.info("[OK] Signal connections complete (defensive mode)")
 
         # === INITIALIZE BOSON PANEL IF SDK ALREADY CONNECTED ===
@@ -6082,10 +6093,13 @@ class InspectionAppWindow(QMainWindow):
         logger.info(f"Emissivity changed to: {emissivity:.2f}")
 
     # === SPOT METER HANDLERS (Enhancement #1) ===
+    # Note: _on_spot_meter_toggled is defined earlier in class but we override it here
+    # to provide the full implementation with status bar message
 
     def _on_spot_meter_toggled(self, checked: bool):
-        """Handle spot meter toggle button."""
+        """Handle spot meter toggle button (from analysis panel or radiometric panel)."""
         if hasattr(self, 'video_widget'):
+            # set_add_point_mode uses emit_signal=False internally
             self.video_widget.set_add_point_mode(checked)
             msg = "Spot meter mode: ON (Click on video to measure)" if checked else "Spot meter mode: OFF"
             self.statusBar().showMessage(msg, 3000)
@@ -6095,9 +6109,13 @@ class InspectionAppWindow(QMainWindow):
         """Clear all spot measurement points."""
         logger.info("Main Window: _on_clear_spots_clicked called")
         self.measurement_points.clear()
+        # Update overlay
         if hasattr(self, 'video_widget'):
             self.video_widget.update_measurement_points(self.measurement_points)
-        logger.info("Cleared all spot meters")
+        # Clear SpotMeterPanel as well
+        if hasattr(self, 'analysis_panel') and hasattr(self.analysis_panel, 'spot_meter_panel'):
+            self.analysis_panel.spot_meter_panel.clear()
+        logger.info("Cleared all spot meters from both overlay and panel")
 
     def _on_spot_deleted(self, spot_id: str):
         """Handle spot meter deletion from SpotMeterPanel (Enhancement #12)."""
@@ -6168,6 +6186,13 @@ class InspectionAppWindow(QMainWindow):
     def _on_spot_meter_clicked(self, x: int, y: int):
         """Handle click on video to add spot measurement point."""
         logger.info(f"Main Window: _on_spot_meter_clicked at ({x}, {y})")
+        
+        # Bug #23 fix: Check for duplicate coordinates (prevent double-add from dual signals)
+        for existing in self.measurement_points:
+            if existing.x == x and existing.y == y:
+                logger.debug(f"Spot at ({x}, {y}) already exists, skipping duplicate")
+                return
+        
         # Create unique label (SP1, SP2, ...)
         idx = len(self.measurement_points) + 1
         label = f"SP{idx}"
@@ -6185,12 +6210,10 @@ class InspectionAppWindow(QMainWindow):
         if hasattr(self, 'video_widget'):
             self.video_widget.update_measurement_points(self.measurement_points)
             
-        logger.info(f"Added spot meter {label} at ({x}, {y})")
+        logger.info(f"Added spot meter {label} at ({x}, {y}). Total spots: {len(self.measurement_points)}")
 
-    def get_spot_meter_coords(self) -> List[Tuple[int, int, str]]:
-        """Get coordinates of all active spot meters."""
-        return [(p.x, p.y, p.label) for p in self.measurement_points]
-    
+
+
     def update_spot_meter_values(self, values: List[Dict]):
         """
         Update temperatures for spot meters.

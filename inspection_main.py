@@ -823,40 +823,6 @@ class ThermalInspectionFusion:
             self.rgb_camera = None
             return False
 
-    def switch_thermal_backend(self, backend_type: str):
-        """
-        Switch thermal camera backend at runtime.
-        
-        Args:
-            backend_type (str): 'opencv' or 'flirpy'
-        """
-        if backend_type == getattr(self.args, 'thermal_backend', 'opencv'):
-            logger.info(f"Backend already set to {backend_type}, ignoring switch request.")
-            return
-
-        logger.info(f"Switching thermal backend to: {backend_type}")
-
-        # 1. Release current camera
-        if self.thermal_camera:
-            self.thermal_camera.release()
-            self.thermal_camera = None
-            self.thermal_connected = False
-            logger.info("Released current thermal camera")
-
-        # 2. Update backend argument
-        self.args.thermal_backend = backend_type
-        
-        # 3. Re-initialize cameras
-        # We use robust init which handles the backend flag
-        thermal_connected, _ = self._init_cameras_robust()
-        
-        if thermal_connected:
-             logger.info(f"Successfully switched to {backend_type} backend")
-             # Trigger deferred initialization to update GUI status
-             self._perform_deferred_initialization()
-        else:
-             logger.error(f"Failed to switch to {backend_type} backend - Camera not found")
-
     def _setup_gui(self):
         """Initialize the Qt GUI."""
         if self.args.headless:
@@ -2448,8 +2414,9 @@ class ThermalInspectionFusion:
             self.fusion_processor.set_mode(self.fusion_mode)
         
         # Update overlay widget view mode for proper detection coordinate handling (Bug #20 fix)
-        if self.gui and hasattr(self.gui, 'overlay_widget') and self.gui.overlay_widget:
-            self.gui.overlay_widget.set_view_mode(
+        # Update overlay widget view mode for proper detection coordinate handling (Bug #20 fix)
+        if self.gui and hasattr(self.gui, 'video_widget') and hasattr(self.gui.video_widget, 'overlay'):
+            self.gui.video_widget.overlay.set_view_mode(
                 self.fusion_mode,
                 fusion_priority=getattr(self, 'fusion_priority', 'rgb'),
                 pip_size=0.25
@@ -2471,8 +2438,9 @@ class ThermalInspectionFusion:
             self.fusion_processor.set_priority(self.fusion_priority)
         
         # Update overlay widget for PIP coordinate handling (Bug #20 fix)
-        if self.gui and hasattr(self.gui, 'overlay_widget') and self.gui.overlay_widget:
-            self.gui.overlay_widget.set_view_mode(
+        # Update overlay widget for PIP coordinate handling (Bug #20 fix)
+        if self.gui and hasattr(self.gui, 'video_widget') and hasattr(self.gui.video_widget, 'overlay'):
+            self.gui.video_widget.overlay.set_view_mode(
                 getattr(self, 'fusion_mode', 'thermal'),
                 fusion_priority=self.fusion_priority,
                 pip_size=0.25
@@ -4521,7 +4489,23 @@ class ThermalInspectionFusion:
             # 2. Save COM port and device ID from current camera before releasing
             current_com_port = None
             thermal_device_id = None
+            old_resolution = None
+
             if self.thermal_camera:
+                # Capture resolution for coordinate scaling (Fix for spot meter location mismatch)
+                if hasattr(self.thermal_camera, 'get_main_image_size'):
+                     old_resolution = self.thermal_camera.get_main_image_size()  # (w, h)
+                elif hasattr(self.thermal_camera, 'get_resolution'):
+                     old_resolution = self.thermal_camera.get_resolution()
+                elif hasattr(self.thermal_camera, 'resolution'):
+                     old_resolution = self.thermal_camera.resolution
+                
+                # If still None, try to use args or known default
+                if old_resolution is None or old_resolution == (0, 0):
+                     old_resolution = (getattr(self.args, 'width', 640), getattr(self.args, 'height', 512))
+                
+                logger.info(f"Captured old resolution for scaling: {old_resolution}")
+
                 # Save device ID for reuse (avoids camera detection which probes ALL cameras)
                 if hasattr(self.thermal_camera, 'device_id'):
                     thermal_device_id = self.thermal_camera.device_id
@@ -4740,6 +4724,113 @@ class ThermalInspectionFusion:
 
             # 12. Update backend type in args
             self.args.thermal_backend = backend_type
+
+            # 13. Rebuild measurement_points from SpotMeterPanel (the persistent source of truth)
+            # This fixes "ghost spot meters" bug where spots disappear after backend switch
+            if self.gui:
+                if hasattr(self.gui, 'analysis_panel') and hasattr(self.gui.analysis_panel, 'spot_meter_panel'):
+                    panel = self.gui.analysis_panel.spot_meter_panel
+                    panel_spots = panel.get_all_spots()
+                    logger.info(f"Backend switch: Found {len(panel_spots)} spots in SpotMeterPanel")
+                    
+                    # COORDINATE SCALING (Fix for resolution mismatch)
+                    scale_x = 1.0
+                    scale_y = 1.0
+                    new_resolution = (0, 0)
+                    
+                    # Get new resolution
+                    if hasattr(self.thermal_camera, 'get_main_image_size'):
+                            new_resolution = self.thermal_camera.get_main_image_size()
+                    elif hasattr(self.thermal_camera, 'get_resolution'):
+                            new_resolution = self.thermal_camera.get_resolution()
+                    elif hasattr(self.thermal_camera, 'resolution'):
+                            new_resolution = self.thermal_camera.resolution
+                    
+                    if new_resolution != (0, 0) and old_resolution is not None and old_resolution != (0, 0):
+                        if new_resolution != old_resolution:
+                            scale_x = new_resolution[0] / old_resolution[0]
+                            scale_y = new_resolution[1] / old_resolution[1]
+                            logger.info(f"Scaling coordinates: {old_resolution} -> {new_resolution} (sx={scale_x:.2f}, sy={scale_y:.2f})")
+                    
+                    if panel_spots:
+                        from inspection_gui_qt import MeasurementPoint
+
+                        # Rebuild measurement_points list from panel data
+                        self.gui.measurement_points = []
+                        for spot_data in panel_spots:
+                            # Apply scaling to maintain relative position
+                            if scale_x != 1.0 or scale_y != 1.0:
+                                # Update underlying data in panel
+                                # Use rounding (+0.5) to minimize incremental drift
+                                new_x = int(spot_data.x * scale_x + 0.5)
+                                new_y = int(spot_data.y * scale_y + 0.5)
+                                # Clamp to new resolution
+                                new_x = max(0, min(new_x, new_resolution[0]-1))
+                                new_y = max(0, min(new_y, new_resolution[1]-1))
+                                
+                                logger.debug(f"  Scaling spot {spot_data.label}: ({spot_data.x},{spot_data.y}) -> ({new_x},{new_y})")
+                                spot_data.x = new_x
+                                spot_data.y = new_y
+                                
+                            point = MeasurementPoint(
+                                x=spot_data.x,
+                                y=spot_data.y,
+                                label=spot_data.label,
+                                color=spot_data.color,
+                                temperature=spot_data.temperature,
+                                unit=spot_data.unit
+                            )
+                            self.gui.measurement_points.append(point)
+                            logger.debug(f"  Rebuilt spot: {spot_data.label} at ({spot_data.x},{spot_data.y}) T={spot_data.temperature}")
+                            
+                        # Force panel list update to show new coordinates
+                        if scale_x != 1.0 or scale_y != 1.0:
+                            # Refresh all items to display new coords
+                            for spot_id in panel.spots.keys():
+                                panel._refresh_list_item(spot_id)
+
+                        # Update the overlay with rebuilt list
+                        if hasattr(self.gui, 'video_widget'):
+                            # Call update_measurement_points which internally updates the overlay
+                            self.gui.video_widget.update_measurement_points(self.gui.measurement_points)
+                            
+                            # SCALE ROIs
+                            if hasattr(self.gui.video_widget, 'overlay') and hasattr(self.gui.video_widget.overlay, 'rois'):
+                                overlay = self.gui.video_widget.overlay
+                                if overlay.rois and (scale_x != 1.0 or scale_y != 1.0):
+                                    logger.info(f"Scaling {len(overlay.rois)} ROIs...")
+                                    for roi in overlay.rois:
+                                        new_points = []
+                                        for x, y in roi.points:
+                                            # Use rounding (+0.5)
+                                            nx = int(x * scale_x + 0.5)
+                                            ny = int(y * scale_y + 0.5)
+                                            nx = max(0, min(nx, new_resolution[0]-1))
+                                            ny = max(0, min(ny, new_resolution[1]-1))
+                                            new_points.append((nx, ny))
+                                        roi.points = new_points
+                                        roi.last_updated = time.time()
+                                    logger.info("ROIs scaled successfully")
+
+                            # CRITICAL FIX: Sync overlay view mode after backend switch
+                            # The overlay needs to know the current view mode or it won't render thermal overlays
+                            if hasattr(self.gui.video_widget, 'overlay') and self.gui.video_widget.overlay is not None:
+                                try:
+                                    # Get current view mode from fusion processor
+                                    current_mode = getattr(self.args, 'view_mode', 'thermal')
+                                    fusion_priority = getattr(self.args, 'fusion_priority', 'thermal')
+                                    self.gui.video_widget.overlay.set_view_mode(current_mode, fusion_priority)
+                                except Exception as e:
+                                    logger.error(f"ERROR syncing overlay view_mode: {e}")
+                            
+                            # Also force a full repaint of both video widget and overlay
+                            self.gui.video_widget.update()  # Repaint VideoWidget
+                            if hasattr(self.gui.video_widget, 'overlay'):
+                                self.gui.video_widget.overlay.update()  # Repaint overlay
+
+                        logger.info(f"Rebuilt {len(self.gui.measurement_points)} spot meters from SpotMeterPanel")
+                    else:
+                        logger.info("No spots to rebuild (panel is empty)")
 
             logger.info(f"=== Successfully switched to {backend_type} backend ===")
             return True

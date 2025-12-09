@@ -1,27 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(powershell:*)",
-      "Bash(mkdir:*)",
-      "Bash(mv:*)",
-      "Bash(done)",
-      "Bash(python inspection_main.py:*)",
-      "Bash(python -c:*)",
-      "Bash(timeout 3 powershell:*)",
-      "Bash(taskkill:*)",
-      "Bash(python:*)",
-      "Bash(timeout 10 python:*)",
+      "Bash(sort:*)",
       "Bash(findstr:*)",
-      "Bash(timeout 8 python:*)",
-      "Bash(dir /s /b \"C:\\Users\\stati\\Desktop\\Projects\\Thermal-Inspection\\*boson*\")",
-      "Bash(cmd /c \"dir /s /b \"\"C:\\Users\\stati\\Desktop\\Projects\\Thermal-Inspection\"\" | findstr /i bosonusb\")",
-      "Bash(cmd /c \"dir /s /b \"\"C:\\Users\\stati\\Desktop\\Projects\\Thermal-Inspection\"\" | findstr /i \"\"flir.*app flir.*exe viewer\"\" | head -n 20\")",
-      "Bash(pip install:*)",
-      "WebSearch",
-      "WebFetch(domain:github.com)",
-      "Bash(timeout 5 powershell:*)",
-      "Bash(test -f:*)",
-      "Bash(timeout:*)"
+      "Bash(python inspection_main.py:*)"
     ],
     "deny": [],
     "ask": []

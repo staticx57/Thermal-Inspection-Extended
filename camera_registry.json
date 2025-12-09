@@ -13,20 +13,20 @@
       "manual_override": false
     },
     {
-      "device_id": 0,
-      "name": "High-Res Camera 0 (3840x2160)",
+      "device_id": 2,
+      "name": "Camera 2 (DSHOW)",
       "resolution": [
-        3840,
-        2160
+        640,
+        514
       ],
       "driver": "DSHOW/MSMF",
-      "role": "rgb",
+      "role": "thermal",
       "is_connected": true,
       "manual_override": false
     },
     {
-      "device_id": 1,
-      "name": "High-Res Camera 1 (1920x1080)",
+      "device_id": 0,
+      "name": "High-Res Camera 0 (1920x1080)",
       "resolution": [
         1920,
         1080
@@ -37,8 +37,8 @@
       "manual_override": false
     },
     {
-      "device_id": 2,
-      "name": "Camera 2 (DSHOW)",
+      "device_id": 1,
+      "name": "Camera 1 (DSHOW)",
       "resolution": [
         640,
         514
