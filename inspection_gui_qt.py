@@ -1241,9 +1241,14 @@ class InspectionOverlayWidget(QWidget):
 
             # Draw label
             if roi.label:
+                # Add palette info if custom palette is set
+                display_text = roi.label
+                if roi.custom_palette:
+                    display_text += f" [{roi.custom_palette}]"
+                
                 x, y, _, _ = roi.get_bbox()
                 wx, wy = self.frame_to_widget(x, y)
-                draw_label(int(wx), int(wy) - 5, roi.label, color)
+                draw_label(int(wx), int(wy) - 5, display_text, color)
 
         # Draw hot spots (with coordinate transformation) - only if enabled AND thermal visible
         if self.show_hot_spots and self._should_draw_thermal_overlays():
@@ -1446,12 +1451,18 @@ class InspectionOverlayWidget(QWidget):
                     self.roi_selected.emit(clicked_roi.roi_id)
 
                 self.update()  # Redraw to show selection changes
+                event.accept() # We handled the event (ROI selection) - do NOT bubble up
             else:
                 # Clicked on empty space - clear selection
                 if not ctrl_pressed and not shift_pressed:
-                    self.selected_roi_ids.clear()
-                    self.set_selected_roi(None)
-                    self.update()
+                    if self.selected_roi_ids or self.selected_roi_id:
+                        self.selected_roi_ids.clear()
+                        self.set_selected_roi(None)
+                        self.update()
+                        event.accept() # We handled the event (Deselection)
+                    else:
+                        # Not clicking ROI, and nothing to deselect -> Pass event through
+                        event.ignore() # Bubble up to VideoWidget (e.g. calibration)
 
             return
 
@@ -2201,6 +2212,7 @@ class ThermalAnalysisPanel(QWidget):
     roi_selected = pyqtSignal(str)  # Emits ROI ID
     roi_palette_changed = pyqtSignal(str, str)  # Emits (ROI ID, palette name)
     roi_palette_cleared = pyqtSignal(str)  # Emits ROI ID when palette is cleared
+    roi_deleted = pyqtSignal(str) # Emits ROI ID to delete
     overlay_info_toggled = pyqtSignal(bool)
     show_hot_spots_toggled = pyqtSignal(bool)
     show_cold_spots_toggled = pyqtSignal(bool)
@@ -2378,10 +2390,27 @@ class ThermalAnalysisPanel(QWidget):
         self.roi_list = QListWidget()
         self.roi_list.setMaximumHeight(100)  # Increased to show more items
         self.roi_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.roi_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection) # Enable multi-select
         font = QFont()
         font.setPointSize(10)
         self.roi_list.setFont(font)
         self.general_layout.addWidget(self.roi_list)
+
+        # ROI Actions
+        roi_actions_layout = QHBoxLayout()
+        roi_actions_layout.setSpacing(10)
+        
+        self.roi_delete_btn = QPushButton("🗑 Delete Selected")
+        self.roi_delete_btn.setToolTip("Delete selected ROIs")
+        self.roi_delete_btn.clicked.connect(self._on_delete_rois_clicked)
+        roi_actions_layout.addWidget(self.roi_delete_btn)
+        
+        self.roi_delete_all_btn = QPushButton("🗑 Delete All")
+        self.roi_delete_all_btn.setToolTip("Delete all ROIs")
+        self.roi_delete_all_btn.clicked.connect(self._on_delete_all_rois_clicked)
+        roi_actions_layout.addWidget(self.roi_delete_all_btn)
+        
+        self.general_layout.addLayout(roi_actions_layout)
 
         # ROI palette selector (compact horizontal layout)
         roi_palette_layout = QHBoxLayout()
@@ -2450,7 +2479,7 @@ class ThermalAnalysisPanel(QWidget):
         self.baseline_btn.toggled.connect(self.baseline_toggled.emit)
         self.spot_meter_btn.toggled.connect(self._on_spot_meter_toggled)
         self.roi_list.currentRowChanged.connect(self._on_roi_selected)
-        self.roi_palette_combo.currentTextChanged.connect(self._on_roi_palette_combo_changed)
+
         
         # Connect SpotMeterPanel signals
         self.spot_meter_panel.clear_all_requested.connect(self._on_clear_spots_clicked)
@@ -2522,39 +2551,99 @@ class ThermalAnalysisPanel(QWidget):
 
     def _on_roi_selected(self, row: int):
         """Handle ROI selection in list."""
-        if 0 <= row < len(self.current_rois):
-            roi = self.current_rois[row]
-            logger.debug(f"Panel internal selection: Row {row} -> ROI {roi.roi_id}")
-            self.roi_selected.emit(roi.roi_id)
-            self.selected_roi_index = row
+        # This is triggered by single click, but might be part of multi-select
+        # We'll just update the palette combo based on the current item if only one is selected
+        selected_items = self.roi_list.selectedItems()
+        if len(selected_items) == 1:
+            item = selected_items[0]
+            roi_id = item.data(Qt.ItemDataRole.UserRole)
+            logger.debug(f"Panel internal selection: {roi_id}")
+            self.roi_selected.emit(roi_id)
             
-            # Update palette combo to match ROI's current palette
-            if roi.custom_palette:
-                # Find index for this palette
-                text = f"  {roi.custom_palette}"
-                index = self.roi_palette_combo.findText(text)
-                if index >= 0:
-                    logger.debug(f"Syncing palette combo to {text} for ROI {roi.roi_id}")
-                    self.roi_palette_combo.blockSignals(True)
-                    self.roi_palette_combo.setCurrentIndex(index)
-                    self.roi_palette_combo.blockSignals(False)
-            else:
-                # Default/Global - Reset to first item or specific "Global" item if it exists
-                # For now, we'll just leave it or set to index 0 if we had a "Global" option
-                pass
-        else:
-            logger.debug(f"Panel internal selection: Invalid row {row}")
-            self.selected_roi_index = -1
+            # Update palette combo
+            if 0 <= row < len(self.current_rois):
+                 roi = next((r for r in self.current_rois if r.roi_id == roi_id), None)
+                 if roi and roi.custom_palette:
+                    target_palette = roi.custom_palette
+                    found_index = -1
+                    
+                    # Robust search for palette
+                    for i in range(self.roi_palette_combo.count()):
+                        item_text = self.roi_palette_combo.itemText(i)
+                        if "───" in item_text:
+                            continue
+                        # Clean item text to match stored palette name
+                        clean_text = item_text.strip().lstrip("─ ")
+                        if clean_text.lower() == target_palette.lower():
+                            found_index = i
+                            break
+                    
+                    if found_index >= 0:
+                        self.roi_palette_combo.blockSignals(True)
+                        self.roi_palette_combo.setCurrentIndex(found_index)
+                        self.roi_palette_combo.blockSignals(False)
+                        logger.debug(f"Synced combo to ROI palette: {target_palette}")
+                    else:
+                         logger.warning(f"Could not find palette '{target_palette}' in combo box")
+
+    def _on_delete_rois_clicked(self):
+        """Handle delete selected ROIs button."""
+        selected_items = self.roi_list.selectedItems()
+        if not selected_items:
+            return
+            
+        from PyQt6.QtWidgets import QMessageBox
+        count = len(selected_items)
+        confirm = QMessageBox.question(
+            self, 
+            "Delete ROIs", 
+            f"Are you sure you want to delete {count} ROI(s)?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if confirm == QMessageBox.StandardButton.Yes:
+            ids_to_delete = [item.data(Qt.ItemDataRole.UserRole) for item in selected_items]
+            for roi_id in ids_to_delete:
+                if roi_id:
+                    self.roi_deleted.emit(roi_id)
+
+    def _on_delete_all_rois_clicked(self):
+        """Handle delete all ROIs button."""
+        if self.roi_list.count() == 0:
+            return
+
+        from PyQt6.QtWidgets import QMessageBox
+        confirm = QMessageBox.question(
+            self, 
+            "Delete All ROIs", 
+            "Are you sure you want to delete ALL ROIs?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if confirm == QMessageBox.StandardButton.Yes:
+            # Create a copy of IDs to avoid modification during iteration issues if immediate updates happen
+            ids_to_delete = []
+            for i in range(self.roi_list.count()):
+                item = self.roi_list.item(i)
+                ids_to_delete.append(item.data(Qt.ItemDataRole.UserRole))
+            
+            for roi_id in ids_to_delete:
+                if roi_id:
+                    self.roi_deleted.emit(roi_id)
 
     def _on_roi_palette_combo_changed(self, palette_name: str):
         """Handle ROI palette change."""
         # Remove category header prefix and indentation if present
         clean_name = palette_name.strip().lstrip("─ ")
         if clean_name and not clean_name.startswith("───"):
-            if 0 <= self.selected_roi_index < len(self.current_rois):
-                roi = self.current_rois[self.selected_roi_index]
-                logger.info(f"Setting ROI {roi.roi_id} palette to {clean_name}")
-                self.roi_palette_changed.emit(roi.roi_id, clean_name)
+            # Apply to all selected ROIs
+            selected_items = self.roi_list.selectedItems()
+            if selected_items:
+                for item in selected_items:
+                    roi_id = item.data(Qt.ItemDataRole.UserRole)
+                    if roi_id:
+                        self.roi_palette_changed.emit(roi_id, clean_name)
+                        logger.info(f"Setting ROI {roi_id} palette to {clean_name}")
 
     def select_roi(self, roi_id: str):
         """Select ROI in list by ID."""
@@ -5493,9 +5582,29 @@ class InspectionAppWindow(QMainWindow):
     def _on_global_palette_changed(self, val: str):
         pass
     def _on_roi_palette_changed(self, id: str, val: str):
-        pass
+        """Handle ROI palette change."""
+        if self.app and hasattr(self.app, 'set_roi_palette'):
+            self.app.set_roi_palette(id, val)
+            logger.info(f"ROI {id} palette set to {val}")
+
     def _on_roi_palette_cleared(self, id: str):
-        pass
+        """Handle ROI palette clear."""
+        if self.app:
+            # InspectionMain uses palette_manager, so we call clear_roi_palette via app structure if needed
+            # But wait, app.delete_roi calls clear_roi_palette. Does app have clear_roi_palette exposed?
+            # It seems NOT directly exposed on app, but we can access palette_manager directly if app exposes it or added a wrapper.
+            # inspection_main.py doesn't seem to have clear_roi_palette method on the main class based on search.
+            # However, set_roi_palette is there.
+            # Let's check logic: InspectionOverlayWidget._clear_roi_palette calls this.
+            # We should implement a helper or access manager.
+            if hasattr(self.app, 'palette_manager'):
+                self.app.palette_manager.clear_roi_palette(id)
+                # Also update ROI object
+                if hasattr(self.app, 'roi_manager'):
+                    roi = self.app.roi_manager.get_roi(id)
+                    if roi:
+                        roi.custom_palette = None
+                logger.info(f"ROI {id} palette cleared")
     def _on_overlay_info_toggle(self, enabled: bool):
         pass
 
@@ -5523,7 +5632,10 @@ class InspectionAppWindow(QMainWindow):
     def _on_roi_created(self, roi_data):
         pass
     def _on_roi_selected(self, roi_id):
-        pass
+        """Handle ROI selection from analysis panel."""
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.set_selected_roi(roi_id)
+        logger.info(f"ROI selected via panel: {roi_id}")
     def _on_cursor_moved(self, pos):
         pass
 
@@ -5704,6 +5816,10 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("analysis_panel.show_hot_spots_checkbox", "toggled", self._on_show_hot_spots_toggled, "(detection toggle)")
         self._safe_connect("analysis_panel.show_cold_spots_checkbox", "toggled", self._on_show_cold_spots_toggled, "(detection toggle)")
         self._safe_connect("analysis_panel.show_anomalies_checkbox", "toggled", self._on_show_anomalies_toggled, "(detection toggle)")
+
+        # === ROI MANAGEMENT ===
+        self._safe_connect("analysis_panel", "roi_selected", self._on_roi_selected, "(analysis)")
+        self._safe_connect("analysis_panel", "roi_deleted", self._on_roi_delete, "(analysis)")
 
         # === ENVIRONMENTAL COMPENSATION PANEL ===
         self._safe_connect("env_comp_panel", "emissivity_changed", self._on_emissivity_changed, "(environmental)")

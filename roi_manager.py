@@ -846,9 +846,12 @@ class ROIManager:
                 centroid = roi.get_centroid()
                 label_text = roi.label
                 # Add palette indicator if custom palette is set
+                # Add palette indicator if custom palette is set
                 if roi.custom_palette:
                     label_text += f" [{roi.custom_palette}]"
-                cv2.putText(output, label_text, centroid, cv2.FONT_HERSHEY_SIMPLEX,
-                           0.5, draw_color, 1, cv2.LINE_AA)
+                
+                # DISABLED: Using InspectionOverlayWidget for cleaner labels instead
+                # cv2.putText(output, label_text, centroid, cv2.FONT_HERSHEY_SIMPLEX,
+                #            0.5, draw_color, 1, cv2.LINE_AA)
 
         return output

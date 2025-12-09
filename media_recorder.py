@@ -433,7 +433,8 @@ class SnapshotManager:
                         thermal_stats: Optional[Dict] = None,
                         hot_spots: Optional[List] = None,
                         cold_spots: Optional[List] = None,
-                        anomalies: Optional[List] = None) -> Optional[str]:
+                        anomalies: Optional[List] = None,
+                        spot_meters: Optional[List] = None) -> Optional[str]:
         """
         Capture snapshot with optional metadata.
 
@@ -444,6 +445,7 @@ class SnapshotManager:
             hot_spots: List of hot spots
             cold_spots: List of cold spots
             anomalies: List of anomalies
+            spot_meters: List of spot meters from SpotMeterPanel
 
         Returns:
             Path to saved snapshot, or None if failed
@@ -526,6 +528,22 @@ class SnapshotManager:
                         }
                         for anom in anomalies
                     ]
+
+                # Add spot meters
+                if spot_meters:
+                    metadata['spot_meters'] = []
+                    for sm in spot_meters:
+                        # Handle both SpotMeterData objects and dictionaries if necessary
+                        sm_data = {
+                            'label': getattr(sm, 'label', 'Unknown'),
+                            'x': getattr(sm, 'x', 0),
+                            'y': getattr(sm, 'y', 0),
+                            'temperature': getattr(sm, 'temperature', None),
+                            'unit': getattr(sm, 'unit', '°C'),
+                            'visible': getattr(sm, 'visible', True),
+                            'locked': getattr(sm, 'locked', False)
+                        }
+                        metadata['spot_meters'].append(sm_data)
 
                 # Save metadata JSON
                 metadata_path = snapshot_path.with_suffix('.json')

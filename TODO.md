@@ -4,12 +4,7 @@
 *(No open critical bugs)*
 
 ## Priority: HIGH (Core Functionality Broken)
-## Priority: HIGH (Core Functionality Broken)
-- [ ] **Bug #21: Spot meters positioned incorrectly in PIP mode**
-    - [ ] Issue: Spot markers (SP1, SP2...) appear on RGB background instead of thermal overlay in PIP mode
-    - [ ] Context: Same coordinate mapping issue as fixed in Bug #20 for hot/cold spots
-    - [ ] Fix: Apply `_transform_thermal_coords()` in `InspectionOverlayWidget.paintEvent` when drawing spot meters
-    - [ ] Status: Discovered during Enhancement #12 verification
+
 
 ## Priority: LOW (Missing Features)
 
@@ -145,6 +140,14 @@
     - [x] Fix checkbox size inconsistency (Olive vs Silver) - Standardized to 20px
     - [x] Improve checkbox readability across all themes - Implemented high-contrast solid accents
     - [x] Improve Radio Button visibility - Standardized to 20px solid circles
+- [x] **Enhancement #13: ROI Management Polish** ✅ COMPLETED
+    - [x] **Analysis Panel**: Added Multi-select support to ROI list
+    - [x] **Analysis Panel**: Added "Delete Selected" and "Delete All" buttons
+    - [x] **Aesthetics**: Removed large intrusive centered labels from video overlay (kept small top-left labels)
+    - [x] **Bug Fix**: Fixed `PaletteManager` warning during ROI deletion (added cleanup)
+    - [x] **Bug Fix**: Connected ROI list selection to video verification (highlighting)
+    - [x] **Bug Fix**: Fixed ROI palette selector sync (Combo box <-> ROI)
+    - [x] **Bug Fix**: Implemented robust, case-insensitive palette matching
 - [x] **Enhancement #10: Global settings tab refactor** ✅ COMPLETED
     - [x] Create implementation plan
     - [x] Separate Fusion controls into dedicated `FusionPanel`
@@ -159,6 +162,10 @@
 - Keep testing after each fix to avoid regressions
 
 ## Recently Closed / Verified Fixed
+- [x] **Bug #21: Spot meters positioned incorrectly in PIP mode** ✅ FIXED
+    - [x] Issue: Spot markers positioned incorrectly in PIP mode
+    - [x] Fix: Applied `_transform_thermal_coords()` in `InspectionOverlayWidget`
+    - [x] Verified by user: Fixed in previous session
 - [x] **Bug #20: Detection overlays positioned incorrectly in PIP/RGB modes** ✅ FIXED
     - [x] Issue: Hot/cold spots and anomaly markers at wrong coordinates in PIP mode
     - [x] Issue: Detection overlays showing when in RGB-only mode

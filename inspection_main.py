@@ -2936,6 +2936,10 @@ class ThermalInspectionFusion:
             # Clear history for this ROI
             if self.roi_radiometric_analyzer:
                 self.roi_radiometric_analyzer.clear_history(roi_id)
+                
+            # Clear any associated palette config
+            if self.palette_manager:
+                self.palette_manager.clear_roi_palette(roi_id)
             
             logger.info(f"ROI {roi_id} deleted")
     
