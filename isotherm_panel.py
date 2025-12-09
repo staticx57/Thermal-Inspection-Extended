@@ -115,9 +115,80 @@ class IsothermPanel(QWidget):
         preset_layout.addWidget(self.normal_btn)
         
         layout.addWidget(preset_group)
-        
+
         layout.addStretch()
-    
+
+        # Track current unit to enable proper conversion
+        self.current_unit_index = 0  # Start with Celsius
+
+    def set_temperature_unit(self, unit_index: int):
+        """Update temperature unit and ranges.
+
+        Args:
+            unit_index: 0=Celsius, 1=Fahrenheit, 2=Kelvin, 3=Raw
+        """
+        unit_map = {
+            0: ("°C", -40, 200),      # Celsius
+            1: ("°F", -40, 400),      # Fahrenheit
+            2: ("K", 233, 473),       # Kelvin (approx -40°C to 200°C)
+            3: ("Y16", 0, 65535)      # Raw Y16 values
+        }
+
+        suffix, min_val, max_val = unit_map.get(unit_index, ("°C", -40, 200))
+
+        # Get current values
+        old_low = self.low_spinbox.value()
+        old_high = self.high_spinbox.value()
+
+        # Convert values from current unit to new unit
+        if self.current_unit_index != unit_index:
+            # Convert to Celsius first
+            if self.current_unit_index == 0:  # Already Celsius
+                low_c = old_low
+                high_c = old_high
+            elif self.current_unit_index == 1:  # From Fahrenheit
+                low_c = (old_low - 32) * 5/9
+                high_c = (old_high - 32) * 5/9
+            elif self.current_unit_index == 2:  # From Kelvin
+                low_c = old_low - 273.15
+                high_c = old_high - 273.15
+            else:  # From Raw - use defaults
+                low_c = 10
+                high_c = 50
+
+            # Convert from Celsius to new unit
+            if unit_index == 0:  # To Celsius
+                new_low = low_c
+                new_high = high_c
+            elif unit_index == 1:  # To Fahrenheit
+                new_low = low_c * 9/5 + 32
+                new_high = high_c * 9/5 + 32
+            elif unit_index == 2:  # To Kelvin
+                new_low = low_c + 273.15
+                new_high = high_c + 273.15
+            else:  # To Raw - use defaults
+                new_low = 29315  # 20°C in Y16
+                new_high = 32315  # 50°C in Y16
+
+            # Update spinbox suffixes and ranges
+            self.low_spinbox.setRange(min_val, max_val)
+            self.high_spinbox.setRange(min_val, max_val)
+            self.low_spinbox.setSuffix(suffix)
+            self.high_spinbox.setSuffix(suffix)
+
+            # Set converted values
+            self.low_spinbox.setValue(int(new_low))
+            self.high_spinbox.setValue(int(new_high))
+
+            # Update current unit tracker
+            self.current_unit_index = unit_index
+        else:
+            # Just update suffix and range if already in this unit
+            self.low_spinbox.setSuffix(suffix)
+            self.high_spinbox.setSuffix(suffix)
+            self.low_spinbox.setRange(min_val, max_val)
+            self.high_spinbox.setRange(min_val, max_val)
+
     def _on_enabled_changed(self, checked):
         """Handle enable/disable toggle."""
         self.enabled_changed.emit(checked)

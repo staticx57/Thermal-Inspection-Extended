@@ -2446,6 +2446,15 @@ class ThermalInspectionFusion:
         self.fusion_mode = mode.lower()
         if self.fusion_processor:
             self.fusion_processor.set_mode(self.fusion_mode)
+        
+        # Update overlay widget view mode for proper detection coordinate handling (Bug #20 fix)
+        if self.gui and hasattr(self.gui, 'overlay_widget') and self.gui.overlay_widget:
+            self.gui.overlay_widget.set_view_mode(
+                self.fusion_mode,
+                fusion_priority=getattr(self, 'fusion_priority', 'rgb'),
+                pip_size=0.25
+            )
+        
         logger.info(f"Fusion mode set to: {self.fusion_mode}")
 
     def set_fusion_alpha(self, alpha: float):
@@ -2460,6 +2469,15 @@ class ThermalInspectionFusion:
         self.fusion_priority = priority.lower()
         if self.fusion_processor:
             self.fusion_processor.set_priority(self.fusion_priority)
+        
+        # Update overlay widget for PIP coordinate handling (Bug #20 fix)
+        if self.gui and hasattr(self.gui, 'overlay_widget') and self.gui.overlay_widget:
+            self.gui.overlay_widget.set_view_mode(
+                getattr(self, 'fusion_mode', 'thermal'),
+                fusion_priority=self.fusion_priority,
+                pip_size=0.25
+            )
+        
         logger.info(f"Fusion priority set to: {self.fusion_priority}")
 
     def set_fusion_strength(self, strength: float):

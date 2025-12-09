@@ -1,27 +1,15 @@
 # Bug Fixes - Thermal Inspection Application
 
 ## Priority: CRITICAL (App Crashes)
-- [ ] **Bug #6: Auto-ROI crashes application** ✅ FIXED & TESTED
-    - [x] Reproduce crash - `AttributeError: 'last_thermal_frame' not found`
-    - [x] Find crash location - `inspection_main.py:2175`
-    - [x] Fix crash - Added `last_thermal_frame` attribute and update in main loop
-    - [x] Fix method calls - `analyze_frame`, `detect_temperature_rois`, `detect_gradient_rois`
-    - [x] Test Auto-ROI functionality - Works, no crash
+*(No open critical bugs)*
 
 ## Priority: HIGH (Core Functionality Broken)
-- [x] **Bug #13: 8-bit temperature estimation toggle not functional** ✅ FIXED
-    - [x] Issue: "Enable 8-Bit Temperature Estimation" toggle in Radiometric panel cannot be enabled
-    - [x] Fix: Enabled toggle programmatically in `RadiometricPanel.update_backend_status` when backend is active
-    - [x] Verified: Toggle is now clickable and functional
-
-- [/] **Bug #14: Isotherm controls not functional** (VERIFICATION FAILED)
-    - [x] Issue: Buttons and controls in Analysis > Isotherm tab were not working
-    - [x] Fix: Prioritized signal delivery and handlers
-    - [x] Fix: Isotherm tab is now DISABLED in 8-bit mode (GUI robustness)
-    - [/] Fix: Corrected backend logic for rendering overlay (Attempt 1: Raw-to-Celsius)
-    - [ ] **DEBUG NOTE**: Verification failed - Highlighting not visible.
-    - [ ] **DEBUG NOTE**: Root cause likely `thermal_frame` data mismatch (normalized vs raw).
-    - [ ] Action: Retrieve raw radiometric frame inside `_apply_isotherm_overlay` instead of using processed frame.
+## Priority: HIGH (Core Functionality Broken)
+- [ ] **Bug #21: Spot meters positioned incorrectly in PIP mode**
+    - [ ] Issue: Spot markers (SP1, SP2...) appear on RGB background instead of thermal overlay in PIP mode
+    - [ ] Context: Same coordinate mapping issue as fixed in Bug #20 for hot/cold spots
+    - [ ] Fix: Apply `_transform_thermal_coords()` in `InspectionOverlayWidget.paintEvent` when drawing spot meters
+    - [ ] Status: Discovered during Enhancement #12 verification
 
 ## Priority: LOW (Missing Features)
 
@@ -62,49 +50,70 @@
     - Trigger modes and frame timing
     - Color correction and HDR
     - Temperature monitoring
-- [ ] ** Enhancement #7: Performance Improvements
--   [ ] **Profiling and Benchmarking**
-    - Use Python's cProfile or line_profiler to identify bottlenecks in the main processing loop.
-    - Record FPS, CPU usage, and memory consumption for different camera resolutions and modes.
--   [ ] **Optimize Frame Processing Pipeline**
-    - Move heavy image processing (e.g., palette application, anomaly detection) to a separate thread or process pool.
-    - Leverage NumPy vectorized operations and avoid Python loops where possible.
-    - Cache reusable intermediate results (e.g., resized frames) to reduce recomputation.
--   [ ] **GPU Acceleration**
-    - Enable CUDA acceleration for thermal processing if a compatible GPU is detected.
-    - Offload palette mapping and radiometric calculations to GPU using CuPy or Torch tensors.
--   [ ] **Reduce Camera Resolution Dynamically**
-    - Implement adaptive resolution scaling based on current FPS target (e.g., drop to 640x480 when FPS < 30).
-    - Allow user to select "Performance Mode" in settings to prioritize speed over detail.
--   [ ] **Threaded Capture Tuning**
-    - Fine‑tune the DualThreadedCameraCapture buffers to minimize frame latency.
-    - Experiment with different queue sizes and back‑pressure strategies.
--   [ ] **Memory Management**
-    - Ensure frames are released promptly to avoid memory bloat.
-    - Use weak references for large NumPy arrays when appropriate.
--   [ ] **Benchmark Reporting UI**
-    - Add a simple overlay in the GUI showing real‑time FPS, processing time per stage, and GPU usage.
-    - Provide a log export option for performance analysis.
--   [ ] **Testing and Validation**
-    - Add automated tests that verify performance targets (e.g., ≥30 FPS at 1080p) on CI.
-    - Validate that performance tweaks do not degrade detection accuracy.
-- [ ] **Enhancement #8: Backend selector validation**
-    - Prevent flirpy backend selection when no FLIR thermal camera (Boson/Lepton) is connected
-    - Show warning dialog if user tries to select incompatible backend
-    - Gray out unavailable backend options in GUI
-- [x] **Enhancement #9: Windows XP Theme (Refinement)** ✅ COMPLETED
-    - [x] Create Windows XP-inspired theme stylesheet
-    - [x] Add classic Windows XP colors (Fisher-Price blue/green/silver)
-    - [x] Wire theme to GUI settings and theme selector
-    - [x] Test theme application across all panels
-    - [x] Fix checkbox size inconsistency (Olive vs Silver) - Standardized to 20px
-    - [x] Improve checkbox readability across all themes - Implemented high-contrast solid accents
-    - [x] Improve Radio Button visibility - Standardized to 20px solid circles
-
-- [ ] **Enhancement #11: RGB Camera Stability/Reconnect**
+- [ ] **Enhancement #7: Performance improvements**
+    - [ ] **Profiling and benchmarking**
+        - Use Python's cProfile or line_profiler to identify bottlenecks in the main processing loop
+        - Record FPS, CPU usage, and memory consumption for different camera resolutions and modes
+    - [ ] **Optimize frame processing pipeline**
+        - Move heavy image processing (e.g., palette application, anomaly detection) to a separate thread or process pool
+        - Leverage NumPy vectorized operations and avoid Python loops where possible
+        - Cache reusable intermediate results (e.g., resized frames) to reduce recomputation
+    - [ ] **GPU acceleration**
+        - Enable CUDA acceleration for thermal processing if a compatible GPU is detected
+        - Offload palette mapping and radiometric calculations to GPU using CuPy or Torch tensors
+    - [ ] **Reduce camera resolution dynamically**
+        - Implement adaptive resolution scaling based on current FPS target (e.g., drop to 640x480 when FPS < 30)
+        - Allow user to select "Performance Mode" in settings to prioritize speed over detail
+    - [ ] **Threaded capture tuning**
+        - Fine‑tune the DualThreadedCameraCapture buffers to minimize frame latency
+        - Experiment with different queue sizes and back‑pressure strategies
+    - [ ] **Memory management**
+        - Ensure frames are released promptly to avoid memory bloat
+        - Use weak references for large NumPy arrays when appropriate
+    - [ ] **Benchmark reporting UI**
+        - Add a simple overlay in the GUI showing real‑time FPS, processing time per stage, and GPU usage
+        - Provide a log export option for performance analysis
+    - [ ] **Testing and validation**
+        - Add automated tests that verify performance targets (e.g., ≥30 FPS at 1080p) on CI
+        - Validate that performance tweaks do not degrade detection accuracy
+- [ ] **Enhancement #11: RGB camera stability/reconnect**
     - [ ] Implement exponential backoff for connection failures
     - [ ] Add "Camera Busy" state handling (orphaned process detection)
     - [ ] Silence repetitive logs in ThreadedCameraCapture
+- [/] **Enhancement #12: Spot meter management and data export** 🔄 IN PROGRESS
+    - [x] **GUI Panel: Spot Meter Management (Analysis > General tab)** ✅ PHASE 1 COMPLETE
+        - [x] Create dedicated `SpotMeterPanel` widget (similar to ROI panels)
+        - [x] List view showing all active spot meters with:
+            - [x] Spot meter ID/Label (e.g., "Spot #1", custom names)
+            - [x] Current temperature reading
+            - [x] Coordinates (x, y)
+            - [/] Timestamp of last update (stored but not displayed)
+            - [/] Color indicator/marker style (stored but not displayed)
+        - [x] Selection and navigation:
+            - [x] Click spot meter in list to highlight on video feed
+            - [x] Click spot meter on video to add (select sync TODO)
+            - [x] Keyboard navigation (Delete key, F2 for rename)
+        - [x] Spot meter actions:
+            - [x] Rename spot meter (double-click or context menu)
+            - [x] Delete individual spot meter
+            - [x] Clear all spot meters
+            - [x] Toggle visibility per spot meter
+            - [x] Lock position (prevent accidental movement)
+        - [x] Statistics display:
+            - [x] Min/Max/Average across all spot meters
+            - [x] Delta between hottest and coldest spots
+            - [x] Trend indicator (rising/falling temperature)
+    - [x] **Data Export and Logging** ✅ PHASE 1 COMPLETE
+        - [ ] Add spot meter data to snapshot metadata (JSON/XML)
+        - [ ] Include spot meter readings in session logs
+        - [x] Export spot meter history to CSV/JSON format
+        - [x] Add timestamps for each spot meter reading (in SpotMeterData)
+        - [x] SpotMeterLogger class for real-time logging
+    - [ ] **Advanced Features** (Future)
+        - [ ] Spot meter templates/presets (e.g., "9-point grid")
+        - [ ] Compare mode: Track temperature difference between two spots
+        - [ ] Alert thresholds: Notify when spot exceeds/drops below temperature
+        - [ ] Spot meter history graph (temperature over time per spot)
 
 ## Recently Completed Enhancements
 - [x] **Enhancement #1: User-defined spot metering** ✅ COMPLETED
@@ -114,16 +123,29 @@
     - [x] Support multiple concurrent spot meters
     - [x] 3-tier fallback: 16-bit radiometric → 8-bit estimation → raw values
     - [x] Tested with 16-bit radiometric mode
-    - [ ] Add spot meter data to export/logging (future enhancement)
-- [x] **Enhancement #4: Radiometric and Environmental panel signal handlers** ✅ IMPLEMENTED
+- [x] **Enhancement #4: Radiometric and environmental panel signal handlers** ✅ IMPLEMENTED
     - [x] Connect radiometric panel signals to main app (temperature unit, hot/cold spots, backend selector)
     - [x] Connect environmental compensation panel signals (emissivity, atmospheric temp/transmission)
     - [x] Implement 12 missing handler methods in GUI
     - [x] Implement 11 backend methods in InspectionApp
     - [ ] Full testing (temperature readings update, SDK integration)
     - **KNOWN LIMITATION**: Values stored but not applied to temperature display (requires Enhancement #5)
-
-- [x] **Enhancement #10: Global Settings Tab Refactor** ✅ COMPLETED
+- [x] **Enhancement #8: Backend selector validation** ✅ COMPLETED
+    - [x] Validate Flirpy backend selection requires FLIR Boson/Lepton thermal camera
+    - [x] Show warning dialog when selecting incompatible backend
+    - [x] Automatically revert to OpenCV if user declines
+    - [x] Distinguish FLIR Boson/Lepton (thermal) from FLIR Firefly (RGB)
+    - [x] Allow user override to proceed despite warning
+    - [x] Implemented in `SettingsPanel._on_backend_selection_changed()`
+- [x] **Enhancement #9: Windows XP theme (refinement)** ✅ COMPLETED
+    - [x] Create Windows XP-inspired theme stylesheet
+    - [x] Add classic Windows XP colors (Fisher-Price blue/green/silver)
+    - [x] Wire theme to GUI settings and theme selector
+    - [x] Test theme application across all panels
+    - [x] Fix checkbox size inconsistency (Olive vs Silver) - Standardized to 20px
+    - [x] Improve checkbox readability across all themes - Implemented high-contrast solid accents
+    - [x] Improve Radio Button visibility - Standardized to 20px solid circles
+- [x] **Enhancement #10: Global settings tab refactor** ✅ COMPLETED
     - [x] Create implementation plan
     - [x] Separate Fusion controls into dedicated `FusionPanel`
     - [x] Remove outdated ROI buttons from Settings
@@ -137,6 +159,42 @@
 - Keep testing after each fix to avoid regressions
 
 ## Recently Closed / Verified Fixed
+- [x] **Bug #20: Detection overlays positioned incorrectly in PIP/RGB modes** ✅ FIXED
+    - [x] Issue: Hot/cold spots and anomaly markers at wrong coordinates in PIP mode
+    - [x] Issue: Detection overlays showing when in RGB-only mode
+    - [x] Fix: Added `set_view_mode()` to `InspectionOverlayWidget` for mode tracking
+    - [x] Fix: Added `_transform_thermal_coords()` for PIP coordinate mapping
+    - [x] Fix: Added `_should_draw_thermal_overlays()` to skip overlays in RGB mode
+    - [x] Updated `set_fusion_mode()` and `set_fusion_priority()` to sync overlay widget
+- [x] **Bug #6: Auto-ROI crashes application** ✅ FIXED & TESTED
+    - [x] Reproduce crash - `AttributeError: 'last_thermal_frame' not found`
+    - [x] Find crash location - `inspection_main.py:2175`
+    - [x] Fix crash - Added `last_thermal_frame` attribute and update in main loop
+    - [x] Fix method calls - `analyze_frame`, `detect_temperature_rois`, `detect_gradient_rois`
+    - [x] Test Auto-ROI functionality - Works, no crash
+
+- [x] **Bug #13: 8-bit temperature estimation toggle not functional** ✅ FIXED
+    - [x] Issue: "Enable 8-Bit Temperature Estimation" toggle in Radiometric panel cannot be enabled
+    - [x] Fix: Enabled toggle programmatically in `RadiometricPanel.update_backend_status` when backend is active
+    - [x] Verified: Toggle is now clickable and functional
+
+- [x] **Bug #14: Isotherm controls not functional** ✅ FIXED
+    - [x] Issue: Buttons and controls in Analysis > Isotherm tab were not working
+    - [x] Fix: Prioritized signal delivery and handlers
+    - [x] Fix: Isotherm tab is now DISABLED in 8-bit mode (GUI robustness)
+    - [x] Fix: Corrected backend logic for rendering overlay
+    - [x] Fix: Retrieved raw radiometric frame inside `_apply_isotherm_overlay` instead of using processed frame
+    - [x] Verified: Isotherm highlighting now visible and functional
+
+- [x] **Bug #19: Radiometric status banner incorrect in 8-bit mode** ✅ FIXED
+    - [x] Issue: Status banner shows gray "No temperature measurement" in 8-bit mode
+    - [x] Expected: Orange banner showing "8-bit AGC" or "8-bit Estimation" based on toggle state
+    - [x] 16-bit mode works correctly (shows green banner)
+    - [x] Fix: Updated `RadiometricPanel.update_backend_status` to distinguish 8-bit modes
+    - [x] Fix: Changed banner color to orange (#cc8800) for 8-bit modes
+    - [x] Fix: Display correct mode text based on estimation toggle state
+    - [x] Fix: Added `_on_8bit_estimation_toggled` handler to update banner in real-time
+
 - [x] **Bug #16: Backend switch 16-bit→8-bit broken** ✅ FIXED
     - [x] Issue: Switching from flirpy (16-bit) back to opencv (8-bit) causes multiple issues
     - [x] **Root Cause 1**: Double switch trigger - backend_changed signal fires twice, causing race condition
@@ -145,7 +203,7 @@
     - [x] **Fix**: Added mutex/flag to prevent double switch, preserve correct device ID, robust COM port detection
     - [x] **Fix**: Added frame size validation and restoration
 
-- [x] **Bug #17: GUI Status Stuck "Switching..."** ✅ FIXED
+- [x] **Bug #17: GUI status stuck "Switching..."** ✅ FIXED
     - [x] Issue: "Switching to..." label remains forever, overwriting success status
     - [x] **Root Cause**: Race condition - Label update happened AFTER blocking signal emit returned, overwriting success message
     - [x] **Fix**: Moved label update BEFORE signal emit and forced UI repaint
@@ -216,24 +274,12 @@
     - [x] Fix: Called update method in `InspectionAppWindow._on_backend_changed`
     - [x] Fix: Banner now turns Green/Gray correctly based on mode
 
-- [x] **Bug #17: Backend Status Not Initialized at Startup** ✅ FIXED
+- [x] **Bug #18: Backend status not initialized at startup** ✅ FIXED
     - [x] Root cause: GUI updates executed before Qt event loop fully initialized
     - [x] Solution: Implemented deferred GUI initialization in `_perform_deferred_initialization()`
     - [x] Added `update_connection_status()` method to `BosonControlPanel`
     - [x] Auto-connect SDK on startup (default `enable_sdk=True`)
     - [x] Fix: Backend status, Active Mode banner, Connection Status, and Camera Info all populate correctly at launch
-    - [x] VERIFIED BY USER: All startup GUI elements now display correctly
-```
-
-## Enhancements
-
-- [x] **Enhancement #10: Global Settings Tab Refactor** ✅ COMPLETED (2025-12-08)
-    - [x] Created dedicated `FusionPanel` for all fusion-related controls (7 modes + edge/detail)
-    - [x] Moved to top-level "🧬 Fusion" tab in main window
-    - [x] Enhanced `SettingsPanel` with System Configuration:
-        - [x] Backend selector (OpenCV 8-bit / Flirpy 16-bit radiometric)
-        - [x] COM Port input for Boson SDK
-        - [x] Storage paths (Snapshots / Recordings directories)
         - [x] Performance settings (Parallel processing toggle, Worker count)
     - [x] Cleaned up duplicate controls:
         - [x] Removed backend selector from `RadiometricPanel`

@@ -236,6 +236,7 @@ class RadiometricPanel(QWidget):
         )
         self.enable_8bit_checkbox.setEnabled(False)
         self.enable_8bit_checkbox.toggled.connect(self.estimation_8bit_enabled_changed.emit)
+        self.enable_8bit_checkbox.toggled.connect(self._on_8bit_estimation_toggled)
         estimation_layout.addWidget(self.enable_8bit_checkbox)
 
         # Scene range configuration
@@ -478,6 +479,18 @@ class RadiometricPanel(QWidget):
         else:
             self.sensor_temp_timer.stop()
 
+    def _on_8bit_estimation_toggled(self, enabled: bool):
+        """Handle 8-bit estimation toggle - update banner text."""
+        # Update banner text to reflect current mode
+        if enabled:
+            mode_text = "8-bit Estimation"
+        else:
+            mode_text = "8-bit AGC"
+        
+        # Only update if we're in 8-bit mode (not 16-bit radiometric)
+        if "8-bit" in self.status_banner.text():
+            self.status_banner.setText(f"Active: {mode_text}")
+
     # Public Methods
     def set_radiometric_status(self, capable: bool, enabled: bool, mode: str = "Unknown"):
         """Update radiometric status display."""
@@ -604,6 +617,7 @@ class RadiometricPanel(QWidget):
 
             # Update Top Status Banner & Labels
             if radiometric:
+                # 16-bit radiometric mode - GREEN banner
                 self.status_banner.setText("Active: Radiometric (16-bit)")
                 self.status_banner.setStyleSheet("""
                     QLabel {
@@ -614,9 +628,26 @@ class RadiometricPanel(QWidget):
                         padding: 12px;
                         border-radius: 5px;
                         border: 2px solid #4caf50;
+                    }
+                """)
+            else:
+                # 8-bit mode - ORANGE banner
+                # Check if estimation is enabled to show correct mode
+                if self.enable_8bit_checkbox.isChecked():
+                    mode_text = "8-bit Estimation"
+                else:
+                    mode_text = "8-bit AGC"
+                
+                self.status_banner.setText(f"Active: {mode_text}")
+                self.status_banner.setStyleSheet("""
+                    QLabel {
+                        background-color: #cc8800;
+                        color: white;
+                        font-size: 14pt;
+                        font-weight: bold;
                         padding: 12px;
                         border-radius: 5px;
-                        border: 2px solid #777;
+                        border: 2px solid #fa0;
                     }
                 """)
 

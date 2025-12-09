@@ -33,6 +33,7 @@ from firefly_control_panel import FireflyControlPanel
 from radiometric_panel import RadiometricPanel
 from parallax_panel import ParallaxPanel
 from fusion_panel import FusionPanel
+from spot_meter_panel import SpotMeterPanel, SpotMeterData
 
 logger = logging.getLogger(__name__)
 
@@ -925,6 +926,86 @@ class InspectionOverlayWidget(QWidget):
         self.show_cold_spots = True  # Show cold spots by default
         self.show_anomalies = True  # Show anomalies by default
 
+        # View mode tracking for proper coordinate transformation (Bug #20 fix)
+        # Modes: 'thermal', 'rgb', 'fusion', 'side_by_side', 'picture_in_picture'
+        self.current_view_mode = 'thermal'  # Default to thermal view
+        self.fusion_priority = 'rgb'  # Which frame is main in PIP mode
+        # PIP overlay rectangle (x, y, width, height) for coordinate transformation
+        # None means thermal detections use full-frame coordinates
+        self.pip_rect = None  # Will be set when PIP mode is active
+
+    def set_view_mode(self, mode: str, fusion_priority: str = 'rgb', pip_size: float = 0.25):
+        """
+        Set current view mode for proper detection overlay handling.
+        
+        Args:
+            mode: View mode ('thermal', 'rgb', 'fusion', 'side_by_side', 'picture_in_picture')
+            fusion_priority: Which frame is main ('thermal' or 'rgb')
+            pip_size: Size of PIP inset as fraction of main frame (0.0-1.0)
+        """
+        self.current_view_mode = mode
+        self.fusion_priority = fusion_priority
+        
+        # Calculate PIP rectangle if in picture_in_picture mode
+        if mode == 'picture_in_picture':
+            # PIP inset position matches fusion_processor._picture_in_picture()
+            frame_w, frame_h = self.frame_size
+            margin = 10
+            inset_w = int(frame_w * pip_size)
+            inset_h = int(frame_h * pip_size)
+            
+            # When rgb is priority, thermal is the inset (top-right)
+            # When thermal is priority, rgb is the inset
+            if fusion_priority == 'rgb':
+                # Thermal is the inset - this is where thermal detections should be drawn
+                x = frame_w - inset_w - margin
+                y = margin
+                self.pip_rect = (x, y, inset_w, inset_h)
+            else:
+                # RGB is the inset - thermal detections go on full frame
+                self.pip_rect = None
+        else:
+            self.pip_rect = None
+        
+        self.update()
+
+    def _should_draw_thermal_overlays(self) -> bool:
+        """Check if thermal-based overlays should be drawn in current view mode."""
+        # Don't draw thermal overlays when showing RGB-only
+        if self.current_view_mode == 'rgb':
+            return False
+        return True
+
+    def _transform_thermal_coords(self, x: float, y: float) -> tuple:
+        """
+        Transform thermal frame coordinates to display coordinates.
+        Handles PIP mode where thermal is in a small inset.
+        
+        Args:
+            x, y: Thermal frame coordinates
+            
+        Returns:
+            Widget coordinates (wx, wy)
+        """
+        if self.pip_rect is not None:
+            # In PIP mode with thermal as inset - transform to inset position
+            pip_x, pip_y, pip_w, pip_h = self.pip_rect
+            frame_w, frame_h = self.frame_size
+            
+            # Scale thermal coords to PIP inset size
+            scale_x = pip_w / frame_w
+            scale_y = pip_h / frame_h
+            
+            # Transform to PIP position
+            thermal_x = pip_x + x * scale_x
+            thermal_y = pip_y + y * scale_y
+            
+            # Then apply widget coordinate transformation
+            return self.frame_to_widget(thermal_x, thermal_y)
+        else:
+            # Normal mode - use standard frame to widget transformation
+            return self.frame_to_widget(x, y)
+
     def set_spot_meter_mode(self, enabled: bool):
         """Enable or disable spot metering mode."""
         self.spot_meter_mode = enabled
@@ -1150,36 +1231,36 @@ class InspectionOverlayWidget(QWidget):
                 wx, wy = self.frame_to_widget(x, y)
                 draw_label(int(wx), int(wy) - 5, roi.label, color)
 
-        # Draw hot spots (with coordinate transformation) - only if enabled
-        if self.show_hot_spots:
+        # Draw hot spots (with coordinate transformation) - only if enabled AND thermal visible
+        if self.show_hot_spots and self._should_draw_thermal_overlays():
             for hot_spot in self.hot_spots:
                 painter.setPen(QPen(QColor(255, 0, 0), 2))  # Red
                 x, y = hot_spot.centroid
-                wx, wy = self.frame_to_widget(x, y)
+                wx, wy = self._transform_thermal_coords(x, y)  # Use thermal-aware transform
                 painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
                 # Convert temperature to current unit
                 temp_val, unit_symbol = self._format_temperature_with_unit(
                     hot_spot.max_temp, hot_spot.unit, hot_spot.raw_value)
                 draw_label(int(wx) + 10, int(wy), f"{temp_val:.1f}{unit_symbol}", QColor(255, 100, 100))
 
-        # Draw cold spots (with coordinate transformation) - only if enabled
-        if self.show_cold_spots:
+        # Draw cold spots (with coordinate transformation) - only if enabled AND thermal visible
+        if self.show_cold_spots and self._should_draw_thermal_overlays():
             for cold_spot in self.cold_spots:
                 painter.setPen(QPen(QColor(0, 128, 255), 2))  # Light blue
                 x, y = cold_spot.centroid
-                wx, wy = self.frame_to_widget(x, y)
+                wx, wy = self._transform_thermal_coords(x, y)  # Use thermal-aware transform
                 painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
                 # Convert temperature to current unit
                 temp_val, unit_symbol = self._format_temperature_with_unit(
                     cold_spot.min_temp, cold_spot.unit, cold_spot.raw_value)
                 draw_label(int(wx) + 10, int(wy), f"{temp_val:.1f}{unit_symbol}", QColor(100, 200, 255))
 
-        # Draw anomalies (with coordinate transformation) - only if enabled
-        if self.show_anomalies:
+        # Draw anomalies (with coordinate transformation) - only if enabled AND thermal visible
+        if self.show_anomalies and self._should_draw_thermal_overlays():
             for anomaly in self.anomalies:
                 painter.setPen(QPen(QColor(255, 255, 0), 3))  # Yellow
                 x, y = anomaly.location
-                wx, wy = self.frame_to_widget(x, y)
+                wx, wy = self._transform_thermal_coords(x, y)  # Use thermal-aware transform
                 # Draw warning triangle
                 painter.drawLine(int(wx), int(wy) - 10, int(wx) - 8, int(wy) + 6)
                 painter.drawLine(int(wx) - 8, int(wy) + 6, int(wx) + 8, int(wy) + 6)
@@ -1189,31 +1270,32 @@ class InspectionOverlayWidget(QWidget):
                 label_text = f"⚠ {anomaly.description}" if anomaly.description else f"⚠ {anomaly.anomaly_type.value}"
                 draw_label(int(wx) + 15, int(wy), label_text, QColor(255, 255, 0))
 
-        # Draw measurement points
-        for point in self.measurement_points:
-            # Transform frame coordinates to widget coordinates
-            wx, wy = self.frame_to_widget(point.x, point.y)
+        # Draw measurement points (spot meters) - only if thermal visible
+        if self._should_draw_thermal_overlays():
+            for point in self.measurement_points:
+                # Transform frame coordinates to widget coordinates (thermal-aware)
+                wx, wy = self._transform_thermal_coords(point.x, point.y)
 
-            # Draw point marker (circle with cross)
-            r, g, b = point.color
-            point_color = QColor(r, g, b)
-            painter.setPen(QPen(point_color, 2))
-            painter.setBrush(QColor(r, g, b, 100))  # Semi-transparent fill
+                # Draw point marker (circle with cross)
+                r, g, b = point.color
+                point_color = QColor(r, g, b)
+                painter.setPen(QPen(point_color, 2))
+                painter.setBrush(QColor(r, g, b, 100))  # Semi-transparent fill
 
-            # Draw crosshair
-            cross_size = 10
-            painter.drawLine(int(wx) - cross_size, int(wy), int(wx) + cross_size, int(wy))
-            painter.drawLine(int(wx), int(wy) - cross_size, int(wx), int(wy) + cross_size)
-            # Draw center circle
-            painter.drawEllipse(int(wx) - 3, int(wy) - 3, 6, 6)
+                # Draw crosshair
+                cross_size = 10
+                painter.drawLine(int(wx) - cross_size, int(wy), int(wx) + cross_size, int(wy))
+                painter.drawLine(int(wx), int(wy) - cross_size, int(wx), int(wy) + cross_size)
+                # Draw center circle
+                painter.drawEllipse(int(wx) - 3, int(wy) - 3, 6, 6)
 
-            # Draw label with temperature and unit
-            if point.temperature is not None:
-                unit = getattr(point, 'unit', '')
-                label_text = f"{point.label}: {point.temperature:.1f}{unit}"
-            else:
-                label_text = f"{point.label}: --"
-            draw_label(int(wx) + 12, int(wy) + 5, label_text, point_color)
+                # Draw label with temperature and unit
+                if point.temperature is not None:
+                    unit = getattr(point, 'unit', '')
+                    label_text = f"{point.label}: {point.temperature:.1f}{unit}"
+                else:
+                    label_text = f"{point.label}: --"
+                draw_label(int(wx) + 12, int(wy) + 5, label_text, point_color)
 
         # Draw temporary ROI being created
         if self.drawing_mode and self.draw_start_pos and self.draw_current_pos:
@@ -2203,20 +2285,24 @@ class ThermalAnalysisPanel(QWidget):
         self.roi_summary_label.setFont(font)
         self.general_layout.addWidget(self.roi_summary_label)
 
-        spot_layout = QHBoxLayout()
-        self.spot_meter_btn = QPushButton("✚ Spot Meter")
+        # === Spot Meter Management Panel ===
+        self.general_layout.addWidget(create_separator())
+        
+        # Add Spot Meter button (toggle mode)
+        spot_mode_layout = QHBoxLayout()
+        self.spot_meter_btn = QPushButton("✚ Add Spot Meter")
         self.spot_meter_btn.setCheckable(True)
         self.spot_meter_btn.setToolTip("Click on video to add temperature measurement points")
         self.spot_meter_btn.setMinimumHeight(32)
-        spot_layout.addWidget(self.spot_meter_btn)
-
-        self.clear_spots_btn = QPushButton("Clear Points")
-        self.clear_spots_btn.setToolTip("Remove all spot meters")
-        self.clear_spots_btn.setMinimumHeight(32)
-        spot_layout.addWidget(self.clear_spots_btn)
-        self.general_layout.addLayout(spot_layout)
+        spot_mode_layout.addWidget(self.spot_meter_btn)
+        self.general_layout.addLayout(spot_mode_layout)
+        
+        # Spot Meter Panel (list, stats, actions, export)
+        self.spot_meter_panel = SpotMeterPanel()
+        self.general_layout.addWidget(self.spot_meter_panel)
 
         self.general_layout.addWidget(create_separator())
+
 
         # === Hot Spots ===
         self.general_layout.addWidget(create_section_header("🔥 Hot Spots"))
@@ -2334,9 +2420,11 @@ class ThermalAnalysisPanel(QWidget):
         # Connect signals
         self.baseline_btn.toggled.connect(self.baseline_toggled.emit)
         self.spot_meter_btn.toggled.connect(self._on_spot_meter_toggled)
-        self.clear_spots_btn.clicked.connect(self._on_clear_spots_clicked)
         self.roi_list.currentRowChanged.connect(self._on_roi_selected)
         self.roi_palette_combo.currentTextChanged.connect(self._on_roi_palette_combo_changed)
+        
+        # Connect SpotMeterPanel signals
+        self.spot_meter_panel.clear_all_requested.connect(self._on_clear_spots_clicked)
         
         # Connect individual detection type checkboxes via signals
         self.show_hot_spots_checkbox.toggled.connect(self.show_hot_spots_toggled.emit)
@@ -2468,13 +2556,9 @@ class ThermalAnalysisPanel(QWidget):
         self.spot_meter_toggled.emit(checked)
 
     def _on_clear_spots_clicked(self):
-        """Handle clear spots button click."""
+        """Handle clear spots button click from SpotMeterPanel."""
         logger.info("ThermalAnalysisPanel: Clear spots clicked, emitting signal")
-        self.clear_spots_clicked.emit()
-
-    def _on_clear_spots_clicked(self):
-        """Handle clear spots button click."""
-        logger.info("ThermalAnalysisPanel: Clear spots clicked, emitting signal")
+        self.spot_meter_panel.clear()  # Clear the panel's internal state
         self.clear_spots_clicked.emit()
 
     def update_detection_results(self, motion_count: int, edge_count: int, anomaly_count: int):
@@ -4476,7 +4560,7 @@ class SettingsPanel(QGroupBox):
         self.backend_combo.setMinimumHeight(28)
         self.backend_combo.addItems(["OpenCV (8-bit)", "Flirpy (16-bit Radiometric)"])
         self.backend_combo.setToolTip("Select thermal camera backend. Flirpy required for temperature measurement.")
-        self.backend_combo.currentTextChanged.connect(self.backend_changed.emit)
+        self.backend_combo.currentTextChanged.connect(self._on_backend_selection_changed)
         backend_layout.addWidget(self.backend_combo)
         sys_layout.addLayout(backend_layout)
 
@@ -4564,6 +4648,74 @@ class SettingsPanel(QGroupBox):
         clean_name = palette_name.strip()
         if clean_name:
             self.palette_changed.emit(clean_name)
+
+    def _on_backend_selection_changed(self, backend_text: str):
+        """
+        Validate backend selection before emitting signal.
+        
+        Warns user if selecting Flirpy without a FLIR Boson/Lepton camera.
+        """
+        # Check if user is selecting Flirpy backend
+        if "Flirpy" in backend_text:
+            # Get parent window to access app instance
+            parent_window = self.window()
+            
+            # Check if we have access to the app instance
+            if hasattr(parent_window, 'app') and parent_window.app:
+                app = parent_window.app
+                
+                # Check if thermal camera is connected and is a FLIR Boson/Lepton (not Firefly!)
+                has_flir_thermal = False
+                
+                if hasattr(app, 'thermal_camera') and app.thermal_camera:
+                    # Check if it's specifically a Boson/Lepton (thermal) camera
+                    if hasattr(app.thermal_camera, '__class__'):
+                        class_name = app.thermal_camera.__class__.__name__
+                        # FlirpyThermalBackend or FLIRBosonCamera indicate FLIR thermal hardware
+                        # Specifically check for Boson/Lepton, NOT Firefly (which is RGB)
+                        if 'Flirpy' in class_name or 'Boson' in class_name or 'Lepton' in class_name:
+                            has_flir_thermal = True
+                    
+                    # Also check if camera has Boson-specific SDK connection
+                    if hasattr(app.thermal_camera, 'is_sdk_connected') and hasattr(app.thermal_camera, 'do_ffc'):
+                        # do_ffc() is Boson-specific (Flat Field Correction)
+                        has_flir_thermal = True
+                    
+                    # Check camera_source attribute if available
+                    if hasattr(app, 'is_flir_boson') and app.is_flir_boson:
+                        has_flir_thermal = True
+                
+                # If no FLIR thermal camera detected, warn the user
+                if not has_flir_thermal:
+                    from PyQt6.QtWidgets import QMessageBox
+                    
+                    msg = QMessageBox(parent_window)
+                    msg.setIcon(QMessageBox.Icon.Warning)
+                    msg.setWindowTitle("Incompatible Backend")
+                    msg.setText("Flirpy backend requires a FLIR Boson or Lepton thermal camera.")
+                    msg.setInformativeText(
+                        "No FLIR Boson/Lepton thermal camera detected.\n\n"
+                        "• Flirpy backend only works with FLIR Boson/Lepton thermal cameras\n"
+                        "• For generic UVC thermal cameras, use OpenCV backend\n"
+                        "• FLIR Firefly is an RGB camera, not compatible with Flirpy\n\n"
+                        "Do you want to proceed anyway?"
+                    )
+                    msg.setStandardButtons(
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                    )
+                    msg.setDefaultButton(QMessageBox.StandardButton.No)
+                    
+                    result = msg.exec()
+                    
+                    if result == QMessageBox.StandardButton.No:
+                        # Revert selection to OpenCV
+                        self.backend_combo.blockSignals(True)
+                        self.backend_combo.setCurrentText("OpenCV (8-bit)")
+                        self.backend_combo.blockSignals(False)
+                        return  # Don't emit the signal
+        
+        # If validation passed or user chose to proceed, emit the signal
+        self.backend_changed.emit(backend_text)
 
 # ============================================================================
 # Boson SDK Panel
@@ -5443,6 +5595,14 @@ class InspectionAppWindow(QMainWindow):
         # Handled in Signal Integration
         if hasattr(self.analysis_panel, 'clear_spots_clicked'):
              self._safe_connect("analysis_panel", "clear_spots_clicked", self._on_clear_spots_clicked, "(analysis)")
+        
+        # === SPOT METER PANEL (Enhancement #12) ===
+        if hasattr(self.analysis_panel, 'spot_meter_panel'):
+            spot_panel = self.analysis_panel.spot_meter_panel
+            spot_panel.spot_deleted.connect(self._on_spot_deleted)
+            spot_panel.spot_renamed.connect(self._on_spot_renamed)
+            spot_panel.highlight_spot.connect(self._on_highlight_spot)
+            logger.info("Connected SpotMeterPanel signals")
 
         # === ANOMALY WIDGET ===
         self._safe_connect("anomaly_widget", "anomaly_priority_toggled", self._on_anomaly_priority_toggle, "(anomaly)")
@@ -5879,6 +6039,14 @@ class InspectionAppWindow(QMainWindow):
         else:
             logger.warning("[MAIN_WINDOW] app not found")
 
+        # Update isotherm panel to match temperature unit
+        if hasattr(self, 'isotherm_panel'):
+            # Map unit string to index: C=0, F=1, K=2, RAW=3
+            unit_index_map = {'C': 0, 'F': 1, 'K': 2, 'RAW': 3}
+            unit_index = unit_index_map.get(unit, 0)
+            self.isotherm_panel.set_temperature_unit(unit_index)
+            logger.info(f"[MAIN_WINDOW] Updated isotherm panel to unit index: {unit_index}")
+
     def _on_radiometric_max_hot_spots_changed(self, count: int):
         """Handle max hot spots change from top-level radiometric panel."""
         if self.app:
@@ -5931,6 +6099,48 @@ class InspectionAppWindow(QMainWindow):
             self.video_widget.update_measurement_points(self.measurement_points)
         logger.info("Cleared all spot meters")
 
+    def _on_spot_deleted(self, spot_id: str):
+        """Handle spot meter deletion from SpotMeterPanel (Enhancement #12)."""
+        logger.info(f"Main Window: _on_spot_deleted for {spot_id}")
+        # Find and remove the measurement point by matching position/label
+        # The spot_id format is "spot_{idx}_{x}_{y}"
+        # We need to find the point by label
+        if hasattr(self, 'analysis_panel') and hasattr(self.analysis_panel, 'spot_meter_panel'):
+            spot_data = self.analysis_panel.spot_meter_panel.get_spot(spot_id)
+            if spot_data:
+                # Find and remove from measurement_points by label
+                self.measurement_points = [
+                    p for p in self.measurement_points 
+                    if p.label != spot_data.label
+                ]
+                # Update video overlay
+                if hasattr(self, 'video_widget'):
+                    self.video_widget.update_measurement_points(self.measurement_points)
+                logger.info(f"Removed spot meter from overlay: {spot_data.label}")
+                
+    def _on_spot_renamed(self, spot_id: str, new_name: str):
+        """Handle spot meter rename from SpotMeterPanel (Enhancement #12)."""
+        logger.info(f"Main Window: _on_spot_renamed {spot_id} -> {new_name}")
+        # Find the measurement point by old label and update it
+        if hasattr(self, 'analysis_panel') and hasattr(self.analysis_panel, 'spot_meter_panel'):
+            spot_data = self.analysis_panel.spot_meter_panel.get_spot(spot_id)
+            if spot_data:
+                old_label = spot_data.label  # Label already updated in panel
+                # Find point by position (more reliable after rename)
+                for point in self.measurement_points:
+                    if point.x == spot_data.x and point.y == spot_data.y:
+                        point.label = new_name
+                        break
+                # Update video overlay
+                if hasattr(self, 'video_widget'):
+                    self.video_widget.update_measurement_points(self.measurement_points)
+                    
+    def _on_highlight_spot(self, spot_id: str):
+        """Handle spot meter highlight request from SpotMeterPanel (Enhancement #12)."""
+        # Could add visual highlighting animation in overlay
+        logger.debug(f"Highlight spot: {spot_id}")
+        # Future: Add blinking effect to spot in overlay
+
     def get_spot_meter_coords(self) -> List[Tuple[int, int, str]]:
         """Get coordinates of all active spot meters."""
         return [(p.x, p.y, p.label) for p in self.measurement_points]
@@ -5961,10 +6171,15 @@ class InspectionAppWindow(QMainWindow):
         # Create unique label (SP1, SP2, ...)
         idx = len(self.measurement_points) + 1
         label = f"SP{idx}"
+        spot_id = f"spot_{idx}_{x}_{y}"  # Unique ID
         
-        # Create point
+        # Create point for overlay display
         point = MeasurementPoint(x=x, y=y, label=label)
         self.measurement_points.append(point)
+        
+        # Also add to SpotMeterPanel for management
+        if hasattr(self, 'analysis_panel') and hasattr(self.analysis_panel, 'spot_meter_panel'):
+            self.analysis_panel.spot_meter_panel.add_spot(spot_id, x, y, label)
         
         # Update overlay immediately (will show -- temp until next frame update)
         if hasattr(self, 'video_widget'):
@@ -5993,8 +6208,14 @@ class InspectionAppWindow(QMainWindow):
                 point.unit = data['unit']
                 updated = True
                 
-        if updated and hasattr(self, 'video_widget'):
-            self.video_widget.update_measurement_points(self.measurement_points)
+        if updated:
+            # Update video overlay
+            if hasattr(self, 'video_widget'):
+                self.video_widget.update_measurement_points(self.measurement_points)
+            
+            # Also update SpotMeterPanel for statistics
+            if hasattr(self, 'analysis_panel') and hasattr(self.analysis_panel, 'spot_meter_panel'):
+                self.analysis_panel.spot_meter_panel.update_spot_temperatures(values)
 
     # === RADIOMETRIC SPOTMETER HANDLERS (Placeholder for 16-bit radiometric) ===
     
