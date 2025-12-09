@@ -33,7 +33,8 @@ from firefly_control_panel import FireflyControlPanel
 from radiometric_panel import RadiometricPanel
 from parallax_panel import ParallaxPanel
 from fusion_panel import FusionPanel
-from spot_meter_panel import SpotMeterPanel, SpotMeterData
+from spot_meter_panel import SpotMeterPanel, SpotMeterData, SpotMeterPresets
+
 
 logger = logging.getLogger(__name__)
 
@@ -2327,20 +2328,8 @@ class ThermalAnalysisPanel(QWidget):
         self.general_layout.addWidget(self.roi_summary_label)
 
         # === Spot Meter Management Panel ===
-        self.general_layout.addWidget(create_separator())
-        
-        # Add Spot Meter button (toggle mode)
-        spot_mode_layout = QHBoxLayout()
-        self.spot_meter_btn = QPushButton("✚ Add Spot Meter")
-        self.spot_meter_btn.setCheckable(True)
-        self.spot_meter_btn.setToolTip("Click on video to add temperature measurement points")
-        self.spot_meter_btn.setMinimumHeight(32)
-        spot_mode_layout.addWidget(self.spot_meter_btn)
-        self.general_layout.addLayout(spot_mode_layout)
-        
-        # Spot Meter Panel (list, stats, actions, export)
-        self.spot_meter_panel = SpotMeterPanel()
-        self.general_layout.addWidget(self.spot_meter_panel)
+        # Spot Meter functionality moved to dedicated tab
+
 
         self.general_layout.addWidget(create_separator())
 
@@ -2474,6 +2463,35 @@ class ThermalAnalysisPanel(QWidget):
         general_tab_layout.addWidget(general_scroll)
 
         self.analysis_tabs.addTab(general_tab, "General")
+
+        # ===================================================================
+        # SPOT METERS TAB (New in Phase 6)
+        # ===================================================================
+        spot_tab = QWidget()
+        spot_layout = QVBoxLayout(spot_tab)
+        spot_layout.setContentsMargins(6, 6, 6, 6)
+        spot_layout.setSpacing(8)
+        
+        spot_layout.addWidget(create_section_header("🎯 Spot Meter Controls"))
+        
+        # Add Spot Meter button (toggle mode)
+        spot_mode_layout = QHBoxLayout()
+        self.spot_meter_btn = QPushButton("✚ Add Spot Meter")
+        self.spot_meter_btn.setCheckable(True)
+        self.spot_meter_btn.setToolTip("Click on video to add temperature measurement points")
+        self.spot_meter_btn.setMinimumHeight(32)
+        spot_mode_layout.addWidget(self.spot_meter_btn)
+        spot_layout.addLayout(spot_mode_layout)
+        
+        spot_layout.addWidget(create_separator())
+        
+        # Spot Meter Panel (list, stats, actions, export)
+        self.spot_meter_panel = SpotMeterPanel()
+        spot_layout.addWidget(self.spot_meter_panel)
+        
+        spot_layout.addStretch()
+        
+        self.analysis_tabs.addTab(spot_tab, "Spot Meters")
 
         # Connect signals
         self.baseline_btn.toggled.connect(self.baseline_toggled.emit)
@@ -5257,12 +5275,16 @@ class InspectionAppWindow(QMainWindow):
             logger.info("Creating Analysis tab...")
             self.analysis_tabs = QTabWidget()
             
-            # Create General tab (just the general analysis content, no nested radiometric)
+            # Create ThermalAnalysisPanel and transfer ALL its tabs (General, Spot Meters)
+            # We must keep self.analysis_panel reference for signals
             self.analysis_panel = ThermalAnalysisPanel()
-            # Only use the "General" tab, ignore the nested "Radiometric" tab
-            general_content = self.analysis_panel.analysis_tabs.widget(0)
-            self.analysis_tabs.addTab(general_content, "General")
-            logger.info("  [OK] General analysis panel added")
+            
+            # Robustly transfer tabs: reparenting removes them from the source, so we always take index 0
+            while self.analysis_panel.analysis_tabs.count() > 0:
+                widget = self.analysis_panel.analysis_tabs.widget(0)
+                title = self.analysis_panel.analysis_tabs.tabText(0)
+                self.analysis_tabs.addTab(widget, title)
+                logger.info(f"  [OK] Transferred tab '{title}' from ThermalAnalysisPanel")
             
             # Create Radiometric tab directly at top level
             from radiometric_panel import RadiometricPanel
@@ -5721,6 +5743,8 @@ class InspectionAppWindow(QMainWindow):
             spot_panel.spot_deleted.connect(self._on_spot_deleted)
             spot_panel.spot_renamed.connect(self._on_spot_renamed)
             spot_panel.highlight_spot.connect(self._on_highlight_spot)
+            spot_panel.preset_requested.connect(self._on_spot_preset_requested)
+            spot_panel.alert_triggered.connect(self._on_spot_alert_triggered)
             logger.info("Connected SpotMeterPanel signals")
 
         # === ANOMALY WIDGET ===
@@ -7368,6 +7392,63 @@ class InspectionAppWindow(QMainWindow):
         if self.app and hasattr(self.app, 'set_parallax_baseline'):
             self.app.set_parallax_baseline(baseline)
             logger.info(f"Parallax geometry applied: baseline={baseline}mm")
+
+    # ========================================================================
+    # Spot Meter Advanced Handlers (Phase 6)
+    # ========================================================================
+
+    def _on_highlight_spot(self, spot_id: str):
+        """Highlight a specific spot meter (e.g., flash indicator)."""
+        logger.debug(f"Highlighting spot {spot_id}")
+        # Could integrate with overlay to flash the spot
+        pass
+
+    def _on_spot_preset_requested(self, preset_name: str):
+        """Handle request to apply a spot meter preset."""
+        if not hasattr(self.analysis_panel, 'spot_meter_panel'):
+            return
+            
+        # Get current video dimensions
+        # Use internal frame dimensions which represent the true resolution
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, '_frame_width') and self.video_widget._frame_width > 0:
+            w = self.video_widget._frame_width
+            h = self.video_widget._frame_height
+        else:
+            w, h = 640, 512 # Default thermal resolution (e.g. Boson)
+            
+        coords = SpotMeterPresets.generate(preset_name, w, h)
+        
+        # Clear existing spots for the preset
+        self.analysis_panel.spot_meter_panel.clear()
+        self.measurement_points.clear() # Sync: Clear measurement points too
+        
+        import time
+        for i, (x, y) in enumerate(coords):
+            spot_id = f"spot_{int(time.time()*1000)}_{i}"
+            label = f"SP{i+1}"
+            
+            # Add to Panel
+            self.analysis_panel.spot_meter_panel.add_spot(spot_id, x, y, label)
+            
+            # Add to Overlay Data
+            point = MeasurementPoint(x=x, y=y, label=label)
+            self.measurement_points.append(point)
+            
+        # Update Overlay Display
+        if hasattr(self, 'video_widget'):
+            self.video_widget.update_measurement_points(self.measurement_points)
+            
+        logger.info(f"Applied preset: {preset_name} ({len(coords)} spots)")
+
+    def _on_spot_alert_triggered(self, spot_id: str, type_: str, val: float):
+        """Handle alert trigger."""
+        if hasattr(self.analysis_panel, 'spot_meter_panel'):
+            spot = self.analysis_panel.spot_meter_panel.get_spot(spot_id)
+            label = spot.label if spot else spot_id
+            msg = f"⚠️ ALERT: {label} is {type_} threshold ({val:.1f})"
+            if hasattr(self, 'statusBar'):
+                self.statusBar().showMessage(msg, 3000)
+
 
 # ============================================================================
 # Standalone Test

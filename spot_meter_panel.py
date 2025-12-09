@@ -9,16 +9,110 @@ Part of Enhancement #12: Spot Meter Management and Data Export
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QGroupBox, QMenu, QInputDialog,
-    QMessageBox, QFrame, QAbstractItemView, QFileDialog
+    QMessageBox, QFrame, QAbstractItemView, QFileDialog, QComboBox,
+    QCheckBox, QDialog, QFormLayout, QSpinBox, QDoubleSpinBox,
+    QScrollArea
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QColor, QAction
-from typing import List, Dict, Optional, Tuple
+from PyQt6.QtGui import QColor, QAction, QIcon, QPixmap, QBrush
+from typing import List, Dict, Optional, Tuple, Callable
 from dataclasses import dataclass, field
-import time
 import logging
+import time
+try:
+    import pyqtgraph as pg
+    HAS_PYQTGRAPH = True
+except ImportError:
+    HAS_PYQTGRAPH = False
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class SpotMeterAlert:
+    """Alert configuration for a spot meter."""
+    threshold: float
+    type: str = 'above'  # 'above' or 'below'
+    enabled: bool = True
+    triggered: bool = False
+    
+    def check(self, value: float) -> bool:
+        """Check if alert should trigger."""
+        if not self.enabled:
+            return False
+            
+        is_triggered = False
+        if self.type == 'above':
+            is_triggered = value > self.threshold
+        elif self.type == 'below':
+            is_triggered = value < self.threshold
+            
+        return is_triggered
+
+
+class TemperatureHistoryGraph(QWidget):
+    """Real-time temperature history graph for selected spot meters."""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        
+        if not HAS_PYQTGRAPH:
+            self.label = QLabel("PyQtGraph not installed.\nInstall to view history.")
+            self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.layout.addWidget(self.label)
+            self.plot = None
+            return
+            
+        # Configure PlotWidget
+        self.plot = pg.PlotWidget(background='k')
+        self.plot.setTitle("Temperature History", color='w', size='10pt')
+        self.plot.setLabel('left', 'Temp', units='C')
+        self.plot.setLabel('bottom', 'Time', units='s')
+        self.plot.showGrid(x=True, y=True, alpha=0.3)
+        self.plot.addLegend(offset=(10, 10))
+        
+        self.layout.addWidget(self.plot)
+        self.curves = {}  # spot_id -> PlotDataItem
+        
+    def update_data(self, selected_spots: List['SpotMeterData']):
+        """Update graph with data from selected spots."""
+        if not self.plot:
+            return
+            
+        current_ids = {s.id for s in selected_spots}
+        existing_ids = set(self.curves.keys())
+        
+        # Remove curves for deselected spots
+        for spot_id in existing_ids - current_ids:
+            self.plot.removeItem(self.curves[spot_id])
+            del self.curves[spot_id]
+            
+        # Update or add curves
+        for spot in selected_spots:
+            if not spot.history:
+                continue
+                
+            times, temps = zip(*spot.history)
+            # Normalize time to relative (0 = now)
+            now = time.time()
+            rel_times = [t - now for t in times]
+            
+            spot_color = spot.color # (r, g, b)
+            
+            if spot.id not in self.curves:
+                # Create new curve
+                pen = pg.mkPen(color=spot_color, width=2)
+                curve = self.plot.plot(rel_times, temps, pen=pen, name=spot.label)
+                self.curves[spot.id] = curve
+            else:
+                # Update existing curve
+                self.curves[spot.id].setData(rel_times, temps)
+                # Update color/name if changed (optional optimization: check first)
+                pen = pg.mkPen(color=spot_color, width=2)
+                self.curves[spot.id].setPen(pen)
+
 
 
 @dataclass
@@ -36,6 +130,7 @@ class SpotMeterData:
     created_at: float = 0.0              # Creation timestamp
     updated_at: float = 0.0              # Last temperature update
     history: List[Tuple[float, float]] = field(default_factory=list)  # (timestamp, temp) history
+    alert: Optional[SpotMeterAlert] = None # Alert configuration
     
     def __post_init__(self):
         if self.created_at == 0.0:
@@ -73,6 +168,60 @@ class SpotMeterData:
             return "stable"
 
 
+class SpotMeterPresets:
+    """Generates coordinate patterns for spot meters."""
+    
+    @staticmethod
+    def get_presets() -> List[str]:
+        return ["Grid 3x3", "Center + Corners", "Horizontal Line", "Vertical Line", "Crosshair"]
+        
+    @staticmethod
+    def generate(preset: str, w: int, h: int) -> List[Tuple[int, int]]:
+        """Generate (x, y) coordinates for a preset."""
+        coords = []
+        margin_x = w // 10
+        margin_y = h // 10
+        
+        if preset == "Grid 3x3":
+            step_x = (w - 2*margin_x) // 2
+            step_y = (h - 2*margin_y) // 2
+            for i in range(3):
+                for j in range(3):
+                    coords.append((margin_x + i*step_x, margin_y + j*step_y))
+                    
+        elif preset == "Center + Corners":
+            cx, cy = w // 2, h // 2
+            coords = [
+                (cx, cy),
+                (margin_x, margin_y), (w - margin_x, margin_y),
+                (margin_x, h - margin_y), (w - margin_x, h - margin_y)
+            ]
+            
+        elif preset == "Horizontal Line":
+            y = h // 2
+            step = (w - 2*margin_x) // 4
+            for i in range(5):
+                coords.append((margin_x + i*step, y))
+                
+        elif preset == "Vertical Line":
+            x = w // 2
+            step = (h - 2*margin_y) // 4
+            for i in range(5):
+                coords.append((x, margin_y + i*step))
+
+        elif preset == "Crosshair":
+            cx, cy = w // 2, h // 2
+            step_x = w // 8
+            step_y = h // 8
+            coords = [
+                (cx, cy),
+                (cx - step_x, cy), (cx + step_x, cy),
+                (cx, cy - step_y), (cx, cy + step_y)
+            ]
+            
+        return coords
+
+
 class SpotMeterListItem(QListWidgetItem):
     """Custom list item for spot meter display."""
     
@@ -106,9 +255,16 @@ class SpotMeterListItem(QListWidgetItem):
         display_text = f"{indicators}{data.label}: {temp_str}{trend_icon}  ({data.x}, {data.y})"
         self.setText(display_text)
         
-        # Set color indicator
+        # Set color indicator as icon, keep text color default for readability
         r, g, b = data.color
-        self.setForeground(QColor(r, g, b))
+        
+        # Create a solid color icon
+        pixmap = QPixmap(12, 12)
+        pixmap.fill(QColor(r, g, b))
+        self.setIcon(QIcon(pixmap))
+        
+        # Reset text color to use theme default (handled by QListWidget)
+        self.setForeground(QBrush()) # Reset to default brush
 
 
 class SpotMeterPanel(QWidget):
@@ -123,7 +279,9 @@ class SpotMeterPanel(QWidget):
     clear_all_requested = pyqtSignal()
     export_requested = pyqtSignal(str)        # Export format ('csv', 'json')
     highlight_spot = pyqtSignal(str)          # Highlight spot on video
-    
+    preset_requested = pyqtSignal(str)        # Request to apply preset
+    alert_triggered = pyqtSignal(str, str, float) # (spot_id, type, val)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.spots: Dict[str, SpotMeterData] = {}
@@ -131,7 +289,22 @@ class SpotMeterPanel(QWidget):
         
     def _setup_ui(self):
         """Build the panel UI."""
-        layout = QVBoxLayout(self)
+        # Main layout for the panel (holds the scroll area)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Scroll Area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        main_layout.addWidget(scroll_area)
+        
+        # Content Widget (holds the actual controls)
+        content_widget = QWidget()
+        scroll_area.setWidget(content_widget)
+        
+        # Content Layout
+        layout = QVBoxLayout(content_widget)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(6)
         
@@ -237,8 +410,70 @@ class SpotMeterPanel(QWidget):
         
         layout.addLayout(export_row)
         
+        # Advanced Features Group
+        adv_group = QGroupBox("Advanced")
+        adv_layout = QVBoxLayout(adv_group)
+        adv_layout.setSpacing(4)
+        adv_layout.setContentsMargins(8, 8, 8, 8)
+
+        # Presets
+        preset_layout = QHBoxLayout()
+        self.preset_combo = QComboBox()
+        self.preset_combo.addItems(SpotMeterPresets.get_presets())
+        preset_layout.addWidget(self.preset_combo)
+        
+        self.apply_preset_btn = QPushButton("Apply")
+        self.apply_preset_btn.setToolTip("Apply selected spot meter pattern")
+        self.apply_preset_btn.clicked.connect(self._on_apply_preset)
+        preset_layout.addWidget(self.apply_preset_btn)
+        adv_layout.addLayout(preset_layout)
+
+        # Compare Mode
+        self.compare_cb = QCheckBox("Compare Mode (Select 2)")
+        self.compare_cb.setToolTip("Show delta between exactly 2 selected spots")
+        self.compare_cb.toggled.connect(self._on_compare_toggled)
+        adv_layout.addWidget(self.compare_cb)
+
+        # History Graph Toggle
+        self.show_graph_btn = QPushButton("Show History Graph")
+        self.show_graph_btn.setCheckable(True)
+        self.show_graph_btn.setChecked(False)
+        self.show_graph_btn.clicked.connect(self._on_toggle_graph)
+        adv_layout.addWidget(self.show_graph_btn)
+
+        layout.addWidget(adv_group)
+        
+        # History Graph Widget (Initially hidden)
+        self.history_graph = TemperatureHistoryGraph()
+        self.history_graph.setVisible(False)
+        self.history_graph.setMinimumHeight(200)
+        layout.addWidget(self.history_graph)
+        
+        # Add stretch to keep items at top
+        layout.addStretch()
+        
         # Initial button state
         self._update_button_states()
+        
+    def _on_toggle_graph(self, checked: bool):
+        """Toggle history graph visibility."""
+        self.history_graph.setVisible(checked)
+        if checked:
+            self._update_graph()
+            
+    def _update_graph(self):
+        """Update history graph with current selection."""
+        if not self.history_graph.isVisible():
+            return
+            
+        items = self.spot_list.selectedItems()
+        selected_spots = []
+        for item in items:
+            spot_id = item.data(Qt.ItemDataRole.UserRole)
+            if spot_id in self.spots:
+                selected_spots.append(self.spots[spot_id])
+                
+        self.history_graph.update_data(selected_spots)
         
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""
@@ -320,9 +555,15 @@ class SpotMeterPanel(QWidget):
         data.updated_at = time.time()
         data.add_history(temperature)
         
+        # Check alerts (Phase 6)
+        self.check_alerts(spot_id, temperature)
+        
         # Update list item display
         self._refresh_list_item(spot_id)
         self._update_statistics()
+        
+        # Update history graph
+        self._update_graph()
         
     def update_spot_temperatures(self, values: List[Dict]):
         """Batch update temperatures from main loop.
@@ -380,6 +621,70 @@ class SpotMeterPanel(QWidget):
             self.stats_avg_label.setText("Avg: --")
             self.stats_delta_label.setText("ΔT: --")
             
+    def _on_apply_preset(self):
+        """Apply selected preset."""
+        preset = self.preset_combo.currentText()
+        if preset:
+            self.preset_requested.emit(preset)
+            
+    def _on_compare_toggled(self, checked: bool):
+        """Handle compare mode toggle."""
+        self._update_statistics()
+        
+    def _update_statistics(self):
+        """Recalculate and display statistics."""
+        # Check compare mode first
+        if hasattr(self, 'compare_cb') and self.compare_cb.isChecked():
+            selected = self.spot_list.selectedItems()
+            if len(selected) == 2:
+                id1 = selected[0].data(Qt.ItemDataRole.UserRole)
+                id2 = selected[1].data(Qt.ItemDataRole.UserRole)
+                spot1 = self.spots.get(id1)
+                spot2 = self.spots.get(id2)
+                
+                if spot1 and spot2 and spot1.temperature is not None and spot2.temperature is not None:
+                    delta = abs(spot1.temperature - spot2.temperature)
+                    self.stats_delta_label.setText(f"Comp ({spot1.label[-4:]} vs {spot2.label[-4:]}): Δ{delta:.1f}{spot1.unit}")
+                    # Clear other stats to focus on comparison or keep them?
+                    # Let's keep them but maybe dim them? For now just show Comp.
+                else:
+                    self.stats_delta_label.setText("Comp: --")
+            else:
+                 self.stats_delta_label.setText("Select 2 spots")
+                 
+            # Still show global min/max
+        
+        temps = [
+            data.temperature for data in self.spots.values()
+            if data.temperature is not None and data.visible
+        ]
+        
+        count = len(self.spots)
+        self.stats_count_label.setText(f"Count: {count}")
+        
+        if temps:
+            min_temp = min(temps)
+            max_temp = max(temps)
+            avg_temp = sum(temps) / len(temps)
+            
+            # Update labels (unless overridden by compare mode for delta)
+            # Find unit (assume all same)
+            unit = next(iter(self.spots.values())).unit if self.spots else "°C"
+            
+            self.stats_min_label.setText(f"Min: {min_temp:.1f}{unit}")
+            self.stats_max_label.setText(f"Max: {max_temp:.1f}{unit}")
+            self.stats_avg_label.setText(f"Avg: {avg_temp:.1f}{unit}")
+            
+            if not self.compare_cb.isChecked():
+                delta = max_temp - min_temp
+                self.stats_delta_label.setText(f"ΔT: {delta:.1f}{unit}")
+        else:
+            self.stats_min_label.setText("Min: --")
+            self.stats_max_label.setText("Max: --")
+            self.stats_avg_label.setText("Avg: --")
+            if not self.compare_cb.isChecked():
+                self.stats_delta_label.setText("ΔT: --")
+                
     def _update_button_states(self):
         """Enable/disable buttons based on selection."""
         has_selection = len(self.spot_list.selectedItems()) > 0
@@ -396,6 +701,10 @@ class SpotMeterPanel(QWidget):
     def _on_selection_changed(self):
         """Handle list selection change."""
         self._update_button_states()
+        
+        # If compare mode is on, update stats to show comp
+        if hasattr(self, 'compare_cb') and self.compare_cb.isChecked():
+            self._update_statistics()
         
         items = self.spot_list.selectedItems()
         if items:
@@ -584,6 +893,66 @@ class SpotMeterPanel(QWidget):
             QMessageBox.information(self, "Export Complete", f"Exported to:\n{filepath}")
         except Exception as e:
             QMessageBox.warning(self, "Export Failed", f"Error: {e}")
+            
+    def _on_set_alert(self):
+        """Configure alert for selected spot(s). (New in Phase 6)"""
+        items = self.spot_list.selectedItems()
+        if not items:
+            return
+            
+        item = items[0]
+        spot_id = item.data(Qt.ItemDataRole.UserRole)
+        data = self.spots.get(spot_id)
+        
+        if data:
+            # Dialog to get threshold
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Set Alert Threshold")
+            form = QFormLayout(dialog)
+            
+            spin = QDoubleSpinBox()
+            spin.setRange(-50, 500)
+            spin.setValue(data.alert.threshold if data.alert else 30.0)
+            spin.setSuffix(data.unit)
+            
+            type_combo = QComboBox()
+            type_combo.addItems(["Above (>)", "Below (<)"])
+            if data.alert and data.alert.type == 'below':
+                type_combo.setCurrentIndex(1)
+                
+            enable_cb = QCheckBox("Enable Alert")
+            enable_cb.setChecked(data.alert.enabled if data.alert else True)
+            
+            form.addRow("Threshold:", spin)
+            form.addRow("Condition:", type_combo)
+            form.addRow(enable_cb)
+            
+            btns = QHBoxLayout()
+            ok_btn = QPushButton("OK")
+            ok_btn.clicked.connect(dialog.accept)
+            btns.addWidget(ok_btn)
+            form.addRow(btns)
+            
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                threshold = spin.value()
+                c_type = "above" if type_combo.currentIndex() == 0 else "below"
+                enabled = enable_cb.isChecked()
+                
+                # Apply to all selected? For now, just first one or loop
+                for it in items:
+                    sid = it.data(Qt.ItemDataRole.UserRole)
+                    sdata = self.spots.get(sid)
+                    if sdata:
+                        sdata.alert = SpotMeterAlert(threshold=threshold, type=c_type, enabled=enabled)
+                        logger.info(f"Alert set for {sdata.label}: {c_type} {threshold}")
+                        
+    def check_alerts(self, spot_id: str, temperature: float):
+        """Check alert for specific spot."""
+        data = self.spots.get(spot_id)
+        if data and data.alert:
+             if data.alert.check(temperature):
+                 logger.warning(f"ALERT: {data.label} is {data.alert.type} {data.alert.threshold} (Val: {temperature})")
+                 self.alert_triggered.emit(spot_id, data.alert.type, temperature)
                 
     def _show_context_menu(self, position):
         """Show context menu for spot meter actions."""
@@ -598,6 +967,12 @@ class SpotMeterPanel(QWidget):
         
         delete_action = menu.addAction("🗑️ Delete")
         delete_action.triggered.connect(self._on_delete_clicked)
+        
+        menu.addSeparator()
+        
+        # New: Alert
+        alert_action = menu.addAction("⚠️ Set Alert...")
+        alert_action.triggered.connect(self._on_set_alert)
         
         menu.addSeparator()
         

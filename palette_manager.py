@@ -757,10 +757,21 @@ class PaletteManager:
         if self.roi_palettes:
             logger.debug(f"Applying {len(self.roi_palettes)} ROI palettes from config")
         
+        # Cleanup stale ROI palettes (self-healing)
+        stale_rois = []
+        for roi_id in self.roi_palettes:
+            roi = roi_manager.get_roi(roi_id)
+            if roi is None:
+                stale_rois.append(roi_id)
+                
+        for roi_id in stale_rois:
+            del self.roi_palettes[roi_id]
+            logger.debug(f"Cleaned up stale palette for missing ROI {roi_id}")
+
         for roi_id, palette_config in self.roi_palettes.items():
             roi = roi_manager.get_roi(roi_id)
             if roi is None or not roi.active:
-                logger.warning(f"ROI {roi_id} not found or inactive in manager")
+                # Should be caught by cleanup above, but check active status
                 continue
 
             # Get ROI mask

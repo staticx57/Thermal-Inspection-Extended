@@ -2121,18 +2121,7 @@ class ThermalInspectionFusion:
                         logger.info(f"Recording: {'ON' if self.recording_enabled else 'OFF'}")
                     elif key == ord('s'):
                         # Capture snapshot (NEW - Phase 6)
-                        if display_frame is not None:
-                            rois = result.get('rois', [])
-                            snapshot_path = self.snapshot_manager.capture_snapshot(
-                                frame=display_frame,
-                                rois=rois,
-                                thermal_stats=thermal_stats,
-                                hot_spots=self.latest_hot_spots,
-                                cold_spots=self.latest_cold_spots,
-                                anomalies=self.latest_anomalies
-                            )
-                            if snapshot_path:
-                                logger.info(f"Snapshot saved: {snapshot_path}")
+                        self.capture_snapshot()
                     elif key == ord('f'):
                         # Trigger FFC (Flat Field Correction) - NEW: Phase 7
                         if self.thermal_camera and self.thermal_camera.is_sdk_connected:
@@ -2321,6 +2310,23 @@ class ThermalInspectionFusion:
 
                 self.frame_count += 1
 
+                # Periodic Spot Meter Logging (Enhancement #12)
+                # Log independent of frame rate (every 10 seconds default)
+                current_time = time.time()
+                if hasattr(self, 'spot_log_interval') and (current_time - self.last_spot_log_time >= self.spot_log_interval):
+                    self.last_spot_log_time = current_time
+                    if hasattr(self.gui, 'spot_meter_panel') and hasattr(self, 'spot_meter_logger'):
+                        # Use logger from spot_meter_exporter.py if integrated, or just log to file manually here
+                        # For now, we'll use the SpotMeterLogger class if we instantiated it, or just use info log
+                        # Note: We need to instantiate SpotMeterLogger in __init__ if we want to use it
+                        pass
+                    
+                    # Simple logging for now as per requirements
+                    if hasattr(self.gui, 'get_spot_meter_coords'):
+                        spots = self.gui.get_spot_meter_coords()
+                        if spots:
+                            logger.info(f"Spot Meter Log: {len(spots)} spots active")
+
                 # Log periodically with detailed timing breakdown
                 if self.frame_count % 100 == 0:
                     # Calculate main loop timing deltas
@@ -2366,6 +2372,42 @@ class ThermalInspectionFusion:
     # ========================================================================
     # GUI Control Methods
     # ========================================================================
+
+    def capture_snapshot(self):
+        """Capture snapshot with full metadata (including spot meters)."""
+        if not hasattr(self, 'latest_display_frame') or self.latest_display_frame is None:
+            logger.warning("Cannot capture snapshot: no frame available")
+            return
+
+        try:
+            # 1. Get spot meters from GUI (Enhancement #12)
+            spot_meters = None
+            if self.gui and hasattr(self.gui, 'get_spot_meter_coords'):
+                # We need the full spot data objects or a dict list that SnapshotManager expects
+                # SnapshotManager (modified) expects a list of dicts or objects
+                # GUI returns list of (x, y, label) tuples from get_spot_meter_coords... 
+                # actually check get_spot_meter_coords implementation in inspection_gui_qt
+                # Better: use spot_meter_panel.get_all_spots() if available
+                if hasattr(self.gui, 'analysis_panel') and hasattr(self.gui.analysis_panel, 'spot_meter_panel'):
+                    spot_meters = self.gui.analysis_panel.spot_meter_panel.get_all_spots()
+            
+            # 2. Capture
+            snapshot_path = self.snapshot_manager.capture_snapshot(
+                frame=self.latest_display_frame,
+                rois=getattr(self, 'latest_rois', []),
+                thermal_stats=getattr(self, 'latest_stats', None),
+                hot_spots=getattr(self, 'latest_hot_spots', []),
+                cold_spots=getattr(self, 'latest_cold_spots', []),
+                anomalies=getattr(self, 'latest_anomalies', []),
+                spot_meters=spot_meters
+            )
+            
+            if snapshot_path:
+                logger.info(f"Snapshot saved: {snapshot_path}")
+                # Optional: Show flash or status in GUI
+                
+        except Exception as e:
+            logger.error(f"Snapshot capture failed: {e}")
 
     def set_palette(self, palette_name: str):
         """Set specific palette by name."""
