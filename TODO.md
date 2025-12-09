@@ -4,6 +4,14 @@
 *(No open critical bugs)*
 
 ## Priority: HIGH (Core Functionality Broken)
+- [ ] **Bug #24: Spot meter marks don't translate correctly in PIP, RGB, and Side-by-Side modes**
+    - [ ] Issue: When switching view modes (PIP/RGB/Side-by-Side), spot meter marks remain positioned incorrectly
+    - [ ] Root Cause: `InspectionApp.set_view_mode()` (inspection_main.py:2592) doesn't call `overlay.set_view_mode()`
+    - [ ] The overlay's `current_view_mode` stays stale, so `_transform_thermal_coords()` uses wrong coordinate transformation
+    - [ ] Fix: Add `self.gui.video_widget.overlay.set_view_mode()` call in `set_view_mode()` method
+    - [ ] Similar to how `set_fusion_mode()` (line 2481) and `set_fusion_priority()` (line 2505) already do this
+    - [ ] Location: inspection_main.py:2592-2606
+    - [ ] Impact: Spot meters appear in wrong positions in PIP/Side-by-Side, hidden in RGB-only mode
 
 
 ## Priority: LOW (Missing Features)

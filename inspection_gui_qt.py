@@ -941,12 +941,13 @@ class InspectionOverlayWidget(QWidget):
     def set_view_mode(self, mode: str, fusion_priority: str = 'rgb', pip_size: float = 0.25):
         """
         Set current view mode for proper detection overlay handling.
-        
+
         Args:
             mode: View mode ('thermal', 'rgb', 'fusion', 'side_by_side', 'picture_in_picture')
             fusion_priority: Which frame is main ('thermal' or 'rgb')
             pip_size: Size of PIP inset as fraction of main frame (0.0-1.0)
         """
+        logger.info(f"[OVERLAY] set_view_mode called: mode='{mode}', fusion_priority='{fusion_priority}'")
         self.current_view_mode = mode
         self.fusion_priority = fusion_priority
         
@@ -989,15 +990,16 @@ class InspectionOverlayWidget(QWidget):
         """
         Transform thermal sensor coordinates to display coordinates.
         Handles scaling from thermal res to display res, PIP mode, and Side-by-Side.
-        
+
         Args:
             x, y: Thermal sensor coordinates (e.g., 0-640)
-            
+
         Returns:
             Widget coordinates (wx, wy)
         """
-        # DEBUG LOGGING (Temporary)
-        # logger.debug(f"Transform input: ({x}, {y}), Res: {getattr(self, 'thermal_resolution', 'None')}")
+        # DEBUG LOGGING
+        if len(self.measurement_points) > 0:  # Only log when there are spot meters
+            logger.info(f"[OVERLAY] _transform_thermal_coords: input=({x:.1f}, {y:.1f}), mode='{self.current_view_mode}', pip_rect={self.pip_rect}")
 
         if not hasattr(self, 'thermal_resolution') or not self.thermal_resolution:
             # Fallback if resolution not set

@@ -2601,6 +2601,25 @@ class ThermalInspectionFusion:
         view_mode = mode_map.get(mode.lower())
         if view_mode:
             self.view_mode = view_mode
+
+            # Update overlay widget view mode for proper coordinate handling (Bug #24 fix)
+            if self.gui and hasattr(self.gui, 'video_widget') and hasattr(self.gui.video_widget, 'overlay'):
+                # Map ViewMode enum values to overlay-expected strings
+                overlay_mode_map = {
+                    ViewMode.THERMAL_ONLY: "thermal",
+                    ViewMode.RGB_ONLY: "rgb",
+                    ViewMode.FUSION: "fusion",
+                    ViewMode.SIDE_BY_SIDE: "side_by_side",
+                    ViewMode.PICTURE_IN_PICTURE: "picture_in_picture"  # "pip" -> "picture_in_picture"
+                }
+                overlay_mode = overlay_mode_map.get(view_mode, view_mode)
+
+                self.gui.video_widget.overlay.set_view_mode(
+                    overlay_mode,
+                    fusion_priority=getattr(self, 'fusion_priority', 'rgb'),
+                    pip_size=0.25
+                )
+
             logger.info(f"View mode set to: {self.view_mode}")
         else:
             logger.warning(f"Invalid view mode: {mode}")

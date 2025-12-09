@@ -3,7 +3,10 @@
     "allow": [
       "Bash(sort:*)",
       "Bash(findstr:*)",
-      "Bash(python inspection_main.py:*)"
+      "Bash(python inspection_main.py:*)",
+      "Bash(timeout:*)",
+      "Bash(taskkill:*)",
+      "Bash(ping:*)"
     ],
     "deny": [],
     "ask": []
