@@ -638,7 +638,7 @@ class CameraDetector:
                 logger.info(f"Probing Windows camera index {device_id}...")  # Changed to INFO for visibility
 
                 # Add small delay to let drivers settle
-                time.sleep(0.2)
+                time.sleep(0.05)
 
                 # Try DirectShow first (better compatibility with thermal cameras)
                 try:
@@ -756,9 +756,9 @@ class CameraDetector:
                     height, width = frame.shape[:2]
                     return True, (width, height)
             
-            # Read a few frames to get stable data
-            for _ in range(5):
-                ret = cap.grab()  # Discard first few frames
+            # Read a couple frames to get stable data
+            for _ in range(2):
+                ret = cap.grab()  # Discard first frames
             
             ret, frame = cap.read()
             

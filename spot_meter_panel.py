@@ -11,11 +11,6 @@ from PyQt6.QtWidgets import (
     QListWidget, QListWidgetItem, QGroupBox, QMenu, QInputDialog,
     QMessageBox, QFrame, QAbstractItemView, QFileDialog, QComboBox,
     QCheckBox, QDialog, QFormLayout, QSpinBox, QDoubleSpinBox,
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QListWidget, QListWidgetItem, QGroupBox, QMenu, QInputDialog,
-    QMessageBox, QFrame, QAbstractItemView, QFileDialog, QComboBox,
-    QCheckBox, QDialog, QFormLayout, QSpinBox, QDoubleSpinBox,
     QScrollArea, QSizePolicy, QRadioButton, QDialogButtonBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
@@ -111,9 +106,7 @@ class TemperatureHistoryGraph(QWidget):
                 continue
                 
             times, temps = zip(*spot.history)
-            # Normalize time to relative (0 = start of session)
-            # Normalize time to relative (0 = start of visible history)
-            # This ensures positive time axis that scrolls right
+            # Normalize time to relative (0 = start of history)
             start_t = times[0]
             rel_times = [t - start_t for t in times]
             
@@ -571,6 +564,19 @@ class SpotMeterPanel(QWidget):
         self._update_statistics()
         self._update_button_states()
         logger.info(f"Spot meter removed: {spot_id}")
+
+    def get_all_spots(self) -> List[SpotMeterData]:
+        """Get list of all spot meter data objects."""
+        return list(self.spots.values())
+
+    def clear(self):
+        """Remove all spot meters."""
+        self.spots.clear()
+        self.spot_list.clear() # Qt ListWidget clearing
+        self._update_statistics()
+        self._update_button_states()
+        logger.info("All spot meters cleared")
+
         
     def update_temperature(self, spot_id: str, temperature: float, unit: str = "°C"):
         """Update temperature reading for a spot meter.
@@ -921,6 +927,86 @@ class SpotMeterPanel(QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Export Failed", f"Error: {e}")
 
+    def _export_csv_fallback(self, filepath: str):
+        """Simple CSV export fallback."""
+        import csv
+        from datetime import datetime
+        
+        try:
+            with open(filepath, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(['ID', 'Label', 'X', 'Y', 'Temperature', 'Unit', 'Visible', 'Locked'])
+                for spot in self.spots.values():
+                    writer.writerow([
+                        spot.id, spot.label, spot.x, spot.y,
+                        spot.temperature if spot.temperature else '',
+                        spot.unit, spot.visible, spot.locked
+                    ])
+            QMessageBox.information(self, "Export Complete", f"Exported to:\n{filepath}")
+        except Exception as e:
+            QMessageBox.warning(self, "Export Failed", f"Error: {e}")
+            
+    def _export_json_fallback(self, filepath: str):
+        """Simple JSON export fallback."""
+        import json
+        from datetime import datetime
+        
+        try:
+            data = {
+                'export_time': datetime.now().isoformat(),
+                'spot_count': len(self.spots),
+                'spots': [
+                    {
+                        'id': s.id, 'label': s.label,
+                        'x': s.x, 'y': s.y,
+                        'temperature': s.temperature,
+                        'unit': s.unit,
+                        'visible': s.visible, 'locked': s.locked
+                    }
+                    for s in self.spots.values()
+                ]
+            }
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2)
+            QMessageBox.information(self, "Export Complete", f"Exported to:\n{filepath}")
+        except Exception as e:
+            QMessageBox.warning(self, "Export Failed", f"Error: {e}")
+
+    def _show_context_menu(self, position):
+        """Show context menu for spot meter actions."""
+        item = self.spot_list.itemAt(position)
+        if not item:
+            return
+            
+        menu = QMenu(self)
+        
+        rename_action = menu.addAction("✏️ Rename...")
+        rename_action.triggered.connect(self._on_rename_clicked)
+        
+        selected_items = self.spot_list.selectedItems()
+        if selected_items:
+            menu.addSeparator()
+            menu.addAction("⚠️ Set Alert...", self._on_set_alert)
+            menu.addSeparator()
+            delete_action = menu.addAction("🗑️ Delete")
+            delete_action.triggered.connect(self._on_delete_clicked)
+        
+        menu.addSeparator()
+        
+        spot_id = item.data(Qt.ItemDataRole.UserRole)
+        data = self.spots.get(spot_id)
+        
+        if data:
+            visibility_text = "🙈 Hide" if data.visible else "👁️ Show"
+            visibility_action = menu.addAction(visibility_text)
+            visibility_action.triggered.connect(self._on_toggle_visibility)
+            
+            lock_text = "🔓 Unlock" if data.locked else "🔒 Lock Position"
+            lock_action = menu.addAction(lock_text)
+            lock_action.triggered.connect(self._on_toggle_lock)
+            
+        menu.exec(self.spot_list.mapToGlobal(position))
+
 class SpotMeterAlertDialog(QDialog):
     """Dialog to configure spot meter alert."""
     
@@ -980,87 +1066,11 @@ class SpotMeterAlertDialog(QDialog):
         )
         self.accept()
             
-    def _export_csv_fallback(self, filepath: str):
-        """Simple CSV export fallback."""
-        import csv
-        from datetime import datetime
-        
-        try:
-            with open(filepath, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                writer.writerow(['ID', 'Label', 'X', 'Y', 'Temperature', 'Unit', 'Visible', 'Locked'])
-                for spot in self.spots.values():
-                    writer.writerow([
-                        spot.id, spot.label, spot.x, spot.y,
-                        spot.temperature if spot.temperature else '',
-                        spot.unit, spot.visible, spot.locked
-                    ])
-            QMessageBox.information(self, "Export Complete", f"Exported to:\n{filepath}")
-        except Exception as e:
-            QMessageBox.warning(self, "Export Failed", f"Error: {e}")
-            
-    def _export_json_fallback(self, filepath: str):
-        """Simple JSON export fallback."""
-        import json
-        from datetime import datetime
-        
-        try:
-            data = {
-                'export_time': datetime.now().isoformat(),
-                'spot_count': len(self.spots),
-                'spots': [
-                    {
-                        'id': s.id, 'label': s.label,
-                        'x': s.x, 'y': s.y,
-                        'temperature': s.temperature,
-                        'unit': s.unit,
-                        'visible': s.visible, 'locked': s.locked
-                    }
-                    for s in self.spots.values()
-                ]
-            }
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2)
-            QMessageBox.information(self, "Export Complete", f"Exported to:\n{filepath}")
-        except Exception as e:
-            QMessageBox.warning(self, "Export Failed", f"Error: {e}")
+
             
 
                 
-    def _show_context_menu(self, position):
-        """Show context menu for spot meter actions."""
-        item = self.spot_list.itemAt(position)
-        if not item:
-            return
-            
-        menu = QMenu(self)
-        
-        rename_action = menu.addAction("✏️ Rename...")
-        rename_action.triggered.connect(self._on_rename_clicked)
-        
-        selected_items = self.spot_list.selectedItems()
-        if selected_items:
-            menu.addSeparator()
-            menu.addAction("⚠️ Set Alert...", self._on_set_alert)
-            menu.addSeparator()
-            delete_action = menu.addAction("🗑️ Delete")
-            delete_action.triggered.connect(self._on_delete_clicked)
-        
-        menu.addSeparator()
-        
-        spot_id = item.data(Qt.ItemDataRole.UserRole)
-        data = self.spots.get(spot_id)
-        
-        if data:
-            visibility_text = "🙈 Hide" if data.visible else "👁️ Show"
-            visibility_action = menu.addAction(visibility_text)
-            visibility_action.triggered.connect(self._on_toggle_visibility)
-            
-            lock_text = "🔓 Unlock" if data.locked else "🔒 Lock Position"
-            lock_action = menu.addAction(lock_text)
-            lock_action.triggered.connect(self._on_toggle_lock)
-            
-        menu.exec(self.spot_list.mapToGlobal(position))
+
         
     def get_all_spots(self) -> List[SpotMeterData]:
         """Get all spot meter data for export."""

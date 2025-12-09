@@ -1924,7 +1924,7 @@ class ThermalInspectionFusion:
                 if hasattr(self.gui.boson_panel, 'update_connection_status'):
                     is_sdk = self.thermal_camera and getattr(self.thermal_camera, 'is_sdk_connected', False)
                     port = getattr(self.args, 'com_port', None)
-                    self.gui.boson_panel.update_connection_status(is_sdk, port)
+                    self.gui.boson_panel.update_connection_status(is_sdk)
                     logger.info(f"Deferred connection status: connected={is_sdk}, port={port}")
 
                 # Update Camera Info
@@ -1941,6 +1941,17 @@ class ThermalInspectionFusion:
                     available=True,
                     auto_enabled=self.temp_estimation_enabled
                 )
+
+            # 4. Propagate thermal resolution to GUI overlay for coordinate mapping (Bug Fix)
+            if self.thermal_connected and self.thermal_camera:
+                try:
+                    actual_res = self.thermal_camera.get_actual_resolution()
+                    if hasattr(self.gui, 'video_widget') and hasattr(self.gui.video_widget, 'overlay'):
+                        if hasattr(self.gui.video_widget.overlay, 'set_thermal_resolution'):
+                            self.gui.video_widget.overlay.set_thermal_resolution(actual_res[0], actual_res[1])
+                            logger.info(f"[DEFERRED] Thermal resolution propagated to overlay: {actual_res[0]}x{actual_res[1]}")
+                except Exception as res_e:
+                    logger.warning(f"Failed to propagate thermal resolution: {res_e}")
 
         except Exception as e:
             logger.error(f"Error during deferred GUI initialization: {e}", exc_info=True)
