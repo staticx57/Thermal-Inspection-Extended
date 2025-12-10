@@ -313,17 +313,27 @@ class CameraInitializer:
                         logger.error(f"  [FAST-FAIL] {key} init error: {e}")
 
             # Verification: Did we get what we wanted?
-            # If we requested thermal and got it, we are good.
-            # If we requested RGB and got it, we are good.
-            # If we critically missed thermal, maybe fallback?
-            # CRITICAL FIX: If thermal_camera is None (either ID was None or init failed), 
-            # we MUST fallback to full detection to find it (unless explicitly disabled, but safe assumption for this app).
-            if thermal_camera is None:
-                logger.warning("Fast Path: Thermal not initialized (ID unknown or failed). Reverting to Full Detection.")
+            # CRITICAL FIX: Always try to find RGB camera if it wasn't initialized
+            # Fall back to full detection if:
+            # 1. Thermal was requested but failed, OR
+            # 2. RGB is None (either not requested OR failed)
+            # This ensures we always detect RGB cameras even if uncached
+            thermal_missing = known_thermal_id is not None and thermal_camera is None
+            
+            if thermal_missing:
+                logger.warning("Fast Path: Thermal not initialized (ID provided but init failed). Reverting to Full Detection.")
                 if rgb_camera: 
                     try: rgb_camera.release()
                     except: pass
                     rgb_camera = None
+                # Fallback proceeds below to Full Detection
+            elif rgb_camera is None:
+                # RGB not initialized - could be because:
+                # 1. known_rgb_id was None (uncached)
+                # 2. known_rgb_id was provided but init failed
+                # In either case, run full detection to find RGB
+                logger.info("Fast Path: RGB not initialized. Running Full Detection to find RGB camera.")
+                # Keep thermal camera, but re-run detection to find RGB
                 # Fallback proceeds below to Full Detection
             else:
                 # Fast Path Success!

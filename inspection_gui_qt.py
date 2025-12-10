@@ -942,7 +942,8 @@ class InspectionOverlayWidget(QWidget):
         self.fusion_priority = 'rgb'  # Which frame is main in PIP mode
         # PIP overlay rectangle (x, y, width, height) for coordinate transformation
         # None means thermal detections use full-frame coordinates
-        self.pip_rect = None  # Will be set when PIP mode is active
+        self.pip_rect = None  # Will be set when PIP mode is active (allocated space)
+        self.pip_thermal_rect = None  # Actual thermal rendering rect within pip_rect (aspect-ratio corrected)
 
     def set_view_mode(self, mode: str, fusion_priority: str = 'rgb', pip_size: float = 0.25):
         """
@@ -963,17 +964,39 @@ class InspectionOverlayWidget(QWidget):
         if mode == 'picture_in_picture':
             frame_w, frame_h = self.frame_size
             margin = 10
-            inset_w = int(frame_w * pip_size)
-            inset_h = int(frame_h * pip_size)
+            pip_allocated_w = int(frame_w * pip_size)
+            pip_allocated_h = int(frame_h * pip_size)
 
             # Calculate inset position (top-right corner)
-            x = frame_w - inset_w - margin
+            x = frame_w - pip_allocated_w - margin
             y = margin
 
-            # Thermal is always the inset in PIP mode
-            self.pip_rect = (x, y, inset_w, inset_h)
+            # CRITICAL FIX: Calculate actual thermal display size with aspect ratio
+            # This fixes the center offset bug where clicks don't align with the visual thermal overlay
+            if hasattr(self, 'thermal_resolution') and self.thermal_resolution:
+                tw, th = self.thermal_resolution
+                # Calculate actual rendered size within allocated PIP space
+                actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(
+                    tw, th, pip_allocated_w, pip_allocated_h
+                )
+                
+                # Store both allocated rect AND actual rendered rect
+                self.pip_rect = (x, y, pip_allocated_w, pip_allocated_h)
+                self.pip_thermal_rect = (
+                    x + offset_x,  # Adjust for aspect ratio offset
+                    y + offset_y,
+                    actual_w,
+                    actual_h
+                )
+                logger.info(f"[OVERLAY] PIP mode: allocated=({x},{y},{pip_allocated_w},{pip_allocated_h}), "
+                           f"thermal_actual=({x+offset_x},{y+offset_y},{actual_w},{actual_h})")
+            else:
+                # Fallback to simple calculation if thermal resolution not set
+                self.pip_rect = (x, y, pip_allocated_w, pip_allocated_h)
+                self.pip_thermal_rect = self.pip_rect
         else:
             self.pip_rect = None
+            self.pip_thermal_rect = None
         
         self.update()
 
@@ -1256,18 +1279,35 @@ class InspectionOverlayWidget(QWidget):
         if self.current_view_mode == 'picture_in_picture':
             pip_size = 0.25  # Default PIP size
             margin = 10
-            inset_w = int(frame_width * pip_size)
-            inset_h = int(frame_height * pip_size)
-            x = frame_width - inset_w - margin
+            pip_allocated_w = int(frame_width * pip_size)
+            pip_allocated_h = int(frame_height * pip_size)
+            x = frame_width - pip_allocated_w - margin
             y = margin
 
             # Only set pip_rect if thermal is the INSET (priority='rgb')
             # If thermal is MAIN (priority='thermal'), pip_rect should be None
             if self.fusion_priority == 'rgb':
-                self.pip_rect = (x, y, inset_w, inset_h)
+                # Calculate aspect-ratio-corrected thermal rect (same as set_view_mode)
+                if hasattr(self, 'thermal_resolution') and self.thermal_resolution:
+                    tw, th = self.thermal_resolution
+                    actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(
+                        tw, th, pip_allocated_w, pip_allocated_h
+                    )
+                    self.pip_rect = (x, y, pip_allocated_w, pip_allocated_h)
+                    self.pip_thermal_rect = (
+                        x + offset_x,
+                        y + offset_y,
+                        actual_w,
+                        actual_h
+                    )
+                else:
+                    self.pip_rect = (x, y, pip_allocated_w, pip_allocated_h)
+                    self.pip_thermal_rect = self.pip_rect
             else:
                 self.pip_rect = None
-            logger.info(f"[OVERLAY] PIP rect recalculated: {self.pip_rect}, priority={self.fusion_priority}, frame_size={self.frame_size}, thermal_res={self.thermal_resolution}")
+                self.pip_thermal_rect = None
+            logger.info(f"[OVERLAY] PIP rect recalculated: allocated={self.pip_rect}, thermal_actual={self.pip_thermal_rect}, "
+                       f"priority={self.fusion_priority}, frame_size={self.frame_size}, thermal_res={self.thermal_resolution}")
 
     def frame_to_widget(self, x: float, y: float) -> tuple:
         """Convert frame coordinates to widget coordinates."""

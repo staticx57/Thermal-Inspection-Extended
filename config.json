@@ -45,7 +45,7 @@
     512
   ],
   "thermal_device_id": 2,
-  "rgb_device_id": 1,
+  "rgb_device_id": 0,
   "_comment": "Thermal Inspection Fusion Tool v2.0 - Configuration File",
   "_version": "2.0.0",
   "_last_updated": "2025-11-21",
