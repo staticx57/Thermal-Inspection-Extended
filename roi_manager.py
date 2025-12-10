@@ -55,6 +55,11 @@ class ROI:
     emissivity: Optional[float] = None  # Material emissivity override (None = use global)
     temp_history: List[float] = field(default_factory=list)  # Recent avg temps for trending
 
+    # Scaling fields (Drift-Free Support)
+    normalized_points: List[Tuple[float, float]] = field(default_factory=list)
+    source_resolution: Tuple[int, int] = (640, 512)
+
+
     def get_bbox(self) -> Tuple[int, int, int, int]:
         """Get bounding box (x, y, w, h) for this ROI."""
         if not self.points:
@@ -176,18 +181,26 @@ class ROI:
     @classmethod
     def from_dict(cls, data: Dict) -> 'ROI':
         """Create ROI from dictionary."""
+        # Handle backward compatibility
+        norm_points = data.get("normalized_points", [])
+        if not norm_points and "points" in data:
+            # Will need to be normalized later if missing
+            pass
+            
         return cls(
             roi_id=data["roi_id"],
             roi_type=ROIType(data["roi_type"]),
             roi_source=ROISource(data["roi_source"]),
-            points=data["points"],
+            points=[tuple(p) for p in data["points"]], # Ensure tuples
             label=data.get("label", ""),
             color=tuple(data.get("color", [0, 255, 0])),
             active=data.get("active", True),
             locked=data.get("locked", False),
             metadata=data.get("metadata", {}),
             created_at=data.get("created_at", time.time()),
-            last_updated=data.get("last_updated", time.time())
+            last_updated=data.get("last_updated", time.time()),
+            normalized_points=[tuple(p) for p in norm_points],
+            source_resolution=tuple(data.get("source_resolution", (640, 512)))
         )
 
 
@@ -231,6 +244,26 @@ class ROIManager:
             ROISource.AUTO_MOTION: (255, 0, 255),  # Magenta
             ROISource.AUTO_EDGE: (0, 255, 255)  # Cyan
         }
+        
+        # Resolution tracking (for drift-free scaling)
+        # Default to standard thermal checking args, will be updated by main
+        self.current_resolution = self.config.get("resolution", (640, 512))
+
+    def set_resolution(self, width: int, height: int):
+        """Update current working resolution."""
+        self.current_resolution = (width, height)
+
+    def _normalize_points(self, points: List[Tuple[int, int]]) -> List[Tuple[float, float]]:
+        """Convert pixel coordinates to normalized (0.0-1.0)."""
+        w, h = self.current_resolution
+        if w <= 0 or h <= 0: return []
+        return [(x / w, y / h) for x, y in points]
+
+    def _denormalize_points(self, norm_points: List[Tuple[float, float]], resolution: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """Convert normalized coordinates back to pixels at target resolution."""
+        w, h = resolution
+        # Use rounding (+0.5) for nearest integer
+        return [(int(x * w + 0.5), int(y * h + 0.5)) for x, y in norm_points]
 
     def add_roi(self, roi: ROI) -> str:
         """
@@ -272,7 +305,10 @@ class ROIManager:
             roi_source=ROISource.MANUAL,
             points=points,
             label=label,
-            color=color
+            color=color,
+            # Populate drift-free scaling data
+            normalized_points=self._normalize_points(points),
+            source_resolution=self.current_resolution
         )
 
         self.add_roi(roi)
@@ -303,7 +339,10 @@ class ROIManager:
             roi_source=source,
             points=points,
             label=label,
-            color=self.default_colors.get(source, (0, 255, 0))
+            color=self.default_colors.get(source, (0, 255, 0)),
+            # Populate drift-free scaling data
+            normalized_points=self._normalize_points(points),
+            source_resolution=self.current_resolution
         )
 
         self.add_roi(roi)
@@ -750,6 +789,49 @@ class ROIManager:
 
         with open(filepath, 'w') as f:
             json.dump(data, f, indent=2)
+
+    def scale_rois(self, target_resolution: Tuple[int, int]):
+        """
+        Scale all ROIs to target resolution using drift-free normalized coordinates.
+
+        Args:
+            target_resolution: (width, height) of new resolution
+        """
+        w, h = target_resolution
+        if w <= 0 or h <= 0:
+            return
+
+        self.current_resolution = target_resolution
+
+        for roi in self.rois.values():
+            # Lazy initialization of normalized points if missing (legacy/auto-detected without norm)
+            if not roi.normalized_points:
+                # Create from current points relative to source resolution
+                # If source_res is somehow wrong, this creates a baseline at least
+                sw, sh = roi.source_resolution
+                if sw > 0 and sh > 0:
+                    roi.normalized_points = [(x / sw, y / sh) for x, y in roi.points]
+                else:
+                    # Fallback to current points if we don't know source
+                    # This implies current points ARE the baseline
+                    # Assume they fit in current resolution (or previously known one)
+                    roi.normalized_points = self._normalize_points(roi.points)
+                    roi.source_resolution = target_resolution # Reset base
+
+            # Calculate new integer points for this exact resolution
+            # This is "drift-free" because it always comes from the float normalized_points
+            roi.points = self._denormalize_points(roi.normalized_points, target_resolution)
+            
+            # Constrain to bounds (safeguard)
+            clamped_points = []
+            for x, y in roi.points:
+                cx = max(0, min(x, w - 1))
+                cy = max(0, min(y, h - 1))
+                clamped_points.append((cx, cy))
+            roi.points = clamped_points
+            
+            roi.last_updated = time.time()
+            # print(f"DEBUG: Scaled ROI {roi.roi_id} to {roi.points} (Res: {target_resolution})")
 
     def load_rois(self, filepath: str, clear_existing: bool = True):
         """

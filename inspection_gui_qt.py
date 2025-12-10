@@ -918,9 +918,15 @@ class InspectionOverlayWidget(QWidget):
 
         # Coordinate transformation for scaled video
         self.frame_size = (640, 512)  # Original frame size (width, height)
+        self.thermal_resolution = (640, 512)  # Default thermal sensor resolution (updated when camera connects)
         self.scale = 1.0
         self.offset_x = 0
         self.offset_y = 0
+
+        # View mode and fusion settings for coordinate transformation (Bug #24)
+        self.current_view_mode = 'thermal'  # Default view mode
+        self.fusion_priority = 'thermal'  # Default fusion priority
+        self.pip_rect = None  # PIP rectangle (set by set_view_mode)
 
         # Temperature unit for hot/cold spot display
         self.current_temp_unit = 'C'  # Default to Celsius (C/F/K/RAW)
@@ -952,23 +958,20 @@ class InspectionOverlayWidget(QWidget):
         self.fusion_priority = fusion_priority
         
         # Calculate PIP rectangle if in picture_in_picture mode
+        # NOTE: Thermal is ALWAYS inset (top-right), regardless of fusion_priority
+        # Priority doesn't actually swap the layout, only affects internal blending
         if mode == 'picture_in_picture':
-            # PIP inset position matches fusion_processor._picture_in_picture()
             frame_w, frame_h = self.frame_size
             margin = 10
             inset_w = int(frame_w * pip_size)
             inset_h = int(frame_h * pip_size)
-            
-            # When rgb is priority, thermal is the inset (top-right)
-            # When thermal is priority, rgb is the inset
-            if fusion_priority == 'rgb':
-                # Thermal is the inset - this is where thermal detections should be drawn
-                x = frame_w - inset_w - margin
-                y = margin
-                self.pip_rect = (x, y, inset_w, inset_h)
-            else:
-                # RGB is the inset - thermal detections go on full frame
-                self.pip_rect = None
+
+            # Calculate inset position (top-right corner)
+            x = frame_w - inset_w - margin
+            y = margin
+
+            # Thermal is always the inset in PIP mode
+            self.pip_rect = (x, y, inset_w, inset_h)
         else:
             self.pip_rect = None
         
@@ -986,6 +989,39 @@ class InspectionOverlayWidget(QWidget):
             return False
         return True
 
+    def _calculate_aspect_ratio_fit(self, src_w: float, src_h: float, dst_w: float, dst_h: float) -> tuple:
+        """
+        Calculate actual displayed size and offset when fitting source into destination
+        while maintaining aspect ratio (like Qt's KeepAspectRatio).
+
+        Args:
+            src_w, src_h: Source dimensions (e.g., thermal resolution)
+            dst_w, dst_h: Destination dimensions (e.g., allocated region)
+
+        Returns:
+            Tuple of (actual_w, actual_h, offset_x, offset_y)
+        """
+        if src_w == 0 or src_h == 0 or dst_w == 0 or dst_h == 0:
+            return (dst_w, dst_h, 0, 0)
+
+        src_aspect = src_w / src_h
+        dst_aspect = dst_w / dst_h
+
+        if src_aspect > dst_aspect:
+            # Source is wider relative to height, fit to width
+            actual_w = dst_w
+            actual_h = dst_w / src_aspect
+            offset_x = 0
+            offset_y = (dst_h - actual_h) / 2
+        else:
+            # Source is taller relative to width, fit to height
+            actual_h = dst_h
+            actual_w = dst_h * src_aspect
+            offset_x = (dst_w - actual_w) / 2
+            offset_y = 0
+
+        return (actual_w, actual_h, offset_x, offset_y)
+
     def _transform_thermal_coords(self, x: float, y: float) -> tuple:
         """
         Transform thermal sensor coordinates to display coordinates.
@@ -997,51 +1033,64 @@ class InspectionOverlayWidget(QWidget):
         Returns:
             Widget coordinates (wx, wy)
         """
-        # DEBUG LOGGING
-        if len(self.measurement_points) > 0:  # Only log when there are spot meters
-            logger.info(f"[OVERLAY] _transform_thermal_coords: input=({x:.1f}, {y:.1f}), mode='{self.current_view_mode}', pip_rect={self.pip_rect}")
-
         if not hasattr(self, 'thermal_resolution') or not self.thermal_resolution:
-            # Fallback if resolution not set
-            return self.frame_to_widget(x, y)
+            # Fallback if resolution not set - use default
+            logger.warning(f"[OVERLAY] thermal_resolution not set! Using default 640x512. This bypasses all transformations!")
+            self.thermal_resolution = (640, 512)  # Default thermal resolution
 
         tw, th = self.thermal_resolution
         fw, fh = self.frame_size
-        
+
         if tw == 0 or th == 0 or fw == 0 or fh == 0:
             return self.frame_to_widget(x, y)
 
         # Mode-specific transformations
         if self.current_view_mode == 'side_by_side':
-            # Side-by-Side: Split vertically? Or Horizontally?
-            # Standard implementation is usually Horizontal (Left=Thermal, Right=RGB)
-            # So thermal occupies (0, 0) to (fw/2, fh)
-            
-            target_w = fw / 2
-            target_h = fh
-            
-            scale_x = target_w / tw
-            scale_y = target_h / th
-            
-            frame_x = x * scale_x
-            frame_y = y * scale_y
-            
-            # Thermal is usually on the left (offset 0)
-            # If fusion_priority swaps them, we might need offset?
-            # Assuming Thermal Left for now.
+            # Side-by-Side: Thermal uses native dimensions, RGB preserves aspect ratio
+            # NOTE: fusion_priority SHOULD swap order but doesn't due to bug where
+            # fusion_processor.fusion_mode never updates. Thermal is ALWAYS on left.
+
+            # Thermal occupies its native width (640px), RGB is scaled to match height
+            thermal_w = tw  # 640
+            thermal_h = fh  # Frame height (both thermal and RGB have same height)
+
+            # Thermal is always on left (bug: fusion_priority doesn't actually work)
+            frame_x = x  # Thermal starts at left edge
+            frame_y = (y / th) * thermal_h  # Scale y to match frame height
+
+            # Debug logging
+            if 200 <= x <= 450 and 150 <= y <= 350:
+                logger.info(f"[OVERLAY] Side-by-side transform: input=({x:.1f},{y:.1f}), priority={self.fusion_priority}, tw={tw},th={th}, fw={fw},fh={fh}")
+                logger.info(f"[OVERLAY]   thermal_w={thermal_w}, frame_pos=({frame_x:.1f},{frame_y:.1f}), widget_scale={self.scale:.3f}")
+
             return self.frame_to_widget(frame_x, frame_y)
 
         elif self.pip_rect is not None:
-            # PIP Mode
+            # PIP Mode (Bug #24 fix)
+            # NOTE: fusion_priority SHOULD determine main vs inset but doesn't due to bug.
+            # Thermal is ALWAYS the inset (top-right)
             pip_x, pip_y, pip_w, pip_h = self.pip_rect
-            
-            # Scale to PIP inset size
-            scale_x = pip_w / tw
-            scale_y = pip_h / th
-            
-            frame_x = pip_x + (x * scale_x)
-            frame_y = pip_y + (y * scale_y)
-            
+
+            # Calculate actual thermal display size and offset within PIP inset
+            # (accounting for aspect ratio preservation)
+            actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(
+                tw, th, pip_w, pip_h
+            )
+
+            # Scale thermal coords to actual displayed size
+            scale_x = actual_w / tw
+            scale_y = actual_h / th
+
+            # Transform: thermal coords → actual displayed position within inset
+            frame_x = pip_x + offset_x + (x * scale_x)
+            frame_y = pip_y + offset_y + (y * scale_y)
+
+            # Debug logging (log points near center to diagnose offset issues)
+            if 200 <= x <= 450 and 150 <= y <= 350:
+                logger.info(f"[OVERLAY] PIP transform: input=({x:.1f},{y:.1f}), priority={self.fusion_priority}, tw={tw},th={th}, fw={fw},fh={fh}")
+                logger.info(f"[OVERLAY]   pip_rect=({pip_x},{pip_y},{pip_w},{pip_h}), actual=({actual_w:.1f},{actual_h:.1f}), offset=({offset_x:.1f},{offset_y:.1f})")
+                logger.info(f"[OVERLAY]   scale=({scale_x:.3f},{scale_y:.3f}), frame=({frame_x:.1f},{frame_y:.1f}), widget_scale={self.scale:.3f}, widget_offset=({self.offset_x},{self.offset_y})")
+
             return self.frame_to_widget(frame_x, frame_y)
             
         else:
@@ -1082,41 +1131,76 @@ class InspectionOverlayWidget(QWidget):
             
             valid_click = True
             
-            # Handle View Modes for Inverse Mapping
+            # Handle View Modes for Inverse Mapping (Bug #24 fix - must match forward transform)
             if self.current_view_mode == 'side_by_side':
                 fw, fh = self.frame_size
-                if fw > 0:
-                    split_x = fw / 2
-                    if click_wx < split_x:
-                        # Click on Left (Thermal) side
-                        # Map (0 -> split_x) to (0 -> tw)
-                        if hasattr(self, 'thermal_resolution') and self.thermal_resolution:
-                            tw, th = self.thermal_resolution
-                            click_x = (click_wx / split_x) * tw
-                            click_y = (click_wy / fh) * th
-                    else:
-                        # Click on Right (RGB) side - Ignore for thermal spot meter?
-                        logger.info("Clicked on RGB side in Side-by-Side mode - Ignoring spot meter add")
-                        valid_click = False
+                tw, th = self.thermal_resolution if self.thermal_resolution else (640, 514)
+
+                # Calculate allocated region for thermal (one half) - matches forward transform
+                allocated_w = fw / 2
+                allocated_h = fh
+
+                # Calculate actual thermal display size and offset (matches forward transform)
+                actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(
+                    tw, th, allocated_w, allocated_h
+                )
+
+                # Determine thermal region based on priority - matches forward transform
+                if self.fusion_priority == 'thermal':
+                    # Thermal on LEFT - region is [0, allocated_w)
+                    thermal_start = 0
+                    thermal_in_region = (click_wx < allocated_w)
+                else:
+                    # Thermal on RIGHT - region is [allocated_w, fw)
+                    thermal_start = allocated_w
+                    thermal_in_region = (click_wx >= allocated_w)
+
+                # Check if click is within thermal region
+                if thermal_in_region:
+                    # Inverse transform: frame coords → thermal coords
+                    # Must undo: frame_x = (x * scale_x) + base_offset_x
+                    scale_x = actual_w / tw
+                    scale_y = actual_h / th
+                    base_offset_x = thermal_start + offset_x
+
+                    click_x = (click_wx - base_offset_x) / scale_x
+                    click_y = (click_wy - offset_y) / scale_y
+
+                    # Clamp to valid thermal coordinates
+                    click_x = max(0, min(tw - 1, click_x))
+                    click_y = max(0, min(th - 1, click_y))
+                else:
+                    # Click on RGB side - Ignore for thermal spot meter
+                    logger.info(f"Clicked on RGB side in Side-by-Side mode (priority={self.fusion_priority}) - Ignoring spot meter add")
+                    valid_click = False
 
             elif self.pip_rect is not None:
                  pip_x, pip_y, pip_w, pip_h = self.pip_rect
                  fw, fh = self.frame_size
-                 
-                 # Check if click is inside PIP rect
+                 tw, th = self.thermal_resolution if self.thermal_resolution else (640, 514)
+
+                 # Check if click is inside PIP rect (Bug #24 fix - must match forward transform)
                  # Note: pip_rect values are in frame coordinates
                  if (pip_x <= click_wx <= pip_x + pip_w) and (pip_y <= click_wy <= pip_y + pip_h):
-                     # Transform relative to PIP inset
-                     rel_x = (click_wx - pip_x) / pip_w
-                     rel_y = (click_wy - pip_y) / pip_h
-                     
-                     if hasattr(self, 'thermal_resolution') and self.thermal_resolution:
-                        tw, th = self.thermal_resolution
-                        click_x = rel_x * tw
-                        click_y = rel_y * th
+                     # Calculate actual thermal display size and offset within PIP inset (matches forward transform)
+                     actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(
+                         tw, th, pip_w, pip_h
+                     )
+
+                     # Inverse transform: frame coords → thermal coords
+                     # Must undo: frame_x = pip_x + offset_x + (x * scale_x)
+                     scale_x = actual_w / tw
+                     scale_y = actual_h / th
+
+                     click_x = (click_wx - pip_x - offset_x) / scale_x
+                     click_y = (click_wy - pip_y - offset_y) / scale_y
+
+                     # Clamp to valid thermal coordinates
+                     click_x = max(0, min(tw - 1, click_x))
+                     click_y = max(0, min(th - 1, click_y))
                  else:
-                     # Outside PIP
-                     pass
+                     # Outside PIP - ignore
+                     valid_click = False
 
             elif hasattr(self, 'thermal_resolution') and self.thermal_resolution:
                 # Normal / Fusion - Map full frame to thermal
@@ -1166,6 +1250,24 @@ class InspectionOverlayWidget(QWidget):
         # Calculate offset for centered image
         self.offset_x = (widget_width - pixmap_width) // 2
         self.offset_y = (widget_height - pixmap_height) // 2
+
+        # Recalculate PIP rect if in PIP mode (Bug #24 fix)
+        # pip_rect needs to be updated when frame_size changes
+        if self.current_view_mode == 'picture_in_picture':
+            pip_size = 0.25  # Default PIP size
+            margin = 10
+            inset_w = int(frame_width * pip_size)
+            inset_h = int(frame_height * pip_size)
+            x = frame_width - inset_w - margin
+            y = margin
+
+            # Only set pip_rect if thermal is the INSET (priority='rgb')
+            # If thermal is MAIN (priority='thermal'), pip_rect should be None
+            if self.fusion_priority == 'rgb':
+                self.pip_rect = (x, y, inset_w, inset_h)
+            else:
+                self.pip_rect = None
+            logger.info(f"[OVERLAY] PIP rect recalculated: {self.pip_rect}, priority={self.fusion_priority}, frame_size={self.frame_size}, thermal_res={self.thermal_resolution}")
 
     def frame_to_widget(self, x: float, y: float) -> tuple:
         """Convert frame coordinates to widget coordinates."""
@@ -1416,6 +1518,28 @@ class InspectionOverlayWidget(QWidget):
                     label_text = f"{point.label}: --"
                 draw_label(int(wx) + 12, int(wy) + 5, label_text, point_color)
 
+        # DEBUG: Draw thermal center crosshair for calibration
+        if self._should_draw_thermal_overlays() and self.thermal_resolution:
+            tw, th = self.thermal_resolution
+            center_x = tw / 2  # 320 for 640x514
+            center_y = th / 2  # 257 for 640x514
+
+            # Transform center point to widget coordinates
+            wx, wy = self._transform_thermal_coords(center_x, center_y)
+
+            # Draw large bright green crosshair
+            painter.setPen(QPen(QColor(0, 255, 0), 3))  # Bright green, thick
+            cross_size = 40
+            painter.drawLine(int(wx) - cross_size, int(wy), int(wx) + cross_size, int(wy))
+            painter.drawLine(int(wx), int(wy) - cross_size, int(wx), int(wy) + cross_size)
+
+            # Draw center circle
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
+
+            # Label it
+            draw_label(int(wx) + 45, int(wy), f"CENTER ({center_x},{center_y})", QColor(0, 255, 0))
+
         # Draw temporary ROI being created
         if self.drawing_mode and self.draw_start_pos and self.draw_current_pos:
             painter.setPen(QPen(QColor(255, 255, 0), 2, Qt.PenStyle.DashLine))  # Yellow dashed line
@@ -1484,12 +1608,15 @@ class InspectionOverlayWidget(QWidget):
 
     def mousePressEvent(self, event):
         """Handle mouse press for ROI drawing and selection."""
+        # Convert widget coordinates to frame coordinates
+        click_wx, click_wy = self.widget_to_frame(event.pos().x(), event.pos().y())
+        
+        # Initialize thermal coords
+        click_x, click_y = click_wx, click_wy
+        
         if self.spot_meter_mode:
             # Spot metering: click to add measurement point
-            click_wx, click_wy = self.widget_to_frame(event.pos().x(), event.pos().y())
-            
-            # Initialize thermal coords
-            click_x, click_y = click_wx, click_wy
+            pass  # click_x, click_y already initialized above
         
         # Handle PIP mode if active
         if self.pip_rect is not None:
@@ -1528,10 +1655,12 @@ class InspectionOverlayWidget(QWidget):
                 # So we STILL need to scale from self.frame_size -> self.thermal_resolution.
                 click_x = click_x * (tw / fw)
                 click_y = click_y * (th / fh)
-                
-        self.spot_meter_clicked.emit(int(click_x), int(click_y))
-        event.accept() # Stop propagation to VideoWidget
-        return
+        
+        # Handle spot meter mode - takes priority over ROI drawing
+        if self.spot_meter_mode:
+            self.spot_meter_clicked.emit(int(click_x), int(click_y))
+            event.accept() # Stop propagation to VideoWidget
+            return
 
         if not self.drawing_mode:
             # Check if clicking on existing ROI for selection
@@ -2351,10 +2480,6 @@ class ThermalAnalysisPanel(QWidget):
     # Signals
     baseline_toggled = pyqtSignal(bool)
     palette_changed = pyqtSignal(str)  # Emits palette name
-    roi_selected = pyqtSignal(str)  # Emits ROI ID
-    roi_palette_changed = pyqtSignal(str, str)  # Emits (ROI ID, palette name)
-    roi_palette_cleared = pyqtSignal(str)  # Emits ROI ID when palette is cleared
-    roi_deleted = pyqtSignal(str) # Emits ROI ID to delete
     overlay_info_toggled = pyqtSignal(bool)
     show_hot_spots_toggled = pyqtSignal(bool)
     show_cold_spots_toggled = pyqtSignal(bool)
@@ -2460,21 +2585,6 @@ class ThermalAnalysisPanel(QWidget):
 
         self.general_layout.addWidget(create_separator())
 
-        # === ROI Summary ===
-        self.general_layout.addWidget(create_section_header("📍 ROI Summary"))
-
-        self.roi_summary_label = QLabel("No active ROIs")
-        self.roi_summary_label.setWordWrap(True)
-        font = QFont("Consolas", 10)
-        self.roi_summary_label.setFont(font)
-        self.general_layout.addWidget(self.roi_summary_label)
-
-        # === Spot Meter Management Panel ===
-        # Spot Meter functionality moved to dedicated tab
-
-
-        self.general_layout.addWidget(create_separator())
-
 
         # === Hot Spots ===
         self.general_layout.addWidget(create_section_header("🔥 Hot Spots"))
@@ -2515,54 +2625,14 @@ class ThermalAnalysisPanel(QWidget):
 
         self.general_layout.addWidget(create_separator())
 
-        # === Regions of Interest ===
-        self.general_layout.addWidget(create_section_header("📍 Regions of Interest"))
+        # === ROI Summary ===
+        self.general_layout.addWidget(create_section_header("📍 ROI Summary"))
 
-        self.roi_list = QListWidget()
-        self.roi_list.setMaximumHeight(100)  # Increased to show more items
-        self.roi_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.roi_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection) # Enable multi-select
-        font = QFont()
-        font.setPointSize(10)
-        self.roi_list.setFont(font)
-        self.general_layout.addWidget(self.roi_list)
-
-        # ROI Actions
-        roi_actions_layout = QHBoxLayout()
-        roi_actions_layout.setSpacing(10)
-        
-        self.roi_delete_btn = QPushButton("🗑 Delete Selected")
-        self.roi_delete_btn.setToolTip("Delete selected ROIs")
-        self.roi_delete_btn.clicked.connect(self._on_delete_rois_clicked)
-        roi_actions_layout.addWidget(self.roi_delete_btn)
-        
-        self.roi_delete_all_btn = QPushButton("🗑 Delete All")
-        self.roi_delete_all_btn.setToolTip("Delete all ROIs")
-        self.roi_delete_all_btn.clicked.connect(self._on_delete_all_rois_clicked)
-        roi_actions_layout.addWidget(self.roi_delete_all_btn)
-        
-        self.general_layout.addLayout(roi_actions_layout)
-
-        # ROI palette selector (compact horizontal layout)
-        roi_palette_layout = QHBoxLayout()
-        roi_palette_layout.setSpacing(8)
-        roi_label = QLabel("Palette:")
-        font = QFont()
-        font.setPointSize(10)
-        roi_label.setFont(font)
-        roi_palette_layout.addWidget(roi_label)
-
-        self.roi_palette_combo = QComboBox()
-        self.roi_palette_combo.setMinimumHeight(32)
-        self.roi_palette_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        # Populate with categorized palettes (same as global)
-        self._populate_palette_combo(self.roi_palette_combo)
-        # Connect ROI palette signal
-        self.roi_palette_combo.currentTextChanged.connect(self._on_roi_palette_combo_changed)
-        roi_palette_layout.addWidget(self.roi_palette_combo, 1)
-        self.general_layout.addLayout(roi_palette_layout)
-
-        self.general_layout.addWidget(create_separator())
+        self.roi_summary_label = QLabel("No active ROIs")
+        self.roi_summary_label.setWordWrap(True)
+        font = QFont("Consolas", 10)
+        self.roi_summary_label.setFont(font)
+        self.general_layout.addWidget(self.roi_summary_label)
 
         self.general_layout.addWidget(create_separator())
 
@@ -2635,7 +2705,6 @@ class ThermalAnalysisPanel(QWidget):
         # Connect signals
         self.baseline_btn.toggled.connect(self.baseline_toggled.emit)
         self.spot_meter_btn.toggled.connect(self._on_spot_meter_toggled)
-        self.roi_list.currentRowChanged.connect(self._on_roi_selected)
         
         # Connect SpotMeterPanel signals
         self.spot_meter_panel.clear_all_requested.connect(self._on_clear_spots_clicked)
@@ -2846,55 +2915,14 @@ class ThermalAnalysisPanel(QWidget):
         self.detection_label.setText(text)
 
     def update_rois(self, rois: List[ROI]):
-        """Update ROI summary and list."""
-        
-        # 1. Check if update is needed (compare IDs)
-        current_ids = [r.roi_id for r in self.current_rois]
-        new_ids = [r.roi_id for r in rois]
-        
-        self.current_rois = rois
+        """Update ROI summary display in General tab."""
         count = len(rois)
         
-        # Only rebuild list if ROIs changed
-        if current_ids != new_ids:
-            # Preservation of selection
-            selected_id = None
-            if self.selected_roi_index >= 0 and self.selected_roi_index < len(current_ids):
-                selected_id = current_ids[self.selected_roi_index]
-            
-            logger.debug(f"Rebuilding ROI list (was {len(current_ids)}, now {len(rois)})")
-            
-            # Update ROI List Widget
-            self.roi_list.blockSignals(True) # Block signals to prevent spurious selection changes during rebuild
-            self.roi_list.clear()
-            for roi in rois:
-                # Add palette indicator if custom palette is set
-                label = f"{roi.label} ({roi.roi_type.value})"
-                if roi.custom_palette:
-                    label += " 🎨" # Visual indicator
-                    
-                item = QListWidgetItem(label)
-                item.setData(Qt.ItemDataRole.UserRole, roi.roi_id)
-                self.roi_list.addItem(item)
-            
-            # Restore selection if possible
-            if selected_id:
-                for i in range(self.roi_list.count()):
-                    if self.roi_list.item(i).data(Qt.ItemDataRole.UserRole) == selected_id:
-                        self.roi_list.setCurrentRow(i)
-                        self.selected_roi_index = i # Update index
-                        break
-            else:
-                self.selected_roi_index = -1
-                
-            self.roi_list.blockSignals(False) # Unblock AFTER restoration
-        
-        # Still update text summaries
         if count == 0:
             self.roi_summary_label.setText("No active ROIs")
             return
             
-        # Calculate some basic stats if needed
+        # Calculate ROI type breakdown
         types = {}
         for roi in rois:
             t = roi.roi_type.value
@@ -5452,8 +5480,19 @@ class InspectionAppWindow(QMainWindow):
             
             from roi_temperature_panel import ROITemperaturePanel
             self.roi_temp_panel = ROITemperaturePanel()
-            self.analysis_tabs.addTab(self.roi_temp_panel, "Per-ROI")
-            logger.info("  [OK] Per-ROI temperature panel added")
+            self.analysis_tabs.addTab(self.roi_temp_panel, "ROI Manager")
+            logger.info("  [OK] ROI Manager panel added")
+            
+            # Connect ROI Manager signals
+            if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
+                self.roi_temp_panel.roi_selected.connect(self.video_widget.overlay.set_selected_roi)
+                logger.info("  [OK] Connected ROI Manager.roi_selected to overlay")
+            
+            # Connect ROI deletion and palette signals to app
+            if hasattr(self, 'app') and self.app:
+                self.roi_temp_panel.roi_deleted.connect(lambda roi_id: self.app.roi_manager.delete_roi(roi_id) if hasattr(self.app, 'roi_manager') else None)
+                self.roi_temp_panel.roi_palette_changed.connect(lambda roi_id, palette: self.app.set_roi_palette(roi_id, palette) if hasattr(self.app, 'set_roi_palette') else None)
+                logger.info("  [OK] Connected ROI Manager.roi_deleted and roi_palette_changed")
             
             from environmental_compensation_panel import EnvironmentalCompensationPanel
             self.env_comp_panel = EnvironmentalCompensationPanel()
@@ -7308,6 +7347,9 @@ class InspectionAppWindow(QMainWindow):
         """Update ROI visualization and list."""
         self.video_widget.update_rois(rois)
         self.analysis_panel.update_rois(rois)
+        # Update ROI Manager panel
+        if hasattr(self, 'roi_temp_panel'):
+            self.roi_temp_panel.update_rois(rois)
 
     def update_thermal_analysis(self, stats: Optional[ThermalStatistics],
                                 hot_spots: List[HotSpot],

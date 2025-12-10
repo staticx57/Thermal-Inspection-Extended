@@ -1,8 +1,54 @@
 {
+  "theme": "dark",
+  "theme_mode": "auto",
+  "developer_mode": false,
+  "show_info_panel": false,
+  "auto_theme_enabled": true,
+  "day_start_hour": 7,
+  "night_start_hour": 19,
+  "use_ambient_light": true,
+  "ambient_threshold": 100,
+  "ambient_hysteresis": 15,
+  "theme_override": null,
+  "auto_retry_sensors": true,
+  "thermal_retry_interval": 3,
+  "rgb_retry_interval": 100,
+  "yolo_model": "yolov8s.pt",
+  "confidence_threshold": 0.25,
+  "detection_mode": "model",
+  "model_presets": {
+    "yolov8n": "yolov8n.pt",
+    "yolov8s": "yolov8s.pt",
+    "yolov8m": "yolov8m.pt",
+    "yolov8l": "yolov8l.pt"
+  },
+  "thermal_model": null,
+  "rgb_model": null,
+  "custom_models": [],
+  "audio_enabled": true,
+  "audio_volume": 0.7,
+  "view_mode": "thermal",
+  "thermal_palette": "ironbow",
+  "fusion_mode": "alpha_blend",
+  "fusion_alpha": 0.5,
+  "buffer_flush_enabled": false,
+  "frame_skip_value": 1,
+  "device": "cuda",
+  "rgb_camera_type": "auto",
+  "rgb_resolution": [
+    640,
+    480
+  ],
+  "rgb_fps": 30,
+  "thermal_resolution": [
+    640,
+    512
+  ],
+  "thermal_device_id": 2,
+  "rgb_device_id": 1,
   "_comment": "Thermal Inspection Fusion Tool v2.0 - Configuration File",
   "_version": "2.0.0",
   "_last_updated": "2025-11-21",
-
   "gui": {
     "theme": "dark",
     "theme_mode": "auto",
@@ -15,10 +61,13 @@
       "analysis_panel_width": 350
     }
   },
-
   "theme_auto": {
     "enabled": true,
-    "method_priority": ["ambient", "astronomical", "time"],
+    "method_priority": [
+      "ambient",
+      "astronomical",
+      "time"
+    ],
     "check_interval": 10.0,
     "time_based": {
       "day_start_hour": 7,
@@ -35,7 +84,6 @@
       "hysteresis": 15
     }
   },
-
   "camera": {
     "thermal": {
       "width": 640,
@@ -58,12 +106,10 @@
     },
     "calibration_file": null
   },
-
   "display": {
     "view_mode": "fusion",
     "thermal_palette": "viridis"
   },
-
   "fusion": {
     "mode": "alpha_blend",
     "alpha": 0.5,
@@ -72,11 +118,23 @@
     "edge_detection": {
       "enabled": true,
       "weight": 0.5,
-      "color": [0, 0, 255]
+      "color": [
+        0,
+        0,
+        255
+      ]
     },
     "edge_enhanced": {
-      "thermal_priority_edge_color": [255, 255, 0],
-      "rgb_priority_edge_color": [0, 0, 255]
+      "thermal_priority_edge_color": [
+        255,
+        255,
+        0
+      ],
+      "rgb_priority_edge_color": [
+        0,
+        0,
+        255
+      ]
     },
     "thermal_overlay": {
       "hot_threshold_percentile": 70,
@@ -89,7 +147,6 @@
       "border_width": 2
     }
   },
-
   "thermal_analysis": {
     "temperature_unit": "celsius",
     "hot_spot_threshold": 0.85,
@@ -112,7 +169,6 @@
       "prediction_horizon": 10
     }
   },
-
   "roi": {
     "auto_detect": {
       "enabled": true,
@@ -150,11 +206,31 @@
       "grid_size": 10
     },
     "visualization": {
-      "rectangle_color": [0, 255, 0],
-      "polygon_color": [255, 255, 0],
-      "ellipse_color": [255, 128, 0],
-      "circle_color": [128, 0, 255],
-      "selected_color": [0, 255, 255],
+      "rectangle_color": [
+        0,
+        255,
+        0
+      ],
+      "polygon_color": [
+        255,
+        255,
+        0
+      ],
+      "ellipse_color": [
+        255,
+        128,
+        0
+      ],
+      "circle_color": [
+        128,
+        0,
+        255
+      ],
+      "selected_color": [
+        0,
+        255,
+        255
+      ],
       "line_thickness": 2,
       "label_font_scale": 0.5
     },
@@ -164,7 +240,6 @@
       "default_filename": "inspection_rois.json"
     }
   },
-
   "palette": {
     "default_global": "viridis",
     "auto_contrast": true,
@@ -190,7 +265,6 @@
       }
     }
   },
-
   "motion_detection": {
     "enabled": true,
     "threshold": 20,
@@ -199,7 +273,6 @@
     "persistence_frames": 2,
     "gaussian_blur_kernel": 5
   },
-
   "edge_detection": {
     "enabled": true,
     "canny_threshold_low": 50,
@@ -210,7 +283,6 @@
     "max_area_percent": 30.0,
     "min_edge_cluster_area": 100
   },
-
   "recording": {
     "enabled": false,
     "output_path": "recordings/",
@@ -225,14 +297,12 @@
     "metadata_format": "json",
     "auto_split_size_mb": 500
   },
-
   "playback": {
     "default_speed": 1.0,
     "frame_step": 1,
     "loop": false,
     "auto_load_roi_metadata": true
   },
-
   "snapshot": {
     "output_path": "snapshots/",
     "filename_pattern": "snapshot_%Y%m%d_%H%M%S",
@@ -243,7 +313,6 @@
     "include_analysis": true,
     "save_metadata": true
   },
-
   "performance": {
     "device": "cuda",
     "fps_smoothing_window": 60,
@@ -255,12 +324,15 @@
     "stats_print_interval": 100,
     "detection_queue_size": 2
   },
-
   "platform": {
     "force_platform": null,
-    "vpi_backend_priority": ["CUDA", "PVA", "VIC", "CPU"]
+    "vpi_backend_priority": [
+      "CUDA",
+      "PVA",
+      "VIC",
+      "CPU"
+    ]
   },
-
   "logging": {
     "level": "INFO",
     "file": "thermal_inspection_debug.log",
@@ -269,7 +341,6 @@
     "max_file_size_mb": 10,
     "backup_count": 5
   },
-
   "export": {
     "csv": {
       "delimiter": ",",

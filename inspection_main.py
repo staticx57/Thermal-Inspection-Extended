@@ -34,6 +34,16 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Enable faulthandler for debugging
 faulthandler.enable()
 
+# --- MONKEY PATCH: Fix PySpin/NumPy Compatibility ---
+# PySpin expects numpy._ARRAY_API which was removed in recent NumPy versions
+try:
+    import numpy as np
+    if not hasattr(np, '_ARRAY_API'):
+        np._ARRAY_API = np.array_api if hasattr(np, 'array_api') else object()
+except ImportError:
+    pass
+# ----------------------------------------------------
+
 # Camera modules
 from flir_camera import FLIRBosonCamera
 from flirpy_thermal_backend import FlirpyThermalBackend
@@ -41,6 +51,7 @@ from camera_factory import create_rgb_camera, autodetect_camera_types
 from camera_detector import CameraDetector
 from camera_initializer import CameraInitializer
 from placeholder_frames import create_thermal_placeholder, create_rgb_placeholder
+from config import get_config  # Added for persistence
 
 # Processing modules (NEW - Inspection focused)
 from thermal_processor import ThermalProcessor
@@ -455,11 +466,24 @@ class ThermalInspectionFusion:
         enable_sdk = getattr(self.args, 'enable_boson_sdk', True)
         com_port = getattr(self.args, 'boson_com_port', 'COM7')
 
-        # Use robust initializer with thermal-first priority
+        # Fast Path: Retrieve cached/config device IDs
+        cfg = get_config()
+        cached_thermal_id = cfg.get('thermal_device_id')
+        cached_rgb_id = cfg.get('rgb_device_id')
+        
+        # Override with explicit args if present
+        if getattr(self.args, 'thermal_device', None) is not None:
+             cached_thermal_id = self.args.thermal_device
+        if getattr(self.args, 'rgb_device', None) is not None:
+             cached_rgb_id = self.args.rgb_device
+
+        # Use robust initializer with thermal-first priority AND Fast Path support
         thermal_cam, rgb_cam = CameraInitializer.init_cameras_prioritized(
             thermal_first=True,
             enable_sdk=enable_sdk,
-            com_port=com_port
+            com_port=com_port,
+            known_thermal_id=cached_thermal_id,
+            known_rgb_id=cached_rgb_id
         )
 
         # Handle thermal camera
@@ -470,11 +494,13 @@ class ThermalInspectionFusion:
             self.is_flir_boson = True  # Assuming Boson if thermal detected
             thermal_success = True
 
-            # Persist device ID for backend switching (Critical for stability)
+            # Persist device ID for backend switching (Critical for stability) and Fast Path
             if hasattr(thermal_cam, 'device_id'):
                 self.effective_thermal_device_id = thermal_cam.device_id
+                cfg.set('thermal_device_id', thermal_cam.device_id, save=True)
             elif hasattr(thermal_cam, 'device'):
                 self.effective_thermal_device_id = thermal_cam.device
+                cfg.set('thermal_device_id', thermal_cam.device, save=True)
             else:
                 self.effective_thermal_device_id = getattr(self.args, 'thermal_device', 2)
             logger.info(f"Persisted thermal device ID: {self.effective_thermal_device_id}")
@@ -535,11 +561,15 @@ class ThermalInspectionFusion:
             self.rgb_available = True
             rgb_success = True
 
-            # Persist RGB info for backend switching
+            # Persist RGB info for backend switching and Fast Path
             if hasattr(rgb_cam, 'device_id'):
                 self.effective_rgb_device_id = rgb_cam.device_id
+                # Don't persist if it's Spinnaker (handled differently) or check interface
+                if getattr(rgb_cam, 'camera_type', '') != 'firefly':
+                     cfg.set('rgb_device_id', rgb_cam.device_id, save=True)
             elif hasattr(rgb_cam, 'device'):
                 self.effective_rgb_device_id = rgb_cam.device
+                cfg.set('rgb_device_id', rgb_cam.device, save=True)
             
             self.rgb_camera_source = getattr(rgb_cam, 'camera_source', 'uvc')
             logger.info(f"Persisted RGB device ID: {self.effective_rgb_device_id}, Source: {self.rgb_camera_source}")
@@ -694,7 +724,7 @@ class ThermalInspectionFusion:
                             'current_mode': backend_type
                         }
                         self.gui.radiometric_panel.update_backend_status(backend_info)
-                        logger.info(f"✓ Initial backend status updated: {backend_type} (Radiometric: {is_radiometric})")
+                        logger.info(f"[OK] Initial backend status updated: {backend_type} (Radiometric: {is_radiometric})")
                     
                     logger.info(f"[OK] Radiometric panel initialized (capable={is_radiometric}, sdk={sdk_connected}, 8bit={self.temp_estimation_enabled})")
                 
@@ -1049,7 +1079,8 @@ class ThermalInspectionFusion:
                 'auto_temp_threshold_hot': 0.85,
                 'auto_temp_threshold_cold': 0.15,
                 'auto_roi_min_area': 500,
-                'auto_roi_max_count': 20
+                'auto_roi_max_count': 20,
+                'resolution': actual_res  # Pass actual resolution for drift-free scaling baselining
             }
             self.roi_manager = ROIManager(roi_config)
             logger.info("[OK] ROI manager initialized")
@@ -2498,16 +2529,25 @@ class ThermalInspectionFusion:
         self.fusion_priority = priority.lower()
         if self.fusion_processor:
             self.fusion_processor.set_priority(self.fusion_priority)
-        
-        # Update overlay widget for PIP coordinate handling (Bug #20 fix)
-        # Update overlay widget for PIP coordinate handling (Bug #20 fix)
+
+        # Update overlay widget for coordinate handling (Bug #24 fix)
         if self.gui and hasattr(self.gui, 'video_widget') and hasattr(self.gui.video_widget, 'overlay'):
+            # Map ViewMode enum to overlay-expected strings
+            overlay_mode_map = {
+                ViewMode.THERMAL_ONLY: "thermal",
+                ViewMode.RGB_ONLY: "rgb",
+                ViewMode.FUSION: "fusion",
+                ViewMode.SIDE_BY_SIDE: "side_by_side",
+                ViewMode.PICTURE_IN_PICTURE: "picture_in_picture"
+            }
+            overlay_mode = overlay_mode_map.get(self.view_mode, "thermal")
+
             self.gui.video_widget.overlay.set_view_mode(
-                getattr(self, 'fusion_mode', 'thermal'),
+                overlay_mode,
                 fusion_priority=self.fusion_priority,
                 pip_size=0.25
             )
-        
+
         logger.info(f"Fusion priority set to: {self.fusion_priority}")
 
     def set_fusion_strength(self, strength: float):
@@ -2630,6 +2670,25 @@ class ThermalInspectionFusion:
         try:
             idx = modes.index(self.view_mode)
             self.view_mode = modes[(idx + 1) % len(modes)]
+
+            # Update overlay widget view mode for proper coordinate handling (Bug #24 fix)
+            if self.gui and hasattr(self.gui, 'video_widget') and hasattr(self.gui.video_widget, 'overlay'):
+                # Map ViewMode enum values to overlay-expected strings
+                overlay_mode_map = {
+                    ViewMode.THERMAL_ONLY: "thermal",
+                    ViewMode.RGB_ONLY: "rgb",
+                    ViewMode.FUSION: "fusion",
+                    ViewMode.SIDE_BY_SIDE: "side_by_side",
+                    ViewMode.PICTURE_IN_PICTURE: "picture_in_picture"
+                }
+                overlay_mode = overlay_mode_map.get(self.view_mode, self.view_mode)
+
+                self.gui.video_widget.overlay.set_view_mode(
+                    overlay_mode,
+                    fusion_priority=getattr(self, 'fusion_priority', 'rgb'),
+                    pip_size=0.25
+                )
+
             if self.gui and hasattr(self.gui, 'control_panel'):
                 self.gui.control_panel.update_view_button(self.view_mode)
             logger.info(f"Switched to view mode: {self.view_mode}")
@@ -4884,23 +4943,6 @@ class ThermalInspectionFusion:
                             # Call update_measurement_points which internally updates the overlay
                             self.gui.video_widget.update_measurement_points(self.gui.measurement_points)
                             
-                            # SCALE ROIs
-                            if hasattr(self.gui.video_widget, 'overlay') and hasattr(self.gui.video_widget.overlay, 'rois'):
-                                overlay = self.gui.video_widget.overlay
-                                if overlay.rois and (scale_x != 1.0 or scale_y != 1.0):
-                                    logger.info(f"Scaling {len(overlay.rois)} ROIs...")
-                                    for roi in overlay.rois:
-                                        new_points = []
-                                        for x, y in roi.points:
-                                            # Use rounding (+0.5)
-                                            nx = int(x * scale_x + 0.5)
-                                            ny = int(y * scale_y + 0.5)
-                                            nx = max(0, min(nx, new_resolution[0]-1))
-                                            ny = max(0, min(ny, new_resolution[1]-1))
-                                            new_points.append((nx, ny))
-                                        roi.points = new_points
-                                        roi.last_updated = time.time()
-                                    logger.info("ROIs scaled successfully")
 
                             # CRITICAL FIX: Sync overlay view mode after backend switch
                             # The overlay needs to know the current view mode or it won't render thermal overlays
@@ -4921,6 +4963,19 @@ class ThermalInspectionFusion:
                         logger.info(f"Rebuilt {len(self.gui.measurement_points)} spot meters from SpotMeterPanel")
                     else:
                         logger.info("No spots to rebuild (panel is empty)")
+
+                    # SCALE ROIs (Moved out of panel_spots block)
+                    # Always call scale_rois to ensure ROIManager syncs with new resolution
+                    if hasattr(self, 'roi_manager') and self.roi_manager:
+                        logger.info(f"Scaling ROIs in ROIManager to {new_resolution}...")
+                        # Use new drift-free scaling (ignores scale factors, uses target resolution)
+                        self.roi_manager.scale_rois(new_resolution)
+                        
+                        # Force overlay update with new coordinates
+                        if hasattr(self.gui.video_widget, 'overlay'):
+                            self.gui.video_widget.overlay.rois = self.roi_manager.get_all_rois()
+                            logger.info("ROIs scaled and overlay updated successfully")
+
 
             logger.info(f"=== Successfully switched to {backend_type} backend ===")
             return True

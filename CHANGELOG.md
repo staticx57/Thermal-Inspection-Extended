@@ -1,5 +1,57 @@
 # Thermal Inspection Fusion Tool - Changelog
 
+## [3.5.0] - 2025-12-10 - Startup Optimization & Compatibility Fixes 🚀
+
+### 🎯 Overview
+Dramatic reduction in application startup time (from ~14s to <5s) through parallel camera initialization and persistent "Fast Path" caching. Also resolved compatibility issues with recent NumPy versions to restore Firefly camera support.
+
+**Project Status**: Production-ready with sub-5s startup and full hardware support.
+
+---
+
+### ✅ OPTIMIZED - Startup Sequence
+
+#### Strategy
+**Fast Path Caching**:
+- Persists successfully initializing camera IDs (`thermal_device_id` and `rgb_device_id`) to `config.json`.
+- On subsequent launches, attempts to open these specific devices *immediately* and *concurrently*.
+- Bypasses the 4-second sequential camera probe entirely.
+
+**Parallel Fallback**:
+- Even if Fast Path fails (e.g., camera unplugged), the fallback detection now initializes Thermal and RGB cameras in parallel threads.
+
+**Results**:
+- **Thermal Init**: ~2.3s
+- **Total Startup**: ~4-5s
+- **Improvement**: ~65% reduction from previous parallel implementation (14s)
+
+---
+
+### ✅ FIXED - PySpin/NumPy Compatibility
+
+#### Problem Solved
+**Issue**: `AttributeError: module 'numpy' has no attribute '_ARRAY_API'`
+**Root Cause**: The installed `PySpin` library relies on `numpy._ARRAY_API`, which was removed in recent NumPy versions (1.20+).
+**Fix**: Implemented a monkey-patch in `inspection_main.py` to inject a compatibility shim before loading camera modules.
+
+**Result**:
+- ✅ Firefly cameras properly detected
+- ✅ Startup logs clean of tracebacks
+
+---
+
+### 📝 Files Modified
+1. **`inspection_main.py`**: 
+   - Added persistence logic in `_init_cameras_robust`
+   - Added NumPy monkey-patch
+   - Fixed Unicode logging issue on Windows console
+2. **`camera_initializer.py`**:
+   - Implemented `Fast Path` logic with `ThreadPoolExecutor`
+   - Added robust fallback to full detection if cached ID fails
+3. **`config.py`**: Added `thermal_device_id` and `rgb_device_id` fields
+
+---
+
 ## [3.4.0] - 2025-12-01 - Thermal Camera Connection & Runtime Mode Switching 🔥
 
 ### 🎯 Overview

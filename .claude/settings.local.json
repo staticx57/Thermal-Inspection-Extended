@@ -6,7 +6,15 @@
       "Bash(python inspection_main.py:*)",
       "Bash(timeout:*)",
       "Bash(taskkill:*)",
-      "Bash(ping:*)"
+      "Bash(ping:*)",
+      "Bash(for i in 1 2 3 4 5)",
+      "Bash(do taskkill //F //IM python.exe //T)",
+      "Bash(echo:*)",
+      "Bash(done)",
+      "Bash(dir \"C:\\Users\\stati\\Desktop\\*.png\" /b /o-d)",
+      "Bash(dir \"C:\\Users\\stati\\Desktop\\Projects\\Thermal-Inspection\\*.png\" /b /o-d)",
+      "Bash(dir \"C:\\Users\\stati\\Pictures\\*.png\" /b /o-d)",
+      "Bash(powershell:*)"
     ],
     "deny": [],
     "ask": []

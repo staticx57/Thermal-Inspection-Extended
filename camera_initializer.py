@@ -10,8 +10,9 @@ Handles issues like:
 import threading
 import time
 import logging
-from typing import Optional, Tuple, Callable
+from typing import Optional, Tuple, Callable, List
 from dataclasses import dataclass
+import concurrent.futures
 
 logger = logging.getLogger(__name__)
 
@@ -211,19 +212,23 @@ class CameraInitializer:
         )
 
     @staticmethod
-    def init_cameras_prioritized(thermal_first: bool = True, enable_sdk: bool = False, com_port: str = 'COM6') -> Tuple[Optional[object], Optional[object]]:
+    def init_cameras_prioritized(thermal_first: bool = True, enable_sdk: bool = False, com_port: str = 'COM6',
+                                known_thermal_id: Optional[int] = None, known_rgb_id: Optional[int] = None) -> Tuple[Optional[object], Optional[object]]:
         """
-        Initialize both cameras with priority order using a SINGLE detection scan.
+        Initialize both cameras with priority order using a SINGLE detection scan (or "Fast Path").
         
         Optimization:
-        - Scans all cameras once to avoid race conditions and double-initialization overhead.
-        - Selects best Thermal and RGB candidates from the single list.
+        - FAST PATH: If known IDs are provided, attempts to open them directly in PARALLEL (skips detection).
+        - FALLBACK: If Fast Path fails, scans all cameras once.
+        - PARALLEL INIT: Always initializes Thermal and RGB in parallel threads to save time.
         - Respects priority: Boson > Generic | Firefly > UVC > Built-in
 
         Args:
-            thermal_first: If True, initialize thermal first (recommended for inspection apps)
+            thermal_first: (Deprecated in parallel mode) Valid for sequential fallback only
             enable_sdk: Enable Boson SDK for thermal camera
             com_port: COM port for Boson SDK
+            known_thermal_id: Previously known thermal device ID (Fast Path)
+            known_rgb_id: Previously known RGB device ID (Fast Path)
 
         Returns:
             (thermal_camera, rgb_camera) tuple (either can be None if failed)
@@ -235,128 +240,145 @@ class CameraInitializer:
         logger.info("="*70)
         logger.info(f"SDK enabled: {enable_sdk}, COM port: {com_port}")
 
-        # 1. Single Scan for All Cameras
-        # This prevents the "double scan" crash where the second scan hits a busy resource
-        all_cameras = CameraDetector.detect_all_cameras()
+        thermal_camera = None
+        rgb_camera = None
         
-        # Give cameras time to settle/release after probing
-        time.sleep(0.5)
+        # Helper to initialize thermal
+        def init_thermal_task(dev_id, res=(640, 512)):
+            return CameraInitializer.init_thermal_camera_safe(
+                device_id=dev_id,
+                resolution=res,
+                enable_sdk=enable_sdk,
+                com_port=com_port,
+                timeout=8.0
+            )
 
-        # 2. Filter Candidates
+        # Helper to initialize RGB
+        def init_rgb_task(dev_info_or_id, res=(0,0)):
+            if hasattr(dev_info_or_id, 'interface') and dev_info_or_id.interface == 'spinnaker':
+                 return CameraInitializer.init_firefly_camera_safe(
+                    camera_index=dev_info_or_id.spinnaker_index,
+                    resolution=(0, 0),
+                    timeout=15.0
+                )
+            else:
+                # It's an ID or info object
+                d_id = dev_info_or_id.device_id if hasattr(dev_info_or_id, 'device_id') else dev_info_or_id
+                
+                # If we have a resolution hint (from detection or fast path?), use it
+                # For fast path, we might default to 4K or 0,0 (auto)
+                return CameraInitializer.init_uvc_camera_safe(
+                    device_id=d_id,
+                    resolution=res,
+                    timeout=8.0 # Reduced timeout for parallel
+                )
+
+        # ==================================================================================
+        # 1. FAST PATH: RAM-cached or Config-cached IDs
+        # ==================================================================================
+        if known_thermal_id is not None or known_rgb_id is not None:
+            logger.info(f"Attempting Fast Path Init (Thermal={known_thermal_id}, RGB={known_rgb_id})")
+            
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                futures = {}
+                
+                if known_thermal_id is not None:
+                    futures['thermal'] = executor.submit(init_thermal_task, known_thermal_id)
+                
+                if known_rgb_id is not None:
+                     # Check conflict
+                    if known_thermal_id is not None and known_thermal_id == known_rgb_id:
+                        logger.warning("Fast Path: Skipping RGB, ID matches Thermal")
+                    else:
+                        # We don't know the resolution, but passing (0,0) will trigger negotiation
+                        # OR if we persisted resolution we could use it. For now, 0,0 is okay or we can assume 4K?
+                        # Let's use (0,0) and accept the 1.5s hit, OR we can try to guess.
+                        # Actually, if we accepted the 1.5s hit, we are still faster than 4s scan.
+                        # But wait, we can pass a 'hint' if we had one.
+                        # For now, (0,0) is safe.
+                        futures['rgb'] = executor.submit(init_rgb_task, known_rgb_id, (0,0))
+                
+                # Wait for results
+                for key, future in futures.items():
+                    try:
+                        result = future.result()
+                        if result.success:
+                            if key == 'thermal':
+                                thermal_camera = result.camera_object
+                                logger.info(f"  [FAST-OK] Thermal (ID {known_thermal_id}) initialized")
+                            else:
+                                rgb_camera = result.camera_object
+                                logger.info(f"  [FAST-OK] RGB (ID {known_rgb_id}) initialized")
+                    except Exception as e:
+                        logger.error(f"  [FAST-FAIL] {key} init error: {e}")
+
+            # Verification: Did we get what we wanted?
+            # If we requested thermal and got it, we are good.
+            # If we requested RGB and got it, we are good.
+            # If we critically missed thermal, maybe fallback?
+            # CRITICAL FIX: If thermal_camera is None (either ID was None or init failed), 
+            # we MUST fallback to full detection to find it (unless explicitly disabled, but safe assumption for this app).
+            if thermal_camera is None:
+                logger.warning("Fast Path: Thermal not initialized (ID unknown or failed). Reverting to Full Detection.")
+                if rgb_camera: 
+                    try: rgb_camera.release()
+                    except: pass
+                    rgb_camera = None
+                # Fallback proceeds below to Full Detection
+            else:
+                # Fast Path Success!
+                logger.info("="*70)
+                return (thermal_camera, rgb_camera)
+
+        # ==================================================================================
+        # 2. FULL DETECTION FALLBACK
+        # ==================================================================================
+        logger.info("Start Full Camera Detection...")
+        all_cameras = CameraDetector.detect_all_cameras()
+        time.sleep(0.5) # Settle
+
         thermal_candidates = [c for c in all_cameras if c.is_thermal()]
         rgb_candidates = [c for c in all_cameras if c.is_rgb()]
         
-        # Already sorted by priority in detect_all_cameras, so [0] is best
         best_thermal_info = thermal_candidates[0] if thermal_candidates else None
         best_rgb_info = rgb_candidates[0] if rgb_candidates else None
         
         if best_thermal_info:
-            logger.info(f"Selected Thermal Candidate: {best_thermal_info.name} (Priority {best_thermal_info.priority})")
-        else:
-            logger.info("No Thermal candidates found")
-            
+            logger.info(f"Selected Thermal: {best_thermal_info.name}")
         if best_rgb_info:
-            logger.info(f"Selected RGB Candidate: {best_rgb_info.name} (Priority {best_rgb_info.priority})")
-        else:
-            logger.info("No RGB candidates found")
+             logger.info(f"Selected RGB: {best_rgb_info.name}")
 
-        thermal_camera = None
-        rgb_camera = None
-
-        # 3. Connect loop
-        if thermal_first:
-            # Initialize thermal first (priority)
+        # ==================================================================================
+        # 3. PARALLEL INITIALIZATION (Fallback)
+        # ==================================================================================
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            futures = {}
+            
             if best_thermal_info:
-                result = CameraInitializer.init_thermal_camera_safe(
-                    device_id=best_thermal_info.device_id,
-                    resolution=best_thermal_info.resolution,
-                    enable_sdk=enable_sdk,
-                    com_port=com_port,
-                    timeout=10.0
-                )
-                if result.success:
-                    thermal_camera = result.camera_object
-                    logger.info(f"  [OK] Thermal initialized ({result.init_time_seconds:.2f}s)")
-                else:
-                    logger.warning(f"  ✗ Thermal failed: {result.error_message}")
-
-            # Small delay between cameras
-            time.sleep(0.5)
-
-            # Initialize RGB second
-            if best_rgb_info:
-                # Check for conflict with thermal camera
-                conflict = False
-                if thermal_camera and hasattr(thermal_camera, 'device_id'):
-                    # Check if RGB camera uses the same device ID
-                    if best_rgb_info.interface != 'spinnaker' and best_rgb_info.device_id == thermal_camera.device_id:
-                        logger.warning(f"Skipping RGB init: Device {best_rgb_info.device_id} already used by thermal camera")
-                        conflict = True
+                futures['thermal'] = executor.submit(init_thermal_task, best_thermal_info.device_id, best_thermal_info.resolution)
                 
-                if not conflict:
-                    if best_rgb_info.interface == 'spinnaker':
-                        result = CameraInitializer.init_firefly_camera_safe(
-                            camera_index=best_rgb_info.spinnaker_index,
-                            resolution=(0, 0),  # Max resolution
-                            timeout=15.0
-                        )
-                    else:
-                        result = CameraInitializer.init_uvc_camera_safe(
-                            device_id=best_rgb_info.device_id,
-                            resolution=(0, 0),  # Max resolution
-                            timeout=10.0
-                        )
-
-                    if result.success:
-                        rgb_camera = result.camera_object
-                        logger.info(f"  [OK] RGB initialized ({result.init_time_seconds:.2f}s)")
-                    else:
-                        logger.warning(f"  [FAIL] RGB failed: {result.error_message}")
-
-        else:
-            # Initialize RGB first
             if best_rgb_info:
-                if best_rgb_info.interface == 'spinnaker':
-                    result = CameraInitializer.init_firefly_camera_safe(
-                        camera_index=best_rgb_info.spinnaker_index,
-                        resolution=(0, 0),
-                        timeout=15.0
-                    )
+                 # Check conflict
+                if best_thermal_info and best_rgb_info.interface != 'spinnaker' and best_rgb_info.device_id == best_thermal_info.device_id:
+                     logger.warning(f"Skipping RGB init: Device {best_rgb_info.device_id} conflict")
                 else:
-                    result = CameraInitializer.init_uvc_camera_safe(
-                        device_id=best_rgb_info.device_id,
-                        resolution=(0, 0),
-                        timeout=10.0
-                    )
-
-                if result.success:
-                    rgb_camera = result.camera_object
-                    logger.info(f"  [OK] RGB initialized ({result.init_time_seconds:.2f}s)")
-
-            time.sleep(0.5)
-
-            # Initialize thermal second
-            if best_thermal_info:
-                # Check for conflict (if RGB grabbed the thermal device by mistake)
-                conflict = False
-                if rgb_camera and hasattr(rgb_camera, 'device_id') and best_thermal_info.interface != 'spinnaker':
-                     if best_thermal_info.device_id == rgb_camera.device_id:
-                        logger.warning(f"Skipping Thermal init: Device {best_thermal_info.device_id} already used by RGB camera")
-                        conflict = True
-
-                if not conflict:
-                    result = CameraInitializer.init_thermal_camera_safe(
-                        device_id=best_thermal_info.device_id,
-                        resolution=best_thermal_info.resolution,
-                        enable_sdk=enable_sdk,
-                        com_port=com_port,
-                        timeout=10.0
-                    )
+                    futures['rgb'] = executor.submit(init_rgb_task, best_rgb_info, best_rgb_info.resolution)
+            
+            # Wait for results
+            for key, future in futures.items():
+                try:
+                    result = future.result()
                     if result.success:
-                        thermal_camera = result.camera_object
-                        logger.info(f"  [OK] Thermal initialized ({result.init_time_seconds:.2f}s)")
+                        if key == 'thermal':
+                            thermal_camera = result.camera_object
+                            logger.info(f"  [OK] Thermal initialized ({result.init_time_seconds:.2f}s)")
+                        else:
+                            rgb_camera = result.camera_object
+                            logger.info(f"  [OK] RGB initialized ({result.init_time_seconds:.2f}s)")
                     else:
-                         logger.warning(f"  [FAIL] Thermal failed: {result.error_message}")
+                        logger.warning(f"  [FAIL] {key} failed: {result.error_message}")
+                except Exception as e:
+                    logger.error(f"  [FAIL] {key} exception: {e}")
 
         logger.info("="*70)
         return (thermal_camera, rgb_camera)

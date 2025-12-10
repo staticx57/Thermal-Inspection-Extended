@@ -82,6 +82,8 @@ class Config:
         'rgb_resolution': [640, 480],
         'rgb_fps': 30,
         'thermal_resolution': [640, 512],
+        'thermal_device_id': None,  # Persisted device ID for Fast Path
+        'rgb_device_id': None,      # Persisted device ID for Fast Path
     }
 
     def __init__(self, config_file: str = 'config.json'):

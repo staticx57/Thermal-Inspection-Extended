@@ -21,6 +21,8 @@ import numpy as np
 from typing import List, Dict, Optional, Tuple
 from enum import Enum
 from pathlib import Path
+import concurrent.futures
+
 
 # Import camera registry for tracking camera roles
 from camera_registry import get_camera_registry, CameraRole
@@ -172,17 +174,35 @@ class CameraInfo:
 
             # High Resolution (4K/1080p) = High Priority
             # This ensures external 4K cams beat internal 720p webcams
-            if width >= 1920 or height >= 1080:
-                logger.info(f"Assigning Priority 0 to High-Res RGB: {self.name} ({width}x{height})")
-                return 1  # Priority 1 (just below Firefly)
+            
+            # REFINED LOGIC v3: Resolution Tiers Only (Device ID independent)
+            # Spinnaker is Priority 0 (handled above)
+            # Device enumeration order varies on Windows, so we don't assume Device 0 = internal
+            
+            base_priority = 3.5  # Default low priority
+            
+            # Tier 1: 4K / Ultra High Res (> 3000px width)
+            if width >= 3000:
+                base_priority = 0.5
+                logger.info(f"  > Cam {self.device_id}: Detected 4K/Ultra-Res")
+            
+            # Tier 2: 1080p / Full HD (> 1900px width)
+            elif width >= 1900:
+                base_priority = 1.5
+                logger.info(f"  > Cam {self.device_id}: Detected 1080p/FHD")
+                
+            # Tier 3: 720p / HD (> 1200px width)
+            elif width >= 1200:
+                base_priority = 2.5
+                logger.info(f"  > Cam {self.device_id}: Detected 720p/HD")
+                
+            # Tie-Breaker: Larger pixel count wins (secondary sort within same tier)
+            area_score = (width * height) / 10_000_000.0  # 0.0 to 0.8
+            final_priority = base_priority - (area_score * 0.1) # Subtract tiny amount to favor larger pixel count
+            
+            logger.info(f"Assigning Priority {final_priority:.3f} to: {self.name} ({width}x{height}) [TierBase={base_priority}]")
+            return final_priority
 
-            # External USB camera heuristic (Standard Def)
-            # Device 0 with VGA (640x480) is likely built-in on laptops
-            if self.device_id == 0 and width <= 640:
-                return 3  # Built-in laptop webcam (Low priority)
-
-            # Standard external USB
-            return 2  # Standard external UVC
 
         # Unknown type
         return 999
@@ -605,130 +625,114 @@ class CameraDetector:
         return None
 
     @staticmethod
-    def _probe_windows_cameras(max_devices: int = 5, skip_device_ids: Optional[List[int]] = None) -> List[CameraInfo]:
+    def _probe_single_windows_camera(device_id: int) -> Optional[CameraInfo]:
         """
-        Probe cameras on Windows using DirectShow/MSMF with ROBUST frame-based detection
+        Probe a single Windows camera index.
+        Helper method for parallel execution.
+        """
+        logger.info(f"Probing Windows camera index {device_id}...")
         
-        CRITICAL: Reads actual frames to identify thermal cameras, not just resolution queries.
-        FLIR Boson cameras may report incorrect resolutions until frames are read.
+        # Add small random delay to prevent USB collisions if probing simultaneously
+        import random
+        time.sleep(random.uniform(0.01, 0.1))
 
-        Args:
-            max_devices: Maximum number of device indices to probe (default: 5)
-            skip_device_ids: List of device IDs to skip (already in use)
-
-        Returns:
-            List of detected CameraInfo objects
-        """
-        cameras = []
-        consecutive_failures = 0
-        MAX_CONSECUTIVE_FAILURES = 3  # INCREASED: Allow more gaps (e.g. if device 1 fails but 2 works)
-
-        if skip_device_ids is None:
-            skip_device_ids = []
-            
-        logger.info(f"Probing Windows cameras (max={max_devices})...")
-
-        for device_id in range(max_devices):
-            if device_id in skip_device_ids:
-                logger.debug(f"Skipping camera index {device_id} (already in use)")
-                continue
-
-            cap = None
+        cap = None
+        try:
+            # Try DirectShow first
             try:
-                logger.info(f"Probing Windows camera index {device_id}...")  # Changed to INFO for visibility
-
-                # Add small delay to let drivers settle
-                time.sleep(0.05)
-
-                # Try DirectShow first (better compatibility with thermal cameras)
-                try:
-                    cap = cv2.VideoCapture(device_id, cv2.CAP_DSHOW)
-                    logger.info(f"  DirectShow attempt: isOpened={cap.isOpened() if cap else False}")
-                except Exception as e:
-                    logger.info(f"  DirectShow failed for camera {device_id}: {e}")
-                    cap = None
-
-                if cap is None or not cap.isOpened():
-                    # Fall back to MSMF
-                    try:
-                        if cap is not None:
-                            cap.release()
-                        cap = cv2.VideoCapture(device_id, cv2.CAP_MSMF)
-                        logger.info(f"  MSMF attempt: isOpened={cap.isOpened() if cap else False}")
-                    except Exception as e:
-                        logger.info(f"  MSMF failed for camera {device_id}: {e}")
-                        cap = None
-
-                if cap is not None and cap.isOpened():
-                    logger.info(f"  Camera {device_id} opened successfully, analyzing frames...")
-                    
-                    # PROBE FOR HIGH RESOLUTION (4K/1080p)
-                    # Many 4K webcams default to 640x480 unless requested
-                    detected_resolution = (640, 480) # Default fallback
-                    
-                    # Try setting 4K first
-                    try:
-                        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
-                        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
-                        time.sleep(0.1)
-                        if cap.get(cv2.CAP_PROP_FRAME_WIDTH) >= 3840:
-                             logger.info(f"  - Camera {device_id} accepted 4K request")
-                    except:
-                        pass
-                        
-                    # ROBUST DETECTION: Read actual frames to identify camera type and real max res
-                    is_thermal, resolution = CameraDetector._identify_camera_by_frames(cap, device_id)
-                    
-                    # Get camera name
-                    name = f"Camera {device_id}"
-                    try:
-                        backend_name = cap.getBackendName()
-                        name = f"Camera {device_id} ({backend_name})"
-                    except:
-                        pass
-
-                    # Update name if thermal
-                    if is_thermal:
-                        name = f"FLIR Boson {resolution[0]}x{resolution[1]} (Camera {device_id})"
-                        logger.info(f"[OK] Thermal camera identified via frame analysis: {name}")
-                    elif resolution[0] >= 1920:
-                         name = f"High-Res Camera {device_id} ({resolution[0]}x{resolution[1]})"
-                         logger.info(f"[OK] High-Res RGB camera identified: {name}")
-                    
+                cap = cv2.VideoCapture(device_id, cv2.CAP_DSHOW)
+                if not cap.isOpened():
                     cap.release()
                     cap = None
+            except Exception:
+                cap = None
 
-                    cameras.append(CameraInfo(
-                        device_id=device_id,
-                        name=name,
-                        driver="DSHOW/MSMF",
-                        resolution=resolution
-                    ))
-
-                    logger.info(f"Detected: {name} at index {device_id}")
-                    consecutive_failures = 0
-
-                else:
-                    logger.info(f"  Camera {device_id} could not be opened")
-                    consecutive_failures += 1
-
-            except Exception as e:
-                logger.info(f"  Exception probing camera {device_id}: {e}")  # Changed to INFO
-                consecutive_failures += 1
-            finally:
-                if cap is not None:
-                    try:
+            # Fallback to MSMF
+            if cap is None:
+                try:
+                    cap = cv2.VideoCapture(device_id, cv2.CAP_MSMF)
+                    if not cap.isOpened():
                         cap.release()
-                    except:
-                        pass
+                        cap = None
+                except Exception:
+                    cap = None
 
-            # Early termination after consecutive failures
-            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                logger.info(f"  Stopping probe after {consecutive_failures} consecutive failures")  # Changed to INFO
-                break
+            if cap is not None and cap.isOpened():
+                # PROBE FOR HIGH RESOLUTION
+                try:
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
+                    time.sleep(0.1)
+                except:
+                    pass
+
+                # Identify camera
+                is_thermal, resolution = CameraDetector._identify_camera_by_frames(cap, device_id)
+                
+                # Get name
+                name = f"Camera {device_id}"
+                try:
+                    backend = cap.getBackendName()
+                    name = f"Camera {device_id} ({backend})"
+                except:
+                    pass
+
+                if is_thermal:
+                    name = f"FLIR Boson {resolution[0]}x{resolution[1]} (Camera {device_id})"
+                elif resolution[0] >= 1920:
+                    name = f"High-Res Camera {device_id} ({resolution[0]}x{resolution[1]})"
+
+                cap.release()
+
+                return CameraInfo(
+                    device_id=device_id,
+                    name=name,
+                    driver="DSHOW/MSMF",
+                    resolution=resolution
+                )
+
+        except Exception as e:
+            logger.debug(f"Error probing device {device_id}: {e}")
+            if cap:
+                cap.release()
+        
+        return None
+
+    @staticmethod
+    def _probe_windows_cameras(max_devices: int = 5, skip_device_ids: Optional[List[int]] = None) -> List[CameraInfo]:
+        """
+        Probe cameras on Windows in PARALLEL.
+        """
+        if skip_device_ids is None:
+            skip_device_ids = []
+
+        cameras = []
+        logger.info(f"Probing Windows cameras (max={max_devices}) in PARALLEL...")
+
+        # Create list of IDs to probe
+        ids_to_probe = [i for i in range(max_devices) if i not in skip_device_ids]
+
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max_devices) as executor:
+            # Submit all tasks
+            future_to_id = {executor.submit(CameraDetector._probe_single_windows_camera, dev_id): dev_id for dev_id in ids_to_probe}
+            
+            # Gather results
+
+            for future in concurrent.futures.as_completed(future_to_id):
+                dev_id = future_to_id[future]
+                try:
+                    cam_info = future.result()
+                    if cam_info:
+                        cameras.append(cam_info)
+                        logger.info(f"[OK] Found camera at index {dev_id}: {cam_info.name}")
+                    else:
+                        logger.info(f"[-] No camera at index {dev_id}")
+                except Exception as e:
+                    logger.error(f"Exc in probe thread {dev_id}: {e}")
 
         logger.info(f"Windows camera probe complete: {len(cameras)} camera(s) found")
         return cameras
+
     
     @staticmethod
     def _identify_camera_by_frames(cap, device_id: int) -> Tuple[bool, Tuple[int, int]]:
