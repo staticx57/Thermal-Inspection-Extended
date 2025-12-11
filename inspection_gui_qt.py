@@ -1089,32 +1089,56 @@ class InspectionOverlayWidget(QWidget):
             return self.frame_to_widget(frame_x, frame_y)
 
         elif self.pip_rect is not None:
-            # PIP Mode (Bug #24 fix)
+            # PIP Mode (Bug #24 fix - thermal overlay center offset)
             # NOTE: fusion_priority SHOULD determine main vs inset but doesn't due to bug.
             # Thermal is ALWAYS the inset (top-right)
-            pip_x, pip_y, pip_w, pip_h = self.pip_rect
+            
+            # Use pre-calculated pip_thermal_rect if available (aspect-ratio corrected)
+            # Otherwise fallback to calculating it (shouldn't happen in normal operation)
+            if hasattr(self, 'pip_thermal_rect') and self.pip_thermal_rect is not None:
+                pip_x, pip_y, pip_w, pip_h = self.pip_thermal_rect
+                # pip_thermal_rect is already aspect-ratio corrected, no need to recalculate
+                scale_x = pip_w / tw
+                scale_y = pip_h / th
+                offset_x = 0
+                offset_y = 0
+            else:
+                # Fallback: calculate aspect ratio on the fly
+                pip_x, pip_y, pip_allocated_w, pip_allocated_h = self.pip_rect
+                pip_w, pip_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(
+                    tw, th, pip_allocated_w, pip_allocated_h
+                )
+                pip_x += offset_x
+                pip_y += offset_y
+                scale_x = pip_w / tw
+                scale_y = pip_h / th
+                offset_x = 0
+                offset_y = 0
 
-            # Calculate actual thermal display size and offset within PIP inset
-            # (accounting for aspect ratio preservation)
-            actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(
-                tw, th, pip_w, pip_h
-            )
+            # Transform: thermal coords → displayed position within PIP thermal rect  
+            frame_x = pip_x + (x * scale_x)
+            frame_y = pip_y + (y * scale_y)
 
-            # Scale thermal coords to actual displayed size
-            scale_x = actual_w / tw
-            scale_y = actual_h / th
-
-            # Transform: thermal coords → actual displayed position within inset
-            frame_x = pip_x + offset_x + (x * scale_x)
-            frame_y = pip_y + offset_y + (y * scale_y)
-
+            # CRITICAL: In PIP mode, coordinates are ALREADY in frame space at correct scale
+            # pip_thermal_rect is calculated in frame coordinates, so we need to apply
+            # frame_to_widget to convert to widget coordinates
+            # BUT we need to verify the frame coordinates are correct first
+            
             # Debug logging (log points near center to diagnose offset issues)
             if 200 <= x <= 450 and 150 <= y <= 350:
                 logger.info(f"[OVERLAY] PIP transform: input=({x:.1f},{y:.1f}), priority={self.fusion_priority}, tw={tw},th={th}, fw={fw},fh={fh}")
-                logger.info(f"[OVERLAY]   pip_rect=({pip_x},{pip_y},{pip_w},{pip_h}), actual=({actual_w:.1f},{actual_h:.1f}), offset=({offset_x:.1f},{offset_y:.1f})")
-                logger.info(f"[OVERLAY]   scale=({scale_x:.3f},{scale_y:.3f}), frame=({frame_x:.1f},{frame_y:.1f}), widget_scale={self.scale:.3f}, widget_offset=({self.offset_x},{self.offset_y})")
+                logger.info(f"[OVERLAY]   pip_thermal_rect={self.pip_thermal_rect if hasattr(self, 'pip_thermal_rect') else 'N/A'}")
+                logger.info(f"[OVERLAY]   scale=({scale_x:.3f},{scale_y:.3f}), frame=({frame_x:.1f},{frame_y:.1f}) BEFORE frame_to_widget")
+                logger.info(f"[OVERLAY]   frame_size={self.frame_size}, widget scale={self.scale:.3f}, offset=({self.offset_x},{self.offset_y})")
 
-            return self.frame_to_widget(frame_x, frame_y)
+            # Apply frame_to_widget transformation
+            widget_coords = self.frame_to_widget(frame_x, frame_y)
+            
+            # Debug AFTER frame_to_widget
+            if 200 <= x <= 450 and 150 <= y <= 350:
+                logger.info(f"[OVERLAY]   widget_coords AFTER frame_to_widget = {widget_coords}")
+            
+            return widget_coords
             
         else:
             # Normal / Fusion / Thermal Only
@@ -1198,25 +1222,35 @@ class InspectionOverlayWidget(QWidget):
                     valid_click = False
 
             elif self.pip_rect is not None:
-                 pip_x, pip_y, pip_w, pip_h = self.pip_rect
                  fw, fh = self.frame_size
                  tw, th = self.thermal_resolution if self.thermal_resolution else (640, 514)
 
-                 # Check if click is inside PIP rect (Bug #24 fix - must match forward transform)
-                 # Note: pip_rect values are in frame coordinates
-                 if (pip_x <= click_wx <= pip_x + pip_w) and (pip_y <= click_wy <= pip_y + pip_h):
-                     # Calculate actual thermal display size and offset within PIP inset (matches forward transform)
+                 # CRITICAL FIX: Use pip_thermal_rect for inverse transform (matches forward transform)
+                 # This ensures clicks are mapped using the same aspect-ratio-corrected rectangle
+                 if hasattr(self, 'pip_thermal_rect') and self.pip_thermal_rect is not None:
+                     pip_x, pip_y, pip_w, pip_h = self.pip_thermal_rect
+                     # pip_thermal_rect is already aspect-ratio corrected
+                     # No need to recalculate aspect ratio
+                 else:
+                     # Fallback: calculate aspect ratio (shouldn't happen in normal operation)
+                     pip_x, pip_y, pip_allocated_w, pip_allocated_h = self.pip_rect
                      actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(
-                         tw, th, pip_w, pip_h
+                         tw, th, pip_allocated_w, pip_allocated_h
                      )
+                     pip_x += offset_x
+                     pip_y += offset_y
+                     pip_w = actual_w
+                     pip_h = actual_h
 
+                 # Check if click is inside PIP thermal rect (Bug #24 fix - must match forward transform)
+                 if (pip_x <= click_wx <= pip_x + pip_w) and (pip_y <= click_wy <= pip_y + pip_h):
                      # Inverse transform: frame coords → thermal coords
-                     # Must undo: frame_x = pip_x + offset_x + (x * scale_x)
-                     scale_x = actual_w / tw
-                     scale_y = actual_h / th
+                     # Must undo: frame_x = pip_x + (x * scale_x)
+                     scale_x = pip_w / tw
+                     scale_y = pip_h / th
 
-                     click_x = (click_wx - pip_x - offset_x) / scale_x
-                     click_y = (click_wy - pip_y - offset_y) / scale_y
+                     click_x = (click_wx - pip_x) / scale_x
+                     click_y = (click_wy - pip_y) / scale_y
 
                      # Clamp to valid thermal coordinates
                      click_x = max(0, min(tw - 1, click_x))
@@ -1533,9 +1567,15 @@ class InspectionOverlayWidget(QWidget):
 
         # Draw measurement points (spot meters) - only if thermal visible
         if self._should_draw_thermal_overlays():
-            for point in self.measurement_points:
+            for i, point in enumerate(self.measurement_points):
                 # Transform frame coordinates to widget coordinates (thermal-aware)
                 wx, wy = self._transform_thermal_coords(point.x, point.y)
+                
+                # Debug logging for center spot (SP5 in 3x3 grid)
+                if i == 4 and self.current_view_mode == 'picture_in_picture':
+                    logger.info(f"[SPOT DEBUG] Center spot: input=({point.x},{point.y}), output=({wx},{wy})")
+                    logger.info(f"[SPOT DEBUG] pip_rect={self.pip_rect}, pip_thermal_rect={self.pip_thermal_rect}")
+                    logger.info(f"[SPOT DEBUG] view_mode={self.current_view_mode}, thermal_res={self.thermal_resolution}")
 
                 # Draw point marker (circle with cross)
                 r, g, b = point.color
@@ -1543,12 +1583,8 @@ class InspectionOverlayWidget(QWidget):
                 painter.setPen(QPen(point_color, 2))
                 painter.setBrush(QColor(r, g, b, 100))  # Semi-transparent fill
 
-                # Draw crosshair
-                cross_size = 10
-                painter.drawLine(int(wx) - cross_size, int(wy), int(wx) + cross_size, int(wy))
-                painter.drawLine(int(wx), int(wy) - cross_size, int(wx), int(wy) + cross_size)
-                # Draw center circle
-                painter.drawEllipse(int(wx) - 3, int(wy) - 3, 6, 6)
+                # Draw center circle only (no crosshair)
+                painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
 
                 # Draw label with temperature and unit
                 if point.temperature is not None:
@@ -1558,27 +1594,27 @@ class InspectionOverlayWidget(QWidget):
                     label_text = f"{point.label}: --"
                 draw_label(int(wx) + 12, int(wy) + 5, label_text, point_color)
 
-        # DEBUG: Draw thermal center crosshair for calibration
-        if self._should_draw_thermal_overlays() and self.thermal_resolution:
-            tw, th = self.thermal_resolution
-            center_x = tw / 2  # 320 for 640x514
-            center_y = th / 2  # 257 for 640x514
-
-            # Transform center point to widget coordinates
-            wx, wy = self._transform_thermal_coords(center_x, center_y)
-
-            # Draw large bright green crosshair
-            painter.setPen(QPen(QColor(0, 255, 0), 3))  # Bright green, thick
-            cross_size = 40
-            painter.drawLine(int(wx) - cross_size, int(wy), int(wx) + cross_size, int(wy))
-            painter.drawLine(int(wx), int(wy) - cross_size, int(wx), int(wy) + cross_size)
-
-            # Draw center circle
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
-
-            # Label it
-            draw_label(int(wx) + 45, int(wy), f"CENTER ({center_x},{center_y})", QColor(0, 255, 0))
+        # DEBUG: Draw thermal center crosshair for calibration (DISABLED)
+        # if self._should_draw_thermal_overlays() and self.thermal_resolution:
+        #     tw, th = self.thermal_resolution
+        #     center_x = tw / 2  # 320 for 640x514
+        #     center_y = th / 2  # 257 for 640x514
+        # 
+        #     # Transform center point to widget coordinates
+        #     wx, wy = self._transform_thermal_coords(center_x, center_y)
+        # 
+        #     # Draw large bright green crosshair
+        #     painter.setPen(QPen(QColor(0, 255, 0), 3))  # Bright green, thick
+        #     cross_size = 40
+        #     painter.drawLine(int(wx) - cross_size, int(wy), int(wx) + cross_size, int(wy))
+        #     painter.drawLine(int(wx), int(wy) - cross_size, int(wx), int(wy) + cross_size)
+        # 
+        #     # Draw center circle
+        #     painter.setBrush(Qt.BrushStyle.NoBrush)
+        #     painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
+        # 
+        #     # Label it
+        #     draw_label(int(wx) + 45, int(wy), f"CENTER ({center_x},{center_y})", QColor(0, 255, 0))
 
         # Draw temporary ROI being created
         if self.drawing_mode and self.draw_start_pos and self.draw_current_pos:

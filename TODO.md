@@ -7,7 +7,71 @@
 *(No open high priority bugs)*
 
 
-## Priority: LOW (Missing Features)
+## Priority: LOW
+
+## Bug #25: Thermal Overlay Misalignment in PIP Mode
+**Status:** Known Issue - Low Priority  
+**Severity:** Minor (cosmetic only, doesn't affect functionality)  
+**Affects:** Picture-in-Picture (PIP) mode only
+
+### Description
+In PIP mode, spot meters and thermal overlays (hot spots, cold spots, anomalies) are visually offset from the actual thermal image by ~100-150 pixels. When clicking on the thermal overlay, the spot meter appears in the wrong location.
+
+**Working Modes:**
+- ✅ Side-by-side mode - overlays align correctly
+- ✅ Normal/Fusion mode - overlays align correctly
+- ❌ PIP mode - overlays are offset
+
+### Root Cause Analysis
+**Coordinate Transformation:** ✅ CORRECT
+- `pip_thermal_rect` is calculated correctly with aspect ratio: `(3012, 10, 675, 540)`
+- Thermal coords `(320, 256)` transform correctly to frame coords `(3350, 280)` 
+- Frame coords scale correctly to widget coords `(616, 193)`
+- All math verified via debug logging
+
+**Image Rendering:** ❌ INCORRECT
+- The thermal **image itself** is being rendered at a different position than calculated
+- PIP rendering does NOT use `fusion_processor.fuse_frames()` 
+- Debug logging confirmed fusion_processor PIP code never executes
+- Actual rendering happens through unknown code path (likely main processing loop)
+
+### Technical Details
+**Coordinate System:**
+- Thermal resolution: 640x512 (aspect 1.25)
+- RGB resolution: 3840x2160 (aspect 1.78)  
+- PIP allocated space: 960x540 (25% of RGB frame)
+- Actual thermal render: 675x540 (aspect-corrected, letterboxed)
+- Offset within PIP: x+71px (centering after aspect fit)
+
+**Implementation:**
+- ✅ `inspection_gui_qt.py` - Added `pip_thermal_rect` attribute
+- ✅ `set_view_mode()` - Calculates aspect-ratio-corrected rect
+- ✅ `set_frame_transform()` - Recalculates on resize
+- ✅ `_transform_thermal_coords()` - Uses `pip_thermal_rect` for overlays
+- ❌ `fusion_processor.py` - Added aspect ratio fix BUT NOT EXECUTED
+
+### Investigation Notes
+1. Initially suspected coordinate transformation bug
+2. Debug logging revealed coordinates are mathematically correct
+3. Visual testing showed thermal image renders at wrong position
+4. Attempted fix in `fusion_processor._picture_in_picture()` 
+5. Discovered PIP doesn't use fusion_processor (no debug logs)
+6. **Conclusion:** Need to find actual PIP image rendering code
+
+### Workaround
+Use side-by-side or normal fusion mode for precise spot meter placement. PIP mode still functional but less accurate for thermal measurements.
+
+### Fix Recommendation (Future)
+1. Find actual code path that renders thermal overlay in PIP mode
+2. Apply same aspect-ratio-fitting logic used in `pip_thermal_rect`
+3. Ensure thermal image and overlays use identical positioning
+
+### Related Files
+- `inspection_gui_qt.py` - Overlay coordinate transformation (correct)
+- `fusion_processor.py` - Attempted fix (not used by PIP)
+- Unknown file - Actual PIP image rendering (needs investigation)
+
+--- (Missing Features)
 
 ## Cleanup: Orphaned / Ghost Code
 - [ ] Remove `_create_roi_temp_placeholder` in `inspection_gui_qt.py` (line ~6103, replaced by `ROITemperaturePanel`)

@@ -639,22 +639,47 @@ class FusionProcessor:
                 main = rgb.copy()
                 inset = thermal
 
-            # Calculate inset dimensions
+            # Calculate allocated inset dimensions
             main_h, main_w = main.shape[:2]
-            inset_w = int(main_w * pip_size)
-            inset_h = int(main_h * pip_size)
-            inset_resized = cv2.resize(inset, (inset_w, inset_h))
+            allocated_w = int(main_w * pip_size)
+            allocated_h = int(main_h * pip_size)
+            
+            # CRITICAL FIX: Maintain aspect ratio when resizing inset
+            # This matches the pip_thermal_rect calculation in inspection_gui_qt.py
+            inset_h, inset_w = inset.shape[:2]
+            inset_aspect = inset_w / inset_h
+            allocated_aspect = allocated_w / allocated_h
+            
+            logger.info(f"[FUSION PIP] Inset: {inset_w}x{inset_h} (aspect {inset_aspect:.3f}), Allocated: {allocated_w}x{allocated_h} (aspect {allocated_aspect:.3f})")
+            
+            if inset_aspect > allocated_aspect:
+                # Inset is wider, fit to width
+                actual_w = allocated_w
+                actual_h = int(allocated_w / inset_aspect)
+                offset_x = 0
+                offset_y = (allocated_h - actual_h) // 2
+            else:
+                # Inset is taller, fit to height
+                actual_h = allocated_h
+                actual_w = int(allocated_h * inset_aspect)
+                offset_x = (allocated_w - actual_w) // 2
+                offset_y = 0
+            
+            logger.info(f"[FUSION PIP] Actual size: {actual_w}x{actual_h}, Offset: ({offset_x}, {offset_y})")
+            
+            # Resize inset maintaining aspect ratio
+            inset_resized = cv2.resize(inset, (actual_w, actual_h))
 
-            # Determine position
+            # Determine position for allocated space
             margin = 10
             if position == 'top-right':
-                x, y = main_w - inset_w - margin, margin
+                x, y = main_w - allocated_w - margin, margin
             elif position == 'top-left':
                 x, y = margin, margin
             elif position == 'bottom-right':
-                x, y = main_w - inset_w - margin, main_h - inset_h - margin
+                x, y = main_w - allocated_w - margin, main_h - allocated_h - margin
             else:  # bottom-left
-                x, y = margin, main_h - inset_h - margin
+                x, y = margin, main_h - allocated_h - margin
 
             # Add border to inset
             inset_with_border = cv2.copyMakeBorder(
@@ -662,9 +687,9 @@ class FusionProcessor:
                 cv2.BORDER_CONSTANT, value=[255, 255, 255]
             )
 
-            # Overlay inset on main
+            # Overlay inset on main at aspect-ratio-corrected position
             ih, iw = inset_with_border.shape[:2]
-            main[y:y+ih, x:x+iw] = inset_with_border
+            main[y+offset_y:y+offset_y+ih, x+offset_x:x+offset_x+iw] = inset_with_border
 
             return main
 
