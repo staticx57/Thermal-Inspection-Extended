@@ -321,6 +321,10 @@ class FusionProcessor:
             return self._max_intensity(thermal, rgb_aligned)
         elif self.fusion_mode == 'feature_weighted':
             return self._feature_weighted(thermal, rgb_aligned)
+        elif self.fusion_mode == 'thermal_contours':  # Phase 3 - Feature 12
+            return self._thermal_contours(thermal, rgb_aligned)
+        elif self.fusion_mode == 'enhanced_edge_highlight':  # Phase 3 - Feature 13
+            return self._enhanced_edge_highlight(thermal, rgb_aligned)
         else:
             logger.warning(f"Unknown fusion mode: {self.fusion_mode}, using alpha_blend")
             return self._alpha_blend(thermal, rgb_aligned)
@@ -765,11 +769,160 @@ class FusionProcessor:
             logger.error(f"Feature weighted error: {e}")
             return self._alpha_blend(thermal, rgb)
 
+    def _thermal_contours(self, thermal: np.ndarray, rgb: np.ndarray) -> np.ndarray:
+        """
+        Thermal Contours on RGB - Phase 3 Feature 12
+        Overlays thermal contour lines on RGB image to show temperature boundaries.
+
+        Args:
+            thermal: Thermal frame (BGR, colorized)
+            rgb: RGB frame (BGR, aligned)
+
+        Returns:
+            RGB frame with thermal contour overlay
+        """
+        try:
+            # Start with RGB as base
+            result = rgb.copy()
+
+            # Convert thermal to grayscale for contour detection
+            thermal_gray = cv2.cvtColor(thermal, cv2.COLOR_BGR2GRAY)
+
+            # Find contours at multiple temperature levels
+            # Create several threshold levels to show temperature gradients
+            num_levels = 8
+            contour_colors = [
+                (0, 0, 255),      # Red (hottest)
+                (0, 128, 255),    # Orange
+                (0, 255, 255),    # Yellow
+                (0, 255, 128),    # Yellow-green
+                (0, 255, 0),      # Green
+                (128, 255, 0),    # Cyan-green
+                (255, 255, 0),    # Cyan
+                (255, 0, 0)       # Blue (coolest)
+            ]
+
+            # Find min and max values
+            t_min = thermal_gray.min()
+            t_max = thermal_gray.max()
+
+            if t_max - t_min < 10:
+                # Not enough temperature variation
+                return result
+
+            # Draw contours for each level
+            for i in range(num_levels):
+                threshold_val = t_min + (t_max - t_min) * (i + 1) / (num_levels + 1)
+                _, thresh = cv2.threshold(thermal_gray, threshold_val, 255, cv2.THRESH_BINARY)
+
+                # Find contours
+                contours, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+
+                # Draw contours
+                color = contour_colors[i % len(contour_colors)]
+                cv2.drawContours(result, contours, -1, color, 2)
+
+            # Optionally add semi-transparent thermal overlay
+            if self.fusion_intensity > 0.3:
+                # Add subtle thermal color overlay
+                alpha = (self.fusion_intensity - 0.3) * 0.5  # Max 0.35 alpha
+                result = cv2.addWeighted(result, 1.0 - alpha, thermal, alpha, 0)
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Thermal contours error: {e}")
+            return rgb
+
+    def _enhanced_edge_highlight(self, thermal: np.ndarray, rgb: np.ndarray) -> np.ndarray:
+        """
+        Enhanced Edge Highlight Fusion - Phase 3 Feature 13
+        Advanced edge detection with multi-scale analysis and adaptive thresholding.
+        Provides more prominent and accurate edge visualization than basic edge_enhanced mode.
+
+        Args:
+            thermal: Thermal frame (BGR, colorized)
+            rgb: RGB frame (BGR, aligned)
+
+        Returns:
+            Fused frame with enhanced edge highlighting
+        """
+        try:
+            # Determine base and overlay based on priority
+            if self.fusion_priority == 'thermal':
+                base = thermal
+                overlay_source = rgb
+                edge_color = self.thermal_priority_edge_color
+            else:
+                base = rgb
+                overlay_source = thermal
+                edge_color = self.rgb_priority_edge_color
+
+            result = base.copy()
+
+            # Convert overlay source to grayscale
+            if len(overlay_source.shape) == 3:
+                overlay_gray = cv2.cvtColor(overlay_source, cv2.COLOR_BGR2GRAY)
+            else:
+                overlay_gray = overlay_source
+
+            # Apply Gaussian blur for noise reduction (adaptive based on edge_blur_kernel)
+            if self.edge_blur_kernel > 0:
+                kernel_size = self.edge_blur_kernel if self.edge_blur_kernel % 2 == 1 else self.edge_blur_kernel + 1
+                overlay_gray = cv2.GaussianBlur(overlay_gray, (kernel_size, kernel_size), 0)
+
+            # Multi-scale edge detection for enhanced results
+            # Scale 1: Fine details
+            edges_fine = cv2.Canny(overlay_gray, self.edge_threshold_low, self.edge_threshold_high)
+
+            # Scale 2: Medium features (dilate to capture broader structures)
+            kernel_medium = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+            gray_medium = cv2.morphologyEx(overlay_gray, cv2.MORPH_GRADIENT, kernel_medium)
+            edges_medium = cv2.Canny(gray_medium, self.edge_threshold_low * 0.7, self.edge_threshold_high * 0.7)
+
+            # Scale 3: Large features
+            kernel_large = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+            gray_large = cv2.morphologyEx(overlay_gray, cv2.MORPH_GRADIENT, kernel_large)
+            edges_large = cv2.Canny(gray_large, self.edge_threshold_low * 0.5, self.edge_threshold_high * 0.5)
+
+            # Combine multi-scale edges (weighted combination)
+            edges = cv2.addWeighted(edges_fine, 0.5, edges_medium, 0.3, 0)
+            edges = cv2.add(edges, cv2.addWeighted(edges_large, 0.2, np.zeros_like(edges_large), 0, 0))
+
+            # Apply morphological operations to enhance edge connectivity
+            kernel_connect = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
+            edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel_connect)
+
+            # Dilate edges slightly for better visibility (controlled by fusion_intensity)
+            if self.fusion_intensity > 0.3:
+                dilation_size = int(1 + self.fusion_intensity * 2)
+                kernel_dilate = cv2.getStructuringElement(cv2.MORPH_RECT, (dilation_size, dilation_size))
+                edges = cv2.dilate(edges, kernel_dilate, iterations=1)
+
+            # Create colored edge overlay
+            edge_mask = edges > 0
+            if edge_mask.any():
+                # Apply edge color with intensity-based alpha
+                edge_alpha = 0.6 + (self.fusion_intensity * 0.4)  # Range: 0.6 to 1.0
+
+                # Create edge layer
+                edge_layer = np.zeros_like(result)
+                edge_layer[edge_mask] = edge_color
+
+                # Blend edges onto result
+                result = cv2.addWeighted(result, 1.0, edge_layer, edge_alpha, 0)
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Enhanced edge highlight error: {e}")
+            return self._edge_enhanced(thermal, rgb)
+
     def set_fusion_mode(self, mode: str):
         """Change fusion mode"""
         valid_modes = ['alpha_blend', 'edge_enhanced', 'thermal_overlay',
                       'side_by_side', 'picture_in_picture', 'max_intensity',
-                      'feature_weighted']
+                      'feature_weighted', 'thermal_contours', 'enhanced_edge_highlight']  # Phase 3 - Features 12 & 13
         if mode in valid_modes:
             self.fusion_mode = mode
             logger.info(f"Fusion mode changed to: {mode}")

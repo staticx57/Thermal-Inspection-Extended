@@ -14,7 +14,12 @@
       "Bash(dir \"C:\\Users\\stati\\Desktop\\*.png\" /b /o-d)",
       "Bash(dir \"C:\\Users\\stati\\Desktop\\Projects\\Thermal-Inspection\\*.png\" /b /o-d)",
       "Bash(dir \"C:\\Users\\stati\\Pictures\\*.png\" /b /o-d)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(python:*)",
+      "Bash(launch.bat)",
+      "Bash(cmd //c launch.bat)",
+      "Bash(exit 0)",
+      "Bash(\"C:\\Users\\stati\\Desktop\\Projects\\Thermal-Inspection\\launch.bat\")"
     ],
     "deny": [],
     "ask": []

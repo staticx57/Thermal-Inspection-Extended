@@ -104,16 +104,29 @@ class ROIRadiometricAnalyzer:
             
             # Get temperature statistics
             stats = self.converter.get_roi_temperature_stats(frame_16bit, mask)
-            
+
             # Add ROI-specific information
             stats['roi_id'] = roi.roi_id
             stats['roi_name'] = roi.label if hasattr(roi, 'label') else roi.roi_id
             stats['emissivity'] = roi_emissivity if roi_emissivity is not None else 'global'
             stats['timestamp'] = datetime.now().isoformat()
-            
+
+            # Phase 2 - Feature 9: Add temperature array for histogram
+            # Extract temperature values from ROI mask
+            try:
+                # Convert 16-bit frame to Celsius
+                temp_celsius = (frame_16bit.astype(float) - 27315.0) / 100.0
+                # Get temperatures within ROI mask
+                roi_temps = temp_celsius[mask]
+                stats['temp_array'] = roi_temps.flatten()  # 1D array for histogram
+                stats['histogram_bins'] = 50  # Default bin count
+            except Exception as e:
+                logger.warning(f"Failed to compute temperature array for histogram: {e}")
+                stats['temp_array'] = np.array([])
+
             # Track temperature history
             self.track_roi_temperature(roi.roi_id, stats)
-            
+
             return stats
             
         except Exception as e:

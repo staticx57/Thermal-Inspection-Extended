@@ -1,9 +1,11 @@
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, 
-    QComboBox, QGroupBox, QCheckBox, QPushButton, QSpinBox
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider,
+    QComboBox, QGroupBox, QCheckBox, QPushButton, QSpinBox,
+    QListWidget, QListWidgetItem, QColorDialog  # Phase 2 - Feature 8: Multi-band support
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QColor
+from isotherm_bands import IsothermBandManager, IsothermBand, ISOTHERM_PRESETS, load_preset  # Phase 2 - Feature 8
 
 class IsothermPanel(QWidget):
     """
@@ -17,9 +19,12 @@ class IsothermPanel(QWidget):
     low_threshold_changed = pyqtSignal(float)
     high_threshold_changed = pyqtSignal(float)
     color_changed = pyqtSignal(str)  # Color name
-    
+    bands_changed = pyqtSignal(object)  # Phase 2 - Feature 8: Emits IsothermBandManager
+
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.band_manager = IsothermBandManager()  # Phase 2 - Feature 8
+        self.multi_band_mode = False  # Phase 2 - Feature 8: Toggle between single/multi-band
         self._init_ui()
     
     def _init_ui(self):
@@ -115,6 +120,65 @@ class IsothermPanel(QWidget):
         preset_layout.addWidget(self.normal_btn)
         
         layout.addWidget(preset_group)
+
+        # === Phase 2 - Feature 8: Multi-Band Mode ===
+        multiband_group = QGroupBox("Multi-Band Mode (Advanced)")
+        multiband_layout = QVBoxLayout(multiband_group)
+
+        # Toggle multi-band mode
+        self.multiband_cb = QCheckBox("Enable Multi-Band Mode")
+        self.multiband_cb.setToolTip("Show multiple temperature bands simultaneously")
+        self.multiband_cb.toggled.connect(self._on_multiband_toggled)
+        multiband_layout.addWidget(self.multiband_cb)
+
+        # Band list
+        list_label = QLabel("Active Bands:")
+        multiband_layout.addWidget(list_label)
+
+        self.band_list = QListWidget()
+        self.band_list.setMaximumHeight(150)
+        self.band_list.itemSelectionChanged.connect(self._on_band_selected)
+        multiband_layout.addWidget(self.band_list)
+
+        # Band controls
+        band_btn_layout = QHBoxLayout()
+
+        self.add_band_btn = QPushButton("+ Add Band")
+        self.add_band_btn.clicked.connect(self._on_add_band)
+        self.add_band_btn.setEnabled(False)
+        band_btn_layout.addWidget(self.add_band_btn)
+
+        self.remove_band_btn = QPushButton("- Remove")
+        self.remove_band_btn.clicked.connect(self._on_remove_band)
+        self.remove_band_btn.setEnabled(False)
+        band_btn_layout.addWidget(self.remove_band_btn)
+
+        multiband_layout.addLayout(band_btn_layout)
+
+        # Preset loader
+        preset_label = QLabel("Load Preset:")
+        multiband_layout.addWidget(preset_label)
+
+        preset_btn_layout = QHBoxLayout()
+
+        zones_btn = QPushButton("Temp Zones")
+        zones_btn.setToolTip("Load temperature zones preset (6 bands)")
+        zones_btn.clicked.connect(lambda: self._load_multiband_preset("temperature_zones"))
+        preset_btn_layout.addWidget(zones_btn)
+
+        comfort_btn = QPushButton("Comfort")
+        comfort_btn.setToolTip("Load comfort zones preset (3 bands)")
+        comfort_btn.clicked.connect(lambda: self._load_multiband_preset("comfort_zones"))
+        preset_btn_layout.addWidget(comfort_btn)
+
+        electronics_btn = QPushButton("Electronics")
+        electronics_btn.setToolTip("Load electronics temperature preset (3 bands)")
+        electronics_btn.clicked.connect(lambda: self._load_multiband_preset("electronics"))
+        preset_btn_layout.addWidget(electronics_btn)
+
+        multiband_layout.addLayout(preset_btn_layout)
+
+        layout.addWidget(multiband_group)
 
         layout.addStretch()
 
@@ -219,3 +283,105 @@ class IsothermPanel(QWidget):
 
         if not self.enable_check.isChecked():
             self.enable_check.setChecked(True)
+
+    # === Phase 2 - Feature 8: Multi-Band Mode Methods ===
+
+    def _on_multiband_toggled(self, checked: bool):
+        """Handle multi-band mode toggle."""
+        self.multi_band_mode = checked
+        self.add_band_btn.setEnabled(checked)
+
+        # Enable/disable single-band controls
+        self.mode_combo.setEnabled(not checked)
+        self.low_spinbox.setEnabled(not checked)
+        self.high_spinbox.setEnabled(not checked)
+        self.color_combo.setEnabled(not checked)
+        self.hotspot_btn.setEnabled(not checked)
+        self.coldspot_btn.setEnabled(not checked)
+        self.normal_btn.setEnabled(not checked)
+
+        if checked:
+            # Emit band manager when switching to multi-band mode
+            self.bands_changed.emit(self.band_manager)
+        else:
+            # Revert to single-band mode - emit standard signals
+            self._on_enabled_changed(self.enable_check.isChecked())
+
+    def _on_band_selected(self):
+        """Handle band selection in list."""
+        has_selection = len(self.band_list.selectedItems()) > 0
+        self.remove_band_btn.setEnabled(has_selection and self.multi_band_mode)
+
+    def _on_add_band(self):
+        """Add a new isotherm band."""
+        # Use current single-band settings as defaults
+        low = float(self.low_spinbox.value())
+        high = float(self.high_spinbox.value())
+
+        # Cycle through colors
+        colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255), (0, 255, 255)]
+        color = colors[len(self.band_manager.bands) % len(colors)]
+
+        band_id = self.band_manager.add_band(
+            label=f"Band {len(self.band_manager.bands) + 1}",
+            low_temp=low,
+            high_temp=high,
+            color=color,
+            mode='between'
+        )
+
+        self._update_band_list()
+        self.bands_changed.emit(self.band_manager)
+
+    def _on_remove_band(self):
+        """Remove selected band."""
+        selected_items = self.band_list.selectedItems()
+        if not selected_items:
+            return
+
+        item = selected_items[0]
+        band_id = item.data(Qt.ItemDataRole.UserRole)
+
+        if self.band_manager.remove_band(band_id):
+            self._update_band_list()
+            self.bands_changed.emit(self.band_manager)
+
+    def _update_band_list(self):
+        """Update the band list widget."""
+        self.band_list.clear()
+
+        for band in self.band_manager.get_all_bands():
+            # Format: "Band Name: 20°C - 30°C"
+            display_text = f"{band.label}: {band.low_temp:.1f}°C - {band.high_temp:.1f}°C"
+            item = QListWidgetItem(display_text)
+            item.setData(Qt.ItemDataRole.UserRole, band.band_id)
+
+            # Set item color based on band color
+            color = QColor(*band.color)
+            item.setForeground(color)
+
+            # Indicate if disabled
+            if not band.enabled:
+                display_text += " (disabled)"
+                item.setText(display_text)
+
+            self.band_list.addItem(item)
+
+    def _load_multiband_preset(self, preset_name: str):
+        """Load a multi-band preset."""
+        load_preset(self.band_manager, preset_name)
+        self._update_band_list()
+
+        # Enable multi-band mode if not already
+        if not self.multiband_cb.isChecked():
+            self.multiband_cb.setChecked(True)
+
+        self.bands_changed.emit(self.band_manager)
+
+    def get_band_manager(self) -> IsothermBandManager:
+        """Get the band manager instance."""
+        return self.band_manager
+
+    def is_multiband_mode(self) -> bool:
+        """Check if multi-band mode is active."""
+        return self.multi_band_mode

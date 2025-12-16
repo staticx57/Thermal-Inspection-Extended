@@ -19,6 +19,7 @@ from typing import List, Dict, Optional, Tuple, Callable
 from dataclasses import dataclass, field
 import logging
 import time
+import statistics  # Phase 2 - Feature 6: Multi-point Statistics
 try:
     import pyqtgraph as pg
     HAS_PYQTGRAPH = True
@@ -30,23 +31,39 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SpotMeterAlert:
-    """Alert configuration for a spot meter."""
+    """Alert configuration for a spot meter (Phase 2 - Feature 7: Enhanced)."""
     threshold: float
     type: str = 'above'  # 'above' or 'below'
     enabled: bool = True
     triggered: bool = False
-    
+    sound_enabled: bool = True  # Phase 2 - Feature 7: Sound alerts
+    flash_enabled: bool = True  # Phase 2 - Feature 7: Visual flashing
+    trigger_count: int = 0  # Phase 2 - Feature 7: How many times triggered
+    last_trigger_time: float = 0.0  # Phase 2 - Feature 7: Last trigger timestamp
+    trigger_history: List[float] = field(default_factory=list)  # Phase 2 - Feature 7: Trigger timestamps
+
     def check(self, value: float) -> bool:
         """Check if alert should trigger."""
         if not self.enabled:
             return False
-            
+
         is_triggered = False
         if self.type == 'above':
             is_triggered = value > self.threshold
         elif self.type == 'below':
             is_triggered = value < self.threshold
-            
+
+        # Track trigger state changes (Phase 2 - Feature 7)
+        if is_triggered and not self.triggered:
+            # Alert just triggered
+            self.trigger_count += 1
+            self.last_trigger_time = time.time()
+            self.trigger_history.append(self.last_trigger_time)
+            # Keep only last 100 triggers
+            if len(self.trigger_history) > 100:
+                self.trigger_history = self.trigger_history[-100:]
+
+        self.triggered = is_triggered
         return is_triggered
 
 
@@ -306,6 +323,7 @@ class SpotMeterPanel(QWidget):
     highlight_spot = pyqtSignal(str)          # Highlight spot on video
     preset_requested = pyqtSignal(str)        # Request to apply preset
     alert_triggered = pyqtSignal(str, str, float) # (spot_id, type, val)
+    comparison_changed = pyqtSignal(str, str, float)  # (spot1_id, spot2_id, delta) - Phase 1 Feature 3
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -418,7 +436,17 @@ class SpotMeterPanel(QWidget):
         self.stats_delta_label.setToolTip("Temperature difference between hottest and coldest spots")
         avg_delta_layout.addWidget(self.stats_delta_label)
         stats_layout.addLayout(avg_delta_layout)
-        
+
+        # Median/StdDev layout (Phase 2 - Feature 6: Multi-point Statistics)
+        median_stddev_layout = QHBoxLayout()
+        self.stats_median_label = QLabel("Median: --")
+        self.stats_median_label.setToolTip("Middle value when spots are ordered by temperature")
+        median_stddev_layout.addWidget(self.stats_median_label)
+        self.stats_stddev_label = QLabel("StdDev: --")
+        self.stats_stddev_label.setToolTip("Standard deviation of temperatures (measure of variation)")
+        median_stddev_layout.addWidget(self.stats_stddev_label)
+        stats_layout.addLayout(median_stddev_layout)
+
         layout.addWidget(stats_group)
         
         # Export buttons
@@ -460,6 +488,13 @@ class SpotMeterPanel(QWidget):
         self.compare_cb.setToolTip("Show delta between exactly 2 selected spots")
         self.compare_cb.toggled.connect(self._on_compare_toggled)
         adv_layout.addWidget(self.compare_cb)
+
+        # Cursor Temperature Readout (Phase 1 - Feature 1)
+        self.cursor_readout_cb = QCheckBox("Cursor Temperature Readout")
+        self.cursor_readout_cb.setToolTip("Show real-time temperature at cursor position with crosshair")
+        self.cursor_readout_cb.setChecked(False)
+        # Signal will be connected by parent GUI
+        adv_layout.addWidget(self.cursor_readout_cb)
 
         # History Graph Toggle
         self.show_graph_btn = QPushButton("Show History Graph")
@@ -669,6 +704,9 @@ class SpotMeterPanel(QWidget):
             
     def _on_compare_toggled(self, checked: bool):
         """Handle compare mode toggle."""
+        if not checked:
+            # Clear comparison visualization when disabled
+            self.comparison_changed.emit("", "", 0.0)
         self._update_statistics()
         
     def _update_statistics(self):
@@ -683,14 +721,16 @@ class SpotMeterPanel(QWidget):
                 spot2 = self.spots.get(id2)
                 
                 if spot1 and spot2 and spot1.temperature is not None and spot2.temperature is not None:
-                    delta = abs(spot1.temperature - spot2.temperature)
+                    delta = spot2.temperature - spot1.temperature  # Preserve sign for visualization
                     self.stats_delta_label.setText(f"Comp ({spot1.label[-4:]} vs {spot2.label[-4:]}): Δ{delta:.1f}{spot1.unit}")
-                    # Clear other stats to focus on comparison or keep them?
-                    # Let's keep them but maybe dim them? For now just show Comp.
+                    # Emit signal for overlay visualization (Phase 1 - Feature 3)
+                    self.comparison_changed.emit(id1, id2, delta)
                 else:
                     self.stats_delta_label.setText("Comp: --")
+                    self.comparison_changed.emit("", "", 0.0)  # Clear comparison
             else:
                  self.stats_delta_label.setText("Select 2 spots")
+                 self.comparison_changed.emit("", "", 0.0)  # Clear comparison
                  
             # Still show global min/max
         
@@ -706,15 +746,22 @@ class SpotMeterPanel(QWidget):
             min_temp = min(temps)
             max_temp = max(temps)
             avg_temp = sum(temps) / len(temps)
-            
+
+            # Phase 2 - Feature 6: Multi-point Statistics
+            # Calculate median and standard deviation
+            median_temp = statistics.median(temps)
+            stddev_temp = statistics.stdev(temps) if len(temps) > 1 else 0.0
+
             # Update labels (unless overridden by compare mode for delta)
             # Find unit (assume all same)
             unit = next(iter(self.spots.values())).unit if self.spots else "°C"
-            
+
             self.stats_min_label.setText(f"Min: {min_temp:.1f}{unit}")
             self.stats_max_label.setText(f"Max: {max_temp:.1f}{unit}")
             self.stats_avg_label.setText(f"Avg: {avg_temp:.1f}{unit}")
-            
+            self.stats_median_label.setText(f"Median: {median_temp:.1f}{unit}")
+            self.stats_stddev_label.setText(f"StdDev: {stddev_temp:.1f}{unit}")
+
             if not self.compare_cb.isChecked():
                 delta = max_temp - min_temp
                 self.stats_delta_label.setText(f"ΔT: {delta:.1f}{unit}")
@@ -722,6 +769,8 @@ class SpotMeterPanel(QWidget):
             self.stats_min_label.setText("Min: --")
             self.stats_max_label.setText("Max: --")
             self.stats_avg_label.setText("Avg: --")
+            self.stats_median_label.setText("Median: --")  # Phase 2 - Feature 6
+            self.stats_stddev_label.setText("StdDev: --")  # Phase 2 - Feature 6
             if not self.compare_cb.isChecked():
                 self.stats_delta_label.setText("ΔT: --")
                 
@@ -801,12 +850,23 @@ class SpotMeterPanel(QWidget):
             logger.info(f"Alert configured for {data.label}: {data.alert}")
                 
     def check_alerts(self, spot_id: str, temperature: float):
-        """Check alert for specific spot."""
+        """Check alert for specific spot (Phase 2 - Feature 7: Enhanced with sound/flash)."""
         data = self.spots.get(spot_id)
         if data and data.alert:
-             if data.alert.check(temperature):
-                 logger.warning(f"ALERT: {data.label} is {data.alert.type} {data.alert.threshold} (Val: {temperature})")
-                 self.alert_triggered.emit(spot_id, data.alert.type, temperature)
+            # Store previous trigger state to detect rising edge
+            was_triggered = data.alert.triggered
+
+            if data.alert.check(temperature):
+                logger.warning(f"ALERT: {data.label} is {data.alert.type} {data.alert.threshold} (Val: {temperature})")
+                self.alert_triggered.emit(spot_id, data.alert.type, temperature)
+
+                # Play sound on rising edge only (not continuously)
+                if not was_triggered and data.alert.sound_enabled:
+                    try:
+                        QApplication.beep()  # System beep
+                        logger.debug(f"Alert sound played for {data.label}")
+                    except Exception as e:
+                        logger.warning(f"Failed to play alert sound: {e}")
                 
     def _on_delete_clicked(self):
         """Delete selected spot meter(s)."""
@@ -1050,19 +1110,43 @@ class SpotMeterAlertDialog(QDialog):
         self.enabled_cb = QCheckBox("Enable Alert")
         self.enabled_cb.setChecked(current_alert.enabled if current_alert else True)
         layout.addWidget(self.enabled_cb)
-        
+
+        # Phase 2 - Feature 7: Enhanced Alert Options
+        options_group = QGroupBox("Alert Options")
+        options_layout = QVBoxLayout(options_group)
+
+        self.sound_cb = QCheckBox("🔊 Play Sound on Trigger")
+        self.sound_cb.setChecked(current_alert.sound_enabled if current_alert else True)
+        self.sound_cb.setToolTip("Play audible beep when alert triggers")
+        options_layout.addWidget(self.sound_cb)
+
+        self.flash_cb = QCheckBox("💡 Flash Visual Indicator")
+        self.flash_cb.setChecked(current_alert.flash_enabled if current_alert else True)
+        self.flash_cb.setToolTip("Flash spot meter color when alert is active")
+        options_layout.addWidget(self.flash_cb)
+
+        layout.addWidget(options_group)
+
+        # Alert Statistics (if available)
+        if current_alert and current_alert.trigger_count > 0:
+            stats_label = QLabel(f"📊 Triggered {current_alert.trigger_count} times")
+            stats_label.setStyleSheet("color: #888; font-size: 10px;")
+            layout.addWidget(stats_label)
+
         # Buttons
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         btns.accepted.connect(self._on_accept)
         btns.rejected.connect(self.reject)
         layout.addWidget(btns)
-        
+
     def _on_accept(self):
         alert_type = 'above' if self.above_radio.isChecked() else 'below'
         self.result_alert = SpotMeterAlert(
             threshold=self.thresh_spin.value(),
             type=alert_type,
-            enabled=self.enabled_cb.isChecked()
+            enabled=self.enabled_cb.isChecked(),
+            sound_enabled=self.sound_cb.isChecked(),  # Phase 2 - Feature 7
+            flash_enabled=self.flash_cb.isChecked()   # Phase 2 - Feature 7
         )
         self.accept()
             

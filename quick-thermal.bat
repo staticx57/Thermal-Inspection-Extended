@@ -1,0 +1,11 @@
+@echo off
+:: Quick Launch - Thermal Priority Mode (Radiometric)
+echo Starting Thermal Inspection Tool in Thermal Priority Mode...
+echo - Flirpy backend (16-bit radiometric)
+echo - Boson SDK enabled
+echo - Ironbow palette
+echo.
+
+python "%~dp0inspection_main.py" --thermal-backend flirpy --enable-boson-sdk --palette ironbow --auto-detect-cameras
+
+pause

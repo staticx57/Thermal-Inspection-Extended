@@ -10,7 +10,7 @@
   "ambient_threshold": 100,
   "ambient_hysteresis": 15,
   "theme_override": null,
-  "auto_retry_sensors": true,
+  "auto_retry_sensors": false,
   "thermal_retry_interval": 3,
   "rgb_retry_interval": 100,
   "yolo_model": "yolov8s.pt",
@@ -44,8 +44,8 @@
     640,
     512
   ],
-  "thermal_device_id": 2,
-  "rgb_device_id": 1,
+  "thermal_device_id": 1,
+  "rgb_device_id": 0,
   "_comment": "Thermal Inspection Fusion Tool v2.0 - Configuration File",
   "_version": "2.0.0",
   "_last_updated": "2025-11-21",
@@ -93,7 +93,7 @@
       "backend": "auto",
       "buffer_flush_enabled": false,
       "retry_interval": 3.0,
-      "auto_retry": true
+      "auto_retry": false
     },
     "rgb": {
       "enabled": true,

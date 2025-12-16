@@ -15,6 +15,10 @@ Features:
 Cross-platform: Windows, Linux, Jetson (with VPI acceleration)
 """
 
+# Global constants for PIP mode
+PIP_SIZE_RATIO = 0.2  # PIP inset is 20% of main frame width (1/5)
+PIP_MARGIN = 10  # Margin from edge in pixels
+
 import sys
 import time
 import logging
@@ -64,6 +68,7 @@ from thermal_analyzer import (
 from roi_manager import ROIManager, ROISource
 from roi_radiometric_analyzer import ROIRadiometricAnalyzer
 from palette_manager import PaletteManager, PaletteType
+from isotherm_bands import IsothermBandManager  # Phase 2 - Feature 8
 from media_recorder import VideoRecorder, VideoPlayer, SnapshotManager
 
 # Core modules (PRESERVED - Fusion is paramount!)
@@ -300,6 +305,8 @@ class ThermalInspectionFusion:
         self.roi_manager: Optional[ROIManager] = None
         self.roi_radiometric_analyzer: Optional[ROIRadiometricAnalyzer] = None
         self.palette_manager: Optional[PaletteManager] = None
+        self.isotherm_band_manager: Optional[IsothermBandManager] = None  # Phase 2 - Feature 8
+        self.isotherm_multiband_mode = False  # Phase 2 - Feature 8
 
         # 8-Bit Temperature Estimator (works on ALL Bosons with SDK)
         self.temp_estimator: Optional[ThermalTemperatureEstimator] = None
@@ -1332,28 +1339,35 @@ class ThermalInspectionFusion:
             logger.error(f"Failed to set ROI palette: {e}")
 
     def _apply_isotherm_overlay(self, thermal_frame: np.ndarray, colorized_frame: np.ndarray) -> np.ndarray:
-        """Apply isotherm temperature highlighting overlay.
-        
+        """Apply isotherm temperature highlighting overlay (Phase 2 - Feature 8: Multi-band support).
+
         Args:
             thermal_frame: Grayscale thermal frame (raw values or temperature)
             colorized_frame: Colorized thermal frame to overlay on
-            
+
         Returns:
             Frame with isotherm regions highlighted
         """
         try:
-            mode = getattr(self, 'isotherm_mode', 'above')
-            low = getattr(self, 'isotherm_low_threshold', 10)
-            high = getattr(self, 'isotherm_high_threshold', 50)
-            color = getattr(self, 'isotherm_color_bgr', (0, 0, 255))  # Default red
-            
             # Prepare frame for thresholding (convert to Celsius if 16-bit)
             proc_frame = thermal_frame
             if thermal_frame.dtype == np.uint16:
                 # Convert Kelvin (centi-Kelvin) to Celsius
                 # Standard T-Linear: (K*100 - 27315) / 100
                 proc_frame = (thermal_frame.astype(float) - 27315.0) / 100.0
-            
+
+            # Phase 2 - Feature 8: Multi-band mode
+            if self.isotherm_multiband_mode and self.isotherm_band_manager:
+                # Use multi-band isotherm system
+                result = self.isotherm_band_manager.apply_bands_to_frame(colorized_frame, proc_frame)
+                return result
+
+            # Single-band mode (original behavior)
+            mode = getattr(self, 'isotherm_mode', 'above')
+            low = getattr(self, 'isotherm_low_threshold', 10)
+            high = getattr(self, 'isotherm_high_threshold', 50)
+            color = getattr(self, 'isotherm_color_bgr', (0, 0, 255))  # Default red
+
             # Create mask based on mode
             if mode == 'above':
                 mask = proc_frame > high
@@ -1387,15 +1401,15 @@ class ThermalInspectionFusion:
                 # Create colored overlay
                 overlay = np.zeros_like(colorized_frame)
                 overlay[mask] = color
-                
+
                 # Blend with original (50% opacity)
                 alpha = 0.5
                 result = cv2.addWeighted(colorized_frame, 1 - alpha, overlay, alpha, 0)
                 # Restore non-masked areas
                 result[~mask] = colorized_frame[~mask]
-            
+
             return result
-            
+
         except Exception as e:
             logger.debug(f"Isotherm overlay error: {e}")
             return colorized_frame
@@ -1447,6 +1461,12 @@ class ThermalInspectionFusion:
                 thermal_frame, self.roi_manager
             )
             t_prof['after_palette'] = time.time()
+
+            # Update colorbar palette (Phase 1 - Feature 2)
+            if self.gui and hasattr(self.gui, 'video_widget'):
+                if hasattr(self.gui.video_widget, 'overlay'):
+                    palette_lut = self.palette_manager.get_current_palette_lut()
+                    self.gui.video_widget.overlay.update_colorbar_palette(palette_lut)
 
             # 2b. Apply temperature overlay if radiometric is enabled
             if self.thermal_camera and self.thermal_camera.is_radiometric_enabled():
@@ -1535,6 +1555,16 @@ class ThermalInspectionFusion:
                             # Hot/cold spots will now show temperatures in °C
 
                 result['thermal_stats'] = self.thermal_analyzer.analyze_frame(analysis_frame)
+
+                # Update colorbar temperature range (Phase 1 - Feature 2)
+                if self.gui and hasattr(self.gui, 'video_widget'):
+                    if hasattr(self.gui.video_widget, 'overlay'):
+                        stats = result.get('thermal_stats')
+                        if stats:
+                            temp_min = stats.min_temp
+                            temp_max = stats.max_temp
+                            unit = "°C"  # Default unit
+                            self.gui.video_widget.overlay.update_colorbar_range(temp_min, temp_max, unit)
 
             rois = self.roi_manager.get_all_rois(active_only=True)
             result['rois'] = rois
@@ -1819,6 +1849,11 @@ class ThermalInspectionFusion:
                         # Send updates to GUI
                         self.gui.update_spot_meter_values(spot_values)
 
+                        # Cache temperature map for cursor readout (Phase 1 - Feature 1)
+                        if self.gui and hasattr(self.gui, 'video_widget'):
+                            if hasattr(self.gui.video_widget, 'overlay'):
+                                self.gui.video_widget.overlay.set_temp_map(temp_map_for_spots)
+
             # 6. Create fused frame if RGB available
             t_prof['before_fusion'] = time.time()
             if rgb_frame is not None and self.fusion_processor:
@@ -1866,19 +1901,33 @@ class ThermalInspectionFusion:
                 else:
                     display_frame = thermal_colorized.copy()
             elif self.view_mode == ViewMode.PICTURE_IN_PICTURE:
-                # Show RGB with thermal PiP in corner
-                if rgb_frame is not None:
-                    display_frame = rgb_frame.copy()
-                    # Create small thermal PiP (20% of width)
-                    pip_width = rgb_frame.shape[1] // 5
-                    pip_height = int(pip_width * thermal_colorized.shape[0] / thermal_colorized.shape[1])
-                    thermal_pip = cv2.resize(thermal_colorized, (pip_width, pip_height))
-                    # Place in top-right corner with 10px margin
-                    y_offset = 10
-                    x_offset = rgb_frame.shape[1] - pip_width - 10
-                    display_frame[y_offset:y_offset+pip_height, x_offset:x_offset+pip_width] = thermal_pip
-                else:
+                # PIP mode - fusion_priority determines which is main vs inset
+                if self.fusion_priority == 'thermal':
+                    # Thermal is main, RGB is PiP inset
                     display_frame = thermal_colorized.copy()
+                    if rgb_frame is not None:
+                        # Create small RGB PiP using global constants
+                        pip_width = int(thermal_colorized.shape[1] * PIP_SIZE_RATIO)
+                        pip_height = int(pip_width * rgb_frame.shape[0] / rgb_frame.shape[1])
+                        rgb_pip = cv2.resize(rgb_frame, (pip_width, pip_height))
+                        # Place in top-right corner with margin
+                        y_offset = PIP_MARGIN
+                        x_offset = thermal_colorized.shape[1] - pip_width - PIP_MARGIN
+                        display_frame[y_offset:y_offset+pip_height, x_offset:x_offset+pip_width] = rgb_pip
+                else:
+                    # RGB is main, thermal is PiP inset (default/original behavior)
+                    if rgb_frame is not None:
+                        display_frame = rgb_frame.copy()
+                        # Create small thermal PiP using global constants
+                        pip_width = int(rgb_frame.shape[1] * PIP_SIZE_RATIO)
+                        pip_height = int(pip_width * thermal_colorized.shape[0] / thermal_colorized.shape[1])
+                        thermal_pip = cv2.resize(thermal_colorized, (pip_width, pip_height))
+                        # Place in top-right corner with margin
+                        y_offset = PIP_MARGIN
+                        x_offset = rgb_frame.shape[1] - pip_width - PIP_MARGIN
+                        display_frame[y_offset:y_offset+pip_height, x_offset:x_offset+pip_width] = thermal_pip
+                    else:
+                        display_frame = thermal_colorized.copy()
             else:
                 # Default: fusion
                 display_frame = result['fused_frame'].copy()
@@ -1984,6 +2033,29 @@ class ThermalInspectionFusion:
                 except Exception as res_e:
                     logger.warning(f"Failed to propagate thermal resolution: {res_e}")
 
+            # 5. Initialize overlay view mode with current fusion mode and priority
+            # This ensures anomaly detectors and other overlays use correct coordinate transformations
+            if hasattr(self.gui, 'video_widget') and hasattr(self.gui.video_widget, 'overlay'):
+                try:
+                    # Map ViewMode enum to overlay-expected strings
+                    overlay_mode_map = {
+                        ViewMode.THERMAL_ONLY: "thermal",
+                        ViewMode.RGB_ONLY: "rgb",
+                        ViewMode.FUSION: "fusion",
+                        ViewMode.SIDE_BY_SIDE: "side_by_side",
+                        ViewMode.PICTURE_IN_PICTURE: "picture_in_picture"
+                    }
+                    overlay_mode = overlay_mode_map.get(self.view_mode, "thermal")
+
+                    self.gui.video_widget.overlay.set_view_mode(
+                        overlay_mode,
+                        fusion_priority=getattr(self, 'fusion_priority', 'thermal'),
+                        pip_size=PIP_SIZE_RATIO
+                    )
+                    logger.info(f"[DEFERRED] Overlay view mode initialized: {overlay_mode}, priority={self.fusion_priority}")
+                except Exception as view_e:
+                    logger.warning(f"Failed to initialize overlay view mode: {view_e}")
+
         except Exception as e:
             logger.error(f"Error during deferred GUI initialization: {e}", exc_info=True)
 
@@ -2033,7 +2105,11 @@ class ThermalInspectionFusion:
 
                 # 1. Poll for thermal camera if not connected (hot-plug support)
                 # Wait for thermal camera (hot-plug support)
-                if not self.thermal_connected:
+                # Check auto_retry_sensors config setting before scanning
+                cfg = get_config()
+                auto_retry_enabled = cfg.get('auto_retry_sensors', True)
+
+                if not self.thermal_connected and auto_retry_enabled:
                     current_time = time.time()
                     if current_time - self.last_thermal_scan_time > self.thermal_scan_interval:
                         self.last_thermal_scan_time = current_time
@@ -2512,7 +2588,7 @@ class ThermalInspectionFusion:
             self.gui.video_widget.overlay.set_view_mode(
                 self.fusion_mode,
                 fusion_priority=getattr(self, 'fusion_priority', 'rgb'),
-                pip_size=0.25
+                pip_size=PIP_SIZE_RATIO
             )
         
         logger.info(f"Fusion mode set to: {self.fusion_mode}")
@@ -2545,7 +2621,7 @@ class ThermalInspectionFusion:
             self.gui.video_widget.overlay.set_view_mode(
                 overlay_mode,
                 fusion_priority=self.fusion_priority,
-                pip_size=0.25
+                pip_size=PIP_SIZE_RATIO
             )
 
         logger.info(f"Fusion priority set to: {self.fusion_priority}")
@@ -2657,7 +2733,7 @@ class ThermalInspectionFusion:
                 self.gui.video_widget.overlay.set_view_mode(
                     overlay_mode,
                     fusion_priority=getattr(self, 'fusion_priority', 'rgb'),
-                    pip_size=0.25
+                    pip_size=PIP_SIZE_RATIO
                 )
 
             logger.info(f"View mode set to: {self.view_mode}")
@@ -2686,7 +2762,7 @@ class ThermalInspectionFusion:
                 self.gui.video_widget.overlay.set_view_mode(
                     overlay_mode,
                     fusion_priority=getattr(self, 'fusion_priority', 'rgb'),
-                    pip_size=0.25
+                    pip_size=PIP_SIZE_RATIO
                 )
 
             if self.gui and hasattr(self.gui, 'control_panel'):
@@ -2982,6 +3058,25 @@ class ThermalInspectionFusion:
         self.isotherm_color_name = color
         self.isotherm_color_bgr = color_map.get(color.lower(), (0, 0, 255))
         logger.info(f"Isotherm color: {color}")
+
+    # Phase 2 - Feature 8: Multi-band isotherm methods
+    def set_isotherm_band_manager(self, band_manager: IsothermBandManager):
+        """Set the isotherm band manager for multi-band mode.
+
+        Args:
+            band_manager: IsothermBandManager instance
+        """
+        self.isotherm_band_manager = band_manager
+        logger.info(f"Isotherm band manager set with {len(band_manager.bands)} bands")
+
+    def set_isotherm_multiband_mode(self, enabled: bool):
+        """Enable or disable multi-band isotherm mode.
+
+        Args:
+            enabled: True to use multi-band mode, False for single-band mode
+        """
+        self.isotherm_multiband_mode = enabled
+        logger.info(f"Isotherm multi-band mode: {enabled}")
 
     def cycle_fusion_mode(self):
         """Cycle fusion mode."""

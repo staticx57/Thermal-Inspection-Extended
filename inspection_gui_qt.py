@@ -9,6 +9,7 @@ import numpy as np
 from typing import List, Optional, Dict, Tuple
 import logging
 from pathlib import Path
+import time  # Phase 2 - Feature 7: Alert flashing
 
 try:
     from PyQt6.QtWidgets import (QMainWindow, QWidget, QLabel, QPushButton, QDialog,
@@ -34,6 +35,8 @@ from radiometric_panel import RadiometricPanel
 from parallax_panel import ParallaxPanel
 from fusion_panel import FusionPanel
 from spot_meter_panel import SpotMeterPanel, SpotMeterData, SpotMeterPresets
+from colorbar_widget import ColorbarWidget
+from grid_overlay_panel import GridOverlayPanel
 
 
 logger = logging.getLogger(__name__)
@@ -945,6 +948,30 @@ class InspectionOverlayWidget(QWidget):
         self.pip_rect = None  # Will be set when PIP mode is active (allocated space)
         self.pip_thermal_rect = None  # Actual thermal rendering rect within pip_rect (aspect-ratio corrected)
 
+        # Cursor temperature readout (Feature 1 - Phase 1)
+        self.cursor_enabled = False
+        self.cursor_x = 0  # Frame coordinates
+        self.cursor_y = 0
+        self.cursor_temp = None  # Temperature value
+        self.temp_map = None  # Cached temperature map from inspection_main
+
+        # Colorbar/Legend (Feature 2 - Phase 1)
+        self.colorbar = ColorbarWidget(self)
+        self.colorbar.set_enabled(True)  # Enabled by default
+        self.colorbar.set_position("right")
+        # Position will be updated in resizeEvent
+
+        # Spot Meter Difference Mode (Feature 3 - Phase 1)
+        self.comparison_spot1_id = None
+        self.comparison_spot2_id = None
+        self.comparison_delta = 0.0
+
+        # Grid Overlay (Feature 4 - Phase 1)
+        self.grid_enabled = False
+        self.grid_spacing_x = 50
+        self.grid_spacing_y = 50
+        self.grid_color = QColor(255, 255, 255, 128)  # Semi-transparent white
+
     def set_view_mode(self, mode: str, fusion_priority: str = 'rgb', pip_size: float = 0.25):
         """
         Set current view mode for proper detection overlay handling.
@@ -959,8 +986,9 @@ class InspectionOverlayWidget(QWidget):
         self.fusion_priority = fusion_priority
         
         # Calculate PIP rectangle if in picture_in_picture mode
-        # NOTE: Thermal is ALWAYS inset (top-right), regardless of fusion_priority
-        # Priority doesn't actually swap the layout, only affects internal blending
+        # fusion_priority determines which frame is main vs inset:
+        # - fusion_priority='rgb': RGB is main, thermal is inset (in top-right)
+        # - fusion_priority='thermal': Thermal is main, RGB is inset (in top-right)
         if mode == 'picture_in_picture':
             frame_w, frame_h = self.frame_size
             margin = 10
@@ -1004,6 +1032,17 @@ class InspectionOverlayWidget(QWidget):
         """Set thermal sensor resolution for coordinate scaling."""
         self.thermal_resolution = (w, h)
         # logger.debug(f"Overlay thermal resolution set to: {w}x{h}") # Assuming logger is defined
+
+    def set_temp_map(self, temp_map):
+        """Set cached temperature map for cursor readout."""
+        self.temp_map = temp_map
+
+    def set_cursor_enabled(self, enabled: bool):
+        """Enable or disable cursor temperature readout."""
+        self.cursor_enabled = enabled
+        if enabled:
+            self.setMouseTracking(True)  # Enable mouse move events
+        self.update()
 
     def _should_draw_thermal_overlays(self) -> bool:
         """Check if thermal-based overlays should be drawn in current view mode."""
@@ -1089,56 +1128,67 @@ class InspectionOverlayWidget(QWidget):
             return self.frame_to_widget(frame_x, frame_y)
 
         elif self.pip_rect is not None:
-            # PIP Mode (Bug #24 fix - thermal overlay center offset)
-            # NOTE: fusion_priority SHOULD determine main vs inset but doesn't due to bug.
-            # Thermal is ALWAYS the inset (top-right)
-            
-            # Use pre-calculated pip_thermal_rect if available (aspect-ratio corrected)
-            # Otherwise fallback to calculating it (shouldn't happen in normal operation)
-            if hasattr(self, 'pip_thermal_rect') and self.pip_thermal_rect is not None:
-                pip_x, pip_y, pip_w, pip_h = self.pip_thermal_rect
-                # pip_thermal_rect is already aspect-ratio corrected, no need to recalculate
-                scale_x = pip_w / tw
-                scale_y = pip_h / th
-                offset_x = 0
-                offset_y = 0
+            # PIP Mode - fusion_priority determines which frame is main vs inset
+            # - fusion_priority='rgb': RGB is main, thermal is inset (transform to PIP box)
+            # - fusion_priority='thermal': Thermal is main, RGB is inset (use full frame transform)
+
+            if self.fusion_priority == 'thermal':
+                # Thermal is the main view (full frame), use normal transformation
+                scale_x = fw / tw
+                scale_y = fh / th
+
+                frame_x = x * scale_x
+                frame_y = y * scale_y
+
+                return self.frame_to_widget(frame_x, frame_y)
             else:
-                # Fallback: calculate aspect ratio on the fly
-                pip_x, pip_y, pip_allocated_w, pip_allocated_h = self.pip_rect
-                pip_w, pip_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(
-                    tw, th, pip_allocated_w, pip_allocated_h
-                )
-                pip_x += offset_x
-                pip_y += offset_y
-                scale_x = pip_w / tw
-                scale_y = pip_h / th
-                offset_x = 0
-                offset_y = 0
+                # RGB is main, thermal is inset (original PIP behavior)
+                # Use pre-calculated pip_thermal_rect if available (aspect-ratio corrected)
+                # Otherwise fallback to calculating it (shouldn't happen in normal operation)
+                if hasattr(self, 'pip_thermal_rect') and self.pip_thermal_rect is not None:
+                    pip_x, pip_y, pip_w, pip_h = self.pip_thermal_rect
+                    # pip_thermal_rect is already aspect-ratio corrected, no need to recalculate
+                    scale_x = pip_w / tw
+                    scale_y = pip_h / th
+                    offset_x = 0
+                    offset_y = 0
+                else:
+                    # Fallback: calculate aspect ratio on the fly
+                    pip_x, pip_y, pip_allocated_w, pip_allocated_h = self.pip_rect
+                    pip_w, pip_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(
+                        tw, th, pip_allocated_w, pip_allocated_h
+                    )
+                    pip_x += offset_x
+                    pip_y += offset_y
+                    scale_x = pip_w / tw
+                    scale_y = pip_h / th
+                    offset_x = 0
+                    offset_y = 0
 
-            # Transform: thermal coords → displayed position within PIP thermal rect  
-            frame_x = pip_x + (x * scale_x)
-            frame_y = pip_y + (y * scale_y)
+                # Transform: thermal coords → displayed position within PIP thermal rect
+                frame_x = pip_x + (x * scale_x)
+                frame_y = pip_y + (y * scale_y)
 
-            # CRITICAL: In PIP mode, coordinates are ALREADY in frame space at correct scale
-            # pip_thermal_rect is calculated in frame coordinates, so we need to apply
-            # frame_to_widget to convert to widget coordinates
-            # BUT we need to verify the frame coordinates are correct first
-            
-            # Debug logging (log points near center to diagnose offset issues)
-            if 200 <= x <= 450 and 150 <= y <= 350:
-                logger.info(f"[OVERLAY] PIP transform: input=({x:.1f},{y:.1f}), priority={self.fusion_priority}, tw={tw},th={th}, fw={fw},fh={fh}")
-                logger.info(f"[OVERLAY]   pip_thermal_rect={self.pip_thermal_rect if hasattr(self, 'pip_thermal_rect') else 'N/A'}")
-                logger.info(f"[OVERLAY]   scale=({scale_x:.3f},{scale_y:.3f}), frame=({frame_x:.1f},{frame_y:.1f}) BEFORE frame_to_widget")
-                logger.info(f"[OVERLAY]   frame_size={self.frame_size}, widget scale={self.scale:.3f}, offset=({self.offset_x},{self.offset_y})")
+                # CRITICAL: In PIP mode, coordinates are ALREADY in frame space at correct scale
+                # pip_thermal_rect is calculated in frame coordinates, so we need to apply
+                # frame_to_widget to convert to widget coordinates
+                # BUT we need to verify the frame coordinates are correct first
 
-            # Apply frame_to_widget transformation
-            widget_coords = self.frame_to_widget(frame_x, frame_y)
-            
-            # Debug AFTER frame_to_widget
-            if 200 <= x <= 450 and 150 <= y <= 350:
-                logger.info(f"[OVERLAY]   widget_coords AFTER frame_to_widget = {widget_coords}")
-            
-            return widget_coords
+                # Debug logging (log points near center to diagnose offset issues)
+                if 200 <= x <= 450 and 150 <= y <= 350:
+                    logger.info(f"[OVERLAY] PIP transform: input=({x:.1f},{y:.1f}), priority={self.fusion_priority}, tw={tw},th={th}, fw={fw},fh={fh}")
+                    logger.info(f"[OVERLAY]   pip_thermal_rect={self.pip_thermal_rect if hasattr(self, 'pip_thermal_rect') else 'N/A'}")
+                    logger.info(f"[OVERLAY]   scale=({scale_x:.3f},{scale_y:.3f}), frame=({frame_x:.1f},{frame_y:.1f}) BEFORE frame_to_widget")
+                    logger.info(f"[OVERLAY]   frame_size={self.frame_size}, widget scale={self.scale:.3f}, offset=({self.offset_x},{self.offset_y})")
+
+                # Apply frame_to_widget transformation
+                widget_coords = self.frame_to_widget(frame_x, frame_y)
+
+                # Debug AFTER frame_to_widget
+                if 200 <= x <= 450 and 150 <= y <= 350:
+                    logger.info(f"[OVERLAY]   widget_coords AFTER frame_to_widget = {widget_coords}")
+
+                return widget_coords
             
         else:
             # Normal / Fusion / Thermal Only
@@ -1355,6 +1405,103 @@ class InspectionOverlayWidget(QWidget):
         frame_y = int((y - self.offset_y) / self.scale)
         return (frame_x, frame_y)
 
+    def mouseMoveEvent(self, event):
+        """Handle mouse move for cursor temperature readout."""
+        super().mouseMoveEvent(event)
+
+        # DEBUG: Log cursor state (first time only)
+        if not hasattr(self, '_cursor_debug_logged'):
+            logger.info(f"[CURSOR DEBUG] cursor_enabled={self.cursor_enabled}, temp_map={'None' if self.temp_map is None else f'{self.temp_map.shape}'}, view_mode={self.current_view_mode}")
+            self._cursor_debug_logged = True
+
+        # Only track if cursor readout is enabled and we have a temp map
+        if not self.cursor_enabled:
+            return
+
+        if self.temp_map is None:
+            return
+
+        if not self._should_draw_thermal_overlays():
+            return
+
+        # Get widget coordinates
+        wx, wy = event.pos().x(), event.pos().y()
+
+        # Convert to frame coordinates
+        fx, fy = self.widget_to_frame(wx, wy)
+
+        # Convert frame coords to thermal coords (handle view modes)
+        thermal_x, thermal_y = fx, fy
+        valid_coords = True
+
+        if self.current_view_mode == 'side_by_side':
+            fw, fh = self.frame_size
+            tw, th = self.thermal_resolution if self.thermal_resolution else (640, 514)
+            allocated_w = fw / 2
+            allocated_h = fh
+            actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(tw, th, allocated_w, allocated_h)
+
+            if self.fusion_priority == 'thermal':
+                thermal_start = 0
+                thermal_in_region = (fx < allocated_w)
+            else:
+                thermal_start = allocated_w
+                thermal_in_region = (fx >= allocated_w)
+
+            if thermal_in_region:
+                scale_x = actual_w / tw
+                scale_y = actual_h / th
+                base_offset_x = thermal_start + offset_x
+                thermal_x = (fx - base_offset_x) / scale_x
+                thermal_y = (fy - offset_y) / scale_y
+                thermal_x = max(0, min(tw - 1, thermal_x))
+                thermal_y = max(0, min(th - 1, thermal_y))
+            else:
+                valid_coords = False
+
+        elif self.pip_rect is not None:
+            tw, th = self.thermal_resolution if self.thermal_resolution else (640, 514)
+
+            if hasattr(self, 'pip_thermal_rect') and self.pip_thermal_rect is not None:
+                pip_x, pip_y, pip_w, pip_h = self.pip_thermal_rect
+            else:
+                pip_x, pip_y, pip_allocated_w, pip_allocated_h = self.pip_rect
+                actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(tw, th, pip_allocated_w, pip_allocated_h)
+                pip_x += offset_x
+                pip_y += offset_y
+                pip_w = actual_w
+                pip_h = actual_h
+
+            if (pip_x <= fx <= pip_x + pip_w) and (pip_y <= fy <= pip_y + pip_h):
+                scale_x = pip_w / tw
+                scale_y = pip_h / th
+                thermal_x = (fx - pip_x) / scale_x
+                thermal_y = (fy - pip_y) / scale_y
+                thermal_x = max(0, min(tw - 1, thermal_x))
+                thermal_y = max(0, min(th - 1, thermal_y))
+            else:
+                valid_coords = False
+
+        # Get temperature from temp map
+        if valid_coords and self.temp_map is not None:
+            h, w = self.temp_map.shape
+            tx = int(thermal_x)
+            ty = int(thermal_y)
+
+            if 0 <= tx < w and 0 <= ty < h:
+                self.cursor_x = thermal_x
+                self.cursor_y = thermal_y
+                self.cursor_temp = self.temp_map[ty, tx]
+                # DEBUG: Log successful capture (first time only)
+                if not hasattr(self, '_cursor_capture_logged'):
+                    logger.info(f"[CURSOR DEBUG] Captured temp={self.cursor_temp:.2f} at ({tx},{ty})")
+                    self._cursor_capture_logged = True
+                self.update()  # Trigger repaint
+            else:
+                self.cursor_temp = None
+        else:
+            self.cursor_temp = None
+
     def set_selected_roi(self, roi_id: Optional[str]):
         """Highlight a specific ROI."""
         self.selected_roi_id = roi_id
@@ -1443,13 +1590,41 @@ class InspectionOverlayWidget(QWidget):
             # Add padding
             rect.adjust(-2, -2, 2, 2)
             rect.moveTo(x, y - rect.height() + 2)
-            
+
             painter.setBrush(QColor(0, 0, 0, 160))  # Semi-transparent black
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRect(rect)
-            
+
             painter.setPen(QPen(color, 1))
             painter.drawText(x, y, text)
+
+        # Draw grid overlay (Phase 1 - Feature 4) - FIRST layer, only if thermal visible
+        if self.grid_enabled and self._should_draw_thermal_overlays():
+            painter.setPen(QPen(self.grid_color, 1, Qt.PenStyle.DashLine))
+
+            # Get thermal resolution for grid bounds
+            if hasattr(self, 'thermal_resolution') and self.thermal_resolution:
+                tw, th = self.thermal_resolution
+            else:
+                # Fallback to frame dimensions
+                tw = self.frame_width
+                th = self.frame_height
+
+            # Draw vertical lines
+            x = 0
+            while x <= tw:
+                wx1, wy1 = self._transform_thermal_coords(x, 0)
+                wx2, wy2 = self._transform_thermal_coords(x, th)
+                painter.drawLine(int(wx1), int(wy1), int(wx2), int(wy2))
+                x += self.grid_spacing_x
+
+            # Draw horizontal lines
+            y = 0
+            while y <= th:
+                wx1, wy1 = self._transform_thermal_coords(0, y)
+                wx2, wy2 = self._transform_thermal_coords(tw, y)
+                painter.drawLine(int(wx1), int(wy1), int(wx2), int(wy2))
+                y += self.grid_spacing_y
 
         # Draw ROIs
         for roi in self.rois:
@@ -1577,8 +1752,24 @@ class InspectionOverlayWidget(QWidget):
                     logger.info(f"[SPOT DEBUG] pip_rect={self.pip_rect}, pip_thermal_rect={self.pip_thermal_rect}")
                     logger.info(f"[SPOT DEBUG] view_mode={self.current_view_mode}, thermal_res={self.thermal_resolution}")
 
+                # Phase 2 - Feature 7: Check for alert flashing
+                should_flash = False
+                if hasattr(self, 'analysis_panel') and hasattr(self.analysis_panel, 'spot_meter_panel'):
+                    # Look up spot data by point_id
+                    spot_data = self.analysis_panel.spot_meter_panel.get_spot(point.point_id)
+                    if spot_data and spot_data.alert:
+                        if spot_data.alert.triggered and spot_data.alert.flash_enabled:
+                            should_flash = True
+
                 # Draw point marker (circle with cross)
                 r, g, b = point.color
+
+                # Apply flashing effect if alert is triggered (flash every 0.5 seconds)
+                if should_flash:
+                    flash_on = int(time.time() * 2) % 2 == 0  # Toggle every 0.5 seconds
+                    if flash_on:
+                        r, g, b = 255, 0, 0  # Flash red
+
                 point_color = QColor(r, g, b)
                 painter.setPen(QPen(point_color, 2))
                 painter.setBrush(QColor(r, g, b, 100))  # Semi-transparent fill
@@ -1593,6 +1784,59 @@ class InspectionOverlayWidget(QWidget):
                 else:
                     label_text = f"{point.label}: --"
                 draw_label(int(wx) + 12, int(wy) + 5, label_text, point_color)
+
+        # Draw spot meter comparison line (Phase 1 - Feature 3)
+        if self.comparison_spot1_id and self.comparison_spot2_id and self._should_draw_thermal_overlays():
+            # Find the two spots being compared
+            spot1 = None
+            spot2 = None
+            for point in self.measurement_points:
+                # Match by position since spot IDs contain coordinates
+                if self.comparison_spot1_id in str(point.label) or f"_{int(point.x)}_{int(point.y)}" in self.comparison_spot1_id:
+                    spot1 = point
+                if self.comparison_spot2_id in str(point.label) or f"_{int(point.x)}_{int(point.y)}" in self.comparison_spot2_id:
+                    spot2 = point
+
+            if spot1 and spot2:
+                # Transform spot coordinates to widget coordinates
+                wx1, wy1 = self._transform_thermal_coords(spot1.x, spot1.y)
+                wx2, wy2 = self._transform_thermal_coords(spot2.x, spot2.y)
+
+                # Draw dashed line connecting the spots
+                painter.setPen(QPen(QColor(255, 255, 0), 2, Qt.PenStyle.DashLine))
+                painter.drawLine(int(wx1), int(wy1), int(wx2), int(wy2))
+
+                # Draw delta label at midpoint
+                mid_x = (wx1 + wx2) / 2
+                mid_y = (wy1 + wy2) / 2
+
+                # Format delta with sign
+                delta_sign = "+" if self.comparison_delta >= 0 else ""
+                delta_text = f"Δ{delta_sign}{self.comparison_delta:.1f}°C"
+
+                # Draw label with background
+                draw_label(int(mid_x), int(mid_y), delta_text, QColor(255, 255, 0))
+
+        # Draw cursor temperature readout (topmost layer)
+        if self.cursor_enabled and self.cursor_temp is not None and self._should_draw_thermal_overlays():
+            # DEBUG: Log drawing (first time only)
+            if not hasattr(self, '_cursor_draw_logged'):
+                logger.info(f"[CURSOR DEBUG] Drawing cursor at ({self.cursor_x:.1f},{self.cursor_y:.1f}) temp={self.cursor_temp:.2f}")
+                self._cursor_draw_logged = True
+
+            # Transform thermal coordinates to widget coordinates
+            wx, wy = self._transform_thermal_coords(self.cursor_x, self.cursor_y)
+
+            # Draw crosshair (yellow dashed lines)
+            painter.setPen(QPen(QColor(255, 255, 0), 1, Qt.PenStyle.DashLine))
+            cross_size = 20
+            painter.drawLine(int(wx) - cross_size, int(wy), int(wx) + cross_size, int(wy))
+            painter.drawLine(int(wx), int(wy) - cross_size, int(wx), int(wy) + cross_size)
+
+            # Draw temperature label with formatted temperature
+            temp_display, unit = self._format_temperature_with_unit(self.cursor_temp, 'C')
+            label_text = f"{temp_display}{unit}"
+            draw_label(int(wx) + 25, int(wy) - 10, label_text, QColor(255, 255, 0))
 
         # DEBUG: Draw thermal center crosshair for calibration (DISABLED)
         # if self._should_draw_thermal_overlays() and self.thermal_resolution:
@@ -2090,6 +2334,61 @@ class InspectionOverlayWidget(QWidget):
         self.selected_roi_id = None
         self.update()
 
+    def resizeEvent(self, event):
+        """Handle resize to reposition colorbar."""
+        super().resizeEvent(event)
+        self._position_colorbar()
+
+    def _position_colorbar(self):
+        """Position the colorbar widget in the top-right corner."""
+        if hasattr(self, 'colorbar') and self.colorbar:
+            # Position in top-right corner with margin
+            margin = 10
+            x = self.width() - self.colorbar.width() - margin
+            y = margin
+            self.colorbar.move(x, y)
+            self.colorbar.raise_()  # Ensure colorbar is on top
+
+    def update_colorbar_palette(self, palette_lut):
+        """Update colorbar with new palette LUT."""
+        if hasattr(self, 'colorbar') and self.colorbar:
+            self.colorbar.set_palette_lut(palette_lut)
+
+    def update_colorbar_range(self, temp_min: float, temp_max: float, unit: str = "°C"):
+        """Update colorbar temperature range."""
+        if hasattr(self, 'colorbar') and self.colorbar:
+            self.colorbar.set_temperature_range(temp_min, temp_max, unit)
+
+    def set_colorbar_enabled(self, enabled: bool):
+        """Enable or disable colorbar display."""
+        if hasattr(self, 'colorbar') and self.colorbar:
+            self.colorbar.set_enabled(enabled)
+
+    def set_comparison(self, spot1_id: str, spot2_id: str, delta: float):
+        """Set spot meter comparison data for visualization (Phase 1 - Feature 3)."""
+        self.comparison_spot1_id = spot1_id if spot1_id else None
+        self.comparison_spot2_id = spot2_id if spot2_id else None
+        self.comparison_delta = delta
+        self.update()  # Trigger repaint
+
+    def set_grid_enabled(self, enabled: bool):
+        """Enable or disable grid overlay (Phase 1 - Feature 4)."""
+        self.grid_enabled = enabled
+        self.update()
+
+    def set_grid_spacing(self, x: int, y: int):
+        """Set grid spacing (Phase 1 - Feature 4)."""
+        self.grid_spacing_x = x
+        self.grid_spacing_y = y
+        if self.grid_enabled:
+            self.update()
+
+    def set_grid_color(self, color: QColor):
+        """Set grid color (Phase 1 - Feature 4)."""
+        self.grid_color = color
+        if self.grid_enabled:
+            self.update()
+
 class VideoWidget(QLabel):
     """
     High-performance video display widget with embedded inspection overlay.
@@ -2256,6 +2555,9 @@ class VideoWidget(QLabel):
 
         # Emit cursor position signal
         self.cursor_moved.emit(frame_x, frame_y)
+
+        # Forward mouse event to overlay for cursor temperature tracking
+        self.overlay.mouseMoveEvent(event)
 
         # Trigger overlay repaint with new coordinates
         self.overlay.update()
@@ -2775,8 +3077,26 @@ class ThermalAnalysisPanel(QWidget):
         
         self.spot_meter_panel = SpotMeterPanel()
         spot_layout.addWidget(self.spot_meter_panel)
-        
+
         self.analysis_tabs.addTab(spot_tab, "Spot Meters")
+
+        # ===================================================================
+        # OVERLAYS TAB (Phase 1 - Feature 4)
+        # ===================================================================
+        overlays_tab = QWidget()
+        overlays_layout = QVBoxLayout(overlays_tab)
+        overlays_layout.setContentsMargins(6, 6, 6, 6)
+        overlays_layout.setSpacing(8)
+
+        overlays_layout.addWidget(create_section_header("📐 Grid Overlay"))
+
+        # Add Grid Overlay Panel
+        self.grid_overlay_panel = GridOverlayPanel()
+        overlays_layout.addWidget(self.grid_overlay_panel)
+
+        overlays_layout.addStretch()
+
+        self.analysis_tabs.addTab(overlays_tab, "Overlays")
 
         # Connect signals
         self.baseline_btn.toggled.connect(self.baseline_toggled.emit)
@@ -5999,7 +6319,26 @@ class InspectionAppWindow(QMainWindow):
             spot_panel.highlight_spot.connect(self._on_highlight_spot)
             spot_panel.preset_requested.connect(self._on_spot_preset_requested)
             spot_panel.alert_triggered.connect(self._on_spot_alert_triggered)
+
+            # Cursor temperature readout (Phase 1 - Feature 1)
+            if hasattr(spot_panel, 'cursor_readout_cb') and hasattr(self, 'video_widget'):
+                spot_panel.cursor_readout_cb.toggled.connect(self._on_cursor_readout_toggled)
+                logger.info("  [OK] Connected cursor readout checkbox")
+
+            # Spot meter comparison (Phase 1 - Feature 3)
+            if hasattr(spot_panel, 'comparison_changed') and hasattr(self, 'video_widget'):
+                spot_panel.comparison_changed.connect(self._on_comparison_changed)
+                logger.info("  [OK] Connected spot comparison signal")
+
             logger.info("Connected SpotMeterPanel signals")
+
+        # === GRID OVERLAY PANEL (Phase 1 - Feature 4) ===
+        if hasattr(self.analysis_panel, 'grid_overlay_panel'):
+            grid_panel = self.analysis_panel.grid_overlay_panel
+            grid_panel.grid_enabled.connect(self._on_grid_enabled)
+            grid_panel.grid_spacing_changed.connect(self._on_grid_spacing_changed)
+            grid_panel.grid_color_changed.connect(self._on_grid_color_changed)
+            logger.info("Connected GridOverlayPanel signals")
 
         # === ANOMALY WIDGET ===
         self._safe_connect("anomaly_widget", "anomaly_priority_toggled", self._on_anomaly_priority_toggle, "(anomaly)")
@@ -6110,6 +6449,7 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("isotherm_panel", "low_threshold_changed", self._on_isotherm_low_threshold_changed, "(isotherm)")
         self._safe_connect("isotherm_panel", "high_threshold_changed", self._on_isotherm_high_threshold_changed, "(isotherm)")
         self._safe_connect("isotherm_panel", "color_changed", self._on_isotherm_color_changed, "(isotherm)")
+        self._safe_connect("isotherm_panel", "bands_changed", self._on_isotherm_bands_changed, "(isotherm multiband)")  # Phase 2 - Feature 8
 
         # === ROI OVERLAY (nested widget) ===
         self._safe_connect("video_widget.overlay", "roi_created", self._on_roi_created, "(roi overlay)")
@@ -6510,6 +6850,41 @@ class InspectionAppWindow(QMainWindow):
         if hasattr(self, 'analysis_panel') and hasattr(self.analysis_panel, 'spot_meter_panel'):
             self.analysis_panel.spot_meter_panel.clear()
         logger.info("Cleared all spot meters from both overlay and panel")
+
+    def _on_cursor_readout_toggled(self, checked: bool):
+        """Handle cursor temperature readout toggle (Phase 1 - Feature 1)."""
+        logger.info(f"Cursor temperature readout toggled: {checked}")
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.set_cursor_enabled(checked)
+            msg = "Cursor readout: ON (Move mouse over thermal)" if checked else "Cursor readout: OFF"
+            self.statusBar().showMessage(msg, 3000)
+
+    def _on_comparison_changed(self, spot1_id: str, spot2_id: str, delta: float):
+        """Handle spot meter comparison visualization (Phase 1 - Feature 3)."""
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.set_comparison(spot1_id, spot2_id, delta)
+            if spot1_id and spot2_id:
+                logger.debug(f"Comparison: {spot1_id} vs {spot2_id}, Δ={delta:.1f}°C")
+
+    def _on_grid_enabled(self, enabled: bool):
+        """Handle grid overlay enable/disable (Phase 1 - Feature 4)."""
+        logger.info(f"Grid overlay enabled: {enabled}")
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.set_grid_enabled(enabled)
+            msg = "Grid overlay: ON" if enabled else "Grid overlay: OFF"
+            self.statusBar().showMessage(msg, 3000)
+
+    def _on_grid_spacing_changed(self, x: int, y: int):
+        """Handle grid spacing changes (Phase 1 - Feature 4)."""
+        logger.debug(f"Grid spacing changed: {x}x{y}")
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.set_grid_spacing(x, y)
+
+    def _on_grid_color_changed(self, color: QColor):
+        """Handle grid color changes (Phase 1 - Feature 4)."""
+        logger.info(f"Grid color changed: {color.name()}")
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.set_grid_color(color)
 
     def _on_spot_deleted(self, spot_id: str):
         """Handle spot meter deletion from SpotMeterPanel (Enhancement #12)."""
@@ -7149,6 +7524,18 @@ class InspectionAppWindow(QMainWindow):
             else:
                 self.app.isotherm_color = color
             logger.info(f"Isotherm color set to: {color}")
+
+    def _on_isotherm_bands_changed(self, band_manager):
+        """Handle isotherm bands change (Phase 2 - Feature 8: Multi-band mode)."""
+        if self.app:
+            # Set the band manager and enable multi-band mode
+            if hasattr(self.app, 'set_isotherm_band_manager'):
+                self.app.set_isotherm_band_manager(band_manager)
+            if hasattr(self.app, 'set_isotherm_multiband_mode'):
+                # Check if panel is in multiband mode
+                is_multiband = self.isotherm_panel.is_multiband_mode()
+                self.app.set_isotherm_multiband_mode(is_multiband)
+            logger.info(f"Isotherm bands updated: {len(band_manager.bands)} bands, multiband={is_multiband}")
 
     def update_radiometric_panel_availability(self, is_radiometric: bool):
         """Enable/disable panels that require radiometric mode.

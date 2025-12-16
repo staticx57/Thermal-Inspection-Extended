@@ -867,6 +867,32 @@ class PaletteManager:
         """Get list of available palette names."""
         return [p.value for p in PaletteType]
 
+    def get_current_palette_lut(self) -> Optional[np.ndarray]:
+        """
+        Get the current global palette LUT (lookup table).
+
+        Returns:
+            numpy array of shape (256, 3) with BGR values, or None if not found
+        """
+        palette_type = self.global_palette.palette_type
+
+        if palette_type in self.palette_cache:
+            return self.palette_cache[palette_type].copy()
+        elif palette_type in self.OPENCV_COLORMAPS:
+            # Generate LUT from OpenCV colormap
+            # Create a gradient image (0-255)
+            gradient = np.arange(256, dtype=np.uint8).reshape(1, 256)
+            # Apply colormap
+            colored = cv2.applyColorMap(gradient, self.OPENCV_COLORMAPS[palette_type])
+            # Extract LUT (256, 1, 3) -> (256, 3)
+            lut = colored.reshape(256, 3)
+            return lut
+        else:
+            # Fallback to grayscale
+            gray_lut = np.arange(256, dtype=np.uint8).reshape(256, 1)
+            lut = np.concatenate([gray_lut, gray_lut, gray_lut], axis=1)
+            return lut
+
     def save_palette_config(self, filepath: str):
         """
         Save palette configuration to JSON.
