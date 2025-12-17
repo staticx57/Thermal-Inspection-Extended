@@ -23,8 +23,7 @@
       "Bash(dir \"C:\\Users\\stati\\Desktop\\Projects\\Thermal-Inspection\\playground\\enhancement5\\*.py\")",
       "Bash(dir:*)",
       "Bash(git add:*)",
-      "Bash(git reset:*)",
-      "Bash(git commit:*)"
+      "Bash(git reset:*)"
     ],
     "deny": [],
     "ask": []
