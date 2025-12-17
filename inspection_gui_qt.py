@@ -954,6 +954,7 @@ class InspectionOverlayWidget(QWidget):
         self.cursor_y = 0
         self.cursor_temp = None  # Temperature value
         self.temp_map = None  # Cached temperature map from inspection_main
+        self.temp_map_unit = " (raw)"  # Unit for temp_map values
 
         # Colorbar/Legend (Feature 2 - Phase 1)
         self.colorbar = ColorbarWidget(self)
@@ -1033,15 +1034,23 @@ class InspectionOverlayWidget(QWidget):
         self.thermal_resolution = (w, h)
         # logger.debug(f"Overlay thermal resolution set to: {w}x{h}") # Assuming logger is defined
 
-    def set_temp_map(self, temp_map):
-        """Set cached temperature map for cursor readout."""
+    def set_temp_map(self, temp_map, unit=" (raw)"):
+        """Set cached temperature map for cursor readout.
+
+        Args:
+            temp_map: Temperature map array
+            unit: Temperature unit string ("°C", " (raw)", etc.)
+        """
         self.temp_map = temp_map
+        self.temp_map_unit = unit
 
     def set_cursor_enabled(self, enabled: bool):
         """Enable or disable cursor temperature readout."""
         self.cursor_enabled = enabled
         if enabled:
             self.setMouseTracking(True)  # Enable mouse move events
+        else:
+            self.setMouseTracking(False)
         self.update()
 
     def _should_draw_thermal_overlays(self) -> bool:
@@ -1405,102 +1414,9 @@ class InspectionOverlayWidget(QWidget):
         frame_y = int((y - self.offset_y) / self.scale)
         return (frame_x, frame_y)
 
-    def mouseMoveEvent(self, event):
-        """Handle mouse move for cursor temperature readout."""
-        super().mouseMoveEvent(event)
-
-        # DEBUG: Log cursor state (first time only)
-        if not hasattr(self, '_cursor_debug_logged'):
-            logger.info(f"[CURSOR DEBUG] cursor_enabled={self.cursor_enabled}, temp_map={'None' if self.temp_map is None else f'{self.temp_map.shape}'}, view_mode={self.current_view_mode}")
-            self._cursor_debug_logged = True
-
-        # Only track if cursor readout is enabled and we have a temp map
-        if not self.cursor_enabled:
-            return
-
-        if self.temp_map is None:
-            return
-
-        if not self._should_draw_thermal_overlays():
-            return
-
-        # Get widget coordinates
-        wx, wy = event.pos().x(), event.pos().y()
-
-        # Convert to frame coordinates
-        fx, fy = self.widget_to_frame(wx, wy)
-
-        # Convert frame coords to thermal coords (handle view modes)
-        thermal_x, thermal_y = fx, fy
-        valid_coords = True
-
-        if self.current_view_mode == 'side_by_side':
-            fw, fh = self.frame_size
-            tw, th = self.thermal_resolution if self.thermal_resolution else (640, 514)
-            allocated_w = fw / 2
-            allocated_h = fh
-            actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(tw, th, allocated_w, allocated_h)
-
-            if self.fusion_priority == 'thermal':
-                thermal_start = 0
-                thermal_in_region = (fx < allocated_w)
-            else:
-                thermal_start = allocated_w
-                thermal_in_region = (fx >= allocated_w)
-
-            if thermal_in_region:
-                scale_x = actual_w / tw
-                scale_y = actual_h / th
-                base_offset_x = thermal_start + offset_x
-                thermal_x = (fx - base_offset_x) / scale_x
-                thermal_y = (fy - offset_y) / scale_y
-                thermal_x = max(0, min(tw - 1, thermal_x))
-                thermal_y = max(0, min(th - 1, thermal_y))
-            else:
-                valid_coords = False
-
-        elif self.pip_rect is not None:
-            tw, th = self.thermal_resolution if self.thermal_resolution else (640, 514)
-
-            if hasattr(self, 'pip_thermal_rect') and self.pip_thermal_rect is not None:
-                pip_x, pip_y, pip_w, pip_h = self.pip_thermal_rect
-            else:
-                pip_x, pip_y, pip_allocated_w, pip_allocated_h = self.pip_rect
-                actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(tw, th, pip_allocated_w, pip_allocated_h)
-                pip_x += offset_x
-                pip_y += offset_y
-                pip_w = actual_w
-                pip_h = actual_h
-
-            if (pip_x <= fx <= pip_x + pip_w) and (pip_y <= fy <= pip_y + pip_h):
-                scale_x = pip_w / tw
-                scale_y = pip_h / th
-                thermal_x = (fx - pip_x) / scale_x
-                thermal_y = (fy - pip_y) / scale_y
-                thermal_x = max(0, min(tw - 1, thermal_x))
-                thermal_y = max(0, min(th - 1, thermal_y))
-            else:
-                valid_coords = False
-
-        # Get temperature from temp map
-        if valid_coords and self.temp_map is not None:
-            h, w = self.temp_map.shape
-            tx = int(thermal_x)
-            ty = int(thermal_y)
-
-            if 0 <= tx < w and 0 <= ty < h:
-                self.cursor_x = thermal_x
-                self.cursor_y = thermal_y
-                self.cursor_temp = self.temp_map[ty, tx]
-                # DEBUG: Log successful capture (first time only)
-                if not hasattr(self, '_cursor_capture_logged'):
-                    logger.info(f"[CURSOR DEBUG] Captured temp={self.cursor_temp:.2f} at ({tx},{ty})")
-                    self._cursor_capture_logged = True
-                self.update()  # Trigger repaint
-            else:
-                self.cursor_temp = None
-        else:
-            self.cursor_temp = None
+    def enterEvent(self, event):
+        """Mouse entered the overlay widget."""
+        super().enterEvent(event)
 
     def set_selected_roi(self, roi_id: Optional[str]):
         """Highlight a specific ROI."""
@@ -1819,11 +1735,6 @@ class InspectionOverlayWidget(QWidget):
 
         # Draw cursor temperature readout (topmost layer)
         if self.cursor_enabled and self.cursor_temp is not None and self._should_draw_thermal_overlays():
-            # DEBUG: Log drawing (first time only)
-            if not hasattr(self, '_cursor_draw_logged'):
-                logger.info(f"[CURSOR DEBUG] Drawing cursor at ({self.cursor_x:.1f},{self.cursor_y:.1f}) temp={self.cursor_temp:.2f}")
-                self._cursor_draw_logged = True
-
             # Transform thermal coordinates to widget coordinates
             wx, wy = self._transform_thermal_coords(self.cursor_x, self.cursor_y)
 
@@ -1834,7 +1745,7 @@ class InspectionOverlayWidget(QWidget):
             painter.drawLine(int(wx), int(wy) - cross_size, int(wx), int(wy) + cross_size)
 
             # Draw temperature label with formatted temperature
-            temp_display, unit = self._format_temperature_with_unit(self.cursor_temp, 'C')
+            temp_display, unit = self._format_temperature_with_unit(self.cursor_temp, self.temp_map_unit)
             label_text = f"{temp_display}{unit}"
             draw_label(int(wx) + 25, int(wy) - 10, label_text, QColor(255, 255, 0))
 
@@ -2068,10 +1979,98 @@ class InspectionOverlayWidget(QWidget):
             self.update()
 
     def mouseMoveEvent(self, event):
-        """Handle mouse move for ROI drawing."""
+        """Handle mouse move for ROI drawing AND cursor temperature readout."""
+        # Handle ROI drawing
         if self.drawing_mode and self.draw_start_pos:
             self.draw_current_pos = event.pos()
             self.update()
+
+        # Handle cursor temperature readout (merged from line 1418)
+        super().mouseMoveEvent(event)
+
+        # Only track if cursor readout is enabled and we have a temp map
+        if not self.cursor_enabled:
+            return
+
+        if self.temp_map is None:
+            return
+
+        if not self._should_draw_thermal_overlays():
+            return
+
+        # Get widget coordinates
+        wx, wy = event.pos().x(), event.pos().y()
+
+        # Convert to frame coordinates
+        fx, fy = self.widget_to_frame(wx, wy)
+
+        # Convert frame coords to thermal coords (handle view modes)
+        thermal_x, thermal_y = fx, fy
+        valid_coords = True
+
+        if self.current_view_mode == 'side_by_side':
+            fw, fh = self.frame_size
+            tw, th = self.thermal_resolution if self.thermal_resolution else (640, 514)
+            allocated_w = fw / 2
+            allocated_h = fh
+            actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(tw, th, allocated_w, allocated_h)
+
+            if self.fusion_priority == 'thermal':
+                thermal_start = 0
+                thermal_in_region = (fx < allocated_w)
+            else:
+                thermal_start = allocated_w
+                thermal_in_region = (fx >= allocated_w)
+
+            if thermal_in_region:
+                scale_x = actual_w / tw
+                scale_y = actual_h / th
+                base_offset_x = thermal_start + offset_x
+                thermal_x = (fx - base_offset_x) / scale_x
+                thermal_y = (fy - offset_y) / scale_y
+                thermal_x = max(0, min(tw - 1, thermal_x))
+                thermal_y = max(0, min(th - 1, thermal_y))
+            else:
+                valid_coords = False
+
+        elif self.pip_rect is not None:
+            tw, th = self.thermal_resolution if self.thermal_resolution else (640, 514)
+
+            if hasattr(self, 'pip_thermal_rect') and self.pip_thermal_rect is not None:
+                pip_x, pip_y, pip_w, pip_h = self.pip_thermal_rect
+            else:
+                pip_x, pip_y, pip_allocated_w, pip_allocated_h = self.pip_rect
+                actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(tw, th, pip_allocated_w, pip_allocated_h)
+                pip_x += offset_x
+                pip_y += offset_y
+                pip_w = actual_w
+                pip_h = actual_h
+
+            if (pip_x <= fx <= pip_x + pip_w) and (pip_y <= fy <= pip_y + pip_h):
+                scale_x = pip_w / tw
+                scale_y = pip_h / th
+                thermal_x = (fx - pip_x) / scale_x
+                thermal_y = (fy - pip_y) / scale_y
+                thermal_x = max(0, min(tw - 1, thermal_x))
+                thermal_y = max(0, min(th - 1, thermal_y))
+            else:
+                valid_coords = False
+
+        # Get temperature from temp map
+        if valid_coords and self.temp_map is not None:
+            h, w = self.temp_map.shape
+            tx = int(thermal_x)
+            ty = int(thermal_y)
+
+            if 0 <= tx < w and 0 <= ty < h:
+                self.cursor_x = thermal_x
+                self.cursor_y = thermal_y
+                self.cursor_temp = self.temp_map[ty, tx]
+                self.update()  # Trigger repaint
+            else:
+                self.cursor_temp = None
+        else:
+            self.cursor_temp = None
 
     def mouseReleaseEvent(self, event):
         """Handle mouse release to finalize ROI."""
@@ -2509,9 +2508,28 @@ class VideoWidget(QLabel):
                     self.width(), self.height()
                 )
 
+    def enterEvent(self, event):
+        """Mouse entered the widget."""
+        print(f"[ENTER EVENT] Mouse entered VideoWidget!", flush=True)
+        logger.info(f"[ENTER EVENT] Mouse entered VideoWidget!")
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        """Mouse left the widget."""
+        print(f"[LEAVE EVENT] Mouse left VideoWidget!", flush=True)
+        logger.info(f"[LEAVE EVENT] Mouse left VideoWidget!")
+        super().leaveEvent(event)
+
     def mouseMoveEvent(self, event):
         """Handle mouse move to emit cursor position in frame coordinates."""
+        print(f"[MOUSE MOVE] mouseMoveEvent called! hasattr mouseTracking={self.hasMouseTracking()}", flush=True)
         super().mouseMoveEvent(event)
+
+        # DEBUG: Log VideoWidget mouse move (first time only)
+        if not hasattr(self, '_video_mouse_debug_logged'):
+            print(f"[VIDEO MOUSE DEBUG] VideoWidget.mouseMoveEvent called, frame={self._frame_width}x{self._frame_height}", flush=True)
+            logger.info(f"[VIDEO MOUSE DEBUG] VideoWidget.mouseMoveEvent called, frame={self._frame_width}x{self._frame_height}")
+            self._video_mouse_debug_logged = True
 
         # Only emit if we have valid frame dimensions
         if self._frame_width == 0 or self._frame_height == 0:
@@ -2555,6 +2573,12 @@ class VideoWidget(QLabel):
 
         # Emit cursor position signal
         self.cursor_moved.emit(frame_x, frame_y)
+
+        # DEBUG: Log forwarding (first time only)
+        if not hasattr(self, '_forward_debug_logged'):
+            print(f"[FORWARD DEBUG] Forwarding mouse event to overlay, overlay.cursor_enabled={self.overlay.cursor_enabled}", flush=True)
+            logger.info(f"[FORWARD DEBUG] Forwarding mouse event to overlay, overlay.cursor_enabled={self.overlay.cursor_enabled}")
+            self._forward_debug_logged = True
 
         # Forward mouse event to overlay for cursor temperature tracking
         self.overlay.mouseMoveEvent(event)
