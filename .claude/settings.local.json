@@ -21,7 +21,8 @@
       "Bash(exit 0)",
       "Bash(\"C:\\Users\\stati\\Desktop\\Projects\\Thermal-Inspection\\launch.bat\")",
       "Bash(dir \"C:\\Users\\stati\\Desktop\\Projects\\Thermal-Inspection\\playground\\enhancement5\\*.py\")",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
