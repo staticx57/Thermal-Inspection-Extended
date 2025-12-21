@@ -6,6 +6,6 @@ echo - Boson SDK enabled
 echo - Ironbow palette
 echo.
 
-python "%~dp0inspection_main.py" --thermal-backend flirpy --enable-boson-sdk --palette ironbow --auto-detect-cameras
+python -m thermal_inspection --thermal-backend flirpy --enable-boson-sdk --palette ironbow --auto-detect-cameras
 
 pause

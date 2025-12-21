@@ -6,7 +6,7 @@ echo - Developer mode enabled
 echo - Auto-detect cameras
 echo.
 
-python "%~dp0inspection_main.py" --auto-detect-cameras
+python -m thermal_inspection --auto-detect-cameras
 
 echo.
 echo ================================================================================

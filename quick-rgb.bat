@@ -6,6 +6,6 @@ echo - Viridis palette
 echo - Visual inspection focus
 echo.
 
-python "%~dp0inspection_main.py" --thermal-backend opencv --palette viridis --auto-detect-cameras
+python -m thermal_inspection --thermal-backend opencv --palette viridis --auto-detect-cameras
 
 pause

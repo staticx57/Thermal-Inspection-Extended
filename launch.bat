@@ -242,7 +242,8 @@ echo ===========================================================================
 echo.
 
 :run_with_args
-python "%~dp0inspection_main.py" %* !ARGS!
+:: Use package entry point (preferred) or fallback to legacy script
+python -m thermal_inspection %* !ARGS!
 
 echo.
 echo ================================================================================

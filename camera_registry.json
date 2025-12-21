@@ -13,23 +13,11 @@
       "manual_override": false
     },
     {
-      "device_id": 2,
-      "name": "Camera 2 (DSHOW)",
-      "resolution": [
-        640,
-        514
-      ],
-      "driver": "DSHOW/MSMF",
-      "role": "thermal",
-      "is_connected": true,
-      "manual_override": false
-    },
-    {
       "device_id": 1,
-      "name": "Camera 1 (DSHOW)",
+      "name": "FLIR Boson 640x512 (Camera 1)",
       "resolution": [
         640,
-        514
+        512
       ],
       "driver": "DSHOW/MSMF",
       "role": "thermal",
@@ -38,7 +26,19 @@
     },
     {
       "device_id": 0,
-      "name": "High-Res Camera 0 (1920x1080)",
+      "name": "High-Res Camera 0 (3840x2160)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "driver": "DSHOW/MSMF",
+      "role": "rgb",
+      "is_connected": true,
+      "manual_override": false
+    },
+    {
+      "device_id": 2,
+      "name": "High-Res Camera 2 (1920x1080)",
       "resolution": [
         1920,
         1080

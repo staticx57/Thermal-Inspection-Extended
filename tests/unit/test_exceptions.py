@@ -9,7 +9,7 @@ Tests the exception hierarchy including:
 """
 
 import pytest
-from exceptions import (
+from thermal_inspection.utils.exceptions import (
     # Base
     ThermalInspectionError,
     # Camera
