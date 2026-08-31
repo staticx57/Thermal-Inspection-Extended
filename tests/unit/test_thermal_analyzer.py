@@ -219,6 +219,75 @@ class TestAnomalyDetection:
         assert analyzer.frame_count == 0
 
 
+class TestGridRateOfChangeUniformShiftGuard:
+    """
+    Regression coverage for a real bug found debugging a live camera: an
+    AGC brightness renormalization (or the camera panning) shifts every
+    pixel together, and the un-guarded per-cell grid detector read that as
+    dozens of simultaneous independent "localised" hotspots — one label per
+    8x8 grid cell, up to 64 in a single frame, making the overlay unreadable.
+    A uniform whole-frame shift must be recognized as one event, not (grid
+    size squared) separate anomalies.
+    """
+
+    @pytest.mark.unit
+    def test_uniform_frame_shift_does_not_flood_grid_anomalies(self):
+        analyzer = ThermalAnalyzer({"rapid_change_threshold": 5.0, "grid_size": 8})
+        base = np.full((256, 320), 128, dtype=np.uint8)
+
+        # Seed grid history with the base frame.
+        analyzer._detect_grid_rate_of_change(base)
+        analyzer._grid_last_time -= 0.1  # realistic inter-frame delta
+
+        # Simulate an AGC-style whole-frame brightness shift: every pixel
+        # moves the same amount, nothing localized.
+        shifted = np.clip(base.astype(np.int16) + 40, 0, 255).astype(np.uint8)
+        anomalies = analyzer._detect_grid_rate_of_change(shifted)
+
+        assert anomalies == [], (
+            "A uniform whole-frame shift must not produce per-cell anomalies"
+        )
+
+    @pytest.mark.unit
+    def test_genuine_localized_hotspot_is_still_detected(self):
+        # A real, spatially confined hotspot must still be caught — the
+        # guard should only suppress whole-frame shifts, not real anomalies.
+        analyzer = ThermalAnalyzer({"rapid_change_threshold": 5.0, "grid_size": 8})
+        base = np.full((256, 320), 128, dtype=np.uint8)
+        analyzer._detect_grid_rate_of_change(base)
+        # Force a realistic inter-frame delta — back-to-back calls in a test
+        # can land microseconds apart, which turns any pixel noise into an
+        # enormous (diff / dt) rate and defeats the point of this test.
+        analyzer._grid_last_time -= 0.1
+
+        hotspot = base.copy()
+        hotspot[100:140, 100:140] = 255  # one small region heats up sharply
+
+        anomalies = analyzer._detect_grid_rate_of_change(hotspot)
+
+        assert len(anomalies) > 0
+        assert len(anomalies) < 10, (
+            "A single localized hotspot should flag a handful of cells, "
+            "not most of the grid"
+        )
+
+    @pytest.mark.unit
+    def test_uniform_shift_still_updates_grid_history(self):
+        # The guard must not stall tracking — history/timestamp should
+        # advance even on a suppressed (uniform-shift) tick, so the next
+        # real frame is compared against current state, not stale state.
+        analyzer = ThermalAnalyzer({"rapid_change_threshold": 5.0, "grid_size": 8})
+        base = np.full((256, 320), 128, dtype=np.uint8)
+        analyzer._detect_grid_rate_of_change(base)
+        analyzer._grid_last_time -= 0.1
+
+        shifted = np.clip(base.astype(np.int16) + 40, 0, 255).astype(np.uint8)
+        analyzer._detect_grid_rate_of_change(shifted)
+
+        assert analyzer._grid_history is not None
+        assert np.allclose(analyzer._grid_history, 168.0, atol=1.0)
+
+
 class TestThresholdDetection:
     """Tests for manual threshold-based detection."""
 

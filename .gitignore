@@ -36,6 +36,11 @@ snapshots/
 scratch/
 .ruff_cache/
 
+# Proprietary FLIR Boson SDK — user-supplied, not ours to distribute.
+# See boson_sdk/README.md for where to get it.
+boson_sdk/*
+!boson_sdk/README.md
+
 # OS/IDE files
 .DS_Store
 Thumbs.db

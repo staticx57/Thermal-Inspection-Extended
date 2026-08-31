@@ -104,13 +104,20 @@ class FLIRBosonCamera:
                 logger.info("Linux detected - trying V4L2 backend")
                 self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_V4L2)
             elif system == "Windows":
-                # Windows: Try MSMF first, fall back to DSHOW.
+                # Windows: Try MSMF first, fall back to DSHOW, then let
+                # OpenCV auto-select a backend as a last resort — some
+                # driver/OS combinations only succeed with neither backend
+                # hinted explicitly.
                 logger.info("Windows detected - trying MSMF backend")
                 self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_MSMF)
                 if not self.cap.isOpened():
                     self.cap.release()
                     logger.info("MSMF failed - trying DirectShow backend")
                     self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_DSHOW)
+                if not self.cap.isOpened():
+                    self.cap.release()
+                    logger.info("DirectShow failed - trying default backend")
+                    self.cap = cv2.VideoCapture(self.device_id)
             else:
                 # macOS or other: use default backend
                 logger.info(f"{system} detected - using default backend")

@@ -267,10 +267,24 @@ def scan_video_devices(force: bool = False) -> List[VideoDevice]:
 
 
 def invalidate_cache() -> None:
-    """Drop the cached scan so the next ``scan_video_devices()`` re-probes hardware."""
+    """
+    Drop the cached scan so the next ``scan_video_devices()`` re-probes hardware.
+
+    Clears both the in-process cache and the persisted fast path. The
+    persisted entry is keyed only by the OS device-name list (see
+    ``_load_fast_path``), so a caller invalidating for a reason other than
+    "the device list changed" — e.g. a camera failed its frame-read check —
+    would otherwise have the stale result handed straight back from disk,
+    with no hardware actually re-probed.
+    """
     global _cached_devices
     with _scan_lock:
         _cached_devices = None
+        try:
+            from thermal_inspection.utils.config import get_config
+            get_config().set('video_device_cache', None)
+        except Exception as exc:
+            logger.debug(f"Could not clear persisted device scan: {exc}")
     logger.debug("Video device scan cache invalidated")
 
 

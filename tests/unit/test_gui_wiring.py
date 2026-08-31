@@ -1,6 +1,6 @@
 
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 import sys
 import os
 
@@ -98,6 +98,88 @@ class TestThermalResolutionSync(unittest.TestCase):
             self.app.gui.update_thermal_resolution(*self.app._last_thermal_resolution)
 
         self.app.gui.update_thermal_resolution.assert_not_called()
+
+
+class TestThreadedCaptureRestartSuppression(unittest.TestCase):
+    """
+    Regression coverage for a real bug found debugging RGB camera
+    instability with a physical Boson connected: cleanup() and
+    reassign_cameras() both deactivate thermal and rgb one role at a time.
+    Each individual deactivation fires a camera_disconnected signal that
+    (unless suppressed) rebuilds the capture threads immediately, using
+    whichever role hasn't been deactivated yet — starting a fresh capture
+    thread on a camera that gets torn down microseconds later by the next
+    deactivate_camera() call. That orphaned thread then reads from a
+    closing/closed cv2.VideoCapture and fails hard — this produced the "10
+    consecutive read failures" burst observed on real hardware.
+
+    _suppress_capture_restart must be True for the whole span of both
+    deactivate_camera() calls, not just around release_all()/the loop
+    itself, and must always be reset afterward (even on exception) so
+    normal hot-plug-triggered rebuilds still work later.
+    """
+
+    def setUp(self):
+        self.app = ThermalInspectionApp(qt_app=None)
+        self.app.plugin_host = MagicMock()
+        self.app._camera_monitor = None
+        self.app.media_manager = None
+        self.app.timer = MagicMock()
+        # Observed suppress-flag value at the moment each deactivation call
+        # actually happens — the only way to prove the flag was held for the
+        # full span, not just set-then-immediately-cleared around it.
+        self.suppress_during_call = []
+
+    def _record_suppress_state(self, *args, **kwargs):
+        self.suppress_during_call.append(self.app._suppress_capture_restart)
+
+    def test_cleanup_suppresses_restart_during_release_all(self):
+        self.app.plugin_host.release_all.side_effect = self._record_suppress_state
+
+        self.app.cleanup()
+
+        self.assertEqual(self.suppress_during_call, [True])
+        self.assertFalse(self.app._suppress_capture_restart)
+
+    def test_cleanup_resets_suppress_flag_even_if_release_all_raises(self):
+        self.app.plugin_host.release_all.side_effect = RuntimeError("boom")
+
+        with self.assertRaises(RuntimeError):
+            self.app.cleanup()
+
+        self.assertFalse(self.app._suppress_capture_restart)
+
+    @patch('thermal_inspection.app.cv2.waitKey')
+    @patch('thermal_inspection.app.time.sleep')  # skip real 1.1s of sleeps
+    def test_reassign_cameras_suppresses_restart_across_both_deactivations(self, _sleep, _waitkey):
+        self.app.plugin_host.deactivate_camera.side_effect = self._record_suppress_state
+        self.app._init_cameras_sync = MagicMock()  # avoid real hardware discovery
+
+        self.app.reassign_cameras(thermal_id=2, rgb_id=0)
+
+        # Both deactivate_camera('thermal') and deactivate_camera('rgb')
+        # must see the flag held True — if only one does, the bug reproduces.
+        self.assertEqual(self.suppress_during_call, [True, True])
+        self.assertFalse(self.app._suppress_capture_restart)
+
+    @patch('thermal_inspection.app.cv2.waitKey')
+    @patch('thermal_inspection.app.time.sleep')
+    def test_reassign_cameras_resets_suppress_flag_even_if_deactivate_raises(self, _sleep, _waitkey):
+        self.app.plugin_host.deactivate_camera.side_effect = RuntimeError("boom")
+        self.app._init_cameras_sync = MagicMock()
+
+        with self.assertRaises(RuntimeError):
+            self.app.reassign_cameras(thermal_id=2, rgb_id=0)
+
+        self.assertFalse(self.app._suppress_capture_restart)
+
+    def test_restart_threaded_capture_noops_while_suppressed(self):
+        self.app._suppress_capture_restart = True
+        self.app._stop_threaded_capture = MagicMock()
+
+        self.app._restart_threaded_capture()
+
+        self.app._stop_threaded_capture.assert_not_called()
 
 
 if __name__ == '__main__':

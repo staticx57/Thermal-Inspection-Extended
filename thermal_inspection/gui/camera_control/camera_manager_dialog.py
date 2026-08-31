@@ -556,11 +556,18 @@ class CameraManagerDialog(QDialog):
         if on_done:
             # Wrap callbacks to guard against dialog being closed/deleted
             def _safe_done(result, _cb=on_done):
-                if self.isVisible() or not self.isHidden():
-                    try:
+                # closeEvent's wait(3000) can time out while _fn is still
+                # running a slow hardware call (run() is a blocking call with
+                # no event loop, so quit() can't interrupt it). If the dialog
+                # was closed and its C++ object already deleted by the time
+                # this fires, isVisible() itself raises RuntimeError.
+                try:
+                    if self.isVisible() or not self.isHidden():
                         _cb(result)
-                    except Exception as exc:
-                        logger.error(f"Worker done callback error: {exc}", exc_info=True)
+                except RuntimeError:
+                    logger.debug("Worker finished after dialog was closed/deleted — ignoring result")
+                except Exception as exc:
+                    logger.error(f"Worker done callback error: {exc}", exc_info=True)
             w.done.connect(_safe_done)
         if on_fail:
             def _safe_fail(msg, _cb=on_fail):

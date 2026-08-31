@@ -582,17 +582,21 @@ Export temperature measurements for external analysis.
 5. For Boson: Check if UVC video interface is enabled (use Boson SDK test tool)
 6. For Firefly: Install Spinnaker SDK and verify with SpinView application
 
+### Boson SDK Not Found
+
+**Problem**: Startup log shows `Boson SDK not found` and the camera runs in video-only mode (image works, but FFC/AGC/palette-LUT/radiometric SDK control don't).
+
+**Solution**: The Boson SDK is FLIR's proprietary software and isn't bundled with this repo — download it from FLIR and extract it into `boson_sdk/` at the project root. See [`boson_sdk/README.md`](boson_sdk/README.md) for exactly where to get it and what the extracted folder should look like.
+
 ### Boson SDK Connection Failed
 
-**Problem**: SDK connection fails with error 255 or "Cannot connect to camera".
+**Problem**: SDK connection fails with error 255 or "Cannot connect to camera" (the SDK files ARE present, but the camera itself won't connect).
 
 **Solutions**:
-1. **Check COM Port**: Open Device Manager > Ports, find "FLIR Control" device
-2. Common ports: COM6, COM7, COM8
-3. Specify correct port: `--boson-com-port COM7`
-4. Verify no other application is using the COM port (close FLIR tools)
-5. Try unplugging/replugging USB cable
-6. Check baud rate (default 921600 works for most Bosons)
+1. **Check COM Port**: Open Device Manager > Ports, find "FLIR Control" device. The app auto-detects this port at startup — `--boson-com-port` only needs to be passed to override it.
+2. Verify no other application is using the COM port (close FLIR tools)
+3. Try unplugging/replugging USB cable
+4. Check baud rate (default 921600 works for most Bosons)
 
 ### 16-bit Radiometric Mode Not Working
 

@@ -199,6 +199,10 @@ class ThermalAnalyzer:
         self._grid_size = self.config.get("grid_size", 8)
         self._grid_history: Optional[np.ndarray] = None   # (grid_h, grid_w) float32
         self._grid_last_time: Optional[float] = None
+        # If more than this fraction of grid cells cross rapid_change_threshold
+        # in the same tick, treat it as one whole-frame shift (AGC, panning)
+        # rather than that many independent localised anomalies.
+        self._grid_uniform_shift_fraction = self.config.get("grid_uniform_shift_fraction", 0.5)
 
         # Radiometric mode
         self.is_radiometric = self.config.get("radiometric", False)
@@ -901,6 +905,23 @@ class ThermalAnalyzer:
                 rates = (grid_now - self._grid_history) / dt   # (g, g) rate map
                 cell_h = h / g
                 cell_w = w / g
+
+                # Uniform-shift guard: a whole-frame brightness change — AGC
+                # renormalizing (common on 8-bit non-radiometric backends,
+                # especially while it's still converging right after FFC/
+                # startup) or the camera panning — moves every cell's value
+                # together. Per-cell thresholding alone can't tell that apart
+                # from dozens of independent localised hotspots, and floods
+                # the overlay with one label per grid cell. If most cells
+                # cross the threshold in the same tick, it's one global event,
+                # not (g*g) local ones, so skip emitting anomalies for it —
+                # same intent as the motion guard below, extended to this
+                # detector, which the original guard never covered.
+                exceeding = np.abs(rates) > self.rapid_change_threshold
+                if exceeding.mean() > self._grid_uniform_shift_fraction:
+                    self._grid_history = grid_now
+                    self._grid_last_time = now
+                    return anomalies
 
                 for gy in range(g):
                     for gx in range(g):

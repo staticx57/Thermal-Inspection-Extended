@@ -25,6 +25,48 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Default budget for a single backend.open() call. Camera drivers left in a
+# bad state (prior crash, wedged USB hub) can hang indefinitely inside
+# cv2.VideoCapture.open()/isOpened() with no way for us to interrupt them, so
+# activation is bounded by a watchdog thread rather than called directly.
+BACKEND_OPEN_TIMEOUT_S = 10.0
+
+
+def _open_with_timeout(backend: Any, timeout_seconds: float, plugin_id: str) -> bool:
+    """
+    Call backend.open() with a bounded wait.
+
+    Python cannot forcibly kill a hung thread, so on timeout the watchdog
+    thread is simply abandoned (daemon=True, so it won't block process exit)
+    and this returns False — matching the old CameraInitializer's behavior
+    that this replaces.
+    """
+    result: Dict[str, Any] = {}
+
+    def _worker():
+        try:
+            result['ok'] = backend.open()
+        except Exception as exc:
+            result['ok'] = False
+            result['error'] = exc
+
+    thread = threading.Thread(target=_worker, name=f"OpenBackend-{plugin_id}", daemon=True)
+    thread.start()
+    thread.join(timeout=timeout_seconds)
+
+    if thread.is_alive():
+        logger.error(
+            f"backend.open() for plugin '{plugin_id}' did not return within "
+            f"{timeout_seconds}s — treating as failed open (driver may be hung)"
+        )
+        return False
+
+    if 'error' in result:
+        logger.error(f"backend.open() for plugin '{plugin_id}' raised: {result['error']}")
+        return False
+
+    return bool(result.get('ok', False))
+
 
 @dataclass
 class ActiveCamera:
@@ -122,8 +164,8 @@ class CameraPluginHost(QObject):
                 logger.error(f"Plugin '{plugin.plugin_id}' returned None backend")
                 return False
 
-            # 2. Open backend
-            if not backend.open():
+            # 2. Open backend (bounded — see _open_with_timeout)
+            if not _open_with_timeout(backend, BACKEND_OPEN_TIMEOUT_S, plugin.plugin_id):
                 logger.error(f"Failed to open backend for plugin '{plugin.plugin_id}'")
                 try:
                     backend.release()
@@ -161,7 +203,15 @@ class CameraPluginHost(QObject):
                         logger.warning(f"Initial SDK connect on {target_match.com_port} failed: {e}")
 
             # 5. Emit events
-            self.camera_connected.emit(role_key, capabilities.to_dict())
+            #
+            # plugin_id is injected here rather than added to
+            # CameraCapabilities.to_dict() itself: callers that match a
+            # connected camera to its control panel (see
+            # main_window._on_bus_camera_connected) need it, and to_dict()
+            # has no other reason to carry plugin identity.
+            capabilities_dict = capabilities.to_dict()
+            capabilities_dict['plugin_id'] = plugin.plugin_id
+            self.camera_connected.emit(role_key, capabilities_dict)
             if panel is not None:
                 self.panel_ready.emit(role_key, panel)
 
@@ -307,12 +357,18 @@ class CameraPluginHost(QObject):
         matches = self.registry.discover(roles=roles)
         activated: List[ActiveCamera] = []
 
-        # Find best match for THERMAL
+        # Find best match for THERMAL. The role is passed explicitly rather
+        # than left for activate_camera() to re-derive from plugin.camera_role:
+        # for a dual-role plugin (e.g. GigE, whose camera_role is fixed to
+        # RGB but individual matches can be is_thermal via _match_is_role's
+        # per-match override) that re-derivation lands the camera in the
+        # wrong slot even though it was correctly filtered into
+        # thermal_matches a moment earlier.
         if not roles or CameraRole.THERMAL in roles:
             thermal_matches = [m for m in matches if self._match_is_role(m, CameraRole.THERMAL)]
             if thermal_matches:
                 best_thermal = thermal_matches[0]
-                if self.activate_camera(best_thermal):
+                if self.activate_camera(CameraRole.THERMAL, best_thermal):
                     activated.append(self.get_active_camera("thermal"))
 
         # Find best match for RGB
@@ -320,12 +376,23 @@ class CameraPluginHost(QObject):
             rgb_matches = [m for m in matches if self._match_is_role(m, CameraRole.RGB)]
             if rgb_matches:
                 best_rgb = rgb_matches[0]
-                if self.activate_camera(best_rgb):
+                if self.activate_camera(CameraRole.RGB, best_rgb):
                     activated.append(self.get_active_camera("rgb"))
 
         return activated
 
     def _match_is_role(self, match: CameraPluginMatch, role: CameraRole) -> bool:
+        # Per-match override: a plugin whose devices can be either role (e.g.
+        # GigE Vision, whose single plugin discovers both thermal and RGB
+        # cameras over the network) marks which one a specific match actually
+        # is via extra['is_thermal']. Without this override, a match from
+        # such a plugin is always routed by the plugin's fixed camera_role —
+        # a real thermal GigE camera would never be selectable for the
+        # THERMAL role, since GigEPlugin.camera_role is fixed to RGB.
+        is_thermal = match.extra.get('is_thermal') if match.extra else None
+        if is_thermal is not None:
+            return (role == CameraRole.THERMAL) == bool(is_thermal)
+
         plugin = self.registry.get_plugin(match.plugin_id)
         return plugin is not None and plugin.camera_role == role
 

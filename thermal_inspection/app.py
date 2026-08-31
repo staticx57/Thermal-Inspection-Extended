@@ -165,6 +165,21 @@ class ThermalInspectionApp:
         self._last_thermal_resolution = (640, 512)
         self._gui_thermal_resolution_synced = None
 
+        # While True, _restart_threaded_capture() no-ops. autodiscover()
+        # activates thermal and RGB in sequence, each activation firing a
+        # camera_connected signal that would otherwise independently tear
+        # down and rebuild the capture threads — once for thermal alone
+        # (before RGB exists), again once RGB joins. Stopping a
+        # ThreadedCameraCapture thread mid-warmup can outlast its 2s join
+        # timeout, and stop() proceeds regardless of whether the thread
+        # actually exited, so a fast-enough second rebuild can end up with
+        # two threads briefly reading the same cv2.VideoCapture handle —
+        # exactly the kind of transient instability observed as an RGB
+        # camera failing its first several reads right after a dual-camera
+        # startup. Set during autodiscover() so only one clean rebuild
+        # happens, after both roles have settled.
+        self._suppress_capture_restart = False
+
     def _init_controllers(self):
         """Initialize all controllers."""
         self.camera_state = CameraState()
@@ -554,7 +569,11 @@ class ThermalInspectionApp:
 
         self._stop_threaded_capture()
         try:
-            matches = self.plugin_host.autodiscover()
+            # registry.discover() returns raw CameraPluginMatch candidates
+            # (has device_index). autodiscover() returns already-activated
+            # ActiveCamera objects (no device_index) and would also activate
+            # its own best-guess cameras as a side effect of this lookup.
+            matches = self.plugin_host.registry.discover()
             match = next((m for m in matches if m.device_index == device_id), None)
 
             if match:
@@ -770,6 +789,9 @@ class ThermalInspectionApp:
             self.threaded_capture = None
 
     def _restart_threaded_capture(self):
+        if self._suppress_capture_restart:
+            logger.debug("Threaded capture restart suppressed (mid-autodiscover)")
+            return
         self._stop_threaded_capture()
         try:
             from thermal_inspection.cameras.threaded_camera_capture import DualThreadedCameraCapture
@@ -795,7 +817,15 @@ class ThermalInspectionApp:
         Uses CameraPluginHost to detect and activate cameras.
         """
         logger.info("Background camera detection starting via PluginHost...")
-        self.plugin_host.autodiscover()
+        self._suppress_capture_restart = True
+        try:
+            self.plugin_host.autodiscover()
+        finally:
+            self._suppress_capture_restart = False
+        # One clean rebuild with both roles already settled, instead of the
+        # per-camera rebuilds autodiscover()'s own connect signals would
+        # have triggered.
+        self._restart_threaded_capture()
 
         thermal_ok = self.plugin_host.is_connected('thermal')
         rgb_ok = self.plugin_host.is_connected('rgb')
@@ -833,11 +863,23 @@ class ThermalInspectionApp:
         if self.media_manager:
             self.media_manager.cleanup()
 
-        # Release cameras
+        # Release cameras. release_all() deactivates each role in turn, and
+        # each deactivation fires a camera_disconnected signal that would
+        # otherwise rebuild the capture threads on its own — with whichever
+        # camera hasn't been deactivated yet — moments before that one gets
+        # torn down too. That orphaned thread reads from a closing/closed
+        # cv2.VideoCapture and fails hard (this is exactly what produced the
+        # RGB "10 consecutive read failures" burst diagnosed during this
+        # session). Capture was already stopped cleanly just above, and
+        # there is nothing to rebuild for at shutdown, so suppress it.
         if self._camera_monitor is not None:
             self._camera_monitor.stop()
         self._stop_threaded_capture()
-        self.plugin_host.release_all()
+        self._suppress_capture_restart = True
+        try:
+            self.plugin_host.release_all()
+        finally:
+            self._suppress_capture_restart = False
 
         logger.info("Cleanup complete")
 
@@ -916,8 +958,16 @@ class ThermalInspectionApp:
             time.sleep(0.1)
 
             self._stop_threaded_capture()
-            self.plugin_host.deactivate_camera('thermal')
-            self.plugin_host.deactivate_camera('rgb')
+            # See cleanup()'s comment: deactivating thermal and rgb one at a
+            # time each fires a disconnect signal that would otherwise
+            # rebuild capture with whichever role is still active, right
+            # before that one is torn down too.
+            self._suppress_capture_restart = True
+            try:
+                self.plugin_host.deactivate_camera('thermal')
+                self.plugin_host.deactivate_camera('rgb')
+            finally:
+                self._suppress_capture_restart = False
 
             cv2.waitKey(1)
             time.sleep(1.0)
@@ -1519,13 +1569,18 @@ class ThermalInspectionApp:
             from thermal_inspection.processing.palette_manager import PaletteType
             # Convert string to PaletteType enum
             try:
-                # Normalize name (lowercase, replace spaces with underscores)
-                clean_name = palette_name.lower().replace(' ', '_').replace('-', '_')
+                # Normalize name (lowercase, replace spaces with underscores).
+                # strip() first: palette combo boxes indent items for visual
+                # grouping under category headers (f"  {palette.value}"),
+                # and that display-only padding must not become part of the
+                # value — replace(' ', '_') alone turns it into leading
+                # underscores that never match a real PaletteType.
+                clean_name = palette_name.strip().lower().replace(' ', '_').replace('-', '_')
                 palette_type = PaletteType(clean_name)
                 self.palette_manager.set_global_palette(palette_type)
-                logger.info(f"Global palette set to: {palette_name}")
+                logger.info(f"Global palette set to: {palette_name.strip()}")
             except ValueError:
-                logger.warning(f"Unknown palette: {palette_name}")
+                logger.warning(f"Unknown palette: {palette_name!r}")
 
     def set_roi_palette(self, roi_id: str, palette_name: str):
         """Set palette for a specific ROI.
@@ -1537,17 +1592,17 @@ class ThermalInspectionApp:
         if self.palette_manager:
             from thermal_inspection.processing.palette_manager import PaletteType
             try:
-                clean_name = palette_name.lower().replace(' ', '_').replace('-', '_')
+                clean_name = palette_name.strip().lower().replace(' ', '_').replace('-', '_')
                 palette_type = PaletteType(clean_name)
                 self.palette_manager.set_roi_palette(roi_id, palette_type)
                 # Also update ROI object if ROI controller exists
                 if self.roi_controller:
                     roi = self.roi_controller.get_roi(roi_id)
                     if roi:
-                        roi.custom_palette = palette_name
-                logger.info(f"ROI {roi_id} palette set to: {palette_name}")
+                        roi.custom_palette = palette_name.strip()
+                logger.info(f"ROI {roi_id} palette set to: {palette_name.strip()}")
             except ValueError:
-                logger.warning(f"Unknown palette for ROI: {palette_name}")
+                logger.warning(f"Unknown palette for ROI: {palette_name!r}")
 
     # =========================================================================
     # Calibration Properties (Backward Compatibility)

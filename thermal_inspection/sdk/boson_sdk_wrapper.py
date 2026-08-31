@@ -12,13 +12,61 @@ from typing import Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
-# Add SDK path (local to inspection project)
+# The proprietary FLIR Boson SDK (not part of this repo — download separately
+# from https://www.flir.com/products/spinnaker-sdk/, or wherever FLIR
+# currently hosts the Boson SDK for your account) is a third-party drop-in.
+# Its Python bindings are a package literally named SDK_USER_PERMISSIONS
+# (`from SDK_USER_PERMISSIONS.ClientFiles_Python import Client_API`), so
+# whatever directory holds it must be added to sys.path as-is — that one
+# folder name is fixed by the vendor SDK's own internal layout, not something
+# this code can rename. What IS this code's choice is *where* to look for
+# that folder, and it used to be buried three directories deep inside the
+# Python package itself (thermal_inspection/sdk/3.0 IDD & SDK/
+# SDK_USER_PERMISSIONS/SDK_USER_PERMISSIONS/) — easy to lose track of and an
+# odd place to go hunting for a vendor drop-in.
+#
+# The project root's boson_sdk/ is the primary, documented location now:
+# just extract FLIR's SDK zip into boson_sdk/ and this finds it, however many
+# levels of SDK_USER_PERMISSIONS/ its own zip structure happens to nest (FLIR's
+# packaging has varied). The old nested path still works for anyone who
+# already has it installed there.
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-SDK_BASE = os.path.join(CURRENT_DIR, '3.0 IDD & SDK', 'SDK_USER_PERMISSIONS')
-SDK_PATH = os.path.join(SDK_BASE, 'SDK_USER_PERMISSIONS')
+PROJECT_ROOT = os.path.dirname(os.path.dirname(CURRENT_DIR))
+PRIMARY_SDK_ROOT = os.path.join(PROJECT_ROOT, 'boson_sdk')
+LEGACY_SDK_ROOT = os.path.join(CURRENT_DIR, '3.0 IDD & SDK')
+
+
+def _find_sdk_base(*search_roots: str, max_depth: int = 3) -> Optional[str]:
+    """
+    Find the directory that directly contains a *usable*
+    SDK_USER_PERMISSIONS/ClientFiles_Python — whether that's the search root
+    itself or nested a few levels down (FLIR's own zip layout has varied
+    between SDK releases: some ship SDK_USER_PERMISSIONS/ClientFiles_Python
+    directly, others nest a second SDK_USER_PERMISSIONS/ inside the first).
+
+    An SDK_USER_PERMISSIONS folder existing is not by itself sufficient — it
+    may just be the outer wrapper of a double-nested layout — so this only
+    accepts a level once ClientFiles_Python is actually present there.
+    """
+    for root in search_roots:
+        current = root
+        for _ in range(max_depth):
+            if not os.path.isdir(current):
+                break
+            candidate = os.path.join(current, 'SDK_USER_PERMISSIONS')
+            if os.path.isdir(os.path.join(candidate, 'ClientFiles_Python')):
+                return current
+            if not os.path.isdir(candidate):
+                break
+            current = candidate
+    return None
+
+
+SDK_BASE = _find_sdk_base(PRIMARY_SDK_ROOT, LEGACY_SDK_ROOT)
+SDK_PATH = os.path.join(SDK_BASE, 'SDK_USER_PERMISSIONS') if SDK_BASE else os.path.join(PRIMARY_SDK_ROOT, 'SDK_USER_PERMISSIONS')
 
 # Need to add base directory for relative imports to work
-if os.path.exists(SDK_PATH):
+if SDK_BASE and os.path.isdir(SDK_PATH):
     if SDK_BASE not in sys.path:
         sys.path.insert(0, SDK_BASE)
     if SDK_PATH not in sys.path:
@@ -32,7 +80,7 @@ if os.path.exists(SDK_PATH):
     SDK_AVAILABLE = True
 else:
     SDK_AVAILABLE = False
-    print(f"WARNING: Boson SDK not found at {SDK_PATH}")
+    print(f"WARNING: Boson SDK not found. Extract FLIR's Boson SDK into: {PRIMARY_SDK_ROOT}")
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +201,23 @@ class BosonSDK:
         self.connected = False
         self.camera = None
 
+    @staticmethod
+    def _decode_part_number(pn_struct) -> Optional[str]:
+        """
+        Decode an SDK FLR_BOSON_(SENSOR_)PARTNUMBER_T into a string.
+
+        The SDK returns these as an object with a `.value` list of raw
+        character codes (fixed-width, null/None-padded), not a string.
+        """
+        if pn_struct is None or not hasattr(pn_struct, 'value'):
+            return None
+        chars = []
+        for code in pn_struct.value:
+            if not code:
+                break
+            chars.append(chr(code))
+        return ''.join(chars)
+
     def _read_camera_info(self):
         """Read camera information."""
         if not self.connected or not self.camera:
@@ -174,11 +239,11 @@ class BosonSDK:
             # Part numbers
             result, pn = self.camera.bosonGetCameraPN()
             if result.value == 0:
-                self.info.camera_part_number = pn
+                self.info.camera_part_number = self._decode_part_number(pn)
 
             result, pn = self.camera.bosonGetSensorPN()
             if result.value == 0:
-                self.info.sensor_part_number = pn
+                self.info.sensor_part_number = self._decode_part_number(pn)
 
             # Sensor serial number
             result, sn = self.camera.bosonGetSensorSN()

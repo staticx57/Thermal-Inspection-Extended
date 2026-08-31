@@ -21,6 +21,7 @@ import re
 import logging
 import platform
 import time
+import concurrent.futures
 import numpy as np
 from typing import List, Dict, Optional, Tuple
 from enum import Enum
@@ -755,24 +756,31 @@ class CameraDetector:
             skip_device_ids = []
 
         # --- Try native DirectShow enumeration via pygrabber ---
+        #
+        # Routed through device_scanner's STA-apartment worker thread rather
+        # than calling FilterGraph().get_input_devices() directly: DirectShow
+        # enumeration requires a single-threaded COM apartment, but the app
+        # deliberately runs in MTA (see device_scanner._list_device_names
+        # docstring), and calling it from the MTA thread silently returns
+        # zero devices — this is a live path (the hot-plug monitor and the
+        # manual "rescan cameras" action both reach it), so it needs the same
+        # fix that was applied to device_scanner.py.
         try:
-            from pygrabber.dshow_graph import FilterGraph
-            graph = FilterGraph()
-            device_names = graph.get_input_devices()
-        except ImportError:
-            logger.warning("pygrabber not installed — falling back to OpenCV sequential probe")
-            return CameraDetector._probe_windows_cameras_opencv_fallback(
-                max_devices=max_devices, skip_device_ids=skip_device_ids
-            )
+            from thermal_inspection.cameras.device_scanner import _list_device_names
+            device_names = _list_device_names()
+            if not device_names:
+                # Could genuinely be "no devices", or STA enumeration could be
+                # unavailable (e.g. pygrabber missing) — either way, the
+                # OpenCV fallback probe still finds real cameras directly.
+                logger.warning("DirectShow enumeration returned no devices — falling back to OpenCV probe")
+                return CameraDetector._probe_windows_cameras_opencv_fallback(
+                    max_devices=max_devices, skip_device_ids=skip_device_ids
+                )
         except Exception as e:
-            logger.warning(f"pygrabber enumeration failed ({e}) — falling back to OpenCV probe")
+            logger.warning(f"DirectShow enumeration failed ({e}) — falling back to OpenCV probe")
             return CameraDetector._probe_windows_cameras_opencv_fallback(
                 max_devices=max_devices, skip_device_ids=skip_device_ids
             )
-
-        if not device_names:
-            logger.info("[STEP 2] Windows native: No DirectShow video devices found")
-            return []
 
         logger.info(f"[STEP 2] Windows native: {len(device_names)} DirectShow device(s) enumerated")
         for i, name in enumerate(device_names):
@@ -843,14 +851,16 @@ class CameraDetector:
                 cap = cv2.VideoCapture(device_id, cv2.CAP_DSHOW)
                 if not cap.isOpened():
                     cap.release()
-                    # Camera exists in DirectShow but can't be opened — return name-only
-                    return CameraInfo(
-                        device_id=device_id,
-                        name=device_name,
-                        driver="DSHOW",
-                        resolution=(0, 0),
-                        interface="opencv"
-                    )
+                    # Registered in DirectShow but won't open — a vendor SDK
+                    # (Basler pylon, Pleora eBUS) registers a capture filter
+                    # at install time whether or not hardware is attached, so
+                    # this is not evidence of a real camera. Reporting it
+                    # anyway floods the hot-plug monitor with phantom
+                    # "newly connected" devices every scan, each of which
+                    # tears down and rebuilds the real cameras' capture
+                    # threads trying (and failing) to assign it a role.
+                    logger.debug(f"Device {device_id} ({device_name}) is registered but did not open — not a real camera")
+                    return None
 
             # --- FAST PATH: check if thermal by reported resolution ---
             reported_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -924,7 +934,13 @@ class CameraDetector:
     @staticmethod
     def _probe_windows_cameras_opencv_fallback(max_devices: int = 8, skip_device_ids: Optional[List[int]] = None) -> List[CameraInfo]:
         """
-        Legacy OpenCV sequential probe — used as fallback when pygrabber is not available.
+        Legacy OpenCV probe — used as fallback when pygrabber/DirectShow
+        enumeration is unavailable.
+
+        Each device index is probed in its own OS process, not in-process:
+        cv2.VideoCapture opening a specific index is exactly the kind of call
+        a flaky/crashing camera driver can take down, and process isolation
+        means that only kills the one worker rather than the whole app.
         """
         if skip_device_ids is None:
             skip_device_ids = []
@@ -933,20 +949,43 @@ class CameraDetector:
         logger.info(f"Probing Windows cameras via OpenCV fallback (max={max_devices})...")
 
         ids_to_probe = [i for i in range(max_devices) if i not in skip_device_ids]
+        if not ids_to_probe:
+            return cameras
 
-        for dev_id in ids_to_probe:
-            try:
-                cam_info = CameraDetector._probe_single_windows_camera(dev_id)
-                if cam_info:
-                    cameras.append(cam_info)
-                    logger.info(f"[OK] Found camera at index {dev_id}: {cam_info.name}")
-                else:
-                    logger.info(f"[-] No camera at index {dev_id}")
-
-                # Cooldown: give the USB controller time to recover
-                time.sleep(1.0)
-            except Exception as e:
-                logger.error(f"Exc in probe device {dev_id}: {e}")
+        try:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=len(ids_to_probe)) as executor:
+                future_to_id = {
+                    executor.submit(CameraDetector._probe_single_windows_camera, dev_id): dev_id
+                    for dev_id in ids_to_probe
+                }
+                for future in concurrent.futures.as_completed(future_to_id):
+                    dev_id = future_to_id[future]
+                    try:
+                        cam_info = future.result()
+                        if cam_info:
+                            cameras.append(cam_info)
+                            logger.info(f"[OK] Found camera at index {dev_id}: {cam_info.name}")
+                        else:
+                            logger.info(f"[-] No camera at index {dev_id}")
+                    except Exception as e:
+                        logger.error(f"Exc in probe process {dev_id}: {e}")
+        except Exception as e:
+            # ProcessPoolExecutor itself can fail to start on some platforms
+            # (e.g. no multiprocessing support in a frozen/embedded interpreter).
+            # Fall back to sequential in-process probing rather than finding
+            # nothing at all.
+            logger.warning(f"Process-isolated probing unavailable ({e}) — falling back to sequential in-process probe")
+            for dev_id in ids_to_probe:
+                try:
+                    cam_info = CameraDetector._probe_single_windows_camera(dev_id)
+                    if cam_info:
+                        cameras.append(cam_info)
+                        logger.info(f"[OK] Found camera at index {dev_id}: {cam_info.name}")
+                    else:
+                        logger.info(f"[-] No camera at index {dev_id}")
+                    time.sleep(1.0)
+                except Exception as inner_e:
+                    logger.error(f"Exc in probe device {dev_id}: {inner_e}")
 
         logger.info(f"Windows camera probe complete: {len(cameras)} camera(s) found")
         return cameras
@@ -985,10 +1024,13 @@ class CameraDetector:
             ret, frame = cap.read()
 
             if not ret or frame is None:
-                # Can't read frames - use query as fallback
-                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                return False, (width, height)
+                # Opened but never delivered a frame — the signature of a
+                # phantom DirectShow filter a vendor SDK (Basler pylon,
+                # Pleora eBUS) registers at install time with no hardware
+                # behind it. (0, 0) is the documented failure sentinel here:
+                # callers must treat it as "not a real camera", not as an
+                # unusually small resolution.
+                return False, (0, 0)
 
             # Analyze frame characteristics
             height, width = frame.shape[:2]

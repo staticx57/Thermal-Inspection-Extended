@@ -570,6 +570,21 @@ class BosonSerialInterface:
 
 
 # ============================================================================
+# Module-level convenience API
+# ============================================================================
+
+def scan_boson_ports() -> List[str]:
+    """
+    Find COM ports a FLIR Boson's serial control interface is likely on.
+
+    Thin wrapper around BosonSerialInterface.find_boson_com_ports() — the
+    plugin's SDK command dispatch imports this name directly rather than
+    reaching into the class.
+    """
+    return BosonSerialInterface.find_boson_com_ports()
+
+
+# ============================================================================
 # Standalone Test
 # ============================================================================
 

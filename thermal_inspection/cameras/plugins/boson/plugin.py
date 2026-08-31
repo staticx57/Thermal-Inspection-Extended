@@ -175,17 +175,45 @@ class BosonPlugin(CameraPlugin):
     def detect(self) -> List[CameraPluginMatch]:
         # Reads the shared device scan; does not touch hardware itself.
         matches = []
-        for device in find_devices_by_resolution(BOSON_RESOLUTIONS, tolerance=10):
+        thermal_devices = find_devices_by_resolution(BOSON_RESOLUTIONS, tolerance=10)
+        if not thermal_devices:
+            return matches
+
+        com_port = self._resolve_com_port()
+        for device in thermal_devices:
             matches.append(CameraPluginMatch(
                 plugin_id=self.plugin_id,
                 device_index=device.index,
-                com_port=get_serial_port(self.plugin_id, DEFAULT_COM_PORT),
+                com_port=com_port,
                 baud_rate=get_serial_baud(self.plugin_id, 921600),
                 name=f"FLIR Boson ({device.width}x{device.height})",
                 resolution=device.resolution,
                 score=100
             ))
         return matches
+
+    def _resolve_com_port(self) -> str:
+        """
+        Resolve the serial control port: explicit user override first, then
+        a live scan for the actual FLIR/Boson serial device (the video
+        interface and the CCI control interface enumerate as separate
+        Windows devices, and the control COM port is not derivable from the
+        video device index — it varies per machine/USB topology), falling
+        back to the configured default only if nothing is found.
+        """
+        from thermal_inspection.utils.config import get_config
+        if get_config().get('sdk_com_port'):
+            return get_serial_port(self.plugin_id, DEFAULT_COM_PORT)
+
+        try:
+            from thermal_inspection.sdk.boson_serial import scan_boson_ports
+            found = scan_boson_ports()
+            if found:
+                return found[0]
+        except Exception as e:
+            logger.debug(f"Boson COM port auto-detect failed: {e}")
+
+        return get_serial_port(self.plugin_id, DEFAULT_COM_PORT)
 
     def create_backend(self, match: CameraPluginMatch) -> OpenCVThermalBackend:
         return OpenCVThermalBackend(

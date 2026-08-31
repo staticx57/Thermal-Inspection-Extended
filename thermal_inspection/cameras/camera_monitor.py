@@ -66,6 +66,12 @@ class CameraMonitor:
         # resolutions and reads frames, so we only pay for it when this
         # fingerprint actually changes. None means "not yet sampled".
         self._last_device_fingerprint: Optional[list] = None
+        # Tracked separately from _last_device_fingerprint: that attribute is
+        # None both "before the first scan" and "fingerprint unavailable this
+        # tick", so it alone can't tell first-scan apart from a fingerprint
+        # outage. Conflating them left auto cache-invalidation permanently
+        # disabled whenever enumeration was ever unavailable.
+        self._has_scanned_once = False
 
         logger.info(f"Camera monitor initialized (scan interval: {scan_interval}s)")
 
@@ -169,25 +175,34 @@ class CameraMonitor:
             force: Run the full sweep regardless of the fingerprint.
         """
         fingerprint = self._device_fingerprint()
-        is_first_scan = self._last_device_fingerprint is None
-        hardware_changed = (
-            not is_first_scan
-            and fingerprint is not None
-            and fingerprint != self._last_device_fingerprint
+        is_first_scan = not self._has_scanned_once
+        fingerprint_unavailable = fingerprint is None
+        # When enumeration is unavailable we cannot cheaply tell whether
+        # hardware changed, so treat every such tick as "changed" — this
+        # matches the full scan below, which already runs unconditionally in
+        # that state (see the early-return guard just below).
+        hardware_changed = not is_first_scan and (
+            fingerprint_unavailable or fingerprint != self._last_device_fingerprint
         )
 
-        if not force and not is_first_scan and fingerprint is not None and not hardware_changed:
+        if not force and not is_first_scan and not fingerprint_unavailable and not hardware_changed:
             logger.debug("Device list unchanged — skipping full camera scan")
             return
 
         if hardware_changed:
-            logger.info("Device list changed — running full camera scan")
+            logger.info(
+                "Device list changed — running full camera scan"
+                if not fingerprint_unavailable else
+                "Device enumeration unavailable — running full camera scan"
+            )
 
+        self._has_scanned_once = True
         self._last_device_fingerprint = fingerprint
 
-        # Only drop the shared scan when hardware actually moved. On the first
-        # tick the cache was just built by startup discovery, and throwing it
-        # away would make every plugin re-probe for nothing.
+        # Only drop the shared scan when hardware actually moved (or we can't
+        # tell, which we treat the same way). On the first tick the cache was
+        # just built by startup discovery, and throwing it away would make
+        # every plugin re-probe for nothing.
         if hardware_changed or force:
             from thermal_inspection.cameras.device_scanner import invalidate_cache
             invalidate_cache()

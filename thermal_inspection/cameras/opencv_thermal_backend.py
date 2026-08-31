@@ -104,9 +104,14 @@ class OpenCVThermalBackend(ThermalBackend):
             if success:
                 self._is_opened = True
                 logger.info("✓ OpenCV thermal backend opened successfully")
-                logger.info(f"  Resolution: {self.camera.width}x{self.camera.height}")
+                # FLIRBosonCamera exposes resolution as a (w, h) tuple and
+                # has no `width`/`height`/`fps` attributes of its own — read
+                # FPS from the underlying VideoCapture instead.
+                width, height = self.camera.resolution
+                logger.info(f"  Resolution: {width}x{height}")
                 logger.info(f"  SDK enabled: {self.enable_sdk}")
-                logger.info(f"  FPS: {self.camera.fps}")
+                if self.camera.cap is not None:
+                    logger.info(f"  FPS: {self.camera.cap.get(cv2.CAP_PROP_FPS)}")
                 return True
             else:
                 logger.error("✗ OpenCV thermal backend failed to open")
@@ -177,8 +182,9 @@ class OpenCVThermalBackend(ThermalBackend):
         }
 
         if self.camera and self._is_opened:
-            info['fps'] = self.camera.fps
-            info['mode'] = 'radiometric' if self.camera.is_radiometric else 'non-radiometric'
+            if self.camera.cap is not None:
+                info['fps'] = self.camera.cap.get(cv2.CAP_PROP_FPS)
+            info['mode'] = 'radiometric' if self.camera.is_radiometric_enabled() else 'non-radiometric'
 
         return info
 
@@ -190,7 +196,7 @@ class OpenCVThermalBackend(ThermalBackend):
             tuple: (width, height) or None
         """
         if self.camera and self._is_opened:
-            return (self.camera.width, self.camera.height)
+            return self.camera.resolution
         return None
 
     def is_radiometric(self) -> bool:

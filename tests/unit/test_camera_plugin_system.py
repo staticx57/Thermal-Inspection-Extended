@@ -117,6 +117,130 @@ def test_plugin_host_lifecycle():
     assert host.is_connected("thermal") is False
 
 
+class MockDualRolePlugin(CameraPlugin):
+    """
+    A plugin whose declared camera_role is fixed (like GigEPlugin), but whose
+    detected matches can individually be either role via extra['is_thermal']
+    — the shape that exposed the _match_is_role bug.
+    """
+
+    @property
+    def plugin_id(self) -> str:
+        return "mock_dual_role"
+
+    @property
+    def display_name(self) -> str:
+        return "Mock Dual-Role"
+
+    @property
+    def camera_role(self) -> CameraRole:
+        return CameraRole.RGB  # fixed, like GigEPlugin
+
+    def detect(self):
+        return [
+            CameraPluginMatch(
+                plugin_id=self.plugin_id, device_index=0, score=100,
+                extra={"is_thermal": True},
+            ),
+            CameraPluginMatch(
+                plugin_id=self.plugin_id, device_index=1, score=90,
+                extra={"is_thermal": False},
+            ),
+        ]
+
+    def create_backend(self, match):
+        backend = MagicMock()
+        backend.open.return_value = True
+        return backend
+
+    def create_sdk(self, match):
+        return None
+
+    def create_control_panel(self):
+        return None
+
+    def get_capabilities(self, match):
+        return CameraCapabilities()
+
+
+def test_host_activate_camera_returns_bool_not_exception():
+    """
+    activate_camera() must never raise for a well-formed match — this is the
+    call assign_camera_to_slot() (app.py) depends on downstream of
+    registry.discover(), and a regression here previously surfaced as an
+    AttributeError several frames away.
+    """
+    registry = CameraPluginRegistry()
+    plugin = MockThermalPlugin()
+    registry.register(plugin)
+    host = CameraPluginHost(registry=registry)
+
+    match = plugin.detect()[0]
+    assert hasattr(match, "device_index"), "CameraPluginMatch must expose device_index"
+
+    ok = host.activate_camera(match)
+    assert ok is True
+
+
+def test_autodiscover_return_value_lacks_device_index():
+    """
+    Documents the exact type mismatch behind the app.py assign_camera_to_slot
+    bug: autodiscover() returns ActiveCamera objects, which have no
+    device_index — callers must go through registry.discover() (or
+    match.device_index off an ActiveCamera's .match field) to look up a
+    device by index, never off autodiscover()'s own return value directly.
+    """
+    registry = CameraPluginRegistry()
+    plugin = MockThermalPlugin()
+    registry.register(plugin)
+    host = CameraPluginHost(registry=registry)
+
+    activated = host.autodiscover()
+    assert len(activated) == 1
+    assert not hasattr(activated[0], "device_index")
+    assert hasattr(activated[0], "match")
+    assert activated[0].match.device_index == 0
+
+    # The fix: raw candidates from the registry DO have device_index.
+    matches = host.registry.discover()
+    assert all(hasattr(m, "device_index") for m in matches)
+
+
+def test_match_is_role_respects_per_match_is_thermal_override():
+    """
+    A plugin whose camera_role is fixed to RGB (like GigEPlugin) must still
+    be selectable for the THERMAL role when a specific detected match is
+    flagged is_thermal=True — otherwise a real thermal GigE camera can never
+    fill the THERMAL slot.
+    """
+    registry = CameraPluginRegistry()
+    plugin = MockDualRolePlugin()
+    registry.register(plugin)
+    host = CameraPluginHost(registry=registry)
+
+    thermal_match, rgb_match = plugin.detect()
+
+    assert host._match_is_role(thermal_match, CameraRole.THERMAL) is True
+    assert host._match_is_role(thermal_match, CameraRole.RGB) is False
+    assert host._match_is_role(rgb_match, CameraRole.RGB) is True
+    assert host._match_is_role(rgb_match, CameraRole.THERMAL) is False
+
+
+def test_autodiscover_assigns_thermal_match_to_thermal_role():
+    """End-to-end: a dual-role plugin's thermal-flagged match must land in
+    the THERMAL slot via autodiscover(), not be silently stuck in RGB."""
+    registry = CameraPluginRegistry()
+    plugin = MockDualRolePlugin()
+    registry.register(plugin)
+    host = CameraPluginHost(registry=registry)
+
+    activated = host.autodiscover()
+    roles_by_device_index = {a.match.device_index: a for a in activated}
+
+    assert host.is_connected("thermal") is True
+    assert roles_by_device_index[0].match.extra["is_thermal"] is True
+
+
 def test_tau2_crc_calculation():
     """Test CRC-CCITT calculation on Tau2 serial packets."""
     # Process code 0x6E with no args header
