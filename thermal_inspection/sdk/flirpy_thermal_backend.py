@@ -26,13 +26,20 @@ try:
 except ImportError:
     FLIRPY_AVAILABLE = False
 
-# Import BosonSDK for T-Linear control via COM port
+# Import BosonSDK for T-Linear control via COM port.
+# GainMode/FFCMode/ColorLUT are the enums the SDK setters expect.
 try:
-    from thermal_inspection.sdk.boson_sdk_wrapper import BosonSDK
+    from thermal_inspection.sdk.boson_sdk_wrapper import (
+        BosonSDK, GainMode, FFCMode, ColorLUT
+    )
     SDK_AVAILABLE = True
 except ImportError:
+    BosonSDK = None
+    GainMode = None
+    FFCMode = None
+    ColorLUT = None
     SDK_AVAILABLE = False
-    logger.warning("BosonSDK not available - T-Linear mode may not work") 
+    logger.warning("BosonSDK not available - T-Linear mode may not work")
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +62,7 @@ class FlirpyThermalBackend(ThermalBackend):
     def __init__(self, com_port: str = 'COM7', auto_configure: bool = True):
         """
         Initialize flirpy backend with optional SDK control.
-        
+
         Args:
             com_port: COM port for SDK control (e.g., 'COM7')
             auto_configure: If True, automatically configure T-Linear mode on open
@@ -64,11 +71,11 @@ class FlirpyThermalBackend(ThermalBackend):
         self._is_opened = False
         self._frame_count = 0
         self._last_frame = None  # Store last captured frame
-        
+
         # SDK control (dual-path)
         self._com_port = com_port
         self._auto_configure = auto_configure
-        self._sdk: Optional['BosonSDK'] = None
+        self._sdk: Optional[BosonSDK] = None
         self._sdk_connected = False
         self._tlinear_enabled = False
 
@@ -95,14 +102,14 @@ class FlirpyThermalBackend(ThermalBackend):
     def open(self) -> bool:
         """
         Open FLIR Boson camera via flirpy (Sequential Access Pattern).
-        
+
         This method:
         1. FIRST: Connects BosonSDK to configure T-Linear mode
         2. THEN: Closes SDK to release COM port
         3. FINALLY: Opens flirpy for 16-bit Y16 video capture
-        
+
         This sequential pattern avoids COM port conflicts between SDK and flirpy.
-        
+
         Returns:
             bool: True if successful
         """
@@ -112,15 +119,15 @@ class FlirpyThermalBackend(ThermalBackend):
 
         try:
             logger.info(f"Opening Boson camera via flirpy (Port: {self._com_port})...")
-            
+
             # STEP 1: Configure T-Linear mode via SDK FIRST (before flirpy takes the port)
             if self._auto_configure and SDK_AVAILABLE:
                 self._configure_tlinear_before_flirpy()
-            
+
             # STEP 2: Initialize flirpy Boson for video capture
             # flirpy will now use the COM port (SDK released it above)
             self.camera = Boson(port=self._com_port)
-            
+
             # Verify serial connection via flirpy
             try:
                 temp = self.camera.get_fpa_temperature()
@@ -133,7 +140,7 @@ class FlirpyThermalBackend(ThermalBackend):
             self._is_opened = True
             self._frame_count = 0
             logger.info("✓ Boson camera opened via flirpy")
-            
+
             # Run FFC for clean calibration
             if self._sdk_connected:
                 try:
@@ -141,7 +148,7 @@ class FlirpyThermalBackend(ThermalBackend):
                     logger.info("FFC triggered")
                 except Exception as e:
                     logger.warning(f"FFC failed: {e}")
-                
+
                 # Verify T-Linear mode is working
                 if self._tlinear_enabled:
                     import time
@@ -150,7 +157,7 @@ class FlirpyThermalBackend(ThermalBackend):
                         logger.info("✓ Radiometric output verified")
                     else:
                         logger.warning("⚠ T-Linear verification failed - may be in AGC mode")
-            
+
             return True
 
         except Exception as e:
@@ -162,23 +169,23 @@ class FlirpyThermalBackend(ThermalBackend):
     def _configure_tlinear_before_flirpy(self):
         """
         Configure camera for T-Linear radiometric output via SDK.
-        
+
         IMPORTANT: This must be called BEFORE flirpy opens the camera,
         because both SDK and flirpy need exclusive access to the COM port.
         The SDK will be closed after configuration to release the port for flirpy.
         """
         try:
             logger.info("Configuring T-Linear mode via SDK (before flirpy)...")
-            
+
             # Create temporary SDK connection
             sdk = BosonSDK(com_port=self._com_port)
             if not sdk.open():
                 logger.warning("Failed to connect BosonSDK - T-Linear may not be enabled")
                 self._tlinear_enabled = False
                 return
-            
+
             logger.info(f"✓ BosonSDK connected on {self._com_port}")
-            
+
             # Enable T-Linear mode (USB Video IR16 Mode = 2)
             try:
                 if sdk.set_usb_video_ir16_mode(2):
@@ -190,13 +197,13 @@ class FlirpyThermalBackend(ThermalBackend):
             except Exception as e:
                 logger.error(f"Error setting T-Linear mode: {e}")
                 self._tlinear_enabled = False
-            
+
             # Also enable T-Linear control if available
             try:
                 sdk.enable_tlinear_control()
             except Exception as e:
                 logger.debug(f"T-Linear control enable failed (may not be supported): {e}")
-            
+
             # CRITICAL: Close SDK to release COM port for flirpy
             sdk.close()
             logger.info("✓ SDK closed, COM port released for flirpy")
@@ -213,10 +220,10 @@ class FlirpyThermalBackend(ThermalBackend):
 
     def _verify_tlinear(self) -> bool:
         """Verify T-Linear mode is active by checking frame properties.
-        
+
         T-Linear Y16 format: pixel values represent Kelvin * 100
         Expected room temp range: 20000-35000 (~0°C to 75°C)
-        
+
         Returns:
             bool: True if T-Linear appears to be working correctly
         """
@@ -225,15 +232,15 @@ class FlirpyThermalBackend(ThermalBackend):
             if not ret or frame is None:
                 logger.warning("⚠ Cannot verify T-Linear: no frame available")
                 return False
-            
+
             # Must be 16-bit
             if frame.dtype != np.uint16:
                 logger.warning(f"⚠ Expected uint16, got {frame.dtype} - not T-Linear")
                 return False
-            
+
             min_val = int(frame.min())
             max_val = int(frame.max())
-            
+
             # T-Linear Y16 range check (Kelvin * 100)
             # Typical room temps: 20000-35000 (approx -73°C to 77°C covers most cases)
             if 20000 < min_val < 35000 and 25000 < max_val < 40000:
@@ -241,18 +248,18 @@ class FlirpyThermalBackend(ThermalBackend):
                 temp_max = (max_val / 100.0) - 273.15
                 logger.info(f"✓ T-Linear verified: {temp_min:.1f}°C to {temp_max:.1f}°C")
                 return True
-            
+
             # AGC/raw 14-bit range: typically 0-16383
             if max_val < 20000:
                 logger.warning(f"⚠ Likely 14-bit AGC data (range: {min_val}-{max_val})")
                 return False
-            
+
             # Unusual range but could still be valid
             temp_min = (min_val / 100.0) - 273.15
             temp_max = (max_val / 100.0) - 273.15
             logger.info(f"Frame range: {min_val}-{max_val} ({temp_min:.1f}°C to {temp_max:.1f}°C)")
             return True
-            
+
         except Exception as e:
             logger.error(f"T-Linear verification failed: {e}")
             return False
@@ -260,19 +267,6 @@ class FlirpyThermalBackend(ThermalBackend):
     def close(self):
         """Close camera."""
         self.release()
-
-    def release(self):
-        """Release camera resources."""
-        if self.camera:
-            try:
-                self.camera.close()
-            except Exception as e:
-                logger.error(f"Error closing flirpy camera: {e}")
-            self.camera = None
-            
-        self._is_opened = False
-        self._sdk_connected = False
-        logger.info("Boson camera released")
 
     def _connect_sdk(self) -> bool:
         """Deprecated - SDK connection handled by flirpy."""
@@ -344,7 +338,7 @@ class FlirpyThermalBackend(ThermalBackend):
                 self.camera = None
                 self._is_opened = False
                 self._frame_count = 0
-        
+
         # Disconnect SDK
         self.disconnect_sdk()
         self._tlinear_enabled = False
@@ -385,7 +379,7 @@ class FlirpyThermalBackend(ThermalBackend):
                 'T-Linear mode'
             ]
         }
-        
+
         # Add SDK info if connected
         if self._sdk_connected and self._sdk is not None and self._sdk.info:
             sdk_info = self._sdk.info
@@ -395,7 +389,7 @@ class FlirpyThermalBackend(ThermalBackend):
                 info['gain_mode'] = sdk_info.gain_mode.name
             if sdk_info.software_version:
                 info['firmware_version'] = sdk_info.software_version
-        
+
         return info
 
     def get_resolution(self) -> Tuple[int, int]:
@@ -411,7 +405,7 @@ class FlirpyThermalBackend(ThermalBackend):
                 ret, frame = self.read()
                 if ret and frame is not None:
                     return (frame.shape[1], frame.shape[0])  # (width, height)
-            except:
+            except Exception:
                 pass
 
         # Default Boson 320 resolution
@@ -465,23 +459,6 @@ class FlirpyThermalBackend(ThermalBackend):
         the camera simultaneously.
         """
         return True
-
-    def get_fpa_temperature(self) -> Optional[float]:
-        """
-        Get FPA (Focal Plane Array) temperature.
-
-        Returns:
-            float: FPA temperature in Celsius, or None if unavailable
-        """
-        if not self._is_opened or not self.camera:
-            return None
-        
-        try:
-            temp = self.camera.get_fpa_temperature()
-            return temp
-        except Exception as e:
-            logger.debug(f"Could not get FPA temperature: {e}")
-            return None
 
     def enable_radiometric(self, enable: bool = True):
         """
@@ -556,16 +533,6 @@ class FlirpyThermalBackend(ThermalBackend):
         except Exception as e:
             logger.error(f"Error converting to temperature: {e}")
             return None
-
-    def get_last_raw_frame(self) -> Optional[np.ndarray]:
-        """
-        Get the last captured raw frame (16-bit).
-
-        Returns:
-            Raw 16-bit frame (uint16), or None if not available
-        """
-        return self._last_frame
-        return self.get_temperature_map()
 
     def get_roi_temperature_stats(self, roi_mask: np.ndarray) -> Optional[dict]:
         """
@@ -722,7 +689,7 @@ class FlirpyThermalBackend(ThermalBackend):
     def sdk(self):
         """
         Get the SDK object for direct camera control.
-        
+
         Returns the connected BosonSDK instance, allowing full COM control
         (FFC, gain, emissivity, LUT, etc.) while still capturing via flirpy.
         """
@@ -736,7 +703,7 @@ class FlirpyThermalBackend(ThermalBackend):
     def trigger_ffc(self) -> bool:
         """
         Trigger Flat Field Correction via SDK.
-        
+
         FFC corrects for non-uniformity in the sensor response.
         Recommended after temperature changes or every 10-15 minutes.
 
@@ -746,7 +713,7 @@ class FlirpyThermalBackend(ThermalBackend):
         if not self._sdk_connected or self.camera is None:
             logger.warning("Cannot trigger FFC: SDK not connected")
             return False
-        
+
         try:
             # Use flirpy's Boson class do_ffc method
             self.camera.do_ffc()
@@ -772,7 +739,7 @@ class FlirpyThermalBackend(ThermalBackend):
     def set_gain_mode(self, mode: int) -> bool:
         """
         Set gain mode via SDK.
-        
+
         Args:
             mode: 0=HIGH (-40 to 120°C), 1=LOW (up to 400°C), 2=AUTO
 
@@ -782,7 +749,7 @@ class FlirpyThermalBackend(ThermalBackend):
         if not self._sdk_connected or self._sdk is None:
             logger.warning("Cannot set gain mode: SDK not connected")
             return False
-        
+
         try:
             gain_mode = GainMode(mode)
             return self._sdk.set_gain_mode(gain_mode)
@@ -793,7 +760,7 @@ class FlirpyThermalBackend(ThermalBackend):
     def set_ffc_mode(self, mode: int) -> bool:
         """
         Set FFC mode via SDK.
-        
+
         Args:
             mode: 0=MANUAL, 1=AUTO, 2=EXTERNAL
 
@@ -803,7 +770,7 @@ class FlirpyThermalBackend(ThermalBackend):
         if not self._sdk_connected or self._sdk is None:
             logger.warning("Cannot set FFC mode: SDK not connected")
             return False
-        
+
         try:
             ffc_mode = FFCMode(mode)
             return self._sdk.set_ffc_mode(ffc_mode)
@@ -813,17 +780,31 @@ class FlirpyThermalBackend(ThermalBackend):
 
     def get_fpa_temperature(self) -> Optional[float]:
         """
-        Get FPA (Focal Plane Array) temperature via SDK.
-        
+        Get FPA (Focal Plane Array) temperature in Celsius.
+
+        Prefers flirpy, which reads the value over the same handle it already
+        holds and so works while streaming. Falls back to the SDK's COM
+        channel, which is only reachable when a separate connection is up.
+
         Returns:
             float: FPA temperature in Celsius, or None if unavailable
         """
-        if not self._sdk_connected or self._sdk is None:
-            return None
-        
-        result = self._sdk.get_fpa_temperature()
-        if result:
-            return result[1]  # Return Celsius value
+        if self._is_opened and self.camera:
+            try:
+                temp = self.camera.get_fpa_temperature()
+                if temp is not None:
+                    return temp
+            except Exception as e:
+                logger.debug(f"flirpy FPA temperature read failed: {e}")
+
+        if self._sdk_connected and self._sdk is not None:
+            try:
+                result = self._sdk.get_fpa_temperature()
+                if result:
+                    return result[1]  # (kelvin, celsius)
+            except Exception as e:
+                logger.debug(f"SDK FPA temperature read failed: {e}")
+
         return None
 
     def get_lens_temperature(self) -> Optional[float]:
@@ -835,7 +816,7 @@ class FlirpyThermalBackend(ThermalBackend):
         """
         if not self._sdk_connected or self._sdk is None:
             return None
-        
+
         return self._sdk.get_lens_temperature()
 
     def get_shutter_temperature(self) -> Optional[float]:
@@ -847,7 +828,7 @@ class FlirpyThermalBackend(ThermalBackend):
         """
         if not self._sdk_connected or self._sdk is None:
             return None
-        
+
         return self._sdk.get_shutter_temperature()
 
     def get_board_temperature(self) -> Optional[float]:
@@ -864,7 +845,7 @@ class FlirpyThermalBackend(ThermalBackend):
     def set_color_lut(self, lut: int) -> bool:
         """
         Set color lookup table via SDK.
-        
+
         Args:
             lut: 0=WHITE_HOT, 1=BLACK_HOT, 2=RAINBOW, 4=IRONBOW, etc.
 
@@ -874,9 +855,8 @@ class FlirpyThermalBackend(ThermalBackend):
         if not self._sdk_connected or self._sdk is None:
             logger.warning("Cannot set color LUT: SDK not connected")
             return False
-        
+
         try:
-            from boson_sdk_wrapper import ColorLUT
             color_lut = ColorLUT(lut)
             return self._sdk.set_color_lut(color_lut)
         except Exception as e:
@@ -886,7 +866,7 @@ class FlirpyThermalBackend(ThermalBackend):
     def set_emissivity(self, emissivity: float) -> bool:
         """
         Set target emissivity for accurate temperature measurement.
-        
+
         Args:
             emissivity: 0.01-1.0 (1.0 = perfect blackbody)
 
@@ -896,7 +876,7 @@ class FlirpyThermalBackend(ThermalBackend):
         if self.camera is None:
             logger.warning("Cannot set emissivity: Camera not connected")
             return False
-        
+
         try:
             # Try flirpy method first
             if hasattr(self.camera, 'set_emissivity'):
@@ -918,7 +898,7 @@ class FlirpyThermalBackend(ThermalBackend):
         """
         if self.camera is None:
             return None
-        
+
         try:
             if hasattr(self.camera, 'get_emissivity'):
                 return self.camera.get_emissivity()
@@ -930,7 +910,7 @@ class FlirpyThermalBackend(ThermalBackend):
     def set_atmospheric_temperature(self, temp_celsius: float) -> bool:
         """
         Set atmospheric temperature for compensation.
-        
+
         Args:
             temp_celsius: Temperature in Celsius
 
@@ -939,7 +919,7 @@ class FlirpyThermalBackend(ThermalBackend):
         """
         if self.camera is None:
             return False
-            
+
         try:
             if hasattr(self.camera, 'set_atmospheric_temperature'):
                 self.camera.set_atmospheric_temperature(temp_celsius)
@@ -952,7 +932,7 @@ class FlirpyThermalBackend(ThermalBackend):
     def set_atmospheric_transmission(self, transmission: float) -> bool:
         """
         Set atmospheric transmission coefficient.
-        
+
         Args:
             transmission: 0.01-1.0
 
@@ -961,7 +941,7 @@ class FlirpyThermalBackend(ThermalBackend):
         """
         if self.camera is None:
             return False
-            
+
         try:
             if hasattr(self.camera, 'set_atmospheric_transmission'):
                 self.camera.set_atmospheric_transmission(transmission)
@@ -980,7 +960,7 @@ class FlirpyThermalBackend(ThermalBackend):
         """
         if not self._sdk_connected or self._sdk is None:
             return {}
-        
+
         return self._sdk.get_calibration_info()
 
     def spotmeter_enable(self, enabled: bool) -> bool:
@@ -1023,13 +1003,13 @@ class FlirpyThermalBackend(ThermalBackend):
         """
         if self._tlinear_enabled:
             return True
-        
+
         return self._configure_tlinear()
 
     def set_temperature_range(self, min_celsius: float, max_celsius: float) -> bool:
         """
         Set temperature range (for gain mode selection).
-        
+
         High gain: -40°C to 120°C
         Low gain: up to 400°C
 

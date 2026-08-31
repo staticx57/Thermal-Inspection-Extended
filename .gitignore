@@ -1,3 +1,47 @@
+# Python files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Project-specific: model weights
+*.pt
+
+# Project-specific: logs and local config
+*.log
+*.log.*
+camera_registry.json
+config.json
+settings_editor_theme.json
+
+# Project-specific: recordings and snapshots
+recordings/
+snapshots/
+
+# Local scratch/working scripts (not part of the package)
+scratch/
+.ruff_cache/
+
+# OS/IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.claude/
+
+# Windows-specific accidental files
 nul
-/recordings
-/snapshots

@@ -11,6 +11,10 @@ RGB CAMERA PRIORITY:
 2. External USB UVC cameras
 3. Built-in laptop webcams
 """
+import os
+os.environ["OPENCV_VIDEOIO_PRIORITY_OBSENSOR"] = "0"
+os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
+
 import cv2
 import subprocess
 import re
@@ -21,7 +25,6 @@ import numpy as np
 from typing import List, Dict, Optional, Tuple
 from enum import Enum
 from pathlib import Path
-import concurrent.futures
 
 
 # Import camera registry for tracking camera roles
@@ -83,12 +86,17 @@ class CameraInfo:
         Returns:
             CameraType enum
         """
-        # FLIR Boson thermal camera resolutions (HIGHEST PRIORITY)
+        # Thermal camera resolutions (FLIR Boson, Tau2, Lepton)
         thermal_resolutions = [
-            (640, 512),  # Boson 640
-            (320, 256),  # Boson 320
-            (512, 640),  # Boson 640 (rotated)
-            (256, 320),  # Boson 320 (rotated)
+            (640, 512),  # Boson 640 / Tau2 640
+            (320, 256),  # Boson 320 / Tau2 320
+            (336, 256),  # Tau2 336
+            (324, 256),  # Tau2 324
+            (160, 128),  # Tau2 160
+            (160, 120),  # Lepton 3.5 / 3.0
+            (80, 60),    # Lepton 2.x
+            (512, 640),  # Rotated
+            (256, 320),  # Rotated
         ]
 
         # Check resolution with fuzzy matching (DirectShow may report +/-10 pixels)
@@ -133,8 +141,8 @@ class CameraInfo:
         if self.resolution in common_rgb_resolutions:
             return CameraType.RGB
 
-        # Unknown type
-        return CameraType.UNKNOWN
+        # Unknown type — treat as RGB fallback so generic webcams are not discarded
+        return CameraType.RGB
 
     def _calculate_priority(self) -> int:
         """
@@ -265,7 +273,8 @@ class CameraDetector:
                 uvc_cameras = CameraDetector._probe_video_devices(skip_device_ids=skip_device_ids)
                 cameras.extend(uvc_cameras)
         elif system == "Windows":
-            # Windows: probe cameras using DirectShow/MSMF
+            # Windows: use native DirectShow enumeration (pygrabber) for safe hot-plug
+            # This does NOT open any camera handles — purely queries the OS device list
             uvc_cameras = CameraDetector._probe_windows_cameras(skip_device_ids=skip_device_ids)
             cameras.extend(uvc_cameras)
         else:
@@ -526,7 +535,7 @@ class CameraDetector:
             # Fallback: try opening with OpenCV
             return CameraDetector._probe_opencv_resolution(device_id)
 
-        except:
+        except Exception:
             return CameraDetector._probe_opencv_resolution(device_id)
 
     @staticmethod
@@ -539,7 +548,7 @@ class CameraDetector:
                 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                 cap.release()
                 return (width, height)
-        except:
+        except Exception:
             pass
 
         return (0, 0)
@@ -573,7 +582,7 @@ class CameraDetector:
                         resolution=(width, height)
                     ))
 
-            except:
+            except Exception:
                 pass
 
         return cameras
@@ -622,112 +631,322 @@ class CameraDetector:
             logger.debug(f"Could not read USB device info for {device_id}: {e}")
 
         return None
-
     @staticmethod
     def _probe_single_windows_camera(device_id: int) -> Optional[CameraInfo]:
         """
-        Probe a single Windows camera index.
-        Helper method for parallel execution.
+        Probe a single Windows camera index using MSMF (Windows Media Foundation).
+
+        DirectShow (CAP_DSHOW) is intentionally skipped — it fails with
+        "can't be used to capture by index" on many modern Windows systems and
+        hangs for several seconds before the error is raised.  MSMF is the
+        correct modern Windows camera backend and works reliably with integer
+        device indices.
         """
         logger.info(f"Probing Windows camera index {device_id}...")
 
-        # Add small random delay to prevent USB collisions if probing simultaneously
+        # Small random delay to prevent USB collisions when probing simultaneously
         import random
-        time.sleep(random.uniform(0.01, 0.1))
+        time.sleep(random.uniform(0.01, 0.05))
 
         cap = None
         try:
-            # Try DirectShow first
+            # --- Primary: MSMF (Windows Media Foundation) ---
             try:
-                cap = cv2.VideoCapture(device_id, cv2.CAP_DSHOW)
+                cap = cv2.VideoCapture(device_id, cv2.CAP_MSMF)
                 if not cap.isOpened():
                     cap.release()
                     cap = None
             except Exception:
                 cap = None
 
-            # Fallback to MSMF
-            if cap is None:
+            # --- Fallback: DSHOW (DirectShow) ---
+            if cap is None or not cap.isOpened():
                 try:
-                    cap = cv2.VideoCapture(device_id, cv2.CAP_MSMF)
+                    cap = cv2.VideoCapture(device_id, cv2.CAP_DSHOW)
                     if not cap.isOpened():
                         cap.release()
                         cap = None
                 except Exception:
                     cap = None
 
-            if cap is not None and cap.isOpened():
-                # PROBE FOR HIGH RESOLUTION
-                try:
-                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
-                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
-                    time.sleep(0.1)
-                except:
-                    pass
+            if cap is None or not cap.isOpened():
+                return None
 
-                # Identify camera
-                is_thermal, resolution = CameraDetector._identify_camera_by_frames(cap, device_id)
+            # --- FAST PATH: query reported resolution first (no frame grab needed) ---
+            reported_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            reported_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-                # Get name
-                name = f"Camera {device_id}"
-                try:
-                    backend = cap.getBackendName()
-                    name = f"Camera {device_id} ({backend})"
-                except:
-                    pass
-
-                if is_thermal:
-                    name = f"FLIR Boson {resolution[0]}x{resolution[1]} (Camera {device_id})"
-                elif resolution[0] >= 1920:
-                    name = f"High-Res Camera {device_id} ({resolution[0]}x{resolution[1]})"
-
+            # Thermal cameras report their exact fixed resolution — classify instantly
+            thermal_resolutions = [(640, 512), (320, 256), (512, 640), (256, 320)]
+            if (reported_w, reported_h) in thermal_resolutions:
+                name = f"FLIR Boson {reported_w}x{reported_h} (Camera {device_id})"
                 cap.release()
-
                 return CameraInfo(
                     device_id=device_id,
                     name=name,
-                    driver="DSHOW/MSMF",
-                    resolution=resolution
+                    driver="MSMF",
+                    resolution=(reported_w, reported_h)
                 )
+
+            # --- REQUEST HIGH RESOLUTION for RGB cameras ---
+            try:
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
+                time.sleep(0.05)
+            except Exception:
+                pass
+
+            # Identify camera via frame analysis (classifies thermal vs RGB)
+            is_thermal, resolution = CameraDetector._identify_camera_by_frames(cap, device_id)
+
+            # Build display name
+            name = f"Camera {device_id}"
+            try:
+                backend = cap.getBackendName()
+                name = f"Camera {device_id} ({backend})"
+            except Exception:
+                pass
+
+            if is_thermal:
+                name = f"FLIR Boson {resolution[0]}x{resolution[1]} (Camera {device_id})"
+            elif resolution[0] >= 1920:
+                name = f"High-Res Camera {device_id} ({resolution[0]}x{resolution[1]})"
+
+            cap.release()
+
+            return CameraInfo(
+                device_id=device_id,
+                name=name,
+                driver="MSMF",
+                resolution=resolution
+            )
 
         except Exception as e:
             logger.debug(f"Error probing device {device_id}: {e}")
             if cap:
-                cap.release()
+                try:
+                    cap.release()
+                except Exception:
+                    pass
 
         return None
 
+
     @staticmethod
-    def _probe_windows_cameras(max_devices: int = 5, skip_device_ids: Optional[List[int]] = None) -> List[CameraInfo]:
+    def _probe_windows_cameras(max_devices: int = 8, skip_device_ids: Optional[List[int]] = None) -> List[CameraInfo]:
         """
-        Probe cameras on Windows in PARALLEL.
+        Detect cameras on Windows using native DirectShow enumeration (pygrabber).
+
+        This method NEVER opens a camera handle just to check if it exists.
+        Instead, it queries the OS device list via DirectShow COM interfaces,
+        which is instantaneous and completely safe to call while cameras are
+        actively streaming.
+
+        For cameras that are NOT actively streaming (not in skip_device_ids),
+        we do a brief OpenCV probe to determine resolution and classify
+        thermal vs RGB cameras.
+
+        For cameras that ARE actively streaming, we pull their known details
+        from the camera registry to avoid stealing the video handle.
+
+        Falls back to the old OpenCV sequential probe if pygrabber is not installed.
+        """
+        if skip_device_ids is None:
+            skip_device_ids = []
+
+        # --- Try native DirectShow enumeration via pygrabber ---
+        try:
+            from pygrabber.dshow_graph import FilterGraph
+            graph = FilterGraph()
+            device_names = graph.get_input_devices()
+        except ImportError:
+            logger.warning("pygrabber not installed — falling back to OpenCV sequential probe")
+            return CameraDetector._probe_windows_cameras_opencv_fallback(
+                max_devices=max_devices, skip_device_ids=skip_device_ids
+            )
+        except Exception as e:
+            logger.warning(f"pygrabber enumeration failed ({e}) — falling back to OpenCV probe")
+            return CameraDetector._probe_windows_cameras_opencv_fallback(
+                max_devices=max_devices, skip_device_ids=skip_device_ids
+            )
+
+        if not device_names:
+            logger.info("[STEP 2] Windows native: No DirectShow video devices found")
+            return []
+
+        logger.info(f"[STEP 2] Windows native: {len(device_names)} DirectShow device(s) enumerated")
+        for i, name in enumerate(device_names):
+            logger.info(f"  Device {i}: {name}")
+
+        cameras = []
+
+        # Import registry once for looking up active camera details
+        from thermal_inspection.cameras.camera_registry import get_camera_registry
+        registry = get_camera_registry()
+
+        for dev_id, raw_name in enumerate(device_names):
+            # --- Classify by name first (fast, no hardware access) ---
+            name_lower = raw_name.lower()
+
+            # Skip virtual cameras and non-physical devices
+            if any(kw in name_lower for kw in ['obs virtual', 'virtual cam', 'snap camera']):
+                logger.info(f"  [{dev_id}] Skipping virtual device: {raw_name}")
+                continue
+
+            # ----- ACTIVE CAMERA: do NOT probe, use registry -----
+            if dev_id in skip_device_ids:
+                logger.info(f"  [{dev_id}] Active stream — using cached info for: {raw_name}")
+                known_desc = registry.get_camera(dev_id)
+                if known_desc:
+                    cameras.append(CameraInfo(
+                        device_id=dev_id,
+                        name=known_desc.name,
+                        driver=known_desc.driver,
+                        resolution=known_desc.resolution,
+                        interface="opencv"
+                    ))
+                else:
+                    # Camera is active but not yet in registry (first run) —
+                    # create a minimal entry from the DirectShow name
+                    cameras.append(CameraInfo(
+                        device_id=dev_id,
+                        name=raw_name,
+                        driver="DSHOW",
+                        resolution=(0, 0),  # Unknown — will be resolved on next idle probe
+                        interface="opencv"
+                    ))
+                continue
+
+            # ----- INACTIVE CAMERA: safe to probe for resolution -----
+            logger.info(f"  [{dev_id}] Probing resolution for: {raw_name}")
+            cam_info = CameraDetector._probe_single_windows_camera_safe(dev_id, raw_name)
+            if cam_info:
+                cameras.append(cam_info)
+
+        logger.info(f"Windows native detection complete: {len(cameras)} camera(s)")
+        return cameras
+
+    @staticmethod
+    def _probe_single_windows_camera_safe(device_id: int, device_name: str) -> Optional[CameraInfo]:
+        """
+        Probe a single INACTIVE Windows camera for resolution and type classification.
+
+        This is only called for cameras that are NOT actively streaming, so opening
+        a brief OpenCV handle is safe and won't steal any existing video feed.
+        """
+        cap = None
+        try:
+            cap = cv2.VideoCapture(device_id, cv2.CAP_MSMF)
+            if not cap.isOpened():
+                cap.release()
+                # Fallback to DSHOW
+                cap = cv2.VideoCapture(device_id, cv2.CAP_DSHOW)
+                if not cap.isOpened():
+                    cap.release()
+                    # Camera exists in DirectShow but can't be opened — return name-only
+                    return CameraInfo(
+                        device_id=device_id,
+                        name=device_name,
+                        driver="DSHOW",
+                        resolution=(0, 0),
+                        interface="opencv"
+                    )
+
+            # --- FAST PATH: check if thermal by reported resolution ---
+            reported_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            reported_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+            thermal_resolutions = [(640, 512), (320, 256), (512, 640), (256, 320)]
+            if (reported_w, reported_h) in thermal_resolutions:
+                name = f"FLIR Boson {reported_w}x{reported_h} ({device_name})"
+                cap.release()
+                return CameraInfo(
+                    device_id=device_id,
+                    name=name,
+                    driver="MSMF",
+                    resolution=(reported_w, reported_h)
+                )
+
+            # --- Also check name for thermal keywords ---
+            thermal_keywords = ['boson', 'thermal', 'radiometric', 'lwir', 'tau', 'flir']
+            name_lower = device_name.lower()
+            if any(kw in name_lower for kw in thermal_keywords):
+                cap.release()
+                return CameraInfo(
+                    device_id=device_id,
+                    name=device_name,
+                    driver="MSMF",
+                    resolution=(reported_w, reported_h)
+                )
+
+            # --- REQUEST HIGH RESOLUTION for RGB cameras ---
+            try:
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
+                time.sleep(0.05)
+            except Exception:
+                pass
+
+            # Identify camera via frame analysis
+            is_thermal, resolution = CameraDetector._identify_camera_by_frames(cap, device_id)
+            cap.release()
+
+            if is_thermal:
+                name = f"FLIR Boson {resolution[0]}x{resolution[1]} ({device_name})"
+            elif resolution[0] >= 1920:
+                name = f"{device_name} ({resolution[0]}x{resolution[1]})"
+            else:
+                name = f"{device_name} ({resolution[0]}x{resolution[1]})"
+
+            return CameraInfo(
+                device_id=device_id,
+                name=name,
+                driver="MSMF",
+                resolution=resolution
+            )
+
+        except Exception as e:
+            logger.debug(f"Error probing device {device_id} ({device_name}): {e}")
+            if cap:
+                try:
+                    cap.release()
+                except Exception:
+                    pass
+            # Return name-only entry so the camera still shows up
+            return CameraInfo(
+                device_id=device_id,
+                name=device_name,
+                driver="DSHOW",
+                resolution=(0, 0),
+                interface="opencv"
+            )
+
+    @staticmethod
+    def _probe_windows_cameras_opencv_fallback(max_devices: int = 8, skip_device_ids: Optional[List[int]] = None) -> List[CameraInfo]:
+        """
+        Legacy OpenCV sequential probe — used as fallback when pygrabber is not available.
         """
         if skip_device_ids is None:
             skip_device_ids = []
 
         cameras = []
-        logger.info(f"Probing Windows cameras (max={max_devices}) in PARALLEL...")
+        logger.info(f"Probing Windows cameras via OpenCV fallback (max={max_devices})...")
 
-        # Create list of IDs to probe
         ids_to_probe = [i for i in range(max_devices) if i not in skip_device_ids]
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=max_devices) as executor:
-            # Submit all tasks
-            future_to_id = {executor.submit(CameraDetector._probe_single_windows_camera, dev_id): dev_id for dev_id in ids_to_probe}
+        for dev_id in ids_to_probe:
+            try:
+                cam_info = CameraDetector._probe_single_windows_camera(dev_id)
+                if cam_info:
+                    cameras.append(cam_info)
+                    logger.info(f"[OK] Found camera at index {dev_id}: {cam_info.name}")
+                else:
+                    logger.info(f"[-] No camera at index {dev_id}")
 
-            # Gather results
-
-            for future in concurrent.futures.as_completed(future_to_id):
-                dev_id = future_to_id[future]
-                try:
-                    cam_info = future.result()
-                    if cam_info:
-                        cameras.append(cam_info)
-                        logger.info(f"[OK] Found camera at index {dev_id}: {cam_info.name}")
-                    else:
-                        logger.info(f"[-] No camera at index {dev_id}")
-                except Exception as e:
-                    logger.error(f"Exc in probe thread {dev_id}: {e}")
+                # Cooldown: give the USB controller time to recover
+                time.sleep(1.0)
+            except Exception as e:
+                logger.error(f"Exc in probe device {dev_id}: {e}")
 
         logger.info(f"Windows camera probe complete: {len(cameras)} camera(s) found")
         return cameras

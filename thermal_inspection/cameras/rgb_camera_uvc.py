@@ -9,6 +9,10 @@ Compatible with:
 - Generic USB webcams
 - Jetson CSI cameras (via GStreamer)
 """
+import os
+os.environ["OPENCV_VIDEOIO_PRIORITY_OBSENSOR"] = "0"
+os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
+
 import cv2
 import numpy as np
 import logging
@@ -17,6 +21,12 @@ from typing import Tuple, Optional
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Warmup budget for a freshly opened camera. Webcams deliver readable but
+# black frames while auto-exposure ramps (~0.8s is typical), so readiness is
+# judged by frame content rather than by a successful read.
+WARMUP_TIMEOUT_S = 2.0
+WARMUP_MIN_MEAN = 1.0   # mean pixel value above which a frame counts as lit
 
 
 class RGBCameraUVC:
@@ -43,6 +53,8 @@ class RGBCameraUVC:
         self.cap = None
         self.is_open = False
         self.camera_type = "UVC Webcam"
+        self._consecutive_failures = 0
+        self._MAX_CONSECUTIVE_FAILURES = 10  # ~0.3 s at 30 fps
 
     def _create_gstreamer_pipeline(self) -> str:
         """
@@ -76,7 +88,7 @@ class RGBCameraUVC:
             if self.use_gstreamer:
                 # Use GStreamer for CSI cameras on Jetson
                 pipeline = self._create_gstreamer_pipeline()
-                logger.info(f"Opening CSI camera with GStreamer pipeline")
+                logger.info("Opening CSI camera with GStreamer pipeline")
                 logger.debug(f"Pipeline: {pipeline}")
                 self.cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
                 self.camera_type = "CSI Camera (GStreamer)"
@@ -86,24 +98,29 @@ class RGBCameraUVC:
 
                 # Retry mechanism to handle "Resource detected but busy" scenarios
                 # This often happens if the camera was recently scanned by CameraDetector
-                max_retries = 3
+                max_retries = 2
                 for attempt in range(max_retries):
                     try:
                         import platform
                         if platform.system() == 'Windows':
-                            # Windows: Try DSHOW first (most reliable for USB webcams)
+                            # Windows: Try DSHOW first (standard for webcams), fall back to MSMF/default
                             self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_DSHOW)
                             if not self.cap.isOpened():
-                                # Fallback to MSMF/default
+                                self.cap.release()
+                                self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_MSMF)
+                            if not self.cap.isOpened():
+                                self.cap.release()
                                 self.cap = cv2.VideoCapture(self.device_id)
                         else:
-                            # Linux: Try V4L2 first
+                            # Linux: Try V4L2 first, fall back to default
                             self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_V4L2)
-                    except:
-                        # Fall back to default backend
-                        self.cap = cv2.VideoCapture(self.device_id)
+                            if not self.cap.isOpened():
+                                self.cap = cv2.VideoCapture(self.device_id)
+                    except Exception as exc:
+                        logger.warning(f"Camera open exception on attempt {attempt+1}: {exc}")
+                        self.cap = None
 
-                    if self.cap.isOpened():
+                    if self.cap and self.cap.isOpened():
                         break
 
                     logger.warning(f"Attempt {attempt+1}/{max_retries}: Failed to open camera {self.device_id} - retrying...")
@@ -154,18 +171,36 @@ class RGBCameraUVC:
                     self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                     logger.info(f"Using resolution: {self.width}x{self.height}")
                 else:
-                    # Set requested resolution
-                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                    # Set requested resolution.
+                    #
+                    # Every accepted set() makes DirectShow tear down and
+                    # rebuild the capture graph, which costs ~1.5s per call.
+                    # The camera is very often already at the requested
+                    # geometry (detection reports its current mode), so skip
+                    # the write when it would not change anything.
+                    current_w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    current_h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    if (current_w, current_h) != (self.width, self.height):
+                        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                    else:
+                        logger.debug(
+                            f"Camera already at {self.width}x{self.height} — skipping resolution set"
+                        )
 
-                self.cap.set(cv2.CAP_PROP_FPS, self.fps)
+                current_fps = int(self.cap.get(cv2.CAP_PROP_FPS))
+                if current_fps != int(self.fps):
+                    self.cap.set(cv2.CAP_PROP_FPS, self.fps)
+                else:
+                    logger.debug(f"Camera already at {current_fps} FPS — skipping FPS set")
+
                 self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimize latency
 
                 # Enable auto exposure and auto white balance
                 self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
                 try:
                     self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
-                except:
+                except Exception:
                     pass  # Not all cameras support autofocus
 
             # Verify actual resolution
@@ -180,23 +215,29 @@ class RGBCameraUVC:
             logger.info(f"{self.camera_type} opened successfully")
             logger.info(f"Resolution: {actual_width}x{actual_height} @ {actual_fps} FPS")
 
-            # Warm up camera (discard first few frames and allow camera to initialize)
-            time.sleep(0.3)  # Longer delay to let camera stabilize after opening
-
-            # Warm up by reading and discarding frames
+            # Warm up the camera.
+            #
+            # A readable frame is NOT sufficient: webcams deliver frames while
+            # auto-exposure is still ramping, and those first frames come back
+            # black. So poll until a frame carries actual image content, which
+            # is the real readiness signal — a camera that is ready quickly
+            # costs only the time it needs, and a slow one still gets the full
+            # budget. A genuinely dark scene falls through to the timeout,
+            # which is why this warns rather than fails.
             warmup_success = False
-            for attempt in range(10):
-                ret, _ = self.cap.read()
-                if ret:
+            warmup_deadline = time.time() + WARMUP_TIMEOUT_S
+            while time.time() < warmup_deadline:
+                ret, frame = self.cap.read()
+                if ret and frame is not None and float(np.mean(frame)) > WARMUP_MIN_MEAN:
                     warmup_success = True
                     break
-                time.sleep(0.1)
+                time.sleep(0.05)
 
             if not warmup_success:
-                logger.warning("Camera warmup struggled but continuing anyway")
-
-            # Extra warm-up for webcams (they often need more initialization time)
-            time.sleep(0.5)
+                logger.warning(
+                    "Camera warmup did not produce a lit frame within "
+                    f"{WARMUP_TIMEOUT_S:.1f}s — continuing (scene may be dark)"
+                )
 
             self.is_open = True
             return True
@@ -205,21 +246,24 @@ class RGBCameraUVC:
             logger.error(f"Failed to open UVC camera: {e}")
             return False
 
+    def is_opened(self) -> bool:
+        """Check if camera is open and ready."""
+        return bool(self.is_open and self.cap is not None and self.cap.isOpened())
+
     def read(self, flush_buffer: bool = False) -> Tuple[bool, Optional[np.ndarray]]:
         """
-        Read frame from camera
-
-        Args:
-            flush_buffer: If True, flush buffer by reading multiple frames (reduces latency)
+        Read frame from camera.
 
         Returns:
-            (success, frame) tuple
+            (success, frame) tuple. Returns (False, None) on any error.
+            After MAX_CONSECUTIVE_FAILURES consecutive failures the camera is
+            marked as disconnected (is_open=False) so callers can detect
+            a hot-unplug.
         """
         if not self.is_open or self.cap is None:
             return False, None
 
         try:
-            # Flush buffer if requested (grab latest frame)
             if flush_buffer:
                 for _ in range(2):
                     self.cap.grab()
@@ -227,13 +271,29 @@ class RGBCameraUVC:
             ret, frame = self.cap.read()
 
             if not ret or frame is None:
-                logger.warning("Failed to read UVC frame")
+                self._consecutive_failures += 1
+                if self._consecutive_failures >= self._MAX_CONSECUTIVE_FAILURES:
+                    logger.warning(
+                        f"UVC camera {self.device_id}: {self._consecutive_failures} consecutive "
+                        f"read failures — marking as disconnected"
+                    )
+                    self.is_open = False
+                else:
+                    logger.debug(
+                        f"UVC camera {self.device_id}: read failure "
+                        f"({self._consecutive_failures}/{self._MAX_CONSECUTIVE_FAILURES})"
+                    )
                 return False, None
 
+            # Successful read — reset failure counter
+            self._consecutive_failures = 0
             return True, frame
 
         except Exception as e:
-            logger.error(f"Error reading UVC camera: {e}")
+            self._consecutive_failures += 1
+            logger.error(f"Error reading UVC camera {self.device_id}: {e}")
+            if self._consecutive_failures >= self._MAX_CONSECUTIVE_FAILURES:
+                self.is_open = False
             return False, None
 
     def get_actual_resolution(self) -> Tuple[int, int]:
@@ -270,6 +330,8 @@ class RGBCameraUVC:
             logger.error(f"Failed to set property {prop}={value}: {e}")
             return False
 
+
+
     def get_property(self, prop: int) -> float:
         """
         Get camera property
@@ -290,11 +352,15 @@ class RGBCameraUVC:
             return 0.0
 
     def release(self):
-        """Release camera resources"""
+        """Release camera resources."""
         if self.cap is not None:
-            self.cap.release()
+            try:
+                self.cap.release()
+            except Exception:
+                pass
             self.cap = None
         self.is_open = False
+        self._consecutive_failures = 0
         logger.info("UVC camera released")
 
     def __del__(self):
@@ -304,34 +370,62 @@ class RGBCameraUVC:
 
 def detect_uvc_cameras() -> list:
     """
-    Detect available UVC cameras on the system
+    Detect all available UVC webcams
 
     Returns:
-        List of available camera IDs with metadata
+        List of dictionaries with camera info
     """
     available_cameras = []
+    import platform
+    is_windows = (platform.system() == 'Windows')
 
-    # Test USB cameras (0-9)
-    for camera_id in range(10):
+    # Try pygrabber on Windows for non-intrusive device names
+    device_names = []
+    if is_windows:
         try:
-            # Try V4L2 first (Linux)
-            cap = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
-        except:
-            # Fall back to default backend (Windows/Mac)
-            cap = cv2.VideoCapture(camera_id)
+            from pygrabber.dshow_graph import FilterGraph
+            device_names = FilterGraph().get_input_devices()
+        except Exception:
+            pass
 
-        if cap.isOpened():
-            ret, _ = cap.read()
-            if ret:
-                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                logger.info(f"Found UVC camera {camera_id}: {width}x{height}")
-                available_cameras.append({
-                    'id': camera_id,
-                    'type': 'UVC',
-                    'resolution': (width, height)
-                })
-            cap.release()
+    max_devs = max(len(device_names), 6) if device_names else 6
+
+    # Test USB cameras
+    for camera_id in range(max_devs):
+        cap = None
+        try:
+            if is_windows:
+                cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
+                if not cap.isOpened():
+                    cap.release()
+                    cap = cv2.VideoCapture(camera_id, cv2.CAP_MSMF)
+                if not cap.isOpened():
+                    cap.release()
+                    cap = cv2.VideoCapture(camera_id)
+            else:
+                cap = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
+                if not cap.isOpened():
+                    cap.release()
+                    cap = cv2.VideoCapture(camera_id)
+
+            if cap and cap.isOpened():
+                ret, _ = cap.read()
+                if ret:
+                    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    name = device_names[camera_id] if camera_id < len(device_names) else f"UVC Camera {camera_id}"
+                    logger.info(f"Found UVC camera {camera_id} ({name}): {width}x{height}")
+                    available_cameras.append({
+                        'id': camera_id,
+                        'name': name,
+                        'type': 'UVC',
+                        'resolution': (width, height)
+                    })
+        except Exception as exc:
+            logger.debug(f"Error probing device {camera_id}: {exc}")
+        finally:
+            if cap:
+                cap.release()
 
     # Test CSI cameras (Jetson-specific)
     try:

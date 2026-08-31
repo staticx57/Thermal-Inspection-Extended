@@ -16,11 +16,9 @@ from thermal_inspection.processing.thermal_analyzer import (
     ThermalStatistics,
     HotSpot,
     ColdSpot,
-    ThermalAnomaly,
     TemperatureUnit,
     AnomalyType,
     ThresholdMode,
-    ThresholdVisualization,
     ThresholdDetectionResult
 )
 
@@ -216,7 +214,7 @@ class TestAnomalyDetection:
         """Test background model reset."""
         analyzer = ThermalAnalyzer()
         analyzer.reset_background_model()
-        
+
         assert analyzer.background_model is None
         assert analyzer.frame_count == 0
 

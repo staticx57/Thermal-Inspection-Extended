@@ -85,7 +85,7 @@ class TestROICreation:
             points=[(100, 100), (300, 100), (300, 250), (100, 250)],
             label="Direct Add"
         )
-        
+
         roi_id = manager.add_roi(roi)
         assert roi_id == "test_roi_1"
         assert len(manager.get_all_rois()) == 1
@@ -141,7 +141,7 @@ class TestROIRetrieval:
         manager = ROIManager()
         roi1 = manager.create_rectangle_roi(x=10, y=10, w=50, h=50)
         roi2 = manager.create_rectangle_roi(x=100, y=100, w=50, h=50)
-        
+
         # Deactivate one ROI
         roi1.active = False
 
@@ -383,7 +383,7 @@ class TestEdgeCases:
     def test_empty_roi_list(self):
         """Test operations on empty ROI list."""
         manager = ROIManager()
-        
+
         assert len(manager.get_all_rois()) == 0
         assert manager.get_roi("any_id") is None
 
@@ -392,6 +392,6 @@ class TestEdgeCases:
         """Test ROI with default color."""
         manager = ROIManager()
         roi = manager.create_rectangle_roi(x=100, y=100, w=50, h=50)
-        
+
         # Should have default color (0, 255, 0) - green
         assert roi.color == (0, 255, 0)

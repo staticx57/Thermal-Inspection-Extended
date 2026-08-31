@@ -125,7 +125,7 @@ class RGBCameraFirefly:
                 node_vendor = PySpin.CStringPtr(nodemap_tldevice.GetNode('DeviceVendorName'))
                 if PySpin.IsReadable(node_vendor):
                     logger.info(f'Vendor: {node_vendor.GetValue()}')
-            except:
+            except Exception:
                 logger.debug("Could not read all device info properties")
 
             # Configure camera settings
@@ -137,7 +137,7 @@ class RGBCameraFirefly:
             logger.info(f"{self.camera_type} opened successfully")
             logger.info(f"Resolution: {self.width}x{self.height} @ {self.fps} FPS")
             logger.info(f"Pixel format: {self.pixel_format}")
-            logger.info(f"Global shutter: Motion blur eliminated")
+            logger.info("Global shutter: Motion blur eliminated")
 
             # Release camera list (but keep camera reference)
             cam_list.Clear()
@@ -147,7 +147,7 @@ class RGBCameraFirefly:
                 try:
                     image_result = self.cam.GetNextImage(1000)  # 1000ms timeout
                     image_result.Release()
-                except:
+                except Exception:
                     pass
 
             self.is_open = True
@@ -529,7 +529,7 @@ class RGBCameraFirefly:
 
             if PySpin.IsAvailable(node_exposure_time) and PySpin.IsReadable(node_exposure_time):
                 return (node_exposure_time.GetMin(), node_exposure_time.GetMax())
-        except:
+        except Exception:
             pass
         return (0.0, 0.0)
 
@@ -618,7 +618,7 @@ class RGBCameraFirefly:
 
             if PySpin.IsAvailable(node_gain) and PySpin.IsReadable(node_gain):
                 return (node_gain.GetMin(), node_gain.GetMax())
-        except:
+        except Exception:
             pass
         return (0.0, 0.0)
 
@@ -893,7 +893,7 @@ class RGBCameraFirefly:
                 # Release system instance
                 self.system.ReleaseInstance()
                 self.system = None
-            except:
+            except Exception:
                 pass
 
         self.is_open = False
@@ -1003,7 +1003,7 @@ if __name__ == "__main__":
         print(f"  {cam['model']} (S/N: {cam['serial']})")
 
     # Test first camera
-    print(f"\nTesting camera 0...")
+    print("\nTesting camera 0...")
 
     firefly_cam = RGBCameraFirefly(
         camera_index=0,
@@ -1061,7 +1061,7 @@ if __name__ == "__main__":
         firefly_cam.release()
         try:
             cv2.destroyAllWindows()
-        except:
+        except Exception:
             pass
 
     print("\nTest complete!")

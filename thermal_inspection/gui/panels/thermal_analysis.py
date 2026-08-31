@@ -615,7 +615,7 @@ class ThermalAnalysisPanel(QWidget):
 
     def update_histogram(self, temp_array):
         """Update histogram widget with temperature data.
-        
+
         Args:
             temp_array: 2D numpy array of temperature values, or flattened 1D array
         """
@@ -624,19 +624,19 @@ class ThermalAnalysisPanel(QWidget):
             # Flatten if 2D
             if len(temp_array.shape) > 1:
                 temp_array = temp_array.flatten()
-            
+
             # Downsample for performance - histogram only needs ~10K samples for accuracy
             max_samples = 10000
             if len(temp_array) > max_samples:
                 # Random sampling preserves distribution better than uniform stride
                 indices = np.random.choice(len(temp_array), max_samples, replace=False)
                 temp_array = temp_array[indices]
-            
+
             self.histogram_widget.update_histogram(temp_array)
 
     def set_histogram_palette_lut(self, lut):
         """Set the palette LUT for histogram bar coloring.
-        
+
         Args:
             lut: 256x3 numpy array of RGB colors
         """
@@ -645,7 +645,7 @@ class ThermalAnalysisPanel(QWidget):
 
     def set_histogram_temperature_unit(self, unit: str):
         """Set the temperature unit for histogram display.
-        
+
         Args:
             unit: 'C', 'F', 'K', or 'RAW'
         """

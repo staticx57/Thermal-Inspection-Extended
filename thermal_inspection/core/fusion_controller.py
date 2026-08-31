@@ -6,8 +6,8 @@ Extracted from ThermalInspectionFusion class in inspection_main.py.
 """
 
 import logging
-from typing import Optional, Callable, List, Tuple
-from dataclasses import dataclass, field
+from typing import Optional, Callable, List
+from dataclasses import dataclass
 from enum import Enum, auto
 
 logger = logging.getLogger(__name__)

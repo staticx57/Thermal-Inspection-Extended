@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 import logging
 import json
-from typing import Tuple, Optional, List
+from typing import Tuple
 import time
 
 logging.basicConfig(level=logging.INFO)
@@ -322,7 +322,7 @@ class CameraCalibrator:
             True if successful
         """
         try:
-            with open(filename, 'r') as f:
+            with open(filename) as f:
                 calib_data = json.load(f)
 
             self.homography_matrix = np.array(calib_data['homography'], dtype=np.float32)

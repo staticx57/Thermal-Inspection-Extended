@@ -13,6 +13,10 @@ This package provides:
 
 __version__ = "3.1.0"
 
+import os
+os.environ["OPENCV_VIDEOIO_PRIORITY_OBSENSOR"] = "0"
+os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
+
 # CLI exports
 from .cli import main, parse_arguments
 

@@ -52,6 +52,12 @@ class FLIRBosonCamera:
         self.resolution = resolution
         self.cap = None
         self.is_opened = False
+        self.sdk: Optional[BosonSDK] = None
+        self.sdk_connected = False
+        self.radiometric_capable = False
+        self.last_frame_16bit: Optional[np.ndarray] = None
+        self._consecutive_failures = 0
+        self._MAX_CONSECUTIVE_FAILURES = 10
 
         # SDK integration (Phase 7)
         self.enable_sdk = enable_sdk and SDK_AVAILABLE
@@ -98,22 +104,21 @@ class FLIRBosonCamera:
                 logger.info("Linux detected - trying V4L2 backend")
                 self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_V4L2)
             elif system == "Windows":
-                # Windows: Try DirectShow first, then MSMF
-                logger.info("Windows detected - trying DirectShow backend")
-                try:
+                # Windows: Try MSMF first, fall back to DSHOW.
+                logger.info("Windows detected - trying MSMF backend")
+                self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_MSMF)
+                if not self.cap.isOpened():
+                    self.cap.release()
+                    logger.info("MSMF failed - trying DirectShow backend")
                     self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_DSHOW)
-                except:
-                    logger.info("DirectShow failed, trying MSMF backend")
-                    self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_MSMF)
             else:
                 # macOS or other: use default backend
                 logger.info(f"{system} detected - using default backend")
                 self.cap = cv2.VideoCapture(self.device_id)
 
-            # Fallback to default backend if platform-specific failed
             if not self.cap.isOpened():
-                logger.warning(f"Platform-specific backend failed, trying default backend")
-                self.cap = cv2.VideoCapture(self.device_id)
+                logger.warning("Failed to open thermal camera — not available")
+                return False
 
             if self.cap.isOpened():
                 # Set camera properties for optimal performance
@@ -156,9 +161,15 @@ class FLIRBosonCamera:
                                 system = platform.system()
                                 if system == "Windows":
                                     try:
-                                        self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_DSHOW)
-                                    except:
                                         self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_MSMF)
+                                        if not self.cap.isOpened():
+                                            self.cap.release()
+                                            self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_DSHOW)
+                                    except Exception:
+                                        try:
+                                            self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_DSHOW)
+                                        except Exception:
+                                            self.cap = None
                                 else:
                                     self.cap = cv2.VideoCapture(self.device_id, cv2.CAP_V4L2 if system == "Linux" else 0)
 
@@ -210,90 +221,108 @@ class FLIRBosonCamera:
 
     def read(self, flush_buffer: bool = False) -> Tuple[bool, Optional[np.ndarray]]:
         """
-        Read frame from camera
+        Read frame from camera (BGR 8-bit, normalised).
 
-        Args:
-            flush_buffer: If True, grab and drop old frames to get the freshest frame
-
-        Returns:
-            Tuple of (success, frame) where frame is BGR format (8-bit normalized)
+        Returns (False, None) on any read failure. After
+        _MAX_CONSECUTIVE_FAILURES consecutive failures marks is_opened=False
+        so the health-check can detect a hot-unplug.
         """
         if not self.is_opened or self.cap is None:
             return False, None
 
-        # Flush old buffered frames to get fresher frames
-        # This prevents lag when processing takes longer than frame interval
-        if flush_buffer:
-            # Only flush 1 frame - reduces latency by 16ms while still getting fresh frames
-            # At 60 FPS, 1 frame = 16ms overhead
-            for _ in range(1):
-                if not self.cap.grab():
-                    break
-            # Retrieve the latest grabbed frame
-            ret, frame = self.cap.retrieve()
-        else:
-            ret, frame = self.cap.read()
+        try:
+            if flush_buffer:
+                for _ in range(1):
+                    if not self.cap.grab():
+                        break
+                ret, frame = self.cap.retrieve()
+            else:
+                ret, frame = self.cap.read()
 
-        if ret and frame is not None:
-            # Keep as grayscale for thermal processing pipeline
-            if len(frame.shape) == 3:
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            if ret and frame is not None:
+                # Convert to grayscale for thermal pipeline
+                if len(frame.shape) == 3:
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-            # Check if this is 16-bit radiometric data
-            if frame.dtype == np.uint16:
-                # Store raw 16-bit frame for radiometric conversion
-                self.last_frame_16bit = frame.copy()
-                self.radiometric_capable = True
+                if frame.dtype == np.uint16:
+                    self.last_frame_16bit = frame.copy()
+                    self.radiometric_capable = True
+                    frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
+                    frame = frame.astype(np.uint8)
+                elif frame.dtype != np.uint8:
+                    frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
+                    frame = frame.astype(np.uint8)
 
-                # Normalize to 0-255 range and convert to uint8 for display
-                frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
-                frame = frame.astype(np.uint8)
-            elif frame.dtype != np.uint8:
-                # Handle other types (float, etc) by just casting or normalizing
-                frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
-                frame = frame.astype(np.uint8)
+                self._consecutive_failures = 0
+                return True, frame
 
-        return ret, frame
+            # Read returned False / None frame
+            self._consecutive_failures += 1
+            if self._consecutive_failures >= self._MAX_CONSECUTIVE_FAILURES:
+                logger.warning(
+                    f"FLIRBoson camera {self.device_id}: "
+                    f"{self._consecutive_failures} consecutive read failures — "
+                    "marking as disconnected"
+                )
+                self.is_opened = False
+            return False, None
+
+        except Exception as e:
+            self._consecutive_failures += 1
+            logger.error(f"FLIRBoson camera {self.device_id} read error: {e}")
+            if self._consecutive_failures >= self._MAX_CONSECUTIVE_FAILURES:
+                self.is_opened = False
+            return False, None
 
     def read_thermal(self) -> Tuple[bool, Optional[np.ndarray]]:
         """
-        Read raw thermal frame (grayscale, preserves 16-bit if available)
+        Read raw thermal frame (grayscale, preserves 16-bit if available).
 
-        Returns:
-            Tuple of (success, frame) where frame is grayscale thermal data
-            - 16-bit uint16 if radiometric camera
-            - 8-bit uint8 if standard camera
+        Returns (False, None) on any failure. Counts consecutive failures and
+        marks is_opened=False after _MAX_CONSECUTIVE_FAILURES to allow
+        health-check-based hot-unplug detection.
         """
         if not self.is_opened or self.cap is None:
             return False, None
 
-        ret, frame = self.cap.read()
+        try:
+            ret, frame = self.cap.read()
 
-        if ret and frame is not None:
-            # DIAGNOSTIC: Log frame format to determine camera mode
-            if not hasattr(self, '_mode_logged') or not self._mode_logged:
-                logger.info(f"Thermal camera mode detection:")
-                logger.info(f"  Frame dtype: {frame.dtype}")
-                logger.info(f"  Frame shape: {frame.shape}")
-                if frame.dtype == np.uint16:
-                    logger.info(f"  -> RADIOMETRIC MODE (16-bit absolute temperature data)")
-                    logger.info(f"  -> Radiometric features ENABLED")
-                    self.radiometric_capable = True
-                elif frame.dtype == np.uint8:
-                    logger.info(f"  -> UVC MODE (8-bit AGC-processed data)")
-                    logger.info(f"  -> Radiometric features NOT available")
-                    self.radiometric_capable = False
+            if not (ret and frame is not None):
+                self._consecutive_failures += 1
+                if self._consecutive_failures >= self._MAX_CONSECUTIVE_FAILURES:
+                    logger.warning(
+                        f"FLIRBoson camera {self.device_id}: "
+                        f"{self._consecutive_failures} consecutive thermal read failures — "
+                        "marking as disconnected"
+                    )
+                    self.is_opened = False
+                return False, None
+
+            # Mode detection (first frame only)
+            if not getattr(self, '_mode_logged', False):
+                logger.info(
+                    f"Thermal camera mode: dtype={frame.dtype} shape={frame.shape} "
+                    f"-> {'RADIOMETRIC (16-bit)' if frame.dtype == np.uint16 else 'UVC (8-bit)'}"
+                )
+                self.radiometric_capable = (frame.dtype == np.uint16)
                 self._mode_logged = True
 
             if len(frame.shape) == 3:
-                # Convert to grayscale if needed
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-            # Store 16-bit frame for radiometric conversion
             if frame.dtype == np.uint16:
                 self.last_frame_16bit = frame.copy()
 
-        return ret, frame
+            self._consecutive_failures = 0
+            return True, frame
+
+        except Exception as e:
+            self._consecutive_failures += 1
+            logger.error(f"FLIRBoson camera {self.device_id} read_thermal error: {e}")
+            if self._consecutive_failures >= self._MAX_CONSECUTIVE_FAILURES:
+                self.is_opened = False
+            return False, None
 
     def get_actual_resolution(self) -> Tuple[int, int]:
         """Get actual camera resolution"""

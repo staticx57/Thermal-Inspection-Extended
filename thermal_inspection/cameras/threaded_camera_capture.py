@@ -6,8 +6,8 @@ import threading
 import time
 import logging
 from typing import Optional, Tuple
+import cv2
 import numpy as np
-from queue import Queue, Empty
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,8 @@ class ThreadedCameraCapture:
         """
         self.camera = camera
         self.name = name
-        self.latest_frame = None
+        self.latest_frame = None       # 8-bit BGR — always display-safe
+        self.latest_raw_frame = None   # raw read (uint16 when radiometric)
         self.latest_timestamp = 0
         self.frame_lock = threading.Lock()
         self.running = False
@@ -53,19 +54,40 @@ class ThreadedCameraCapture:
         logger.info(f"{self.name}: Background capture thread started")
 
     def _capture_loop(self):
-        """Background thread: continuously capture frames."""
+        """Background thread: continuously capture frames.
+
+        Prefers ``read_thermal()`` when the camera supports it so that
+        16-bit radiometric data is *not* degraded to 8-bit during capture.
+        The raw frame (possibly uint16) is stored in ``latest_raw_frame``;
+        ``latest_frame`` always holds an 8-bit/BGR display-safe copy.
+        """
         last_time = time.time()
         frame_times = []
 
         while self.running:
             try:
-                # Read frame from camera
-                ret, frame = self.camera.read()
+                # Prefer read_thermal() to preserve 16-bit data
+                if hasattr(self.camera, 'read_thermal'):
+                    ret, frame = self.camera.read_thermal()
+                else:
+                    ret, frame = self.camera.read()
 
                 if ret and frame is not None:
-                    # Update latest frame (thread-safe)
+                    # Build a display-safe 8-bit BGR copy when the raw
+                    # frame is 16-bit (radiometric T-Linear data).
+                    if frame.dtype == np.uint16:
+                        # Normalise to 8-bit for display; keep raw for analysis
+                        display = cv2.normalize(
+                            frame, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U
+                        )
+                        if len(display.shape) == 2:
+                            display = cv2.cvtColor(display, cv2.COLOR_GRAY2BGR)
+                    else:
+                        display = frame
+
                     with self.frame_lock:
-                        self.latest_frame = frame.copy()  # Copy to avoid race conditions
+                        self.latest_raw_frame = frame.copy()   # 16-bit or 8-bit original
+                        self.latest_frame = display.copy()     # always 8-bit BGR
                         self.latest_timestamp = time.time()
                         self.frame_count += 1
 
@@ -80,7 +102,10 @@ class ThreadedCameraCapture:
                 else:
                     self.error_count += 1
                     if self.error_count % 10 == 0:
-                        logger.warning(f"{self.name}: Frame capture failed ({self.error_count} errors)")
+                        logger.warning(
+                            f"{self.name}: Frame capture failed "
+                            f"({self.error_count} errors)"
+                        )
                     time.sleep(0.001)  # Brief sleep on error
 
             except Exception as e:
@@ -89,7 +114,7 @@ class ThreadedCameraCapture:
 
     def get_frame(self) -> Tuple[bool, Optional[np.ndarray], float]:
         """
-        Get latest captured frame (non-blocking).
+        Get latest display-safe (8-bit BGR) frame (non-blocking).
 
         Returns:
             (success, frame, timestamp) tuple
@@ -97,6 +122,20 @@ class ThreadedCameraCapture:
         with self.frame_lock:
             if self.latest_frame is not None:
                 return True, self.latest_frame.copy(), self.latest_timestamp
+            else:
+                return False, None, 0
+
+    def get_raw_frame(self) -> Tuple[bool, Optional[np.ndarray], float]:
+        """
+        Get latest raw frame, which may be uint16 for radiometric cameras
+        (non-blocking).
+
+        Returns:
+            (success, raw_frame, timestamp) tuple
+        """
+        with self.frame_lock:
+            if self.latest_raw_frame is not None:
+                return True, self.latest_raw_frame.copy(), self.latest_timestamp
             else:
                 return False, None, 0
 
@@ -147,16 +186,21 @@ class DualThreadedCameraCapture:
             self.rgb_capture.start()
         logger.info("Dual camera threaded capture started")
 
-    def get_frames(self) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    def get_frames(self) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
         """
         Get latest frames from both cameras (non-blocking).
 
         Returns:
-            (thermal_frame, rgb_frame) tuple
+            (thermal_display, thermal_raw, rgb_frame) tuple.
+            ``thermal_display`` is always 8-bit BGR (display-safe).
+            ``thermal_raw``    may be uint16 for radiometric cameras.
         """
-        # Get thermal frame
+        # Get thermal display + raw frames
         ret_thermal, thermal_frame, _ = self.thermal_capture.get_frame()
         thermal_frame = thermal_frame if ret_thermal else None
+
+        ret_raw, thermal_raw, _ = self.thermal_capture.get_raw_frame()
+        thermal_raw = thermal_raw if ret_raw else None
 
         # Get RGB frame
         rgb_frame = None
@@ -164,7 +208,7 @@ class DualThreadedCameraCapture:
             ret_rgb, rgb_frame, _ = self.rgb_capture.get_frame()
             rgb_frame = rgb_frame if ret_rgb else None
 
-        return thermal_frame, rgb_frame
+        return thermal_frame, thermal_raw, rgb_frame
 
     def stop(self):
         """Stop both camera capture threads."""

@@ -30,25 +30,25 @@ class SettingsPreset:
     frame_skip: int
     device: str
     saved_at: str
-    
+
     def to_dict(self) -> dict:
         """Convert to dictionary"""
         return asdict(self)
-    
+
     @staticmethod
     def from_dict(data: dict) -> 'SettingsPreset':
         """Create from dictionary"""
         return SettingsPreset(**data)
-    
+
     @staticmethod
     def from_runtime_state(name: str, app_state: Dict[str, Any]) -> 'SettingsPreset':
         """
         Create preset from current application runtime state
-        
+
         Args:
             name: Preset name
             app_state: Dictionary with current application state
-            
+
         Returns:
             SettingsPreset instance
         """
@@ -70,13 +70,13 @@ class SettingsPreset:
 
 class PresetManager:
     """Manages settings presets with persistence"""
-    
+
     NUM_PRESETS = 3  # Number of preset slots
-    
+
     def __init__(self, config_file: str = "presets.json"):
         """
         Initialize preset manager
-        
+
         Args:
             config_file: Path to preset configuration file
         """
@@ -87,14 +87,14 @@ class PresetManager:
             2: None
         }
         self._load_presets()
-    
+
     def _load_presets(self):
         """Load presets from configuration file"""
         try:
             if self.config_file.exists():
-                with open(self.config_file, 'r') as f:
+                with open(self.config_file) as f:
                     data = json.load(f)
-                
+
                 preset_list = data.get('presets', [])
                 for i in range(min(len(preset_list), self.NUM_PRESETS)):
                     if preset_list[i] and 'name' in preset_list[i]:
@@ -106,13 +106,13 @@ class PresetManager:
             logger.warning(f"Could not load presets: {e}")
             # Initialize with default preset names
             self._create_default_presets()
-    
+
     def _create_default_presets(self):
         """Create default empty presets"""
         for i in range(self.NUM_PRESETS):
             self.presets[i] = None
         logger.debug("Created default empty presets")
-    
+
     def _save_presets(self):
         """Save presets to configuration file"""
         try:
@@ -122,35 +122,35 @@ class PresetManager:
                     preset_list.append(self.presets[i].to_dict())
                 else:
                     preset_list.append({'name': f'Preset {i+1}', 'settings': None})
-            
+
             data = {
                 'presets': preset_list,
                 'version': '1.0'
             }
-            
+
             with open(self.config_file, 'w') as f:
                 json.dump(data, f, indent=2)
-            
+
             logger.debug("Presets saved to config")
         except Exception as e:
             logger.error(f"Could not save presets: {e}")
-    
+
     def save_preset(self, slot: int, name: str, app_state: Dict[str, Any]) -> bool:
         """
         Save current application state to a preset slot
-        
+
         Args:
             slot: Preset slot (0-2)
             name: Preset name
             app_state: Current application state dictionary
-            
+
         Returns:
             True if saved successfully
         """
         if not 0 <= slot < self.NUM_PRESETS:
             logger.error(f"Invalid preset slot: {slot}")
             return False
-        
+
         try:
             preset = SettingsPreset.from_runtime_state(name, app_state)
             self.presets[slot] = preset
@@ -160,63 +160,63 @@ class PresetManager:
         except Exception as e:
             logger.error(f"Error saving preset: {e}")
             return False
-    
+
     def load_preset(self, slot: int) -> Optional[SettingsPreset]:
         """
         Load preset from a slot
-        
+
         Args:
             slot: Preset slot (0-2)
-            
+
         Returns:
             SettingsPreset if available, None otherwise
         """
         if not 0 <= slot < self.NUM_PRESETS:
             logger.error(f"Invalid preset slot: {slot}")
             return None
-        
+
         preset = self.presets[slot]
         if preset:
             logger.info(f"Loaded preset from slot {slot}: {preset.name}")
         else:
             logger.warning(f"No preset saved in slot {slot}")
-        
+
         return preset
-    
+
     def get_preset_name(self, slot: int) -> str:
         """
         Get name of preset in slot
-        
+
         Args:
             slot: Preset slot (0-2)
-            
+
         Returns:
             Preset name or default name if empty
         """
         if not 0 <= slot < self.NUM_PRESETS:
             return "Invalid"
-        
+
         preset = self.presets[slot]
         if preset:
             return preset.name
         else:
             return f"Preset {slot+1}"
-    
+
     def rename_preset(self, slot: int, new_name: str) -> bool:
         """
         Rename a preset
-        
+
         Args:
             slot: Preset slot (0-2)
             new_name: New name for preset
-            
+
         Returns:
             True if renamed successfully
         """
         if not 0 <= slot < self.NUM_PRESETS:
             logger.error(f"Invalid preset slot: {slot}")
             return False
-        
+
         preset = self.presets[slot]
         if preset:
             preset.name = new_name
@@ -226,66 +226,66 @@ class PresetManager:
         else:
             logger.warning(f"Cannot rename empty preset slot {slot}")
             return False
-    
+
     def is_slot_empty(self, slot: int) -> bool:
         """
         Check if preset slot is empty
-        
+
         Args:
             slot: Preset slot (0-2)
-            
+
         Returns:
             True if slot is empty
         """
         if not 0 <= slot < self.NUM_PRESETS:
             return True
         return self.presets[slot] is None
-    
+
     def get_saved_time(self, slot: int) -> Optional[str]:
         """
         Get formatted saved time for preset
-        
+
         Args:
             slot: Preset slot (0-2)
-            
+
         Returns:
             Formatted datetime string or None
         """
         if not 0 <= slot < self.NUM_PRESETS:
             return None
-        
+
         preset = self.presets[slot]
         if preset:
             try:
                 dt = datetime.fromisoformat(preset.saved_at)
                 return dt.strftime("%Y-%m-%d %H:%M")
-            except:
+            except Exception:
                 return preset.saved_at
         return None
-    
+
     def clear_preset(self, slot: int) -> bool:
         """
         Clear a preset slot
-        
+
         Args:
             slot: Preset slot (0-2)
-            
+
         Returns:
             True if cleared successfully
         """
         if not 0 <= slot < self.NUM_PRESETS:
             logger.error(f"Invalid preset slot: {slot}")
             return False
-        
+
         self.presets[slot] = None
         self._save_presets()
         logger.info(f"Cleared preset slot {slot}")
         return True
-    
+
     def get_all_preset_names(self) -> list:
         """
         Get names of all presets
-        
+
         Returns:
             List of preset names (3 items)
         """

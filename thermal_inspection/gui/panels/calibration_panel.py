@@ -7,7 +7,7 @@ Interactive panel for calibrating radiometric cameras against known references.
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QDoubleSpinBox, QTableWidget,
                              QTableWidgetItem, QHeaderView, QComboBox, QSpinBox,
-                             QCheckBox, QFileDialog, QMessageBox)
+                             QCheckBox)
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 import logging

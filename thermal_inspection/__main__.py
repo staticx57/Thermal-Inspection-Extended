@@ -4,8 +4,20 @@ Entry point for running thermal_inspection as a module:
 
 This uses the modular CLI extracted from inspection_main.py.
 """
-import sys
 import os
+os.environ["OPENCV_VIDEOIO_PRIORITY_OBSENSOR"] = "0"
+os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
+
+import sys
+import logging
+
+def _global_exception_handler(exctype, value, traceback):
+    logger = logging.getLogger('CRASH')
+    logger.critical("Unhandled exception", exc_info=(exctype, value, traceback))
+    sys.__excepthook__(exctype, value, traceback)
+
+sys.excepthook = _global_exception_handler
+sys.coinit_flags = 0  # Force MTA so OpenCV DirectShow doesn't fail on the main thread
 
 # Add parent directory to path for legacy imports during migration
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

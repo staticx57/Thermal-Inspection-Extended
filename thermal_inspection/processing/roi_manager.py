@@ -5,7 +5,7 @@ Handles automatic ROI detection, manual ROI creation, and ROI persistence.
 
 import numpy as np
 import cv2
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from typing import List, Dict, Tuple, Optional, Any
 from enum import Enum
 import json
@@ -46,7 +46,7 @@ class ROI:
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
     last_updated: float = field(default_factory=time.time)
-    
+
     # Radiometric temperature fields (NEW)
     temp_min: Optional[float] = None  # Minimum temperature in ROI (°C)
     temp_max: Optional[float] = None  # Maximum temperature in ROI (°C)
@@ -186,7 +186,7 @@ class ROI:
         if not norm_points and "points" in data:
             # Will need to be normalized later if missing
             pass
-            
+
         return cls(
             roi_id=data["roi_id"],
             roi_type=ROIType(data["roi_type"]),
@@ -244,7 +244,7 @@ class ROIManager:
             ROISource.AUTO_MOTION: (255, 0, 255),  # Magenta
             ROISource.AUTO_EDGE: (0, 255, 255)  # Cyan
         }
-        
+
         # Resolution tracking (for drift-free scaling)
         # Default to standard thermal checking args, will be updated by main
         self.current_resolution = self.config.get("resolution", (640, 512))
@@ -674,7 +674,7 @@ class ROIManager:
         """
         Remove overlapping Auto-ROIs using NMS (Non-Maximum Suppression).
         Prioritizes ROIs based on source type.
-        
+
         Priority: MANUAL > TEMPERATURE > GRADIENT > MOTION > EDGE
 
         Args:
@@ -691,7 +691,7 @@ class ROIManager:
 
         # Get all ROIs
         all_rois = list(self.rois.values())
-        
+
         # Group by priority
         # Sort by priority descending, then by area descending (prefer larger boxes if same type)
         all_rois.sort(key=lambda r: (
@@ -705,7 +705,7 @@ class ROIManager:
         # Since list is sorted by priority/size, we keep the first one and suppress any subsequent
         # ones that overlap significantly.
         active_rois = []
-        
+
         for roi in all_rois:
             # Always keep Manual ROIs, never suppress them (though they might suppress others)
             if roi.roi_source == ROISource.MANUAL:
@@ -718,7 +718,7 @@ class ROIManager:
             for kept_roi in active_rois:
                 # Check overlap (IoU)
                 overlap = self.calculate_iou(bbox, kept_roi.get_bbox())
-                
+
                 # Check containment (Intersection / Area of candidate ROI)
                 # This handles the case where a small ROI is fully inside a huge ROI (IoU is small, but containment is 1.0)
                 boxA = bbox
@@ -740,7 +740,7 @@ class ROIManager:
                     suppress = True
                     # print(f"DEBUG: Suppressing {roi.label} (overlap {overlap:.4f}, containment {containment:.4f})")
                     break
-            
+
             if suppress:
                 to_delete.append(roi.roi_id)
             else:
@@ -749,7 +749,7 @@ class ROIManager:
         # Delete suppressed ROIs
         for roi_id in to_delete:
             self.delete_roi(roi_id)
-            
+
         if len(to_delete) > 0:
             print(f"DEBUG: NMS cleanup removed {len(to_delete)} overlapping Auto-ROIs")
 
@@ -821,7 +821,7 @@ class ROIManager:
             # Calculate new integer points for this exact resolution
             # This is "drift-free" because it always comes from the float normalized_points
             roi.points = self._denormalize_points(roi.normalized_points, target_resolution)
-            
+
             # Constrain to bounds (safeguard)
             clamped_points = []
             for x, y in roi.points:
@@ -829,7 +829,7 @@ class ROIManager:
                 cy = max(0, min(y, h - 1))
                 clamped_points.append((cx, cy))
             roi.points = clamped_points
-            
+
             roi.last_updated = time.time()
             # print(f"DEBUG: Scaled ROI {roi.roi_id} to {roi.points} (Res: {target_resolution})")
 
@@ -844,7 +844,7 @@ class ROIManager:
         if not Path(filepath).exists():
             return
 
-        with open(filepath, 'r') as f:
+        with open(filepath) as f:
             data = json.load(f)
 
         if clear_existing:
@@ -931,7 +931,7 @@ class ROIManager:
                 # Add palette indicator if custom palette is set
                 if roi.custom_palette:
                     label_text += f" [{roi.custom_palette}]"
-                
+
                 # DISABLED: Using InspectionOverlayWidget for cleaner labels instead
                 # cv2.putText(output, label_text, centroid, cv2.FONT_HERSHEY_SIMPLEX,
                 #            0.5, draw_color, 1, cv2.LINE_AA)

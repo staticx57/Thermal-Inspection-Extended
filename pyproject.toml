@@ -1,0 +1,59 @@
+[project]
+name = "thermal-inspection"
+version = "3.6.0"
+description = "Thermal Inspection Fusion Tool - FLIR thermal/RGB fusion and radiometric analysis"
+requires-python = ">=3.10"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+exclude = [
+    "scratch",
+    "__pycache__",
+    ".venv",
+    "venv",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes (undefined names, unused imports)
+    "W",      # pycodestyle warnings
+    "B",      # flake8-bugbear (likely bugs)
+    "UP",     # pyupgrade
+    "C4",     # flake8-comprehensions
+    "E722",   # bare except
+]
+ignore = [
+    "E501",   # line length is enforced by the formatter, not the linter
+    "B008",   # function call in default argument — common and intentional in Qt code
+    # Deferred typing modernization (~870 sites). These are purely stylistic —
+    # `Optional[X]`/`List[X]` behave identically to `X | None`/`list[X]` on the
+    # supported Python versions. Sweeping them now would bury real review
+    # signal under mechanical churn; drop these ignores to do it deliberately.
+    "UP006",  # non-pep585-annotation  (List -> list)
+    "UP007",  # non-pep604-annotation-union  (Union -> |)
+    "UP045",  # non-pep604-annotation-optional  (Optional -> | None)
+    "UP035",  # deprecated-import (typing.List etc.)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Package re-export modules deliberately import names they do not use.
+"**/__init__.py" = ["F401"]
+# Tests may shadow and redefine fixtures freely.
+"tests/**" = ["F811", "B011"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = false
+warn_unused_configs = true
+ignore_missing_imports = true
+# The codebase is not yet fully annotated; these stay off until it is.
+disallow_untyped_defs = false
+check_untyped_defs = false
+exclude = ["scratch/", "build/", "dist/"]
+
+[[tool.mypy.overrides]]
+# Vendor SDKs ship without type stubs.
+module = ["PySpin.*", "flirpy.*", "pygrabber.*", "cv2.*", "vpi.*"]
+ignore_missing_imports = true

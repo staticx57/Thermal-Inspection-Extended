@@ -6,7 +6,7 @@ Allows users to calibrate against known reference temperatures to improve accura
 """
 
 import numpy as np
-from typing import List, Tuple, Optional, Dict
+from typing import List, Dict
 from dataclasses import dataclass
 import logging
 from datetime import datetime
@@ -279,7 +279,7 @@ class RadiometricCalibrator:
             True if successful
         """
         try:
-            with open(filepath, 'r') as f:
+            with open(filepath) as f:
                 data = json.load(f)
 
             # Clear existing calibration
@@ -344,7 +344,7 @@ if __name__ == "__main__":
 
     # Get statistics
     stats = calibrator.get_calibration_stats()
-    print(f"\nCalibration Statistics:")
+    print("\nCalibration Statistics:")
     print(f"  Points: {stats['point_count']}")
     print(f"  Method: {stats['method']}")
     print(f"  Mean Error: {stats['mean_error']:.2f}°C")

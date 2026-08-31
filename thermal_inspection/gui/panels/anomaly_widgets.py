@@ -8,7 +8,6 @@ Contains:
 """
 
 import logging
-from typing import Dict
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel,

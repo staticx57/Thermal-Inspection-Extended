@@ -6,7 +6,7 @@ Optimized for Jetson Orin with GPU acceleration
 import cv2
 import numpy as np
 import logging
-from typing import Tuple, Optional, Dict
+from typing import Tuple, Optional
 import json
 import os
 
@@ -58,6 +58,14 @@ class FusionProcessor:
         # Fusion intensity: controls overlay strength (0.0 = minimal, 1.0 = maximum)
         self.fusion_intensity = float(config.get('fusion.intensity', 0.5))
 
+        # Hardware acceleration status
+        self.has_cuda = hasattr(cv2, 'cuda') and hasattr(cv2.cuda, 'getCudaEnabledDeviceCount') and cv2.cuda.getCudaEnabledDeviceCount() > 0
+        if self.has_cuda:
+            logger.info("FusionProcessor: CUDA GPU acceleration detected and enabled")
+        else:
+            logger.info("FusionProcessor: Running in CPU vectorized mode (OpenCV SIMD / IPP)")
+
+
         # Edge detection parameters (NEW)
         self.edge_threshold_low = 50   # Canny low threshold (more edges = lower value)
         self.edge_threshold_high = 150  # Canny high threshold (more edges = lower value)
@@ -84,7 +92,7 @@ class FusionProcessor:
             True if successful
         """
         try:
-            with open(calibration_file, 'r') as f:
+            with open(calibration_file) as f:
                 calib_data = json.load(f)
 
             # Load homography matrix (3x3)
@@ -144,19 +152,6 @@ class FusionProcessor:
             logger.info(f"Fusion mode changed to: {fusion_mode}")
         else:
             logger.warning(f"Invalid fusion mode '{fusion_mode}', keeping current mode '{self.fusion_mode}'")
-
-    def set_alpha(self, alpha: float):
-        """
-        Set alpha blending value dynamically
-
-        Args:
-            alpha: Blend ratio (0.0 = all RGB, 1.0 = all thermal)
-        """
-        if 0.0 <= alpha <= 1.0:
-            self.alpha = alpha
-            logger.info(f"Fusion alpha changed to: {alpha:.2f}")
-        else:
-            logger.warning(f"Invalid alpha value {alpha}, must be between 0.0 and 1.0")
 
     def set_priority(self, priority: str):
         """
@@ -321,10 +316,12 @@ class FusionProcessor:
             return self._max_intensity(thermal, rgb_aligned)
         elif self.fusion_mode == 'feature_weighted':
             return self._feature_weighted(thermal, rgb_aligned)
-        elif self.fusion_mode == 'thermal_contours':  # Phase 3 - Feature 12
+        elif self.fusion_mode == 'thermal_contours':
             return self._thermal_contours(thermal, rgb_aligned)
-        elif self.fusion_mode == 'enhanced_edge_highlight':  # Phase 3 - Feature 13
+        elif self.fusion_mode == 'enhanced_edge_highlight':
             return self._enhanced_edge_highlight(thermal, rgb_aligned)
+        elif self.fusion_mode == 'laplacian_pyramid':
+            return self._laplacian_pyramid(thermal, rgb_aligned)
         else:
             logger.warning(f"Unknown fusion mode: {self.fusion_mode}, using alpha_blend")
             return self._alpha_blend(thermal, rgb_aligned)
@@ -647,15 +644,15 @@ class FusionProcessor:
             main_h, main_w = main.shape[:2]
             allocated_w = int(main_w * pip_size)
             allocated_h = int(main_h * pip_size)
-            
+
             # CRITICAL FIX: Maintain aspect ratio when resizing inset
             # This matches the pip_thermal_rect calculation in inspection_gui_qt.py
             inset_h, inset_w = inset.shape[:2]
             inset_aspect = inset_w / inset_h
             allocated_aspect = allocated_w / allocated_h
-            
+
             logger.info(f"[FUSION PIP] Inset: {inset_w}x{inset_h} (aspect {inset_aspect:.3f}), Allocated: {allocated_w}x{allocated_h} (aspect {allocated_aspect:.3f})")
-            
+
             if inset_aspect > allocated_aspect:
                 # Inset is wider, fit to width
                 actual_w = allocated_w
@@ -668,9 +665,9 @@ class FusionProcessor:
                 actual_w = int(allocated_h * inset_aspect)
                 offset_x = (allocated_w - actual_w) // 2
                 offset_y = 0
-            
+
             logger.info(f"[FUSION PIP] Actual size: {actual_w}x{actual_h}, Offset: ({offset_x}, {offset_y})")
-            
+
             # Resize inset maintaining aspect ratio
             inset_resized = cv2.resize(inset, (actual_w, actual_h))
 
@@ -918,11 +915,94 @@ class FusionProcessor:
             logger.error(f"Enhanced edge highlight error: {e}")
             return self._edge_enhanced(thermal, rgb)
 
+    def _laplacian_pyramid(
+        self, thermal: np.ndarray, rgb: np.ndarray, levels: int = 4
+    ) -> np.ndarray:
+        """
+        Multi-scale Laplacian Pyramid blending.
+
+        Blends thermal and RGB at each frequency scale independently, guided
+        by the local edge energy of the thermal frame.  This eliminates the
+        halo/ghosting artefacts produced by per-pixel gradient weighting
+        (feature_weighted mode) while preserving sharp RGB texture detail.
+
+        Uses only standard OpenCV (pyrDown / pyrUp) — no contrib required.
+
+        Args:
+            thermal: Colourised thermal frame (BGR)
+            rgb:     Aligned RGB frame (BGR)
+            levels:  Number of pyramid levels (4 is a good default for 640×512)
+
+        Returns:
+            Blended BGR frame
+        """
+        thermal_f = thermal.astype(np.float32)
+        rgb_f = rgb.astype(np.float32)
+
+        # Build Gaussian pyramids
+        gp_thermal = [thermal_f]
+        gp_rgb = [rgb_f]
+        for _ in range(levels):
+            gp_thermal.append(cv2.pyrDown(gp_thermal[-1]))
+            gp_rgb.append(cv2.pyrDown(gp_rgb[-1]))
+
+        # Build Laplacian pyramids
+        lp_thermal = []
+        lp_rgb = []
+        for i in range(levels):
+            h, w = gp_thermal[i].shape[:2]
+            up_t = cv2.pyrUp(gp_thermal[i + 1], dstsize=(w, h))
+            up_r = cv2.pyrUp(gp_rgb[i + 1], dstsize=(w, h))
+            lp_thermal.append(gp_thermal[i] - up_t)
+            lp_rgb.append(gp_rgb[i] - up_r)
+        lp_thermal.append(gp_thermal[levels])
+        lp_rgb.append(gp_rgb[levels])
+
+        # Build per-level weight maps from thermal edge energy
+        # (higher local gradient → more thermal; smooth areas → more RGB)
+        gray_thermal = cv2.cvtColor(thermal, cv2.COLOR_BGR2GRAY).astype(np.float32)
+        gp_weight = [gray_thermal]
+        for _ in range(levels):
+            gp_weight.append(cv2.pyrDown(gp_weight[-1]))
+
+        blended_pyramid = []
+        for i in range(levels + 1):
+            # Normalise edge energy to [0, 1] as blend weight for thermal
+            w_map = gp_weight[i]
+            sobel_x = cv2.Sobel(w_map, cv2.CV_32F, 1, 0, ksize=3)
+            sobel_y = cv2.Sobel(w_map, cv2.CV_32F, 0, 1, ksize=3)
+            edge = cv2.magnitude(sobel_x, sobel_y)
+
+            # Avoid division by zero; scale to [0, 1]
+            max_e = edge.max()
+            alpha_map = (edge / max_e) if max_e > 0 else np.zeros_like(edge)
+            alpha_map = cv2.GaussianBlur(alpha_map, (5, 5), 0)   # smooth weight map
+            alpha_map = np.clip(alpha_map, 0.0, 1.0)
+            # Apply overall fusion intensity
+            alpha_map = alpha_map * self.fusion_intensity
+            # Expand to 3-channel
+            alpha_3 = np.stack([alpha_map] * 3, axis=-1)
+
+
+            blended = lp_thermal[i] * alpha_3 + lp_rgb[i] * (1.0 - alpha_3)
+            blended_pyramid.append(blended)
+
+        # Reconstruct from blended pyramid
+        result = blended_pyramid[levels]
+        for i in range(levels - 1, -1, -1):
+            h, w = blended_pyramid[i].shape[:2]
+            result = cv2.pyrUp(result, dstsize=(w, h)) + blended_pyramid[i]
+
+        return np.clip(result, 0, 255).astype(np.uint8)
+
     def set_fusion_mode(self, mode: str):
         """Change fusion mode"""
-        valid_modes = ['alpha_blend', 'edge_enhanced', 'thermal_overlay',
-                      'side_by_side', 'picture_in_picture', 'max_intensity',
-                      'feature_weighted', 'thermal_contours', 'enhanced_edge_highlight']  # Phase 3 - Features 12 & 13
+        valid_modes = [
+            'alpha_blend', 'edge_enhanced', 'thermal_overlay',
+            'side_by_side', 'picture_in_picture', 'max_intensity',
+            'feature_weighted', 'thermal_contours', 'enhanced_edge_highlight',
+            'laplacian_pyramid',
+        ]
         if mode in valid_modes:
             self.fusion_mode = mode
             logger.info(f"Fusion mode changed to: {mode}")
@@ -941,9 +1021,12 @@ class FusionProcessor:
 
     def get_available_modes(self) -> list:
         """Get list of available fusion modes"""
-        return ['alpha_blend', 'edge_enhanced', 'thermal_overlay',
-                'side_by_side', 'picture_in_picture', 'max_intensity',
-                'feature_weighted']
+        return [
+            'alpha_blend', 'edge_enhanced', 'thermal_overlay',
+            'side_by_side', 'picture_in_picture', 'max_intensity',
+            'feature_weighted', 'thermal_contours', 'enhanced_edge_highlight',
+            'laplacian_pyramid',
+        ]
 
 
 if __name__ == "__main__":

@@ -73,12 +73,12 @@ class RGBCamera:
             if self.use_gstreamer:
                 # Use GStreamer for CSI cameras on Jetson (Linux only)
                 if system != "Linux":
-                    logger.warning(f"GStreamer CSI mode only supported on Linux/Jetson")
-                    logger.warning(f"Falling back to USB camera mode")
+                    logger.warning("GStreamer CSI mode only supported on Linux/Jetson")
+                    logger.warning("Falling back to USB camera mode")
                     self.use_gstreamer = False
                 else:
                     pipeline = self._create_gstreamer_pipeline()
-                    logger.info(f"Opening CSI camera with GStreamer pipeline")
+                    logger.info("Opening CSI camera with GStreamer pipeline")
                     logger.debug(f"Pipeline: {pipeline}")
                     self.cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
 
@@ -88,7 +88,8 @@ class RGBCamera:
                 if system == "Linux":
                     backends = [(cv2.CAP_V4L2, "V4L2"), (cv2.CAP_ANY, "Any")]
                 elif system == "Windows":
-                    backends = [(cv2.CAP_DSHOW, "DirectShow"), (cv2.CAP_MSMF, "MSMF"), (cv2.CAP_ANY, "Any")]
+                    # Try MSMF first, fall back to DirectShow (CAP_DSHOW).
+                    backends = [(cv2.CAP_MSMF, "MSMF"), (cv2.CAP_DSHOW, "DirectShow")]
                 else:
                     backends = [(cv2.CAP_ANY, "Any")]
 

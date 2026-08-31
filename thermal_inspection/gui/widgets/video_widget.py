@@ -57,11 +57,30 @@ class VideoWidget(QLabel):
         if frame is None or frame.size == 0:
             return
 
+        orig_height, orig_width = frame.shape[:2]
+
+        # Performance optimization: Resize using OpenCV (fast, C++) to the widget's
+        # actual display size before feeding it into the expensive Qt graphics pipeline.
+        widget_size = self.size()
+        widget_w, widget_h = widget_size.width(), widget_size.height()
+
+        if widget_w > 0 and widget_h > 0 and orig_width > widget_w:
+            # Calculate aspect-preserving dimensions
+            aspect = orig_width / orig_height
+            target_w = widget_w
+            target_h = int(target_w / aspect)
+            if target_h > widget_h:
+                target_h = widget_h
+                target_w = int(target_h * aspect)
+
+            # Use OpenCV resize (much faster than QPixmap.scaled for 4K arrays)
+            frame = cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
+
         height, width = frame.shape[:2]
 
-        # Store frame dimensions for cursor position mapping
-        self._frame_width = width
-        self._frame_height = height
+        # Store frame dimensions for cursor position mapping (MUST BE ORIGINAL for accurate coordinates)
+        self._frame_width = orig_width
+        self._frame_height = orig_height
 
         # Convert BGR to RGB
         if len(frame.shape) == 3 and frame.shape[2] == 3:
@@ -72,16 +91,14 @@ class VideoWidget(QLabel):
         qimage = QImage(rgb_frame.data, width, height, 3 * width, QImage.Format.Format_RGB888)
         self._last_qimage = qimage.copy()
 
-        # Scale to widget size and display
-        self._last_qpixmap = QPixmap.fromImage(self._last_qimage).scaled(
-            self.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation
-        )
+        # Display directly (it's already scaled)
+        self._last_qpixmap = QPixmap.fromImage(self._last_qimage)
         self.setPixmap(self._last_qpixmap)
 
         # Update overlay coordinate transformation
         self.overlay.set_frame_transform(
+            orig_width, orig_height,
             width, height,
-            self._last_qpixmap.width(), self._last_qpixmap.height(),
             self.width(), self.height()
         )
 

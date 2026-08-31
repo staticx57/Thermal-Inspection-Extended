@@ -7,7 +7,7 @@ Visualizes temperature gradients (rate of change) on thermal images.
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                               QCheckBox, QComboBox, QGroupBox, QSlider,
-                              QSpinBox, QDoubleSpinBox)
+                              QDoubleSpinBox)
 from PyQt6.QtCore import Qt, pyqtSignal
 import logging
 

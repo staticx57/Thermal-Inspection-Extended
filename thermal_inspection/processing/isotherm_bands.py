@@ -5,7 +5,7 @@ Phase 2 - Feature 8: Multi-band isotherm support
 Allows visualizing multiple temperature bands simultaneously with different colors.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Tuple
 import numpy as np
 import logging

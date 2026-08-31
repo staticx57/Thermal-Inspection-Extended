@@ -6,6 +6,7 @@ This module provides argument parsing and the main entry point.
 """
 
 import sys
+sys.coinit_flags = 0  # Force MTA so OpenCV DirectShow doesn't fail on the main thread
 import argparse
 import logging
 
@@ -96,6 +97,9 @@ def main():
     logger.info("Transformed from ThermalFusionDrivingAssist")
     logger.info("=" * 80)
 
+    # Set logging back to WARNING to prevent hot-plug monitor spam
+    logging.basicConfig(level=logging.WARNING, format='%(levelname)s:%(name)s:%(message)s')
+
     # Initialize Qt app if not using OpenCV GUI
     qt_app = None
     if not args.use_opencv_gui and not args.headless:
@@ -103,22 +107,22 @@ def main():
             from PyQt6.QtWidgets import QApplication
             from PyQt6.QtCore import QTimer
             import signal
-            
+
             qt_app = QApplication(sys.argv)
             logger.info("Qt GUI enabled")
-            
+
             # Enable Ctrl+C to work with Qt event loop
             # Qt blocks SIGINT by default - this timer allows Python to process signals
             def handle_sigint(*args):
                 logger.info("Ctrl+C received, shutting down...")
                 QApplication.quit()
-            
+
             signal.signal(signal.SIGINT, handle_sigint)
             # Timer allows signal handling during Qt event loop
             timer = QTimer()
             timer.timeout.connect(lambda: None)  # Empty callback to allow signal processing
             timer.start(100)
-            
+
         except ImportError:
             logger.warning("PyQt6 not available, falling back to OpenCV GUI")
             args.use_opencv_gui = True

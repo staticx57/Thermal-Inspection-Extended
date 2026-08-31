@@ -5,7 +5,6 @@ Generates user-friendly placeholder frames when camera feeds are unavailable
 import cv2
 import numpy as np
 from enum import Enum
-from typing import Optional
 
 
 class CameraStatus(Enum):

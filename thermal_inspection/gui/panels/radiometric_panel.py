@@ -192,7 +192,7 @@ class RadiometricPanel(QWidget):
         method_layout.setSpacing(6)
 
         self.method_button_group = QButtonGroup()
-        
+
         self.method_linear_radio = QRadioButton("Linear (Built-in)")
         self.method_linear_radio.setChecked(True)
         self.method_button_group.addButton(self.method_linear_radio, 0)
@@ -395,7 +395,7 @@ class RadiometricPanel(QWidget):
         sensor_layout.setSpacing(6)
 
         temp_font = QFont("Consolas", 10)
-        
+
         fpa_layout = QHBoxLayout()
         fpa_layout.addWidget(QLabel("FPA:"))
         self.fpa_temp_label = QLabel("--.-°C")
@@ -486,7 +486,7 @@ class RadiometricPanel(QWidget):
             mode_text = "8-bit Estimation"
         else:
             mode_text = "8-bit AGC"
-        
+
         # Only update if we're in 8-bit mode (not 16-bit radiometric)
         if "8-bit" in self.status_banner.text():
             self.status_banner.setText(f"Active: {mode_text}")
@@ -562,7 +562,7 @@ class RadiometricPanel(QWidget):
         logger.info(f"[RADIOMETRIC_PANEL] Mapped to unit: {unit}")
         logger.info(f"[RADIOMETRIC_PANEL] Emitting temperature_unit_changed signal with: {unit}")
         self.temperature_unit_changed.emit(unit)
-        logger.info(f"[RADIOMETRIC_PANEL] Signal emitted successfully")
+        logger.info("[RADIOMETRIC_PANEL] Signal emitted successfully")
 
     def _on_max_hot_spots_changed(self, index: int):
         """Handle max hot spots combo box change."""
@@ -637,7 +637,7 @@ class RadiometricPanel(QWidget):
                     mode_text = "8-bit Estimation"
                 else:
                     mode_text = "8-bit AGC"
-                
+
                 self.status_banner.setText(f"Active: {mode_text}")
                 self.status_banner.setStyleSheet("""
                     QLabel {
@@ -678,7 +678,7 @@ class RadiometricPanel(QWidget):
     def update_active_mode_status(self, mode: str, accuracy: str, description: str):
         """
         Update the active mode status banner.
-        
+
         Args:
             mode: "8bit", "16bit", or "none"
             accuracy: Accuracy string (e.g., "±5-10°C", "±2°C")
@@ -688,9 +688,9 @@ class RadiometricPanel(QWidget):
         banner_text = f"Active: {description}"
         if accuracy != "N/A":
             banner_text += f" ({accuracy})"
-        
+
         self.status_banner.setText(banner_text)
-        
+
         # Update banner color based on mode
         if mode == "16bit":
             # Green for 16-bit (best accuracy)
@@ -704,7 +704,7 @@ class RadiometricPanel(QWidget):
             # Gray for none
             bg_color = "#555"
             border_color = "#777"
-        
+
         self.status_banner.setStyleSheet(f"""
             QLabel {{
                 background-color: {bg_color};
@@ -716,11 +716,11 @@ class RadiometricPanel(QWidget):
                 border: 2px solid {border_color};
             }}
         """)
-    
+
     def set_8bit_estimation_available(self, available: bool, auto_enabled: bool = False):
         """
         Enable/disable 8-bit estimation controls.
-        
+
         Args:
             available: True if 8-bit estimation is available (SDK connected)
             auto_enabled: True to auto-check the enable checkbox
@@ -729,10 +729,10 @@ class RadiometricPanel(QWidget):
         self.apply_scene_range_btn.setEnabled(available)
         self.single_point_calib_btn.setEnabled(available)
         self.two_point_calib_btn.setEnabled(available)
-        
+
         if auto_enabled:
             self.enable_8bit_checkbox.setChecked(True)
-    
+
     def set_calibration_offset(self, offset_c: float):
         """Update the displayed calibration offset."""
         self.calib_offset_label.setText(f"Current Offset: {offset_c:+.2f}°C")

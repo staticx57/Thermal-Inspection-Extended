@@ -80,7 +80,7 @@ class CameraRegistry:
         try:
             config_file = Path(self.config_path)
             if config_file.exists():
-                with open(config_file, 'r') as f:
+                with open(config_file) as f:
                     data = json.load(f)
 
                 # Load camera descriptors

@@ -190,7 +190,7 @@ class InspectionOverlayWidget(QWidget):
     def _transform_thermal_coords(self, x: float, y: float) -> tuple:
         """Transform thermal sensor coordinates to display coordinates."""
         if not hasattr(self, 'thermal_resolution') or not self.thermal_resolution:
-            logger.warning(f"[OVERLAY] thermal_resolution not set! Using default 640x512.")
+            logger.warning("[OVERLAY] thermal_resolution not set! Using default 640x512.")
             self.thermal_resolution = (640, 512)
 
         tw, th = self.thermal_resolution
@@ -200,21 +200,18 @@ class InspectionOverlayWidget(QWidget):
             return self.frame_to_widget(x, y)
 
         if self.current_view_mode == 'side_by_side':
-            # Side-by-side: thermal is on left if priority='thermal', right otherwise
-            allocated_w = fw / 2
-            allocated_h = fh
-            actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(tw, th, allocated_w, allocated_h)
-            
-            # Determine thermal side based on priority
+            # FusionProcessor._side_by_side() does `np.hstack([thermal, rgb])`
+            # (or the reverse) after only matching heights — each panel keeps
+            # its own native width. There is no 50/50 split and no letterbox
+            # fit, so the thermal panel is thermal's native resolution,
+            # unscaled, at whichever end fusion_priority puts it.
             if self.fusion_priority == 'thermal':
-                thermal_start = offset_x  # Thermal on left
+                thermal_start = 0  # thermal on left
             else:
-                thermal_start = allocated_w + offset_x  # Thermal on right
-            
-            scale_x = actual_w / tw
-            scale_y = actual_h / th
-            frame_x = thermal_start + (x * scale_x)
-            frame_y = offset_y + (y * scale_y)
+                thermal_start = fw - tw  # thermal on right
+
+            frame_x = thermal_start + x
+            frame_y = y
 
             return self.frame_to_widget(frame_x, frame_y)
 
@@ -665,29 +662,28 @@ class InspectionOverlayWidget(QWidget):
         # Handle spot meter mode
         if self.spot_meter_mode:
             if self.current_view_mode == 'side_by_side':
+                # Mirrors _transform_thermal_coords(): FusionProcessor._side_by_side()
+                # hstacks the two panels at their own native widths (only height is
+                # matched), so the thermal panel is thermal's native resolution,
+                # unscaled, at whichever end fusion_priority puts it — not a 50/50
+                # split with letterboxing.
                 fw, fh = self.frame_size
-                tw, th = self.thermal_resolution if self.thermal_resolution else (640, 514)
-                allocated_w = fw / 2
-                allocated_h = fh
-                actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(tw, th, allocated_w, allocated_h)
+                tw, th = self.thermal_resolution if self.thermal_resolution else (640, 512)
 
                 if self.fusion_priority == 'thermal':
                     thermal_start = 0
-                    thermal_in_region = (click_wx < allocated_w)
+                    thermal_in_region = (click_wx < tw)
                 else:
-                    thermal_start = allocated_w
-                    thermal_in_region = (click_wx >= allocated_w)
+                    thermal_start = fw - tw
+                    thermal_in_region = (click_wx >= thermal_start)
 
                 if thermal_in_region:
-                    scale_x = actual_w / tw
-                    scale_y = actual_h / th
-                    base_offset_x = thermal_start + offset_x
-                    click_x = (click_wx - base_offset_x) / scale_x
-                    click_y = (click_wy - offset_y) / scale_y
+                    click_x = click_wx - thermal_start
+                    click_y = click_wy
                     click_x = max(0, min(tw - 1, click_x))
                     click_y = max(0, min(th - 1, click_y))
                 else:
-                    logger.info(f"Clicked on RGB side in Side-by-Side mode - Ignoring spot meter add")
+                    logger.info("Clicked on RGB side in Side-by-Side mode - Ignoring spot meter add")
                     valid_click = False
 
             elif self.pip_rect is not None:
@@ -823,25 +819,21 @@ class InspectionOverlayWidget(QWidget):
         valid_coords = True
 
         if self.current_view_mode == 'side_by_side':
+            # See _transform_thermal_coords(): the thermal panel is thermal's
+            # native resolution, unscaled — no 50/50 split or letterboxing.
             fw, fh = self.frame_size
-            tw, th = self.thermal_resolution if self.thermal_resolution else (640, 514)
-            allocated_w = fw / 2
-            allocated_h = fh
-            actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(tw, th, allocated_w, allocated_h)
+            tw, th = self.thermal_resolution if self.thermal_resolution else (640, 512)
 
             if self.fusion_priority == 'thermal':
                 thermal_start = 0
-                thermal_in_region = (fx < allocated_w)
+                thermal_in_region = (fx < tw)
             else:
-                thermal_start = allocated_w
-                thermal_in_region = (fx >= allocated_w)
+                thermal_start = fw - tw
+                thermal_in_region = (fx >= thermal_start)
 
             if thermal_in_region:
-                scale_x = actual_w / tw
-                scale_y = actual_h / th
-                base_offset_x = thermal_start + offset_x
-                thermal_x = (fx - base_offset_x) / scale_x
-                thermal_y = (fy - offset_y) / scale_y
+                thermal_x = fx - thermal_start
+                thermal_y = fy
                 thermal_x = max(0, min(tw - 1, thermal_x))
                 thermal_y = max(0, min(th - 1, thermal_y))
             else:

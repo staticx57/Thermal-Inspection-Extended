@@ -183,18 +183,28 @@ class ThermalAnalyzer:
         self.last_frame_stats: Dict[str, ThermalStatistics] = {}
         self.calibration_offset = self.config.get("calibration_offset", 0.0)
         self.calibration_scale = self.config.get("calibration_scale", 1.0)
-        
+
         # Background modeling for anomaly detection
         self.background_model: Optional[np.ndarray] = None
         self.background_alpha = self.config.get("background_alpha", 0.01)  # Learning rate
         self.background_init_frames = 30
         self.frame_count = 0
-        
+
+        # Motion guard: skip background model update when camera is panning
+        # Threshold is in raw pixel units (default 15 = significant scene change)
+        self._motion_guard_threshold = self.config.get("motion_guard_threshold", 15.0)
+
+        # Grid-based rate-of-change: 8x8 grid tracks per-cell temperature history
+        # so localised hotspots are not diluted by the global mean
+        self._grid_size = self.config.get("grid_size", 8)
+        self._grid_history: Optional[np.ndarray] = None   # (grid_h, grid_w) float32
+        self._grid_last_time: Optional[float] = None
+
         # Radiometric mode
         self.is_radiometric = self.config.get("radiometric", False)
         if not self.is_radiometric:
             self.temp_unit = TemperatureUnit.CELSIUS # Placeholder, will be treated as Raw
-            
+
         # Baseline for relative measurements
         self.baseline_value: Optional[float] = None
 
@@ -205,7 +215,7 @@ class ThermalAnalyzer:
     def set_radiometric_mode(self, enabled: bool):
         """
         Enable or disable radiometric mode.
-        
+
         Args:
             enabled: True for radiometric (temperature), False for raw (AGC)
         """
@@ -251,10 +261,10 @@ class ThermalAnalyzer:
     def analyze(self, thermal_frame: np.ndarray) -> Dict[str, Any]:
         """
         Convenience wrapper to run all standard analysis methods.
-        
+
         Args:
             thermal_frame: Grayscale thermal frame (8-bit or 16-bit)
-            
+
         Returns:
             Dict containing stats, hot_spots, cold_spots, anomalies, etc.
         """
@@ -262,7 +272,7 @@ class ThermalAnalyzer:
         hot_spots = self.detect_hot_spots(thermal_frame)
         cold_spots = self.detect_cold_spots(thermal_frame)
         anomalies = self.detect_anomalies(thermal_frame)
-        
+
         # For histogram: convert to float temperature array
         temp_array = None
         if thermal_frame is not None:
@@ -272,7 +282,7 @@ class ThermalAnalyzer:
             else:
                 # 8-bit frame: use raw values (0-255 range)
                 temp_array = thermal_frame.astype(np.float32)
-        
+
         return {
             'stats': stats,
             'hot_spots': hot_spots,
@@ -311,18 +321,18 @@ class ThermalAnalyzer:
     def calculate_spot_temperature(self, raw_val: float, converter=None, force_estimation: bool = False) -> Tuple[float, str]:
         """
         Calculate temperature and unit string for a single spot.
-        
+
         Args:
             raw_val: Raw pixel value
             converter: Optional radiometric converter (pixel_to_temperature)
             force_estimation: If True, force estimation mode even if radiometric
-            
+
         Returns:
             (temperature_value, unit_string)
         """
         temp = 0.0
         unit = ''
-        
+
         # Decide mode based on capabilities
         # Decide mode based on capabilities
         if self.is_radiometric and not force_estimation:
@@ -338,21 +348,21 @@ class ThermalAnalyzer:
                 # Fallback if calculation fails (rare)
                 # Just treat as raw counts scaled down slightly to avoid massive numbers
                 temp_c = (float(raw_val) - 0) * 0.1
-                
+
             # Apply target unit conversion
             temp = self.convert_temperature(temp_c, TemperatureUnit.CELSIUS, self.temp_unit)
             unit = self._get_unit_symbol()
-                
+
         elif force_estimation:
             # === STATE 2: 8-BIT ESTIMATION (APPROXIMATE) ===
             # This state is ONLY entered if explicitly forced (e.g. by 8-bit estimation toggle)
-            
+
             # Simple linear mapping (fallback)
             temp_c = (float(raw_val) - 0) * 0.1
-            
+
             # Apply conversion
             temp = self.convert_temperature(temp_c, TemperatureUnit.CELSIUS, self.temp_unit)
-            
+
             # Add (est) suffix
             symbol = self._get_unit_symbol()
             unit = f"{symbol} (est)"
@@ -362,37 +372,24 @@ class ThermalAnalyzer:
             # Just show the raw pixel value
             temp = float(raw_val)
             unit = ' (AGC)'
-            
+
         return temp, unit
 
-    def convert_temperature(self, value: float, from_unit: TemperatureUnit, to_unit: TemperatureUnit) -> float:
-        """Helper to convert temperature between units."""
-        if from_unit == to_unit:
-            return value
-            
-        # First convert to Celsius
-        celsius = value
-        if from_unit == TemperatureUnit.FAHRENHEIT:
-            celsius = (value - 32) * 5/9
-        elif from_unit == TemperatureUnit.KELVIN:
-            celsius = value - 273.15
-        elif from_unit == TemperatureUnit.RAW:
-             # Y16 to Celsius
-             celsius = (value / 100.0) - 273.15
+    def analyze_frame(self, thermal_frame: np.ndarray,
+                      roi_mask: Optional[np.ndarray] = None) -> ThermalStatistics:
+        """
+        Analyze a thermal frame and return comprehensive statistics.
 
-        # Then convert to target
-        if to_unit == TemperatureUnit.CELSIUS:
-            return celsius
-        elif to_unit == TemperatureUnit.FAHRENHEIT:
-            return (celsius * 9/5) + 32
-        elif to_unit == TemperatureUnit.KELVIN:
-            return celsius + 273.15
-        elif to_unit == TemperatureUnit.RAW:
-            # Celsius to Y16
-            return (celsius + 273.15) * 100.0
-            
-        return celsius
+        Public convenience alias for compute_statistics().
 
+        Args:
+            thermal_frame: Thermal image (grayscale, 8-bit or 16-bit)
+            roi_mask: Optional mask to analyze specific region (same size as thermal_frame)
+
+        Returns:
+            ThermalStatistics object with all computed metrics, or None for invalid input
+        """
+        return self.compute_statistics(thermal_frame, roi_mask=roi_mask)
 
     def compute_statistics(self, thermal_frame: np.ndarray,
                          roi_mask: Optional[np.ndarray] = None) -> ThermalStatistics:
@@ -467,7 +464,7 @@ class ThermalAnalyzer:
         median_val = self.convert_temperature(median_val, TemperatureUnit.CELSIUS, self.temp_unit)
         p95_val = self.convert_temperature(p95_val, TemperatureUnit.CELSIUS, self.temp_unit)
         p5_val = self.convert_temperature(p5_val, TemperatureUnit.CELSIUS, self.temp_unit)
-        
+
         # Scale relative values (std dev, range)
         # Note: These are differences, so we only apply scaling factor, not offset
         if self.temp_unit == TemperatureUnit.FAHRENHEIT:
@@ -738,18 +735,20 @@ class ThermalAnalyzer:
         if current_stats is None:
             return anomalies
 
-        # Check for statistical outliers (compared to previous frame)
+        # ── Fix 5: Grid-based rate-of-change (localised hotspot detection) ──────
+        # Detects rapid heating in individual 8x8 grid cells, not just global mean.
+        anomalies.extend(self._detect_grid_rate_of_change(thermal_frame))
+
+        # ── Global rate-of-change (kept as fast coarse filter) ──────────────────
         if roi_id in self.last_frame_stats:
             prev_stats = self.last_frame_stats[roi_id]
 
-            # Rapid temperature increase
             temp_change = current_stats.mean_temp - prev_stats.mean_temp
             time_delta = current_stats.timestamp - prev_stats.timestamp
             if time_delta > 0:
                 rate_of_change = temp_change / time_delta
 
                 if rate_of_change > self.rapid_change_threshold:
-                    # Whole frame anomaly - use full frame bbox
                     h, w = thermal_frame.shape[:2]
                     anomalies.append(ThermalAnomaly(
                         anomaly_type=AnomalyType.RAPID_INCREASE,
@@ -761,7 +760,6 @@ class ThermalAnalyzer:
                     ))
 
                 elif rate_of_change < -self.rapid_change_threshold:
-                    # Whole frame anomaly - use full frame bbox
                     h, w = thermal_frame.shape[:2]
                     anomalies.append(ThermalAnomaly(
                         anomaly_type=AnomalyType.RAPID_DECREASE,
@@ -772,72 +770,82 @@ class ThermalAnalyzer:
                         metadata={"rate": rate_of_change}
                     ))
 
-        # Check for extreme gradient anomalies
+        # ── Fix 3: Region-based gradient anomaly (replaces single-pixel argmax) ─
         gradient = self.compute_temperature_gradient(thermal_frame)
         if gradient is not None:
-            max_gradient = np.max(gradient)
-            if max_gradient > self.gradient_threshold:
-                # Find location of max gradient
-                max_loc = np.unravel_index(np.argmax(gradient), gradient.shape)
-                # Create a small bbox around the gradient point (20x20 px)
-                cx, cy = int(max_loc[1]), int(max_loc[0])
-                bbox_size = 20
-                x1 = max(0, cx - bbox_size//2)
-                y1 = max(0, cy - bbox_size//2)
-                x2 = min(thermal_frame.shape[1], cx + bbox_size//2)
-                y2 = min(thermal_frame.shape[0], cy + bbox_size//2)
-                anomalies.append(ThermalAnomaly(
-                    anomaly_type=AnomalyType.GRADIENT_ANOMALY,
-                    location=(cx, cy),
-                    bbox=(x1, y1, x2, y2),
-                    severity=min(1.0, max_gradient / (self.gradient_threshold * 2)),
-                    description=f"Extreme temperature gradient: {max_gradient:.1f}°",
-                    metadata={"gradient": max_gradient}
-                ))
+            gradient_mask = (gradient > self.gradient_threshold).astype(np.uint8) * 255
+            if gradient_mask.any():
+                # Close small gaps so adjacent hot-edge pixels form one region
+                kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+                gradient_mask = cv2.morphologyEx(gradient_mask, cv2.MORPH_CLOSE, kernel)
+                contours, _ = cv2.findContours(
+                    gradient_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+                )
+                for contour in contours:
+                    area = cv2.contourArea(contour)
+                    if area < 50:   # ignore noise specks
+                        continue
+                    x, y, w, h = cv2.boundingRect(contour)
+                    M = cv2.moments(contour)
+                    if M["m00"] != 0:
+                        cx = int(M["m10"] / M["m00"])
+                        cy = int(M["m01"] / M["m00"])
+                    else:
+                        cx, cy = x + w // 2, y + h // 2
+                    roi_grad = gradient[y:y+h, x:x+w]
+                    max_grad = float(np.max(roi_grad))
+                    severity = min(1.0, max_grad / (self.gradient_threshold * 2))
+                    anomalies.append(ThermalAnomaly(
+                        anomaly_type=AnomalyType.GRADIENT_ANOMALY,
+                        location=(cx, cy),
+                        bbox=(x, y, x+w, y+h),
+                        severity=severity,
+                        description=f"Gradient region: {max_grad:.1f}° over {area:.0f}px²",
+                        metadata={"max_gradient": max_grad, "area": float(area)}
+                    ))
 
         # Store current stats for next frame comparison
         self.last_frame_stats[roi_id] = current_stats
 
-        # --- Statistical Background Modeling ---
-        # Only update background if we have a valid frame
+        # ── Statistical Background Modeling ─────────────────────────────────────
         if thermal_frame is not None:
             thermal_float = thermal_frame.astype(np.float32)
-            
+
             if self.background_model is None or self.background_model.shape != thermal_float.shape:
                 self.background_model = thermal_float.copy()
-                self.frame_count = 0  # Reset initialization counter on size change
+                self.frame_count = 0
             else:
-                # Update background model (running average)
+                # ── Fix 4: Motion guard ─────────────────────────────────────────
+                # If the global mean diff is very high the camera is panning.
+                # Skip the model update AND outlier detection for this frame to
+                # avoid poisoning the background model and generating false flags.
+                global_diff = float(np.mean(cv2.absdiff(thermal_float, self.background_model)))
+                if global_diff > self._motion_guard_threshold:
+                    return anomalies   # camera moving — no update, no outlier detection
+
                 cv2.accumulateWeighted(thermal_float, self.background_model, self.background_alpha)
 
             self.frame_count += 1
 
             # Only detect after initialization period
             if self.frame_count > self.background_init_frames:
-                # Calculate absolute difference
                 diff = cv2.absdiff(thermal_float, self.background_model)
-                
-                # Calculate dynamic threshold (mean diff + 3 std devs)
                 mean_diff = np.mean(diff)
                 std_diff = np.std(diff)
                 threshold = mean_diff + (3.0 * std_diff)
-                
-                # Find outliers
+
                 outlier_mask = (diff > threshold).astype(np.uint8) * 255
-                
-                # Filter noise
                 kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
                 outlier_mask = cv2.morphologyEx(outlier_mask, cv2.MORPH_OPEN, kernel)
-                
-                # Find contours of anomalies
-                contours, _ = cv2.findContours(outlier_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                
+
+                contours, _ = cv2.findContours(
+                    outlier_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+                )
+
                 for contour in contours:
                     area = cv2.contourArea(contour)
-                    if area < 100:  # Minimum anomaly size
+                    if area < 100:
                         continue
-                        
-                    # Get bounding box and centroid
                     x, y, w, h = cv2.boundingRect(contour)
                     M = cv2.moments(contour)
                     if M["m00"] != 0:
@@ -845,21 +853,92 @@ class ThermalAnalyzer:
                         cy = int(M["m01"] / M["m00"])
                     else:
                         cx, cy = x + w//2, y + h//2
-                        
-                    # Calculate severity based on max difference in region
                     roi_diff = diff[y:y+h, x:x+w]
                     max_diff = np.max(roi_diff)
                     severity = min(1.0, max_diff / (threshold * 2))
-                    
                     anomalies.append(ThermalAnomaly(
                         anomaly_type=AnomalyType.STATISTICAL_OUTLIER,
                         location=(cx, cy),
-                        bbox=(x, y, x+w, y+h),  # Use contour bounding box
+                        bbox=(x, y, x+w, y+h),
                         severity=severity,
                         description=f"Statistical outlier (diff: {max_diff:.1f})",
                         metadata={"max_diff": float(max_diff), "threshold": float(threshold)}
                     ))
 
+        return anomalies
+
+    def _detect_grid_rate_of_change(
+        self, thermal_frame: np.ndarray
+    ) -> List["ThermalAnomaly"]:
+        """
+        Fix 5: Grid-based rate-of-change anomaly detection.
+
+        Divides the frame into an N×N grid (default 8×8) and tracks the mean
+        temperature of each cell between frames.  Cells that change faster than
+        ``rapid_change_threshold`` degrees/second are reported as localised
+        RAPID_INCREASE / RAPID_DECREASE anomalies.  This catches small hotspots
+        (e.g. a single overheating component) that are invisible in the global
+        frame mean.
+        """
+        anomalies: List[ThermalAnomaly] = []
+        if thermal_frame is None or thermal_frame.size == 0:
+            return anomalies
+
+        now = time.time()
+        g = self._grid_size
+        h, w = thermal_frame.shape[:2]
+
+        # Downsample to grid via area-averaging
+        grid_now = cv2.resize(
+            thermal_frame.astype(np.float32),
+            (g, g),
+            interpolation=cv2.INTER_AREA,
+        )
+
+        if self._grid_history is not None and self._grid_last_time is not None:
+            dt = now - self._grid_last_time
+            if dt > 0:
+                rates = (grid_now - self._grid_history) / dt   # (g, g) rate map
+                cell_h = h / g
+                cell_w = w / g
+
+                for gy in range(g):
+                    for gx in range(g):
+                        rate = float(rates[gy, gx])
+                        if abs(rate) <= self.rapid_change_threshold:
+                            continue
+
+                        # Map grid cell back to pixel coordinates
+                        px1 = int(gx * cell_w)
+                        py1 = int(gy * cell_h)
+                        px2 = int(min(w, (gx + 1) * cell_w))
+                        py2 = int(min(h, (gy + 1) * cell_h))
+                        cx = (px1 + px2) // 2
+                        cy = (py1 + py2) // 2
+
+                        severity = min(
+                            1.0, abs(rate) / (self.rapid_change_threshold * 2)
+                        )
+                        atype = (
+                            AnomalyType.RAPID_INCREASE
+                            if rate > 0
+                            else AnomalyType.RAPID_DECREASE
+                        )
+                        direction = "increase" if rate > 0 else "decrease"
+                        anomalies.append(ThermalAnomaly(
+                            anomaly_type=atype,
+                            location=(cx, cy),
+                            bbox=(px1, py1, px2, py2),
+                            severity=severity,
+                            description=(
+                                f"Localised {direction}: {rate:.1f}°/s "
+                                f"at grid ({gx},{gy})"
+                            ),
+                            metadata={"rate": rate, "grid": (gx, gy)},
+                        ))
+
+        self._grid_history = grid_now
+        self._grid_last_time = now
         return anomalies
 
     def update_trend(self, roi_id: str, temperature: float, timestamp: Optional[float] = None):

@@ -231,7 +231,7 @@ def print_camera_summary():
         for i, cam in enumerate(cameras['firefly']):
             print(f"  [{i}] {cam['model']}")
             print(f"      Serial: {cam['serial']}")
-            print(f"      Features: Global shutter, no motion blur")
+            print("      Features: Global shutter, no motion blur")
 
     if cameras['uvc']:
         print(f"\nUVC Webcams ({len(cameras['uvc'])}):")
@@ -277,11 +277,14 @@ def autodetect_camera_types() -> Tuple[Optional[int], Optional[int]]:
         try:
             logger.info(f"Probing camera {i}...")
 
-            # Try DirectShow backend (most stable on Windows)
-            cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
-
-            if not cap.isOpened():
-                logger.debug(f"  DirectShow failed, trying default backend...")
+            # Use MSMF first, fall back to DSHOW on Windows (prevents OrbbecSDK hang)
+            import platform
+            if platform.system() == "Windows":
+                cap = cv2.VideoCapture(i, cv2.CAP_MSMF)
+                if not cap.isOpened():
+                    cap.release()
+                    cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+            else:
                 cap = cv2.VideoCapture(i)
 
             if cap and cap.isOpened():
@@ -343,7 +346,7 @@ def autodetect_camera_types() -> Tuple[Optional[int], Optional[int]]:
             if cap:
                 try:
                     cap.release()
-                except:
+                except Exception:
                     pass
 
     # IMPROVED HEURISTIC: Prioritize resolution-based detection
@@ -467,7 +470,7 @@ if __name__ == "__main__":
         print("\n\nInterrupted by user")
         try:
             camera.release()
-        except:
+        except Exception:
             pass
         sys.exit(0)
 

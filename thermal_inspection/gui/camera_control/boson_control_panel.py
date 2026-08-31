@@ -46,6 +46,8 @@ class BosonControlPanel(QWidget):
     agc_dampening_changed = pyqtSignal(float)  # 0.0-1.0
     # Radiometric mode control
     radiometric_mode_changed = pyqtSignal(bool)  # True=Radiometric, False=Colorized
+    # Environmental compensation
+    environmental_settings_changed = pyqtSignal(dict)  # {'emissivity': float, 'atm_temp': float, 'atm_transmission': float}
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -71,6 +73,9 @@ class BosonControlPanel(QWidget):
 
         # RADIOMETRIC TAB
         self._create_radiometric_tab()
+
+        # ENVIRONMENT TAB
+        self._create_environment_tab()
 
         # DIAGNOSTICS TAB
         self._create_diagnostics_tab()
@@ -147,6 +152,81 @@ class BosonControlPanel(QWidget):
         advanced_tab_layout.addWidget(advanced_scroll)
 
         self.boson_tabs.addTab(advanced_tab, "Advanced Controls")
+
+    def _create_environment_tab(self):
+        """Create environmental compensation tab."""
+        env_tab = QWidget()
+        env_scroll = QScrollArea()
+        env_scroll.setWidgetResizable(True)
+        env_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        env_scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        env_content = QWidget()
+        env_layout = QVBoxLayout(env_content)
+        env_layout.setSpacing(8)
+        env_layout.setContentsMargins(6, 6, 6, 6)
+
+        env_group = QGroupBox("ENVIRONMENTAL COMPENSATION")
+        env_group_layout = QGridLayout(env_group)
+        env_group_layout.setSpacing(6)
+
+        # Info label
+        info_label = QLabel(
+            "Adjust environmental parameters to improve radiometric accuracy."
+        )
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet("color: #aaa; font-size: 9pt; padding-bottom: 4px;")
+        env_group_layout.addWidget(info_label, 0, 0, 1, 3)
+
+        # Emissivity (0.01 – 1.00, stored ×100 as int)
+        env_group_layout.addWidget(QLabel("Emissivity:"), 1, 0)
+        self.emissivity_slider = QSlider(Qt.Orientation.Horizontal)
+        self.emissivity_slider.setRange(1, 100)
+        self.emissivity_slider.setValue(95)  # default 0.95
+        self.emissivity_slider.setToolTip("Object emissivity (0.01 – 1.00)")
+        env_group_layout.addWidget(self.emissivity_slider, 1, 1)
+        self.emissivity_value = QLabel("0.95")
+        self.emissivity_value.setFixedWidth(38)
+        env_group_layout.addWidget(self.emissivity_value, 1, 2)
+
+        # Atmospheric Temperature (°C, -40 – 60)
+        env_group_layout.addWidget(QLabel("Atm. Temp (°C):"), 2, 0)
+        self.atm_temp_slider = QSlider(Qt.Orientation.Horizontal)
+        self.atm_temp_slider.setRange(-40, 60)
+        self.atm_temp_slider.setValue(25)  # default 25 °C
+        self.atm_temp_slider.setToolTip("Atmospheric temperature (°C)")
+        env_group_layout.addWidget(self.atm_temp_slider, 2, 1)
+        self.atm_temp_value = QLabel("25°C")
+        self.atm_temp_value.setFixedWidth(38)
+        env_group_layout.addWidget(self.atm_temp_value, 2, 2)
+
+        # Atmospheric Transmission (0.50 – 1.00, stored ×100 as int)
+        env_group_layout.addWidget(QLabel("Atm. Transmission:"), 3, 0)
+        self.atm_trans_slider = QSlider(Qt.Orientation.Horizontal)
+        self.atm_trans_slider.setRange(50, 100)
+        self.atm_trans_slider.setValue(100)  # default 1.00
+        self.atm_trans_slider.setToolTip("Atmospheric transmission (0.50 – 1.00)")
+        env_group_layout.addWidget(self.atm_trans_slider, 3, 1)
+        self.atm_trans_value = QLabel("1.00")
+        self.atm_trans_value.setFixedWidth(38)
+        env_group_layout.addWidget(self.atm_trans_value, 3, 2)
+
+        # Apply button
+        self.env_apply_button = QPushButton("Apply to Camera")
+        self.env_apply_button.setStyleSheet(
+            "background: #2b7; color: white; font-weight: bold; padding: 4px 8px;"
+        )
+        env_group_layout.addWidget(self.env_apply_button, 4, 0, 1, 3)
+
+        env_layout.addWidget(env_group)
+        env_layout.addStretch()
+
+        env_scroll.setWidget(env_content)
+        env_tab_layout = QVBoxLayout(env_tab)
+        env_tab_layout.setContentsMargins(0, 0, 0, 0)
+        env_tab_layout.addWidget(env_scroll)
+
+        self.boson_tabs.addTab(env_tab, "Environment")
 
     def _create_radiometric_tab(self):
         """Create radiometric status tab."""
@@ -698,10 +778,32 @@ class BosonControlPanel(QWidget):
         self.shutter_open_btn.clicked.connect(lambda: self._on_shutter_position_changed("OPEN"))
         self.shutter_closed_btn.clicked.connect(lambda: self._on_shutter_position_changed("CLOSED"))
 
+        # Environmental compensation
+        self.emissivity_slider.valueChanged.connect(
+            lambda v: self.emissivity_value.setText(f"{v / 100:.2f}")
+        )
+        self.atm_temp_slider.valueChanged.connect(
+            lambda v: self.atm_temp_value.setText(f"{v}°C")
+        )
+        self.atm_trans_slider.valueChanged.connect(
+            lambda v: self.atm_trans_value.setText(f"{v / 100:.2f}")
+        )
+        self.env_apply_button.clicked.connect(self._on_env_apply_clicked)
+
     def _on_connect_clicked(self):
         """Handle connect button click."""
         com_port = self.com_port_combo.currentText().strip()
         self.sdk_connect_requested.emit(com_port if com_port else "")
+
+    def _on_env_apply_clicked(self):
+        """Emit environmental settings to the app for SDK application."""
+        settings = {
+            'emissivity': self.emissivity_slider.value() / 100.0,
+            'atm_temp': float(self.atm_temp_slider.value()),
+            'atm_transmission': self.atm_trans_slider.value() / 100.0,
+        }
+        self.environmental_settings_changed.emit(settings)
+        logger.info(f"Environmental settings applied: {settings}")
 
     def _on_scan_ports_clicked(self):
         """Handle scan ports button click."""
@@ -756,8 +858,33 @@ class BosonControlPanel(QWidget):
         self.shutter_position_changed.emit(position)
 
     def _on_refresh_diagnostics(self):
-        """Signal to refresh diagnostics data."""
-        pass
+        """Refresh diagnostics data from the Boson SDK."""
+        try:
+            # Access the thermal camera via the app reference
+            app = None
+            parent = self.parent()
+            while parent is not None:
+                if hasattr(parent, 'app'):
+                    app = parent.app
+                    break
+                parent = parent.parent()
+
+            if app is None or not hasattr(app, 'thermal_camera'):
+                logger.debug("Cannot refresh diagnostics: no app reference")
+                return
+
+            cam = app.thermal_camera
+            if cam is None:
+                return
+
+            # Try SDK wrapper's get_system_status()
+            if hasattr(cam, 'get_system_status'):
+                status = cam.get_system_status()
+                if status:
+                    self.update_diagnostics(status)
+                    logger.info("Diagnostics refreshed from SDK")
+        except Exception as e:
+            logger.error(f"Error refreshing diagnostics: {e}")
 
     def update_connection_status(self, connected: bool, port: str = None):
         """Update SDK connection status and button states."""

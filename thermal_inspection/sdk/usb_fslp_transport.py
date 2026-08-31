@@ -7,7 +7,6 @@ Allows sending SDK commands to Boson camera without using COM port.
 
 import time
 import logging
-from typing import Optional, Tuple
 import usb.core
 import usb.util
 

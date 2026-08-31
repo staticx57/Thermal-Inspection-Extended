@@ -1,6 +1,6 @@
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 import sys
 import os
 
@@ -12,7 +12,7 @@ from thermal_inspection.app import ThermalInspectionApp
 class TestAppWiring(unittest.TestCase):
     def setUp(self):
         self.app = ThermalInspectionApp(qt_app=None)
-        
+
         # Mock the internal processors
         self.app.fusion_processor = MagicMock()
         self.app.thermal_analyzer = MagicMock()
@@ -28,7 +28,7 @@ class TestAppWiring(unittest.TestCase):
         # Fuzziness -> set_edge_blur
         self.app.set_fusion_fuzziness(0.5)
         self.app.fusion_processor.set_edge_blur.assert_called()
-        
+
         # Edge Strength -> set_edge_strength (inverted logic)
         self.app.set_edge_strength(0.8)
         self.app.fusion_processor.set_edge_strength.assert_called()
@@ -42,7 +42,7 @@ class TestAppWiring(unittest.TestCase):
         self.app.set_detail_strength(1.5)
         # Check attribute set
         self.assertEqual(self.app.fusion_processor.detail_strength, 1.5)
-        
+
         self.app.set_detail_quality('high')
         self.assertEqual(self.app.fusion_processor.detail_quality, 1.0)
 
@@ -56,6 +56,49 @@ class TestAppWiring(unittest.TestCase):
 
         self.app.set_atmospheric_transmission(0.99)
         self.app.thermal_analyzer.set_atmospheric_transmission.assert_called_with(0.99)
+
+
+class TestThermalResolutionSync(unittest.TestCase):
+    """
+    Regression coverage for a UI-alignment bug: the overlay's
+    thermal_resolution defaulted to (640, 512) and nothing ever called
+    set_thermal_resolution(), so every ROI/spot-meter/hot-spot marker was
+    misplaced on any camera that isn't a full-res Boson. app.py now tracks
+    the real captured frame's shape every tick and pushes it to the GUI
+    only when it changes.
+    """
+
+    def setUp(self):
+        self.app = ThermalInspectionApp(qt_app=None)
+
+    def test_initial_resolution_defaults_match_overlay_default(self):
+        # Must match InspectionOverlayWidget's own default so there is no
+        # gap between app startup and the first real frame.
+        self.assertEqual(self.app._last_thermal_resolution, (640, 512))
+        self.assertIsNone(self.app._gui_thermal_resolution_synced)
+
+    def test_gui_receives_resolution_on_change(self):
+        self.app.gui = MagicMock()
+        self.app._last_thermal_resolution = (336, 256)  # e.g. a Tau2
+
+        if self.app._last_thermal_resolution != self.app._gui_thermal_resolution_synced:
+            self.app.gui.update_thermal_resolution(*self.app._last_thermal_resolution)
+            self.app._gui_thermal_resolution_synced = self.app._last_thermal_resolution
+
+        self.app.gui.update_thermal_resolution.assert_called_once_with(336, 256)
+
+    def test_gui_is_not_re_notified_when_resolution_is_unchanged(self):
+        # The frame loop runs this check every tick; a real camera's shape
+        # does not change frame-to-frame, so this must not fire every time.
+        self.app.gui = MagicMock()
+        self.app._last_thermal_resolution = (640, 512)
+        self.app._gui_thermal_resolution_synced = (640, 512)
+
+        if self.app._last_thermal_resolution != self.app._gui_thermal_resolution_synced:
+            self.app.gui.update_thermal_resolution(*self.app._last_thermal_resolution)
+
+        self.app.gui.update_thermal_resolution.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

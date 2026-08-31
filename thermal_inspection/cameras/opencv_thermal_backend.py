@@ -56,8 +56,15 @@ class OpenCVThermalBackend(ThermalBackend):
             bool: True if camera is accessible via OpenCV
         """
         try:
-            # Quick test with DirectShow backend
-            test_cap = cv2.VideoCapture(self.device_id, cv2.CAP_DSHOW)
+            # Quick availability test using MSMF on Windows (DSHOW fails with index-based capture)
+            import platform
+            if platform.system() == "Windows":
+                test_cap = cv2.VideoCapture(self.device_id, cv2.CAP_MSMF)
+                if not test_cap.isOpened():
+                    test_cap.release()
+                    test_cap = cv2.VideoCapture(self.device_id, cv2.CAP_DSHOW)
+            else:
+                test_cap = cv2.VideoCapture(self.device_id)
             available = test_cap.isOpened()
             test_cap.release()
 
@@ -96,7 +103,7 @@ class OpenCVThermalBackend(ThermalBackend):
 
             if success:
                 self._is_opened = True
-                logger.info(f"✓ OpenCV thermal backend opened successfully")
+                logger.info("✓ OpenCV thermal backend opened successfully")
                 logger.info(f"  Resolution: {self.camera.width}x{self.camera.height}")
                 logger.info(f"  SDK enabled: {self.enable_sdk}")
                 logger.info(f"  FPS: {self.camera.fps}")

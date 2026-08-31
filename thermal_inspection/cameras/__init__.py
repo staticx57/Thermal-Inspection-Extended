@@ -1,19 +1,33 @@
 """
 Camera modules for the Thermal Inspection application.
-
-Contains:
-- FLIRBosonCamera: FLIR Boson thermal camera interface
-- RGBCamera: Generic RGB camera interface
-- RGBCameraFirefly: FLIR Firefly global shutter camera
-- RGBCameraUVC: Generic UVC webcam interface
-- CameraRegistry: Camera tracking and role assignment
-- CameraDetector: Camera detection utilities
-- CameraFactory: Auto-detection and instantiation
-- Camera backends: Abstract base classes
 """
 
-# Thermal camera
+# Plugin Architecture
+from .plugin import (
+    CameraPlugin,
+    CameraRole as PluginCameraRole,
+    CameraPluginMatch,
+    CameraCapabilities,
+    CameraSDK,
+    CameraPluginRegistry,
+    get_registry,
+    CameraPluginHost,
+    ActiveCamera,
+    get_host,
+    set_host,
+)
+
+# Auto-register plugins
+from . import plugins
+
+# Tau 2 Camera & Backend
+from .tau2_camera import Tau2Camera
+from .tau2_backend import Tau2Backend
+
+# Thermal cameras
 from .flir_camera import FLIRBosonCamera
+from .opencv_thermal_backend import OpenCVThermalBackend
+from .pyusb_thermal_backend import PyUSBThermalBackend
 
 # RGB cameras
 from .rgb_camera import RGBCamera, detect_rgb_cameras
@@ -60,16 +74,28 @@ from .camera_backends import (
     BackendInitializationError,
 )
 
-# Migrated modules from Phase 5
-from .camera_manager import CameraManager
-from .camera_initializer import CameraInitializer
+# Monitoring, Calibration, Capture
 from .camera_monitor import CameraMonitor, get_camera_monitor
 from .camera_calibration import CameraCalibrator
 from .threaded_camera_capture import ThreadedCameraCapture
-from .opencv_thermal_backend import OpenCVThermalBackend
-from .pyusb_thermal_backend import PyUSBThermalBackend
 
 __all__ = [
+    # Plugin Architecture
+    'CameraPlugin',
+    'PluginCameraRole',
+    'CameraPluginMatch',
+    'CameraCapabilities',
+    'CameraSDK',
+    'CameraPluginRegistry',
+    'get_registry',
+    'CameraPluginHost',
+    'ActiveCamera',
+    'get_host',
+    'set_host',
+    'plugins',
+    # Tau 2
+    'Tau2Camera',
+    'Tau2Backend',
     # Thermal camera
     'FLIRBosonCamera',
     # RGB cameras
@@ -101,9 +127,7 @@ __all__ = [
     'BackendError',
     'BackendNotAvailableError',
     'BackendInitializationError',
-    # Phase 5 modules
-    'CameraManager',
-    'CameraInitializer',
+    # Helpers
     'CameraMonitor',
     'get_camera_monitor',
     'CameraCalibrator',

@@ -15,6 +15,39 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 
 # =============================================================================
+# Shared QApplication
+# =============================================================================
+#
+# Several test modules previously each defined their own module-scoped `qapp`
+# fixture (`QApplication.instance() or QApplication([])`). QApplication is a
+# process-wide singleton, but PyQt's Python wrapper still owns the underlying
+# C++ object — so once the module that happened to hold the *only* live
+# Python reference finished and its fixture's local variable was garbage
+# collected, PyQt destroyed the C++ QApplication along with it. Every QObject
+# touched afterward (including the global CameraPluginHost singleton) then
+# raised "wrapped C/C++ object has been deleted", with the failure appearing
+# in whichever unrelated test module happened to run next — order-dependent
+# and confusing to debug.
+#
+# A single session-scoped fixture with a persistent module-level reference
+# fixes this for every test file at once: the QApplication is created once,
+# held alive for the whole session, and never torn down mid-run.
+_qapp_instance = None
+
+
+@pytest.fixture(scope="session")
+def qapp():
+    global _qapp_instance
+    try:
+        from PyQt6.QtWidgets import QApplication
+    except ImportError:
+        pytest.skip("PyQt6 not installed")
+    if _qapp_instance is None:
+        _qapp_instance = QApplication.instance() or QApplication([])
+    return _qapp_instance
+
+
+# =============================================================================
 # Thermal Frame Fixtures
 # =============================================================================
 

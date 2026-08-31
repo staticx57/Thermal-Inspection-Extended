@@ -6,7 +6,7 @@ thermal and RGB cameras.
 """
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QDoubleSpinBox, QCheckBox,
-                             QComboBox, QSlider, QFrame)
+                             QComboBox)
 from PyQt6.QtCore import Qt, pyqtSignal
 import logging
 

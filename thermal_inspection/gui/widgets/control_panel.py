@@ -158,7 +158,7 @@ class ControlPanel(QWidget):
 
     def update_view_button(self, view_mode):
         """Update view mode button display."""
-        from view_mode import ViewMode
+        from thermal_inspection.utils.view_mode import ViewMode
         mode_names = {
             ViewMode.THERMAL_ONLY: "Thermal",
             ViewMode.RGB_ONLY: "RGB",

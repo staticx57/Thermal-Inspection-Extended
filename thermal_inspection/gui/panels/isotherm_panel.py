@@ -1,18 +1,17 @@
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider,
-    QComboBox, QGroupBox, QCheckBox, QPushButton, QSpinBox,
-    QListWidget, QListWidgetItem, QColorDialog  # Phase 2 - Feature 8: Multi-band support
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QGroupBox, QCheckBox, QPushButton, QSpinBox,
+    QListWidget, QListWidgetItem  # Phase 2 - Feature 8: Multi-band support
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QColor
-from thermal_inspection.processing.isotherm_bands import IsothermBandManager, IsothermBand, ISOTHERM_PRESETS, load_preset  # Phase 2 - Feature 8
+from thermal_inspection.processing.isotherm_bands import IsothermBandManager, load_preset  # Phase 2 - Feature 8
 
 class IsothermPanel(QWidget):
     """
     Panel for isotherm temperature highlighting control.
     Allows highlighting regions above/below/between temperature thresholds.
     """
-    
+
     # Signals
     enabled_changed = pyqtSignal(bool)
     mode_changed = pyqtSignal(str)  # "above", "below", "between", "outside"
@@ -26,12 +25,12 @@ class IsothermPanel(QWidget):
         self.band_manager = IsothermBandManager()  # Phase 2 - Feature 8
         self.multi_band_mode = False  # Phase 2 - Feature 8: Toggle between single/multi-band
         self._init_ui()
-    
+
     def _init_ui(self):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
         layout.setContentsMargins(10, 10, 10, 10)
-        
+
         # === Header ===
         header = QLabel("🌡️ Isotherm Temperature Highlighting")
         font = QFont()
@@ -39,12 +38,12 @@ class IsothermPanel(QWidget):
         font.setBold(True)
         header.setFont(font)
         layout.addWidget(header)
-        
+
         # === Enable/Disable ===
         self.enable_check = QCheckBox("Enable Isotherm Highlighting")
         self.enable_check.toggled.connect(self._on_enabled_changed)
         layout.addWidget(self.enable_check)
-        
+
         # === Mode Selection ===
         mode_group = QGroupBox("Detection Mode")
         mode_layout = QVBoxLayout(mode_group)
@@ -59,13 +58,13 @@ class IsothermPanel(QWidget):
         ])
         self.mode_combo.currentTextChanged.connect(self._on_mode_changed)
         mode_layout.addWidget(self.mode_combo)
-        
+
         layout.addWidget(mode_group)
-        
+
         # === Thresholds ===
         threshold_group = QGroupBox("Temperature Thresholds")
         threshold_layout = QVBoxLayout(threshold_group)
-        
+
         # Low Threshold
         low_layout = QHBoxLayout()
         low_layout.addWidget(QLabel("Low:"))
@@ -76,7 +75,7 @@ class IsothermPanel(QWidget):
         self.low_spinbox.valueChanged.connect(lambda v: self.low_threshold_changed.emit(float(v)))
         low_layout.addWidget(self.low_spinbox)
         threshold_layout.addLayout(low_layout)
-        
+
         # High Threshold
         high_layout = QHBoxLayout()
         high_layout.addWidget(QLabel("High:"))
@@ -87,38 +86,38 @@ class IsothermPanel(QWidget):
         self.high_spinbox.valueChanged.connect(lambda v: self.high_threshold_changed.emit(float(v)))
         high_layout.addWidget(self.high_spinbox)
         threshold_layout.addLayout(high_layout)
-        
+
         layout.addWidget(threshold_group)
-        
+
         # === Color Selection ===
         color_group = QGroupBox("Highlight Color")
         color_layout = QHBoxLayout(color_group)
-        
+
         self.color_combo = QComboBox()
         self.color_combo.addItems([
             "Red", "Yellow", "Green", "Blue", "Magenta", "Cyan", "White"
         ])
         self.color_combo.currentTextChanged.connect(self.color_changed.emit)
         color_layout.addWidget(self.color_combo)
-        
+
         layout.addWidget(color_group)
-        
+
         # === Presets ===
         preset_group = QGroupBox("Quick Presets")
         preset_layout = QVBoxLayout(preset_group)
-        
+
         self.hotspot_btn = QPushButton("🔥 Hotspots (>50°C)")
         self.hotspot_btn.clicked.connect(lambda: self._apply_preset("above", 50, 100, "Red"))
         preset_layout.addWidget(self.hotspot_btn)
-        
+
         self.coldspot_btn = QPushButton("❄️ Cold Spots (<10°C)")
         self.coldspot_btn.clicked.connect(lambda: self._apply_preset("below", 0, 10, "Blue"))
         preset_layout.addWidget(self.coldspot_btn)
-        
+
         self.normal_btn = QPushButton("📏 Normal Range (20-30°C)")
         self.normal_btn.clicked.connect(lambda: self._apply_preset("between", 20, 30, "Green"))
         preset_layout.addWidget(self.normal_btn)
-        
+
         layout.addWidget(preset_group)
 
         # === Phase 2 - Feature 8: Multi-Band Mode ===
@@ -256,7 +255,7 @@ class IsothermPanel(QWidget):
     def _on_enabled_changed(self, checked):
         """Handle enable/disable toggle."""
         self.enabled_changed.emit(checked)
-    
+
     def _on_mode_changed(self, text):
         """Handle mode change."""
         mode_map = {
@@ -266,7 +265,7 @@ class IsothermPanel(QWidget):
             "Outside Range (< Low OR > High)": "outside"
         }
         self.mode_changed.emit(mode_map.get(text, "above"))
-    
+
     def _apply_preset(self, mode, low, high, color):
         """Apply a quick preset configuration."""
         self.low_spinbox.setValue(low)

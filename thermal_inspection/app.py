@@ -8,8 +8,9 @@ ThermalInspectionFusion class in inspection_main.py.
 
 import sys
 import logging
+import threading
 import time
-from typing import Optional, Any, List, Dict, Tuple
+from typing import Optional
 from dataclasses import dataclass
 
 import cv2
@@ -17,11 +18,14 @@ import numpy as np
 from PyQt6.QtCore import QTimer
 
 from .core import (
-    CameraController, CameraConfig, CameraState,
     FusionController, FusionState, ViewMode,
-    ROIController, ROIControllerState,
-    RadiometricController, RadiometricState, TemperatureUnit,
+    ROIController, RadiometricController, RadiometricState,
 )
+from .core.camera_state import CameraState
+from .core.threshold_manager import ThresholdManager
+from .core.isotherm_manager import IsothermManager
+from .core.event_bus import AppEventBus
+from .cameras.plugin import get_host
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +103,27 @@ class ThermalInspectionApp:
         self.config = config or AppConfig()
         self.qt_app = qt_app
 
-        # Initialize controllers
+        # Media recording manager (initialized in _init_processing)
+        self.media_manager = None
+
+        # Managers (encapsulated state with validation and signals)
+        self.threshold_manager = ThresholdManager()
+        self.isotherm_manager = IsothermManager()
+
+        # Calibration state (delegated)
+        from .core.calibration_manager import CalibrationManager
+        self.calibration_manager = CalibrationManager()
+
+        # Fusion color mode ("color" or "grayscale")
+        self._fusion_color_mode = "color"
+
+        # Central event bus for GUI ↔ backend communication
+        self.event_bus = AppEventBus()
+
+        # Hardware-agnostic camera plugin host
+        self.plugin_host = get_host()
+
+        # Initialize controllers (uses event_bus in _wire_callbacks)
         self._init_controllers()
 
         # GUI reference (set during initialization)
@@ -111,12 +135,12 @@ class ThermalInspectionApp:
         self.thermal_analyzer = None
         self.roi_manager = None
         self.palette_manager = None
+        self.gradient_processor = None
 
         # State flags
         self.initialized = False
         self.running = False
         self.frame_frozen = False
-        self.recording_enabled = False
         self.enabled_anomaly_types = {}
         self.view_mode = ViewMode.THERMAL_ONLY # Initial default
         self.args = config # Legacy compatibility for GUI
@@ -128,25 +152,28 @@ class ThermalInspectionApp:
         self.last_fps_time = time.time()
         self.frame_times = []
         self.smoothed_fps = 0.0
+        self._health_check_counter = 0
 
         # Placeholders
         self.thermal_placeholder = None
         self.rgb_placeholder = None
 
+        # Actual thermal capture resolution, tracked from live frames so the
+        # GUI's overlay coordinate transform matches whatever camera is
+        # connected (Boson, Tau2, Lepton — each with a different native
+        # resolution and aspect ratio) instead of a hardcoded default.
+        self._last_thermal_resolution = (640, 512)
+        self._gui_thermal_resolution_synced = None
+
     def _init_controllers(self):
         """Initialize all controllers."""
-        # Camera controller
-        camera_config = CameraConfig(
-            thermal_device=self.config.thermal_device,
-            rgb_device=self.config.rgb_device,
-            disable_rgb=self.config.disable_rgb,
-            width=self.config.width,
-            height=self.config.height,
-            thermal_backend=self.config.thermal_backend,
-            enable_boson_sdk=self.config.enable_boson_sdk,
-            boson_com_port=self.config.boson_com_port,
-        )
-        self.camera_controller = CameraController(camera_config)
+        self.camera_state = CameraState()
+        self.threaded_capture = None
+        self._loop_idle_event = threading.Event()
+        self.loop_pause_event = threading.Event()
+
+        # Hot-plug watchdog (started in initialize())
+        self._camera_monitor = None
 
         # Fusion controller
         self.fusion_controller = FusionController(
@@ -165,9 +192,6 @@ class ThermalInspectionApp:
 
     def _wire_callbacks(self):
         """Wire up callbacks between controllers."""
-        # Camera state changes
-        self.camera_controller.on_state_change = self._on_camera_state_change
-        self.camera_controller.on_radiometric_detected = self._on_radiometric_detected
 
         # Fusion state changes
         self.fusion_controller.on_state_change = self._on_fusion_state_change
@@ -179,17 +203,395 @@ class ThermalInspectionApp:
         # Radiometric changes
         self.radiometric_controller.on_state_change = self._on_radiometric_state_change
 
-    def _on_camera_state_change(self, state: CameraState):
-        """Handle camera state changes."""
-        logger.debug(f"Camera state changed: thermal={state.thermal_connected}, rgb={state.rgb_available}")
-        if self.gui and hasattr(self.gui, 'update_camera_status'):
-            self.gui.update_camera_status(state)
+        bus = self.event_bus
 
-    def _on_radiometric_detected(self, is_radiometric: bool):
-        """Handle radiometric mode detection."""
-        logger.info(f"Radiometric mode detected: {is_radiometric}")
-        self.radiometric_controller.state.capable = is_radiometric
-        self.radiometric_controller.state.enabled = is_radiometric
+        # --- Generic Camera Plugin Host Wiring ---
+        bus.camera_command_requested.connect(self.plugin_host.execute_command_async)
+        self.plugin_host.camera_command_result.connect(bus.camera_command_result)
+
+        self.plugin_host.camera_connected.connect(self._on_camera_connected)
+        self.plugin_host.camera_disconnected.connect(self._on_camera_disconnected)
+        self.plugin_host.camera_connected.connect(bus.camera_connected)
+        self.plugin_host.camera_disconnected.connect(bus.camera_disconnected)
+
+        self.plugin_host.sdk_connected.connect(bus.sdk_connected)
+        self.plugin_host.sdk_disconnected.connect(bus.sdk_disconnected)
+        self.plugin_host.panel_ready.connect(bus.panel_ready)
+
+        # --- Threshold ---
+        bus.threshold_enabled_changed.connect(self.threshold_manager.set_enabled)
+        bus.threshold_mode_changed.connect(self.threshold_manager.set_mode)
+        bus.threshold_min_changed.connect(self.threshold_manager.set_min)
+        bus.threshold_max_changed.connect(self.threshold_manager.set_max)
+        bus.threshold_use_raw_changed.connect(self.threshold_manager.set_use_raw)
+        bus.threshold_viz_changed.connect(self.threshold_manager.set_viz_mode)
+
+        # --- Isotherm ---
+        bus.isotherm_enabled_changed.connect(self.isotherm_manager.set_enabled)
+        bus.isotherm_mode_changed.connect(self.isotherm_manager.set_mode)
+        bus.isotherm_low_threshold_changed.connect(self.isotherm_manager.set_low_threshold)
+        bus.isotherm_high_threshold_changed.connect(self.isotherm_manager.set_high_threshold)
+        bus.isotherm_color_changed.connect(self.isotherm_manager.set_color)
+        bus.isotherm_band_manager_set.connect(self.isotherm_manager.set_band_manager)
+        bus.isotherm_multiband_changed.connect(self.isotherm_manager.set_multiband_mode)
+
+        # --- Recording / Snapshots ---
+        bus.recording_toggled.connect(self._bus_toggle_recording)
+        bus.snapshot_requested.connect(self._bus_capture_snapshot)
+        bus.freeze_toggled.connect(self.toggle_freeze)
+
+        # --- Calibration ---
+        bus.calibration_enabled_changed.connect(self.calibration_manager.set_calibration_enabled)
+        bus.calibration_clear_requested.connect(self._bus_clear_calibration)
+        bus.calibration_compute_requested.connect(self._bus_compute_calibration)
+        bus.calibration_export_requested.connect(self._bus_export_calibration)
+        bus.calibration_import_requested.connect(self._bus_import_calibration)
+        bus.calibration_add_point_mode_changed.connect(
+            self.calibration_manager.set_calibration_add_point_mode
+        )
+        bus.calibration_point_removed.connect(self._bus_remove_calibration_point)
+
+        # --- View / Fusion ---
+        bus.view_mode_cycled.connect(self.cycle_view_mode)
+        bus.palette_cycled.connect(self.cycle_palette)
+        bus.palette_set.connect(self.set_palette)
+        bus.fusion_mode_changed.connect(self.set_fusion_mode)
+        bus.fusion_alpha_changed.connect(self.set_fusion_alpha)
+        bus.fusion_priority_changed.connect(self.set_fusion_priority)
+        bus.fusion_strength_changed.connect(self.set_fusion_strength)
+        bus.fusion_fuzziness_changed.connect(self.set_fusion_fuzziness)
+        bus.fusion_color_mode_changed.connect(self.set_fusion_color_mode)
+        bus.edge_strength_changed.connect(self.set_edge_strength)
+        bus.edge_fuzziness_changed.connect(self.set_edge_fuzziness)
+        bus.edge_color_changed.connect(self.set_edge_color)
+        bus.detail_strength_changed.connect(self.set_detail_strength)
+        bus.detail_quality_changed.connect(self.set_detail_quality)
+
+        # --- ROI ---
+        bus.auto_roi_requested.connect(self.auto_roi_detect)
+        bus.clear_rois_requested.connect(self.clear_rois)
+        bus.roi_deleted.connect(
+            lambda roi_id: self.delete_roi(roi_id) if hasattr(self, 'delete_roi')
+            else (self.roi_manager.delete_roi(roi_id) if hasattr(self, 'roi_manager') else None)
+        )
+        bus.roi_palette_changed.connect(
+            lambda roi_id, palette: self.set_roi_palette(roi_id, palette)
+            if hasattr(self, 'set_roi_palette') else None
+        )
+        bus.roi_palette_cleared.connect(
+            lambda roi_id: self._bus_clear_roi_palette(roi_id)
+        )
+
+        # --- Anomaly processor settings ---
+        bus.anomaly_priority_toggled.connect(self.toggle_anomaly_priority)
+        bus.anomaly_types_changed.connect(self.set_enabled_anomaly_types)
+        bus.anomaly_fade_strength_changed.connect(self._bus_set_fade_strength)
+        bus.anomaly_fade_distance_changed.connect(self._bus_set_fade_distance)
+        bus.anomaly_motion_threshold_changed.connect(self._bus_set_motion_threshold)
+        bus.anomaly_edge_thresholds_changed.connect(self._bus_set_edge_thresholds)
+        bus.hot_spot_percentile_changed.connect(self._bus_set_hot_spot_percentile)
+        bus.cold_spot_percentile_changed.connect(self._bus_set_cold_spot_percentile)
+        bus.min_anomaly_size_changed.connect(self._bus_set_min_anomaly_size)
+        bus.max_hot_spots_changed.connect(self._bus_set_max_hot_spots)
+        bus.max_cold_spots_changed.connect(self._bus_set_max_cold_spots)
+
+        # --- Analyzer / Spotmeter / Estimation ---
+        bus.spotmeter_enabled_changed.connect(self._bus_set_spotmeter_enabled)
+        bus.spotmeter_mode_changed.connect(self._bus_set_spotmeter_mode)
+        bus.estimation_8bit_enabled_changed.connect(self._bus_set_estimation_enabled)
+        bus.estimation_range_changed.connect(self._bus_set_estimation_range)
+        bus.calibrate_single_point_requested.connect(self._bus_calibrate_single_point)
+        bus.calibrate_two_point_requested.connect(self._bus_calibrate_two_point)
+        bus.sensor_temps_requested.connect(self._bus_get_sensor_temps)
+
+        # --- Radiometric ---
+        bus.emissivity_changed.connect(self.set_emissivity)
+        bus.atmospheric_temperature_changed.connect(self.set_atmospheric_temperature)
+        bus.atmospheric_transmission_changed.connect(self.set_atmospheric_transmission)
+        bus.temperature_unit_changed.connect(self.set_temperature_unit)
+        bus.radiometric_enabled_changed.connect(self.enable_radiometric)
+        bus.temperature_range_changed.connect(
+            lambda low, high: self.radiometric_controller.set_temperature_range(low, high)
+        )
+        bus.radiometric_range_apply_requested.connect(
+            lambda low, high: self.radiometric_controller.set_temperature_range(low, high)
+        )
+        bus.radiometric_method_changed.connect(self._bus_set_radiometric_method)
+        bus.thermal_backend_changed.connect(self._bus_switch_thermal_backend)
+
+        # --- Camera management ---
+        bus.device_changed.connect(
+            lambda name: self.set_device(name) if hasattr(self, 'set_device') else None
+        )
+
+        # --- Parallax ---
+        bus.parallax_toggled.connect(
+            lambda en: self.enable_parallax_compensation(en) if hasattr(self, 'enable_parallax_compensation') else None
+        )
+        bus.parallax_baseline_changed.connect(
+            lambda v: self.set_parallax_baseline(v) if hasattr(self, 'set_parallax_baseline') else None
+        )
+        bus.parallax_method_changed.connect(
+            lambda m: self.set_parallax_depth_method(m) if hasattr(self, 'set_parallax_depth_method') else None
+        )
+        bus.depth_map_display_toggled.connect(self._bus_depth_map_display_toggled)
+
+        # --- Gradient Overlay ---
+        bus.gradient_enabled_changed.connect(
+            lambda v: self.gradient_processor.update_settings(enabled=v)
+            if self.gradient_processor else None
+        )
+        bus.gradient_mode_changed.connect(
+            lambda v: self.gradient_processor.update_settings(mode=v)
+            if self.gradient_processor else None
+        )
+        bus.gradient_threshold_changed.connect(
+            lambda v: self.gradient_processor.update_settings(threshold=v)
+            if self.gradient_processor else None
+        )
+        bus.gradient_colormap_changed.connect(
+            lambda v: self.gradient_processor.update_settings(colormap=v)
+            if self.gradient_processor else None
+        )
+
+        # --- Baseline ---
+        bus.baseline_lock_toggled.connect(self.lock_baseline)
+
+    def _on_camera_connected(self, role: str, capabilities: dict):
+        logger.info(f"PluginHost camera connected: {role} (caps: {capabilities})")
+        if role == 'thermal':
+            self.camera_state.thermal_connected = True
+            is_rad = capabilities.get('radiometric', False)
+            self.camera_state.is_radiometric = is_rad
+            self.radiometric_controller.state.capable = is_rad
+            self.radiometric_controller.state.enabled = is_rad
+
+            active = self.plugin_host.get_active_camera('thermal')
+            if active:
+                self.camera_state.is_flir_boson = (active.plugin.plugin_id == 'flir_boson')
+                self.camera_state.is_lepton = (active.plugin.plugin_id == 'flir_lepton')
+                self.camera_state.is_firefly = (active.plugin.plugin_id == 'flir_firefly')
+                self.camera_state.thermal_device_id = active.match.device_index
+
+                if self.radiometric_controller and hasattr(active, 'backend'):
+                    self.radiometric_controller.set_thermal_camera(active.backend)
+
+            self._restart_threaded_capture()
+
+        elif role == 'rgb':
+            self.camera_state.rgb_available = True
+            active = self.plugin_host.get_active_camera('rgb')
+            if active:
+                self.camera_state.rgb_device_id = active.match.device_index
+            self._restart_threaded_capture()
+
+        self._gui_invoke("update_camera_status", self.camera_state)
+
+    def _on_camera_disconnected(self, role: str):
+        logger.info(f"PluginHost camera disconnected: {role}")
+        if role == 'thermal':
+            self.camera_state.thermal_connected = False
+            self.camera_state.is_flir_boson = False
+            self.camera_state.is_lepton = False
+            self.camera_state.is_firefly = False
+            self.camera_state.is_radiometric = False
+            self.camera_state.thermal_device_id = None
+            self._restart_threaded_capture()
+        elif role == 'rgb':
+            self.camera_state.rgb_available = False
+            self.camera_state.rgb_device_id = None
+            self._restart_threaded_capture()
+
+        self._gui_invoke("show_camera_lost_notification", role)
+        self._gui_invoke("update_camera_status", self.camera_state)
+
+    # ------------------------------------------------------------------
+    # Camera hot-plug watchdog
+    # ------------------------------------------------------------------
+    def _start_camera_monitor(self):
+        """Start the background camera monitor for hot-plug detection."""
+        from thermal_inspection.cameras.camera_monitor import CameraMonitor
+        self._camera_monitor = CameraMonitor(
+            scan_interval=2.5,
+            callback=self._on_monitor_event,
+        )
+        # Mark currently active devices so the monitor skips re-probing them
+        state = self.camera_state
+        if state.thermal_device_id is not None:
+            self._camera_monitor.mark_device_active(state.thermal_device_id)
+        if state.rgb_device_id is not None:
+            self._camera_monitor.mark_device_active(state.rgb_device_id)
+        self._camera_monitor.start()
+        logger.info("Camera hot-plug monitor started")
+
+    def _on_monitor_event(self, event):
+        """
+        Handle camera connect/disconnect events from CameraMonitor (background thread).
+
+        Type-handling logic:
+        - CONNECTED: determine likely role from CameraInfo.camera_type, auto-assign
+          if a slot is vacant, otherwise ask the user via the GUI.
+        - DISCONNECTED: update controller state, notify GUI.
+
+        All GUI calls are routed through _gui_invoke so they execute on the
+        Qt main thread (QueuedConnection).
+        """
+        from thermal_inspection.cameras.camera_monitor import CameraEventType
+        from thermal_inspection.cameras.camera_detector import CameraType
+
+        if event.event_type == CameraEventType.CONNECTED:
+            dev_id = event.device_id
+            cam    = event.camera_info          # CameraInfo or None
+
+            name   = cam.name       if cam else f"Device {dev_id}"
+            res    = (f"{cam.resolution[0]}x{cam.resolution[1]}"
+                      if cam else "unknown")
+            ctype  = cam.camera_type if cam else CameraType.RGB   # default RGB
+
+            logger.info(
+                f"Hot-plug CONNECTED: device {dev_id}  name='{name}'  "
+                f"res={res}  type={ctype.value}"
+            )
+
+            state = self.camera_state
+
+            # ── Auto-assign if a slot is vacant ──────────────────────────
+            if ctype == CameraType.THERMAL and not state.thermal_connected:
+                logger.info(
+                    f"Hot-plug: auto-assigning device {dev_id} as THERMAL "
+                    "(thermal slot vacant, camera looks thermal)"
+                )
+                import threading
+                threading.Thread(
+                    target=self._hotplug_assign, args=(dev_id, 'thermal'),
+                    daemon=True, name=f"HotPlugAssign-{dev_id}"
+                ).start()
+
+            elif ctype == CameraType.RGB and not state.rgb_available:
+                logger.info(
+                    f"Hot-plug: auto-assigning device {dev_id} as RGB "
+                    "(RGB slot vacant)"
+                )
+                import threading
+                threading.Thread(
+                    target=self._hotplug_assign, args=(dev_id, 'rgb'),
+                    daemon=True, name=f"HotPlugAssign-{dev_id}"
+                ).start()
+
+            else:
+                # Both slots occupied or type is ambiguous — let the user decide
+                suggested_role = ctype.value.lower() if ctype != CameraType.UNKNOWN else 'rgb'
+                self._gui_invoke(
+                    "show_camera_connected_notification",
+                    dev_id, name, res, suggested_role
+                )
+
+        elif event.event_type == CameraEventType.DISCONNECTED:
+            dev_id = event.device_id
+            logger.info(f"Hot-plug DISCONNECTED: device {dev_id}")
+
+            state = self.camera_state
+            role  = None
+            if dev_id == state.thermal_device_id:
+                role = 'thermal'
+            elif dev_id == state.rgb_device_id:
+                role = 'rgb'
+
+            if role:
+                self.plugin_host.deactivate_camera(role)
+
+            # Remove from monitor's active set so it can re-detect it later
+            if self._camera_monitor:
+                self._camera_monitor.mark_device_inactive(dev_id)
+
+            if role:
+                self._gui_invoke("show_camera_lost_notification", role)
+
+    def _hotplug_assign(self, device_id: int, role: str):
+        """
+        Worker executed in a daemon thread when a new camera is auto-assigned.
+        Opens the device and slots it in; notifies the GUI on completion.
+        """
+        ok = self.assign_camera_to_slot(device_id, role)
+        state = self.camera_state
+
+        if ok and self._camera_monitor:
+            self._camera_monitor.mark_device_active(device_id)
+
+        logger.info(
+            f"Hot-plug assign device {device_id} -> '{role}': "
+            f"{'OK' if ok else 'FAILED'}"
+        )
+        self._gui_invoke(
+            "show_hotplug_result",
+            device_id, role, ok
+        )
+
+    def _gui_invoke(self, method_name: str, *args):
+        """
+        Thread-safe GUI method call.  Uses QTimer.singleShot to marshal the
+        call onto the Qt main thread — works with any Python callable stored
+        on the GUI object, without needing Q_ARG wrappers.
+        """
+        if self.gui is None:
+            return
+        gui_ref = self.gui      # capture reference for lambda closure
+        if not hasattr(gui_ref, method_name):
+            return
+        try:
+            from PyQt6.QtCore import QTimer
+            method = getattr(gui_ref, method_name)
+            QTimer.singleShot(0, lambda: method(*args))
+        except Exception as exc:
+            logger.debug(f"_gui_invoke {method_name} failed: {exc}")
+
+    def assign_camera_to_slot(self, device_id: int, role: str) -> bool:
+        logger.info(f"Assigning device {device_id} to slot '{role}'")
+        self._loop_idle_event.clear()
+        self.loop_pause_event.set()
+        if not self._loop_idle_event.wait(timeout=0.5):
+            logger.warning("Frame loop did not ack pause within 500 ms")
+
+        self._stop_threaded_capture()
+        try:
+            matches = self.plugin_host.autodiscover()
+            match = next((m for m in matches if m.device_index == device_id), None)
+
+            if match:
+                ok = self.plugin_host.activate_camera(role, match)
+            else:
+                logger.warning(f"Could not discover device_id {device_id} to assign")
+                ok = False
+
+            if ok and self._camera_monitor:
+                self._camera_monitor.mark_device_active(device_id)
+            return ok
+        finally:
+            self._restart_threaded_capture()
+            self.loop_pause_event.clear()
+            self._loop_idle_event.clear()
+            self._gui_invoke("update_camera_status", self.camera_state)
+
+    def reconnect_camera(self, role: str) -> bool:
+        logger.info(f"reconnect_camera: role='{role}'")
+        dev_id = self.camera_state.thermal_device_id if role == 'thermal' else self.camera_state.rgb_device_id
+        if dev_id is None:
+            return False
+        return self.assign_camera_to_slot(dev_id, role)
+
+    def _on_camera_lost(self, role: str):
+        """Called by CameraController when a camera disconnects mid-stream."""
+        logger.warning(f"Camera lost: {role}")
+        self._gui_invoke("show_camera_lost_notification", role)
+        self._gui_invoke("update_camera_status", self.camera_state)
+
+    def _on_camera_reconnected(self, role: str):
+        """Called by CameraController when a camera reconnects."""
+        logger.info(f"Camera reconnected: {role}")
+        self._gui_invoke("update_camera_status", self.camera_state)
+
+    # (duplicate reconnect_camera removed — see definition above at line 390)
+
 
     def _on_fusion_state_change(self, state: FusionState):
         """Handle fusion state changes."""
@@ -216,35 +618,32 @@ class ThermalInspectionApp:
         """
         Initialize all application components.
 
+        The GUI opens immediately; camera detection runs in a background
+        thread so the window appears without delay.
+
         Returns:
-            True if initialization successful
+            True if non-camera initialisation succeeded
         """
         logger.info("=" * 80)
         logger.info("Thermal Inspection Fusion Tool")
         logger.info("=" * 80)
 
         try:
-            # Initialize cameras (allow fallback mode with no cameras)
-            thermal_ok, rgb_ok = self.camera_controller.initialize_cameras()
-
-            if not thermal_ok and not rgb_ok:
-                logger.warning("No cameras available - running in fallback mode")
-
-            # Initialize processing components
+            # 1. Processing components (fast, no I/O)
             self._init_processing()
 
-            # Connect controllers to components
+            # 2. Wire controllers
             self._connect_controllers()
 
-            # Initialize GUI if not headless
+            # 3. Init placeholders so the frame loop can show something immediately
+            self._init_placeholders()
+
+            # 4. Open the GUI right away — don't wait for cameras
             if not self.config.headless:
                 self._init_gui()
 
-            # Pre-allocate placeholders
-            self._init_placeholders()
-
             self.initialized = True
-            logger.info("Initialization complete")
+            logger.info("Core init complete — deferring camera detection to background")
             return True
 
         except Exception as e:
@@ -267,10 +666,33 @@ class ThermalInspectionApp:
             self.roi_manager = ROIManager()
             self.palette_manager = PaletteManager({'default_palette': self.config.palette})
 
+            from .processing.gradient_processor import GradientProcessor
+            self.gradient_processor = GradientProcessor()
+
             logger.info("Processing components initialized")
 
         except ImportError as e:
             logger.warning(f"Some processing components not available: {e}")
+
+        # Radiometric calibrator initialization is now handled by CalibrationManager
+
+        # Parallax compensator
+        try:
+            from .processing.parallax_compensator import ParallaxCompensator
+            self.parallax_compensator = ParallaxCompensator()
+            logger.info("ParallaxCompensator initialized")
+        except ImportError as e:
+            logger.warning(f"ParallaxCompensator not available: {e}")
+            self.parallax_compensator = None
+
+        # Media recorder
+        try:
+            from .core.media_manager import MediaManager
+            self.media_manager = MediaManager()
+            logger.info("MediaManager initialized")
+        except Exception as e:
+            logger.warning(f"Media manager not available: {e}")
+            self.media_manager = None
 
     def _connect_controllers(self):
         """Connect controllers to processing components."""
@@ -283,9 +705,9 @@ class ThermalInspectionApp:
             self.roi_controller.set_thermal_analyzer(self.thermal_analyzer)
 
         # Radiometric controller
-        if self.camera_controller.thermal_camera:
+        if self.thermal_camera:
             self.radiometric_controller.set_thermal_camera(
-                self.camera_controller.thermal_camera
+                self.thermal_camera
             )
         if self.thermal_analyzer:
             self.radiometric_controller.set_thermal_analyzer(self.thermal_analyzer)
@@ -310,21 +732,87 @@ class ThermalInspectionApp:
         self.running = True
         logger.info("Starting main loop")
 
-        # Start processing timer (30 FPS)
+        # Start frame loop immediately in placeholder mode
         self.timer.start(33)
+
+        # Kick off camera detection in background after Qt is running
+        if self.qt_app:
+            from PyQt6.QtCore import QTimer as _QT
+            _QT.singleShot(150, self._init_cameras_async)
+        else:
+            # Headless: run detection synchronously then start loop
+            self._init_cameras_sync()
 
         try:
             if self.qt_app:
-                # Qt event loop
                 sys.exit(self.qt_app.exec())
             else:
-                # Headless or OpenCV loop
                 self._run_headless_loop()
 
         except KeyboardInterrupt:
             logger.info("Interrupted by user")
         finally:
             self.cleanup()
+
+    def _init_cameras_async(self):
+        """
+        Trigger camera detection. Called 150 ms after the Qt event loop
+        starts so the window has time to paint before we touch any hardware.
+        Runs on the main thread so the COM apartment stays alive!
+        """
+        self._gui_invoke("show_camera_startup_overlay", True)
+        # Call it directly on the main thread
+        self._init_cameras_sync()
+
+    def _stop_threaded_capture(self):
+        if getattr(self, 'threaded_capture', None):
+            self.threaded_capture.stop()
+            self.threaded_capture = None
+
+    def _restart_threaded_capture(self):
+        self._stop_threaded_capture()
+        try:
+            from thermal_inspection.cameras.threaded_camera_capture import DualThreadedCameraCapture
+            thermal_active = self.plugin_host.get_active_camera('thermal')
+            rgb_active = self.plugin_host.get_active_camera('rgb')
+
+            t_backend = thermal_active.backend if thermal_active else None
+            r_backend = rgb_active.backend if rgb_active else None
+
+            if t_backend or r_backend:
+                self.threaded_capture = DualThreadedCameraCapture(
+                    thermal_camera=t_backend,
+                    rgb_camera=r_backend if not self.config.disable_rgb else None
+                )
+                self.threaded_capture.start()
+        except Exception as e:
+            logger.warning(f"Could not start threaded capture: {e}")
+            self.threaded_capture = None
+
+    def _init_cameras_sync(self):
+        """
+        Synchronous camera initialisation — safe to call from any thread.
+        Uses CameraPluginHost to detect and activate cameras.
+        """
+        logger.info("Background camera detection starting via PluginHost...")
+        self.plugin_host.autodiscover()
+
+        thermal_ok = self.plugin_host.is_connected('thermal')
+        rgb_ok = self.plugin_host.is_connected('rgb')
+
+        if not thermal_ok and not rgb_ok:
+            logger.warning("No cameras detected — running in placeholder mode")
+
+        # Auto-switch view mode: if no thermal but RGB is available, show RGB feed
+        if not thermal_ok and rgb_ok and self.view_mode == ViewMode.THERMAL_ONLY:
+            logger.info("No thermal camera found but RGB is available — auto-switching view mode to RGB_ONLY")
+            self.view_mode = ViewMode.RGB_ONLY
+            self._gui_invoke("_sync_view_mode_button", self.view_mode)
+
+        self._gui_invoke("show_camera_startup_overlay", False)
+        self._start_camera_monitor()
+        logger.info(f"Camera init done: thermal={thermal_ok} rgb={rgb_ok}")
+        self._gui_invoke("update_camera_status", self.camera_state)
 
     def _run_headless_loop(self):
         """Run headless processing loop."""
@@ -341,20 +829,29 @@ class ThermalInspectionApp:
         self.running = False
         self.timer.stop()
 
+        # Stop any active recording cleanly before camera release
+        if self.media_manager:
+            self.media_manager.cleanup()
+
         # Release cameras
-        self.camera_controller.release_cameras()
+        if self._camera_monitor is not None:
+            self._camera_monitor.stop()
+        self._stop_threaded_capture()
+        self.plugin_host.release_all()
 
         logger.info("Cleanup complete")
 
     @property
     def thermal_camera(self):
         """Get thermal camera instance."""
-        return self.camera_controller.thermal_camera
+        active = self.plugin_host.get_active_camera('thermal')
+        return active.backend if active else None
 
     @property
     def rgb_camera(self):
         """Get RGB camera instance."""
-        return self.camera_controller.rgb_camera
+        active = self.plugin_host.get_active_camera('rgb')
+        return active.backend if active else None
 
     # Public API methods that delegate to controllers
 
@@ -372,13 +869,28 @@ class ThermalInspectionApp:
 
     def swap_cameras(self):
         """Swap camera assignments."""
-        return self.camera_controller.swap_cameras()
+        current_thermal = self.camera_state.thermal_device_id or 0
+        current_rgb = self.camera_state.rgb_device_id
+        if current_rgb is None:
+            current_rgb = 1 if current_thermal == 0 else 0
+        threading.Thread(
+            target=self.reassign_cameras,
+            args=(current_rgb, current_thermal),
+            daemon=True
+        ).start()
+        return True
 
     def auto_roi_detect(self):
-        """Auto-detect ROIs (alias for auto_detect_rois)."""
-        # In a real app, we'd need the latest frame. 
-        # For now, this is a placeholder or delegates to controller if it tracks frames.
-        pass
+        """Auto-detect ROIs based on thermal temperature gradients."""
+        frame = getattr(self, '_last_thermal_frame', None)
+        if frame is None:
+            logger.warning("Cannot auto-detect ROIs: no thermal frame available")
+            return
+        if not self.roi_controller:
+            logger.warning("Cannot auto-detect ROIs: ROI controller not initialized")
+            return
+        temp_count, grad_count = self.roi_controller.auto_detect(frame)
+        logger.info(f"Auto-detected {temp_count} temperature + {grad_count} gradient ROIs")
 
     def clear_rois(self):
         """Clear all ROIs."""
@@ -392,41 +904,124 @@ class ThermalInspectionApp:
         """Enable/disable radiometric mode."""
         return self.radiometric_controller.enable_radiometric(enable)
 
-    def swap_cameras(self):
-        """Swap thermal and RGB cameras."""
-        return self.camera_controller.swap_cameras()
-
     def reassign_cameras(self, thermal_id: int, rgb_id: int):
         """Reassign camera device IDs."""
-        return self.camera_controller.reassign_cameras(thermal_id, rgb_id)
+        if self.camera_state.reconfiguring:
+            return False
+        self.camera_state.reconfiguring = True
+        self.loop_pause_event.set()
+        try:
+            self.config.thermal_device = thermal_id
+            self.config.rgb_device = rgb_id
+            time.sleep(0.1)
+
+            self._stop_threaded_capture()
+            self.plugin_host.deactivate_camera('thermal')
+            self.plugin_host.deactivate_camera('rgb')
+
+            cv2.waitKey(1)
+            time.sleep(1.0)
+            self._init_cameras_sync()
+            return True
+        finally:
+            self.camera_state.reconfiguring = False
+            self.loop_pause_event.clear()
+            self._gui_invoke("update_camera_status", self.camera_state)
+
+    def detect_cameras(self) -> list:
+        """
+        Run a fresh camera detection scan and return all CameraInfo objects.
+        Does NOT open or reinitialise any camera — detection only.
+        """
+        from thermal_inspection.cameras.camera_detector import CameraDetector
+        from thermal_inspection.cameras.device_scanner import invalidate_cache
+
+        # An explicit rescan must re-probe hardware, not replay the cache.
+        invalidate_cache()
+
+        skip_ids = []
+        state = self.camera_state
+        if state.thermal_device_id is not None:
+            skip_ids.append(state.thermal_device_id)
+        if state.rgb_device_id is not None:
+            skip_ids.append(state.rgb_device_id)
+
+        return CameraDetector.detect_all_cameras(
+            skip_device_ids=skip_ids,
+            register_cameras=True
+        )
+
+    def set_camera_role(self, device_id: int, role: str):
+        """
+        Manually override the role of a detected camera in the registry.
+
+        Args:
+            device_id: OpenCV device index of the camera.
+            role: 'thermal', 'rgb', or 'unassigned'
+        """
+        from thermal_inspection.cameras.camera_registry import get_camera_registry, CameraRole
+        registry = get_camera_registry()
+        try:
+            camera_role = CameraRole(role)
+        except ValueError:
+            import logging
+            logging.getLogger(__name__).warning(f"Unknown camera role '{role}' – ignoring")
+            return
+        registry.set_camera_role(device_id, camera_role, manual=True)
+
+    def apply_camera_roles(self, thermal_id, rgb_id):
+        """
+        Apply role reassignment then reinitialise cameras.
+
+        Safe to call from any thread — the GUI dialog runs this in a
+        QThread worker so the UI stays responsive during the 2 s OS
+        settle wait inside reassign_cameras.
+
+        Either argument may be None (thermal-only or RGB-only mode).
+        Updates the config cache so the next startup uses the new IDs.
+
+        Returns:
+            True if at least one camera opened successfully.
+        """
+        from thermal_inspection.utils.config import get_config
+        cfg = get_config()
+        cfg.set('thermal_device_id', thermal_id, save=True)
+        cfg.set('rgb_device_id',     rgb_id,     save=True)
+
+        state = self.camera_state
+        t_id = thermal_id if thermal_id is not None else state.thermal_device_id
+        r_id = rgb_id     if rgb_id     is not None else state.rgb_device_id
+
+        return self.reassign_cameras(
+            t_id if t_id is not None else 0,
+            r_id if r_id is not None else 1,
+        )
 
     def switch_thermal_backend(self, backend_id: str):
-        """Switch thermal camera backend (opencv/flirpy)."""
+        """Switch thermal camera backend."""
         logger.info(f"Switching thermal backend to {backend_id}")
         self.config.thermal_backend = backend_id
-        return self.camera_controller.reassign_cameras(
-            self.camera_controller.state.thermal_device_id,
-            self.camera_controller.state.rgb_device_id
+        return self.reassign_cameras(
+            self.camera_state.thermal_device_id,
+            self.camera_state.rgb_device_id
         )
 
     def trigger_ffc(self):
         """Trigger Flat Field Correction (FFC)."""
-        if hasattr(self.camera_controller.thermal_camera, 'trigger_ffc'):
-            return self.camera_controller.thermal_camera.trigger_ffc()
-        return False
+        return self.plugin_host.execute_command("thermal", "ffc")
 
     def _init_placeholders(self):
         """Pre-allocate placeholder frames for fallback mode."""
         w, h = self.config.width, self.config.height
-        
+
         # Thermal placeholder (ironbow-ish gradient with text)
         self.thermal_placeholder = np.zeros((h, w, 3), dtype=np.uint8)
-        cv2.putText(self.thermal_placeholder, "NO THERMAL SIGNAL", (w//4, h//2), 
+        cv2.putText(self.thermal_placeholder, "NO THERMAL SIGNAL", (w//4, h//2),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-        
+
         # RGB placeholder (dark gray with text)
         self.rgb_placeholder = np.full((h, w, 3), 40, dtype=np.uint8)
-        cv2.putText(self.rgb_placeholder, "NO RGB SIGNAL", (w//3, h//2), 
+        cv2.putText(self.rgb_placeholder, "NO RGB SIGNAL", (w//3, h//2),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 200), 2)
 
     def _process_frame_loop(self):
@@ -434,24 +1029,75 @@ class ThermalInspectionApp:
         if not self.running:
             return
 
+        if self.loop_pause_event.is_set():
+            self._loop_idle_event.set()
+            return
+
+        # Note: Health checks are now driven by SDK heartbeat and hotplug monitor
+        self._health_check_counter += 1
+        if self._health_check_counter >= 30:
+            self._health_check_counter = 0
+
         loop_start = time.time()
         self.frame_count += 1
 
         try:
             # 1. Capture frames
-            thermal_frame, rgb_frame = self.camera_controller.capture_frames()
-            
+            thermal_frame = None
+            rgb_frame = None
+
+            if self.threaded_capture:
+                # threaded_capture returns (display_frame, raw_frame, rgb_frame)
+                _, thermal_raw, rgb_f = self.threaded_capture.get_frames()
+                # Prefer raw (which preserves 16-bit) if available
+                if thermal_raw is not None:
+                    thermal_frame = thermal_raw
+                if rgb_f is not None:
+                    rgb_frame = rgb_f
+            else:
+                # Synchronous fallback
+                success, t_f = self.plugin_host.read_thermal()
+                if success and t_f is not None:
+                    thermal_frame = t_f
+
+                # Assume read_rgb exists or we just rely on threaded capture
+                # For safety, let's look at the active RGB backend directly:
+                rgb_active = self.plugin_host.get_active_camera('rgb')
+                if rgb_active and rgb_active.backend:
+                    success, r_f = rgb_active.backend.read()
+                    if success and r_f is not None:
+                        rgb_frame = r_f
+
+            # Save latest thermal frame for calibration point lookup and spot metering
+            self._last_thermal_frame = thermal_frame
+
+            # Every ROI, hot/cold spot, and spot-meter coordinate downstream is
+            # expressed in this frame's native pixel space, so the GUI's overlay
+            # transform must track it exactly — not the 640x512 default it was
+            # built with, which silently misaligns every reading on any camera
+            # that isn't a full-res Boson (Tau2, Lepton, or a Boson in its
+            # lower-resolution mode). Track only real captures, not the
+            # placeholder, so a reconnect doesn't clobber the last known size.
+            if thermal_frame is not None:
+                h, w = thermal_frame.shape[:2]
+                if (w, h) != self._last_thermal_resolution:
+                    self._last_thermal_resolution = (w, h)
+
             # Handle fallback
             if thermal_frame is None:
                 thermal_frame = self.thermal_placeholder
-            
+
+
             if rgb_frame is None and not self.config.disable_rgb:
                 rgb_frame = self.rgb_placeholder
 
             # 2. Process thermal & Colorization
+            # Use the snapshotted reference — safe even if reassign fires mid-tick
             thermal_16bit = None
-            if hasattr(self.camera_controller.thermal_camera, 'get_raw_frame'):
-                thermal_16bit = self.camera_controller.thermal_camera.get_raw_frame()
+            if thermal_frame is not None and thermal_frame.dtype == np.uint16:
+                # The threaded capture already preserves 16-bit radiometric data;
+                # use it directly for analysis/isotherm without any extra call.
+                thermal_16bit = thermal_frame
 
             # Base colorized frame
             if thermal_frame is self.thermal_placeholder:
@@ -465,24 +1111,21 @@ class ThermalInspectionApp:
             proc_results = {}
             if self.thermal_processor and thermal_frame is not self.thermal_placeholder:
                 proc_results = self.thermal_processor.process_frame(thermal_frame)
-            
-            # Anomaly Priority (Fade to gray)
-            if self.thermal_processor and self.thermal_processor.anomaly_priority_enabled:
-                 # Need anomalies from analyzer for this
-                 pass # We'll do this after analysis
+
+            # Anomaly Priority is applied after analysis below (line ~903)
 
             # 3. Analyze (Radiometric stats)
             analysis_results = {
-                'stats': None, 'hot_spots': [], 'cold_spots': [], 
-                'anomalies': [], 'motion_detections': [], 
+                'stats': None, 'hot_spots': [], 'cold_spots': [],
+                'anomalies': [], 'motion_detections': [],
                 'edge_clusters': [], 'trend': None
             }
-            
+
             if self.thermal_analyzer and thermal_frame is not self.thermal_placeholder:
                 # Use 16bit for analysis if available
                 source_for_analysis = thermal_16bit if thermal_16bit is not None else thermal_frame
                 analysis_results = self.thermal_analyzer.analyze(source_for_analysis)
-            
+
             # Enrich analysis with proc_results (motion, edges)
             analysis_results['motion_detections'] = proc_results.get('motion_detections', [])
             analysis_results['edge_clusters'] = proc_results.get('edge_clusters', [])
@@ -493,9 +1136,45 @@ class ThermalInspectionApp:
                     thermal_frame, analysis_results['anomalies'], colorized_thermal
                 )
 
-            # 4. Select display frame based on view mode
+            # 3b. Apply isotherm overlay via IsothermManager
+            if thermal_16bit is not None:
+                colorized_thermal = self.isotherm_manager.apply_overlay(colorized_thermal, thermal_16bit)
+
+            # 3c. Apply manual threshold overlay via ThresholdManager
+            ts = self.threshold_manager.get_state()
+            if (
+                ts.enabled
+                and self.thermal_analyzer is not None
+                and thermal_frame is not self.thermal_placeholder
+            ):
+                try:
+                    from thermal_inspection.processing.thermal_analyzer import (
+                        ThresholdMode, ThresholdVisualization
+                    )
+                    t_mode = ThresholdMode(ts.mode)
+                    v_mode = ThresholdVisualization(ts.viz_mode)
+                    source = thermal_16bit if thermal_16bit is not None else thermal_frame
+                    detection = self.thermal_analyzer.detect_threshold_anomalies(
+                        source,
+                        threshold_mode=t_mode,
+                        min_threshold=ts.min_val,
+                        max_threshold=ts.max_val,
+                        use_raw_values=ts.use_raw,
+                    )
+                    colorized_thermal = self.thermal_analyzer.apply_threshold_visualization(
+                        source, colorized_thermal, detection, v_mode
+                    )
+                    # Proactive feedback via event bus
+                    self.event_bus.threshold_stats_updated.emit(
+                        detection.anomaly_percentage,
+                        detection.anomaly_count,
+                        detection.total_pixels,
+                    )
+                except Exception as _thresh_err:
+                    logger.debug(f"Manual threshold overlay error: {_thresh_err}")
+
             display_frame = colorized_thermal  # Default
-            
+
             if self.view_mode == ViewMode.THERMAL_ONLY:
                 display_frame = colorized_thermal
             elif self.view_mode == ViewMode.RGB_ONLY:
@@ -505,13 +1184,17 @@ class ThermalInspectionApp:
                     display_frame = self.rgb_placeholder if self.rgb_placeholder is not None else colorized_thermal
             elif self.view_mode == ViewMode.FUSION:
                 if self.fusion_processor and rgb_frame is not None:
-                    display_frame = self.fusion_processor.process(colorized_thermal, rgb_frame)
+                    # Apply fusion color mode (grayscale RGB if requested)
+                    fusion_rgb = rgb_frame
+                    if self._fusion_color_mode == "grayscale" and rgb_frame is not None:
+                        gray = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2GRAY)
+                        fusion_rgb = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+                    display_frame = self.fusion_processor.process(colorized_thermal, fusion_rgb)
                 else:
                     display_frame = colorized_thermal
             elif self.view_mode == ViewMode.SIDE_BY_SIDE:
                 if rgb_frame is not None:
                     # Create side-by-side view
-                    import cv2
                     h1, w1 = colorized_thermal.shape[:2]
                     h2, w2 = rgb_frame.shape[:2]
                     # Resize RGB to match thermal height
@@ -523,36 +1206,39 @@ class ThermalInspectionApp:
                 else:
                     display_frame = colorized_thermal
             elif self.view_mode == ViewMode.PICTURE_IN_PICTURE:
-                if rgb_frame is not None:
-                    import cv2
-                    h, w = colorized_thermal.shape[:2]
-                    pip_h, pip_w = int(h * 0.25), int(w * 0.25)
-                    pip_rgb = cv2.resize(rgb_frame, (pip_w, pip_h))
-                    display_frame = colorized_thermal.copy()
-                    # Place PIP in top-right corner with margin
-                    margin = 10
-                    display_frame[margin:margin+pip_h, w-pip_w-margin:w-margin] = pip_rgb
+                if self.fusion_processor and rgb_frame is not None:
+                    # Fix Bug #25: use fusion_processor for proper alignment before PIP
+                    rgb_aligned = self.fusion_processor.align_rgb_to_thermal(
+                        rgb_frame, colorized_thermal.shape[:2]
+                    )
+                    display_frame = self.fusion_processor._picture_in_picture(
+                        colorized_thermal, rgb_aligned
+                    )
                 else:
                     display_frame = colorized_thermal
 
             # 5. Push to GUI
             if self.gui:
+                if self._last_thermal_resolution != self._gui_thermal_resolution_synced:
+                    self.gui.update_thermal_resolution(*self._last_thermal_resolution)
+                    self._gui_thermal_resolution_synced = self._last_thermal_resolution
+
                 self.gui.update_frame(display_frame)
-                
+
                 # Update metrics
-                state = self.camera_controller.state
+                state = self.camera_state
                 self.gui.update_metrics(
                     fps=self.smoothed_fps,
                     roi_count=len(self.roi_controller.rois) if self.roi_controller else 0,
                     thermal_connected=state.thermal_connected,
                     rgb_connected=state.rgb_available
                 )
-                
+
                 # Get palette LUT for histogram coloring
                 palette_lut = None
                 if self.palette_manager:
                     palette_lut = self.palette_manager.get_current_palette_lut()
-                
+
                 # Update analysis
                 self.gui.update_thermal_analysis(
                     stats=analysis_results.get('stats'),
@@ -566,10 +1252,55 @@ class ThermalInspectionApp:
                     palette_lut=palette_lut,
                     is_radiometric=analysis_results.get('is_radiometric', False)
                 )
-                
+
                 # Update ROIs
                 if self.roi_controller:
                     self.gui.update_rois(self.roi_controller.rois)
+
+                # Update spot meters (measurement points) in the GUI
+                if hasattr(self.gui, 'measurement_points') and self.gui.measurement_points:
+                    spot_values = []
+                    for point in self.gui.measurement_points:
+                        temp = None
+                        unit = "°C"
+                        cam = self.thermal_camera
+                        if cam and hasattr(cam, 'get_spot_temperature'):
+                            temp = cam.get_spot_temperature(point.x, point.y)
+
+                        # Fallback to estimation using the raw pixel value from the cached frame
+                        if temp is None and self.thermal_analyzer and self._last_thermal_frame is not None:
+                            h, w = self._last_thermal_frame.shape[:2]
+                            if 0 <= point.x < w and 0 <= point.y < h:
+                                raw_pixel = float(self._last_thermal_frame[point.y, point.x])
+                                temp, unit = self.thermal_analyzer.calculate_spot_temperature(raw_pixel)
+
+                        if temp is not None:
+                            # Use radiometric unit symbol if available
+                            if self.radiometric_controller and cam and hasattr(cam, 'is_radiometric_capable') and cam.is_radiometric_capable():
+                                unit = self.radiometric_controller.get_unit_symbol()
+                            spot_values.append({
+                                'label': point.label,
+                                'temperature': temp,
+                                'unit': unit
+                            })
+                    self.gui.update_spot_meter_values(spot_values)
+
+
+            # Cache display frame for snapshot access (always update outside GUI block)
+            self._last_display_frame = display_frame
+
+            # Non-blocking enqueue for background video recording
+            if self.media_manager and self.media_manager.recording_enabled:
+                rois_snap = list(self.roi_controller.rois.values()) if self.roi_controller and hasattr(self.roi_controller, 'rois') else []
+                stats_snap = analysis_results.get('stats')
+                self.media_manager.enqueue_frame(
+                    display_frame,
+                    thermal_frame,
+                    rgb_frame,
+                    rois_snap,
+                    stats_snap
+                )
+
 
         except Exception as e:
             logger.error(f"Error in processing loop: {e}", exc_info=True)
@@ -590,10 +1321,16 @@ class ThermalInspectionApp:
         self.frame_frozen = enabled
         logger.info(f"Frame freeze: {'ON' if enabled else 'OFF'}")
 
+    @property
+    def recording_enabled(self) -> bool:
+        return self.media_manager.recording_enabled if self.media_manager else False
+
     def toggle_recording(self, enabled: bool):
-        """Toggle recording."""
-        self.recording_enabled = enabled
-        logger.info(f"Recording: {'ON' if enabled else 'OFF'}")
+        """Start or stop video recording."""
+        if self.media_manager:
+            frame_shape = (self.config.height or 512, self.config.width or 640, 3)
+            fps = max(1, int(self.smoothed_fps)) if self.smoothed_fps > 1 else 30
+            self.media_manager.toggle_recording(enabled, fps=fps, frame_shape=frame_shape)
 
     def cycle_palette(self):
         """Cycle to next palette."""
@@ -609,24 +1346,14 @@ class ThermalInspectionApp:
                 if palettes:
                     self.palette_manager.set_global_palette(palettes[0])
 
-    def set_palette(self, palette_name: str):
-        """Set palette by name."""
-        if self.palette_manager:
-            try:
-                from .processing import PaletteType
-                self.palette_manager.set_global_palette(PaletteType(palette_name))
-                logger.info(f"Switched to palette: {palette_name}")
-            except Exception as e:
-                logger.error(f"Failed to set palette {palette_name}: {e}")
-
     def cycle_view_mode(self):
         """Cycle view mode."""
-        modes = [ViewMode.THERMAL_ONLY, ViewMode.RGB_ONLY, ViewMode.FUSION, 
+        modes = [ViewMode.THERMAL_ONLY, ViewMode.RGB_ONLY, ViewMode.FUSION,
                  ViewMode.SIDE_BY_SIDE, ViewMode.PICTURE_IN_PICTURE]
         try:
             idx = modes.index(self.view_mode)
             self.view_mode = modes[(idx + 1) % len(modes)]
-            
+
             # Convert ViewMode enum to string format expected by set_view_mode
             mode_name_map = {
                 ViewMode.THERMAL_ONLY: "thermal only",
@@ -643,10 +1370,27 @@ class ThermalInspectionApp:
 
 
     def capture_snapshot(self):
-        """Capture snapshot."""
-        logger.info("Snapshot capture requested")
-        # Implement snapshot logic via a SnapshotManager if available
-        pass
+        """
+        Capture a snapshot of the current display frame and save it to disk.
+        """
+        if not self.media_manager:
+            logger.warning("capture_snapshot: no MediaManager available")
+            return
+
+        frame = getattr(self, '_last_display_frame', None)
+        if frame is None:
+            logger.warning("capture_snapshot: no display frame available yet")
+            return
+
+        rois = list(self.roi_controller.get_all_rois()) if self.roi_controller else []
+        stats = None
+
+        self.media_manager.capture_snapshot(
+            frame,
+            rois=rois,
+            stats=stats,
+            gui_invoke_fn=self._gui_invoke
+        )
 
     def toggle_anomaly_priority(self, enabled: bool):
         """Toggle anomaly priority mode."""
@@ -661,7 +1405,7 @@ class ThermalInspectionApp:
         """Delete specific ROI."""
         self.roi_controller.delete_roi(roi_id)
 
-    # Advanced Fusion/Edge settings placeholders 
+    # Advanced Fusion/Edge settings placeholders
     # (MainWindow calls these, so we need them to avoid AttributeErrors)
     def set_fusion_priority(self, priority: str):
         """Set fusion priority (thermal or rgb)."""
@@ -681,9 +1425,9 @@ class ThermalInspectionApp:
             self.fusion_processor.set_edge_blur(kernel_size)
 
     def set_fusion_color_mode(self, mode: str):
-        """Set fusion color mode (placeholder for now)."""
-        # Feature pending in FusionProcessor
-        pass
+        """Set fusion color mode ('color' or 'grayscale')."""
+        self._fusion_color_mode = mode
+        logger.info(f"Fusion color mode set to: {mode}")
 
     def set_edge_strength(self, strength: float):
         """Set Canny edge detection thresholds based on strength."""
@@ -745,32 +1489,29 @@ class ThermalInspectionApp:
         if self.thermal_analyzer:
             self.thermal_analyzer.set_atmospheric_transmission(val)
 
+    # --- Threshold backward-compat delegations (prefer event bus) ---
     def set_manual_threshold_enabled(self, enabled: bool):
-        """Enable/disable manual thresholding."""
-        if self.thermal_analyzer:
-            # Delegating to thermal analyzer or processor if it supports it
-            # The ThermalAnalyzer is likely the right place for threshold logic
-            pass # Pending implementation in ThermalAnalyzer
+        self.threshold_manager.set_enabled(enabled)
 
     def set_manual_threshold_mode(self, mode: str):
-        pass
+        self.threshold_manager.set_mode(mode)
 
     def set_manual_min_threshold(self, val: float):
-        pass
+        self.threshold_manager.set_min(val)
 
     def set_manual_max_threshold(self, val: float):
-        pass
+        self.threshold_manager.set_max(val)
 
     def set_manual_use_raw_values(self, enabled: bool):
-        pass
+        self.threshold_manager.set_use_raw(enabled)
 
     def set_manual_viz_mode(self, mode: str):
-        pass
+        self.threshold_manager.set_viz_mode(mode)
 
     # === PALETTE METHODS ===
     def set_palette(self, palette_name: str):
         """Set global palette.
-        
+
         Args:
             palette_name: Name of the palette to use (e.g., 'ironbow', 'rainbow', etc.)
         """
@@ -788,7 +1529,7 @@ class ThermalInspectionApp:
 
     def set_roi_palette(self, roi_id: str, palette_name: str):
         """Set palette for a specific ROI.
-        
+
         Args:
             roi_id: ID of the ROI
             palette_name: Name of the palette to use
@@ -807,3 +1548,357 @@ class ThermalInspectionApp:
                 logger.info(f"ROI {roi_id} palette set to: {palette_name}")
             except ValueError:
                 logger.warning(f"Unknown palette for ROI: {palette_name}")
+
+    # =========================================================================
+    # Calibration Properties (Backward Compatibility)
+    # =========================================================================
+
+    @property
+    def calibration_enabled(self) -> bool:
+        return self.calibration_manager.calibration_enabled
+
+    @calibration_enabled.setter
+    def calibration_enabled(self, value: bool):
+        self.calibration_manager.calibration_enabled = value
+
+    @property
+    def calibration_add_point_mode(self) -> bool:
+        return self.calibration_manager.calibration_add_point_mode
+
+    @calibration_add_point_mode.setter
+    def calibration_add_point_mode(self, value: bool):
+        self.calibration_manager.calibration_add_point_mode = value
+
+    @property
+    def calibration_reference_temp(self) -> float:
+        return self.calibration_manager.calibration_reference_temp
+
+    @calibration_reference_temp.setter
+    def calibration_reference_temp(self, value: float):
+        self.calibration_manager.calibration_reference_temp = value
+
+    @property
+    def radiometric_calibrator(self):
+        return self.calibration_manager.radiometric_calibrator
+
+    @radiometric_calibrator.setter
+    def radiometric_calibrator(self, value):
+        self.calibration_manager.radiometric_calibrator = value
+
+    # =========================================================================
+    # Calibration Methods
+    # =========================================================================
+
+    def clear_calibration(self):
+        """Clear all radiometric calibration points."""
+        self.calibration_manager.clear_calibration()
+
+    def compute_calibration(self, method: str = 'linear', degree: int = 2) -> bool:
+        """Compute calibration from current points."""
+        return self.calibration_manager.compute_calibration(method, degree)
+
+    def import_calibration(self, filepath: str) -> bool:
+        """Import calibration from JSON file."""
+        return self.calibration_manager.import_calibration(filepath)
+
+    def export_calibration(self, filepath: str) -> bool:
+        """Export current calibration to JSON file."""
+        return self.calibration_manager.export_calibration(filepath)
+
+    def set_calibration_enabled(self, enabled: bool):
+        """Enable or disable application of the radiometric calibration."""
+        self.calibration_manager.set_calibration_enabled(enabled)
+
+    def set_calibration_add_point_mode(self, enabled: bool, reference_temp: float = 25.0):
+        """Enter or exit calibration point-add mode."""
+        self.calibration_manager.set_calibration_add_point_mode(enabled, reference_temp)
+
+    def remove_calibration_point(self, index: int) -> bool:
+        """Remove a calibration point by index."""
+        return self.calibration_manager.remove_calibration_point(index)
+
+    def _on_add_calibration_point(self, x: int, y: int):
+        """Add a calibration point at the given pixel coordinates."""
+        last_frame = getattr(self, '_last_thermal_frame', None)
+        self.calibration_manager.add_calibration_point(
+            x, y, self.thermal_camera, self.thermal_analyzer, last_frame
+        )
+        self.update_calibration_gui()
+
+    # Public alias so GUI code doesn't need to call the private method
+    add_calibration_point = _on_add_calibration_point
+
+    def _get_temperature_frame(self):
+        """Return the latest per-pixel temperature frame from the thermal camera."""
+        cam = self.thermal_camera
+        if cam and hasattr(cam, 'get_temperature_frame'):
+            return cam.get_temperature_frame()
+        return None
+
+    def update_calibration_gui(self):
+        """Push the current calibration statistics to the GUI calibration panel."""
+        if not self.gui:
+            return
+        stats = self.calibration_manager.get_calibration_stats()
+        if not stats:
+            return
+        if hasattr(self.gui, 'calibration_panel') and hasattr(self.gui.calibration_panel, 'update_stats'):
+            self.gui.calibration_panel.update_stats(stats)
+        logger.debug(f"Calibration GUI updated: {stats.get('num_points', 0)} points")
+
+    # --- Isotherm backward-compat delegations (prefer event bus) ---
+    def set_isotherm_enabled(self, enabled: bool):
+        self.isotherm_manager.set_enabled(enabled)
+
+    def set_isotherm_mode(self, mode: str):
+        self.isotherm_manager.set_mode(mode)
+
+    def set_isotherm_low_threshold(self, val: float):
+        self.isotherm_manager.set_low_threshold(val)
+
+    def set_isotherm_high_threshold(self, val: float):
+        self.isotherm_manager.set_high_threshold(val)
+
+    def set_isotherm_color(self, color: str):
+        self.isotherm_manager.set_color(color)
+
+    def set_isotherm_band_manager(self, band_manager):
+        self.isotherm_manager.set_band_manager(band_manager)
+
+    def set_isotherm_multiband_mode(self, enabled: bool):
+        self.isotherm_manager.set_multiband_mode(enabled)
+
+    # =========================================================================
+    # Event Bus Feedback Handlers (proactive signal-based responses)
+    # =========================================================================
+
+    def _bus_toggle_recording(self, enabled: bool):
+        """Handle recording toggle via event bus with feedback."""
+        self.toggle_recording(enabled)
+        self.event_bus.recording_state_changed.emit(
+            self.media_manager.recording_enabled if self.media_manager else False
+        )
+
+    def _bus_capture_snapshot(self):
+        """Handle snapshot request via event bus."""
+        self.capture_snapshot()
+
+    def _bus_compute_calibration(self, method: str, degree: int):
+        """Handle calibration compute with feedback signal."""
+        success = self.calibration_manager.compute_calibration(method, degree)
+        self.event_bus.calibration_compute_result.emit(success)
+        if success:
+            self.event_bus.calibration_gui_update_requested.emit()
+
+    def _bus_clear_calibration(self):
+        """Handle calibration clear with GUI update."""
+        self.calibration_manager.clear_calibration()
+        self.event_bus.calibration_gui_update_requested.emit()
+
+    def _bus_export_calibration(self, filepath: str):
+        """Handle calibration export with feedback signal."""
+        success = self.calibration_manager.export_calibration(filepath)
+        self.event_bus.calibration_export_result.emit(success, filepath)
+
+    def _bus_import_calibration(self, filepath: str):
+        """Handle calibration import with feedback signal."""
+        success = self.calibration_manager.import_calibration(filepath)
+        self.event_bus.calibration_import_result.emit(success, filepath)
+        if success:
+            self.event_bus.calibration_gui_update_requested.emit()
+
+    def _bus_remove_calibration_point(self, index: int):
+        """Handle calibration point removal with feedback signal."""
+        success = self.calibration_manager.remove_calibration_point(index)
+        self.event_bus.calibration_point_remove_result.emit(success)
+        if success:
+            self.event_bus.calibration_gui_update_requested.emit()
+
+    # --- Anomaly Processor helpers ---
+
+    def _bus_set_fade_strength(self, value: float):
+        if hasattr(self, 'thermal_processor'):
+            self.thermal_processor.anomaly_fade_strength = value
+
+    def _bus_set_fade_distance(self, value: float):
+        if hasattr(self, 'thermal_processor'):
+            self.thermal_processor.anomaly_max_distance = int(value)
+
+    def _bus_set_motion_threshold(self, value: float):
+        if hasattr(self, 'thermal_processor'):
+            self.thermal_processor.motion_threshold = int(value)
+
+    def _bus_set_edge_thresholds(self, low: float, high: float):
+        if hasattr(self, 'thermal_processor'):
+            self.thermal_processor.edge_threshold_low = int(low)
+            self.thermal_processor.edge_threshold_high = int(high)
+
+    def _bus_set_hot_spot_percentile(self, value: float):
+        if hasattr(self, 'thermal_analyzer'):
+            self.thermal_analyzer.hot_spot_percentile = value
+
+    def _bus_set_cold_spot_percentile(self, value: float):
+        if hasattr(self, 'thermal_analyzer'):
+            self.thermal_analyzer.cold_spot_percentile = value
+
+    def _bus_set_min_anomaly_size(self, value: float):
+        if hasattr(self, 'thermal_analyzer'):
+            self.thermal_analyzer.min_anomaly_size = int(value)
+
+    def _bus_set_max_hot_spots(self, count: int):
+        if hasattr(self, 'thermal_analyzer'):
+            self.thermal_analyzer.max_hot_spots = count
+
+    def _bus_set_max_cold_spots(self, count: int):
+        if hasattr(self, 'thermal_analyzer'):
+            self.thermal_analyzer.max_cold_spots = count
+
+    # --- Spotmeter / Estimation helpers ---
+
+    def _bus_set_spotmeter_enabled(self, enabled: bool):
+        if hasattr(self, 'thermal_analyzer'):
+            self.thermal_analyzer.spotmeter_enabled = enabled
+
+    def _bus_set_spotmeter_mode(self, mode: str):
+        if hasattr(self, 'thermal_analyzer'):
+            self.thermal_analyzer.spotmeter_mode = mode
+
+    def _bus_set_estimation_enabled(self, enabled: bool):
+        if hasattr(self, 'thermal_analyzer'):
+            self.thermal_analyzer.estimator_enabled = enabled
+
+    def _bus_set_estimation_range(self, low: float, high: float):
+        if hasattr(self, 'thermal_analyzer') and hasattr(self.thermal_analyzer, 'set_estimation_range'):
+            self.thermal_analyzer.set_estimation_range(low, high)
+
+    def _bus_calibrate_single_point(self, temp: float):
+        if hasattr(self, 'thermal_analyzer') and hasattr(self.thermal_analyzer, 'calibrate_single_point'):
+            self.thermal_analyzer.calibrate_single_point(temp)
+            logger.info(f"Single-point calibration at {temp}")
+
+    def _bus_calibrate_two_point(self, t1: float, t2: float):
+        if hasattr(self, 'thermal_analyzer') and hasattr(self.thermal_analyzer, 'calibrate_two_point'):
+            self.thermal_analyzer.calibrate_two_point(t1, t2)
+            logger.info(f"Two-point calibration: {t1}, {t2}")
+
+    def _bus_get_sensor_temps(self):
+        """Fetch FPA/housing temps and emit result signal."""
+        fpa = housing = 0.0
+        try:
+            cam = getattr(self, 'thermal_camera', None)
+            if cam:
+                if hasattr(cam, 'get_fpa_temperature'):
+                    fpa = cam.get_fpa_temperature() or 0.0
+                if hasattr(cam, 'get_housing_temperature'):
+                    housing = cam.get_housing_temperature() or 0.0
+        except Exception as e:
+            logger.error(f"Error reading sensor temps: {e}")
+        self.event_bus.sensor_temps_result.emit(float(fpa), float(housing))
+
+    # --- Radiometric / backend ---
+
+    def _bus_set_radiometric_method(self, mode: str):
+        """Set radiometric conversion method."""
+        if hasattr(self, 'radiometric_controller') and hasattr(self.radiometric_controller, 'set_conversion_method'):
+            self.radiometric_controller.set_conversion_method(mode)
+            logger.info(f"Radiometric method set to: {mode}")
+        else:
+            logger.debug(f"radiometric_controller.set_conversion_method not available — mode={mode}")
+
+    def _bus_switch_thermal_backend(self, backend_id: str):
+        """Switch thermal backend (opencv / flirpy)."""
+        if hasattr(self, 'switch_thermal_backend'):
+            self.switch_thermal_backend(backend_id)
+        else:
+            logger.debug(f"switch_thermal_backend not available — backend_id={backend_id}")
+
+    # --- ROI palette clear helper ---
+
+    def _bus_clear_roi_palette(self, roi_id: str):
+        """Clear ROI-specific palette."""
+        if hasattr(self, 'palette_manager') and hasattr(self.palette_manager, 'clear_roi_palette'):
+            self.palette_manager.clear_roi_palette(roi_id)
+        elif hasattr(self, 'roi_manager'):
+            roi = self.roi_manager.get_roi(roi_id) if hasattr(self.roi_manager, 'get_roi') else None
+            if roi and hasattr(roi, 'clear_palette'):
+                roi.clear_palette()
+
+    # =========================================================================
+    # Camera & Boson SDK Methods
+    # =========================================================================
+
+    def set_device(self, device_name: str):
+        """Set the compute device (e.g. 'cuda', 'cpu') for processing."""
+        logger.info(f"Compute device set to: {device_name}")
+        self.config.device = device_name
+        if self.thermal_processor:
+            self.thermal_processor.device = device_name
+
+    def execute_camera_command(self, role: str, command: str, params: Optional[dict] = None) -> dict:
+        """Execute a generic camera command via the CameraPluginHost."""
+        return self.plugin_host.execute_command(role, command, params)
+
+    # =========================================================================
+    # Parallax Compensation Methods
+    # =========================================================================
+
+    def enable_parallax_compensation(self, enabled: bool):
+        """Enable or disable parallax compensation."""
+        if self.parallax_compensator:
+            self.parallax_compensator.enable(enabled)
+            logger.info(f"Parallax compensation: {'ON' if enabled else 'OFF'}")
+        else:
+            logger.warning("ParallaxCompensator not available")
+
+    def set_parallax_baseline(self, baseline_mm: float):
+        """Set the camera-pair baseline distance in millimetres."""
+        if self.parallax_compensator:
+            self.parallax_compensator.set_baseline(baseline_mm)
+        else:
+            logger.warning("ParallaxCompensator not available")
+
+    def set_parallax_depth_method(self, method: str):
+        """Set the depth estimation method ('simplified', 'depthanything', 'midas')."""
+        if self.parallax_compensator:
+            self.parallax_compensator.depth_estimator.method = method
+            logger.info(f"Parallax depth method set to: {method}")
+        else:
+            logger.warning("ParallaxCompensator not available")
+
+    def _bus_depth_map_display_toggled(self, show: bool):
+        """Handle event bus signal to toggle depth map display on parallax compensator."""
+        if self.parallax_compensator:
+            if hasattr(self.parallax_compensator, 'set_depth_display'):
+                self.parallax_compensator.set_depth_display(show)
+            else:
+                self.parallax_compensator.show_depth_map = show
+            logger.info(f"Parallax depth map display set to: {show}")
+        else:
+            logger.warning("ParallaxCompensator not available for depth map display toggle")
+
+    # =========================================================================
+    # Baseline & Misc Methods
+    # =========================================================================
+
+    def lock_baseline(self, enabled: bool):
+        """Lock or unlock the thermal analysis baseline temperature.
+
+        When locking, the current frame's mean temperature is stored and passed
+        to ThermalAnalyzer as the reference baseline.
+        """
+        if not self.thermal_analyzer:
+            return
+        if enabled:
+            # Capture mean temperature of the current frame as the baseline
+            baseline_val = None
+            if self.thermal_analyzer and hasattr(self.thermal_analyzer, 'last_stats'):
+                last = self.thermal_analyzer.last_stats
+                if last and hasattr(last, 'mean'):
+                    baseline_val = last.mean
+            if baseline_val is None:
+                baseline_val = 0.0
+            self.thermal_analyzer.set_baseline(baseline_val)
+            logger.info(f"Baseline locked at {baseline_val:.2f}")
+        else:
+            self.thermal_analyzer.set_baseline(None)
+            logger.info("Baseline unlocked")

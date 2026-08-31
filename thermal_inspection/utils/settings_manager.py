@@ -50,7 +50,7 @@ class SettingsManager:
         """Load JSON schema and extract default values"""
         try:
             if self.schema_file.exists():
-                with open(self.schema_file, 'r', encoding='utf-8') as f:
+                with open(self.schema_file, encoding='utf-8') as f:
                     self._schema = json.load(f)
                 self._defaults = self._extract_defaults(self._schema.get('properties', {}))
                 logger.info(f"Schema loaded: {len(self._defaults)} default values extracted")
@@ -91,7 +91,7 @@ class SettingsManager:
         """Load settings from config file"""
         try:
             if self.config_file.exists():
-                with open(self.config_file, 'r', encoding='utf-8') as f:
+                with open(self.config_file, encoding='utf-8') as f:
                     loaded = json.load(f)
                 self._settings = self._deep_merge(deepcopy(self._defaults), loaded)
                 logger.info(f"Settings loaded from {self.config_file}")
@@ -210,7 +210,7 @@ class SettingsManager:
             if not import_path.exists():
                 logger.error(f"Import file not found: {import_path}")
                 return False
-            with open(import_path, 'r', encoding='utf-8') as f:
+            with open(import_path, encoding='utf-8') as f:
                 imported = json.load(f)
             if merge:
                 self._settings = self._deep_merge(self._settings, imported)

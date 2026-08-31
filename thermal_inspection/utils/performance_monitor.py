@@ -4,7 +4,7 @@ Tracks GPU, CPU, memory, and thermal metrics
 """
 import time
 import logging
-from typing import Dict, Optional
+from typing import Dict
 
 try:
     import psutil
@@ -136,7 +136,7 @@ class PerformanceMonitor:
                         if entries:
                             self.metrics['temperature'] = entries[0].current
                             break
-            except:
+            except Exception:
                 pass
 
         except Exception as e:
@@ -175,7 +175,7 @@ class PerformanceMonitor:
         if self.using_jtop and self.jetson:
             try:
                 self.jetson.close()
-            except:
+            except Exception:
                 pass
         logger.info("Performance monitor released")
 

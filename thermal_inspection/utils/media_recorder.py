@@ -315,7 +315,7 @@ class VideoPlayer:
 
         if metadata_path.exists():
             try:
-                with open(metadata_path, 'r') as f:
+                with open(metadata_path) as f:
                     self.metadata = json.load(f)
                 logger.info(f"Loaded metadata: {metadata_path}")
             except Exception as e:

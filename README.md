@@ -125,43 +125,26 @@ Built on Qt6 with a modern dark-themed GUI, the application provides real-time t
 - Playback speed control
 - Apply ROI and analysis to recorded media
 
-### 🔧 FLIR Boson SDK Integration
+### 📷 Universal Camera Plugin Architecture
 
-**Direct Camera Control** (via COM port):
-- **FFC (Flat Field Correction)** - Manual trigger or automatic modes
-- **Gain Modes** - HIGH, LOW, AUTO, MANUAL gain control
-- **Color LUT** - 10+ built-in camera palettes (white_hot, ironbow, rainbow, etc.)
-- **Video Mode Switching** - Runtime switching between AGC (8-bit) and T-Linear (16-bit radiometric)
-- **FPA Temperature** - Monitor focal plane array temperature
-- **Camera Info** - Serial number, firmware version, part numbers, lens info
+The application features a modular, role-based camera plugin architecture with auto-discovery and generic hardware command dispatch.
 
-**Radiometric Features** (T-Linear Mode):
-- 16-bit absolute temperature data
-- Kelvin-to-Celsius/Fahrenheit conversion
-- Temperature range mapping (auto-scaling)
-- Calibrated thermal measurements
+#### Supported Camera Plugins:
 
-### 📷 Advanced Camera Support
+| Plugin | Role | Interface / Protocol | Resolutions | Key Capabilities |
+| :--- | :--- | :--- | :--- | :--- |
+| **FLIR Boson** | Thermal | USB UVC + COM Port (921600 baud CCI) | 640×512, 320×256 | FFC, Gain Modes (High/Low/Auto), AGC Tuning, Shutter, T-Linear 16-bit Radiometry, FPA Telemetry |
+| **FLIR Tau 2** | Thermal | USB Y16 DirectShow/V4L2 + COM Port (57600 baud CCI) | 640×512, 336×256, 324×256, 160×128 | 14-bit Radiometric Frame Ingestion, T-Linear Temperature Map Decoding, Shutter Control, FPA Temp |
+| **FLIR Lepton** | Thermal | SPI / VoSPI / UVC Telemetry | 160×120, 80×60 | Telemetry Ingestion, Radiometric Conversion, FFC |
+| **FLIR Firefly RGB** | RGB | Spinnaker SDK / GenICam USB3 Vision | 1440×1080, 1920×1080 | Microsecond Exposure, Gain (dB), White Balance R/B Ratios, Software/Hardware Trigger, Gamma |
+| **Generic USB Webcam** | RGB | DirectShow (Windows) / V4L2 (Linux) | 640×480, 720p, 1080p, 2K, 4K | Dedicated Webcam Panel: Resolution Presets, Brightness, Contrast, Saturation, Sharpness, Auto/Manual Exposure, Focus |
+| **GigE Vision** | RGB / Thermal | GVCP UDP Port 3956 Broadcast + GenICam / RTSP | 1920×1080, 640×512, Custom | Pure-Python GVCP Discovery across all NICs, ForceIP Subnet Rescue Tool, MTU Jumbo Frames (9000), Software Trigger |
 
-**Thermal Cameras**:
-- **FLIR Boson** (640x512, 320x256) - Full SDK support, radiometric mode
-- **FLIR Lepton** (160x120, 80x60) - Basic support via Lepton SDK
-- **Generic UVC Thermal** - OpenCV-based capture
+#### Core Architecture Highlights:
+- **`CameraPluginHost`**: Unified runtime host managing active cameras per role (`thermal`, `rgb`) with synchronized dual-threaded capture.
+- **Generic Hardware Dispatch**: All GUI panels interact with hardware through generic event bus signals (`camera_command_requested` / `camera_command_result`), eliminating vendor-specific coupling.
+- **Dynamic Hot-Plugging**: Background device monitoring automatically detects connected hardware and activates matching plugins.
 
-**RGB Cameras**:
-- **FLIR Firefly (Spinnaker SDK)** - Professional machine vision camera with advanced controls:
-  - Exposure time control (microseconds)
-  - Gain adjustment (dB)
-  - White balance (R/B ratios)
-  - Gamma, sharpness, saturation
-  - Trigger modes and frame timing
-- **Generic Webcams** - USB webcams via OpenCV
-- **Auto-Detection** - Automatic camera type identification and configuration
-
-**Camera Registry**:
-- Persistent camera assignments across sessions
-- Device ID tracking and auto-reconnection
-- Connection status monitoring
 
 ### 🧮 Parallax Compensation
 
@@ -190,7 +173,7 @@ Built on Qt6 with a modern dark-themed GUI, the application provides real-time t
 - Atmospheric transmission coefficient
 - Distance-based correction
 
-**Note**: Environmental settings require full Boson SDK radiometry module implementation for display temperature correction (currently stored but not applied).
+Emissivity, atmospheric temperature, and transmission are applied directly to displayed temperatures via `RadiometricConverter.apply_environmental_compensation()` — no SDK-side radiometry module is required.
 
 ### 🎨 Customizable UI
 
@@ -395,65 +378,36 @@ GUI Settings:
 
 ```
 Thermal-Inspection/
-├── inspection_main.py              # Main application entry point
-├── inspection_gui_qt.py            # Qt6 GUI implementation
-├── config.py                       # Configuration management
-├── requirements.txt                # Python dependencies
+├── README.md, CHANGELOG.md, requirements.txt
+├── launch.bat, quick-thermal.bat, quick-rgb.bat, quick-debug.bat
 │
-├── Core Processing/
-│   ├── fusion_processor.py         # 9 fusion algorithms
-│   ├── thermal_processor.py        # Thermal image processing
-│   ├── thermal_analyzer.py         # Temperature analysis, hot/cold spots
-│   └── thermal_estimator.py        # 8-bit pseudo-radiometric estimation
+├── thermal_inspection/              # Main application package
+│   ├── app.py                       # ThermalInspectionApp coordinator
+│   ├── cli.py                       # Argument parsing
+│   ├── __main__.py                  # `python -m thermal_inspection` entry point
+│   │
+│   ├── cameras/
+│   │   ├── plugin/                  # Plugin base framework (CameraPlugin, CameraPluginHost, CameraPluginRegistry)
+│   │   └── plugins/                 # Vendor plugin implementations
+│   │       ├── boson/, tau2/, lepton/   # Thermal cameras
+│   │       └── firefly/, uvc/, gige/    # RGB / network cameras
+│   │
+│   ├── core/                        # Controllers & managers
+│   │   ├── fusion_controller.py, roi_controller.py, radiometric_controller.py
+│   │   ├── media_manager.py, calibration_manager.py
+│   │   ├── threshold_manager.py, isotherm_manager.py
+│   │   └── event_bus.py             # GUI <-> backend signal broker
+│   │
+│   ├── processing/                  # Fusion, palettes, ROI/thermal analysis, gradients
+│   ├── sdk/                         # FLIR Boson/Lepton/Tau2 serial protocols, GigE GVCP
+│   ├── gui/
+│   │   ├── main_window.py           # InspectionAppWindow
+│   │   ├── panels/                  # Fusion, radiometric, ROI, isotherm, parallax, etc.
+│   │   ├── camera_control/          # Per-plugin control panels
+│   │   └── widgets/, themes/
+│   └── utils/                       # Config, presets, media recording, exceptions
 │
-├── Camera Backends/
-│   ├── flir_camera.py              # FLIR Boson camera (OpenCV)
-│   ├── flirpy_thermal_backend.py   # Flirpy 16-bit backend
-│   ├── lepton_camera.py            # FLIR Lepton support
-│   ├── rgb_camera.py               # Generic RGB camera
-│   ├── rgb_camera_firefly.py       # FLIR Firefly (Spinnaker SDK)
-│   ├── camera_factory.py           # Camera creation and auto-detection
-│   ├── camera_detector.py          # Frame-based thermal camera detection
-│   └── camera_registry.py          # Persistent camera assignments
-│
-├── SDK Integration/
-│   ├── boson_sdk_wrapper.py        # FLIR Boson SDK wrapper
-│   ├── lepton_sdk_wrapper.py       # FLIR Lepton SDK wrapper
-│   └── 3.0 IDD & SDK/              # FLIR Boson SDK files
-│
-├── ROI & Analysis/
-│   ├── roi_manager.py              # ROI detection and management
-│   ├── roi_radiometric_analyzer.py # ROI temperature analysis (16-bit)
-│   ├── measurement_points.py       # Spot temperature metering
-│   └── materials.py                # Material emissivity database
-│
-├── UI Panels/
-│   ├── fusion_panel.py             # Fusion controls
-│   ├── radiometric_panel.py        # Radiometric settings
-│   ├── isotherm_panel.py           # Isotherm visualization
-│   ├── boson_control_panel.py      # Boson SDK controls
-│   ├── firefly_control_panel.py    # Firefly camera controls
-│   ├── parallax_panel.py           # Parallax compensation
-│   ├── calibration_panel.py        # Camera calibration
-│   └── environmental_compensation_panel.py  # Environmental settings
-│
-├── Utilities/
-│   ├── palette_manager.py          # 45 thermal palettes
-│   ├── preset_manager.py           # User presets
-│   ├── settings_manager.py         # Application settings
-│   ├── media_recorder.py           # Video recording, snapshot capture
-│   ├── performance_monitor.py      # FPS and performance metrics
-│   ├── parallax_compensator.py     # ML depth estimation (DepthAnything V2)
-│   └── radiometric_calibration.py  # Radiometric calibration
-│
-├── Documentation/
-│   ├── README.md                   # This file
-│   ├── TODO.md                     # Bug fixes and feature roadmap
-│   ├── CHANGELOG.md                # Version history
-│   └── archive/                    # Historical docs, test scripts, summaries
-│
-└── Test Scripts/
-    └── archive/test-scripts/       # Camera diagnostics, SDK tests
+└── tests/unit/                      # pytest suite
 ```
 
 ---
@@ -692,13 +646,7 @@ Export temperature measurements for external analysis.
 ## Documentation
 
 - **README.md** - Project overview, quick start, features (this file)
-- **TODO.md** - Bug fixes, enhancements, development roadmap
 - **CHANGELOG.md** - Version history, major changes, implementation details
-- **archive/** - Historical documentation, session summaries, implementation guides
-  - **archive/implementation-docs/** - Feature implementation guides
-  - **archive/sdk-docs/** - Boson/Lepton SDK integration documentation
-  - **archive/fix-reports/** - Bug fix reports and solutions
-  - **archive/session-summaries/** - Development session summaries
 
 ---
 
@@ -720,12 +668,12 @@ Export temperature measurements for external analysis.
 6. Update GUI (non-blocking UI thread)
 7. Record to disk if enabled
 
-**Backend System**:
-- `ThermalBackend` abstract base class for thermal camera backends
-- `OpenCVThermalBackend` - 8-bit capture via OpenCV VideoCapture
-- `FlirpyThermalBackend` - 16-bit Y16 capture via flirpy + SDK control
-- `LeptonBackend` - FLIR Lepton support
-- Runtime backend switching without restart
+**Plugin Architecture**:
+- `CameraPluginRegistry` singleton for registering and discovering hardware plugins
+- `CameraPluginHost` managing runtime lifecycle and unified capture
+- `CameraRole.THERMAL` and `CameraRole.RGB` role abstractions
+- Direct hardware plugins: `FLIR Boson`, `FLIR Tau 2`, `FLIR Lepton`, `FLIR Firefly RGB`, `Generic UVC Webcam`, `GigE Vision`
+- Dynamic hot-plug detection and runtime plugin switching without restart
 
 ### Adding Custom Fusion Algorithms
 
@@ -760,17 +708,21 @@ def _my_fusion(self, thermal: np.ndarray, rgb: np.ndarray) -> np.ndarray:
 ### Running Tests
 
 ```bash
-# Test camera detection
-python archive/test-scripts/diagnose_cameras.py
+# Run full unit test suite (199 tests)
+pytest tests/ -v
 
-# Test Boson SDK connection
-python archive/test-scripts/test_thermal_camera.py
+# Run camera plugin and driver tests
+pytest tests/unit/test_camera_plugin_system.py tests/unit/test_uvc_and_gige_plugins.py -v
 
-# Test Firefly camera
-python archive/tests/test_firefly_quick.py
+# Run core manager and device scanner tests
+pytest tests/unit/test_core_managers.py tests/unit/test_device_scanner.py -v
+```
 
-# Test GUI widgets
-python archive/test-scripts/test_gui_quick.py
+### Linting
+
+```bash
+# Lint the package (config in pyproject.toml)
+ruff check thermal_inspection/ tests/
 ```
 
 ---
@@ -818,7 +770,7 @@ MIT License - See LICENSE file for details.
 ## Contact & Support
 
 - **Issues**: Report bugs and feature requests on GitHub Issues
-- **Documentation**: See `archive/` folder for detailed implementation guides
+- **Documentation**: See README.md and CHANGELOG.md
 - **Community**: Discussions on GitHub Discussions
 
 ---

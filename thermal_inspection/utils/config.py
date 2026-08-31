@@ -11,8 +11,8 @@ Features:
 import json
 import os
 import logging
+import platform
 from typing import Dict, Any, Optional
-from pathlib import Path
 from datetime import datetime
 import numpy as np
 
@@ -84,12 +84,21 @@ class Config:
         'thermal_resolution': [640, 512],
         'thermal_device_id': None,  # Persisted device ID for Fast Path
         'rgb_device_id': None,      # Persisted device ID for Fast Path
+        # Persisted video device scan; skips hardware probing on warm start.
+        # See thermal_inspection/cameras/device_scanner.py
+        'video_device_cache': None,
 
         # SDK/Serial Port Settings
         'sdk_com_port': None,  # COM port for SDK serial (None = auto-detect)
         'sdk_com_port_default': 'COM7',  # Default Windows COM port for FLIR
         'sdk_com_port_linux': '/dev/ttyACM0',  # Default Linux serial port
         'sdk_com_port_options': ['COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', '/dev/ttyACM0', '/dev/ttyUSB0'],
+
+        # Per-plugin serial defaults (CCI control channels)
+        'serial_ports': {
+            'flir_boson': {'port': 'COM7', 'linux_port': '/dev/ttyACM0', 'baud': 921600},
+            'flir_tau2': {'port': 'COM5', 'linux_port': '/dev/ttyUSB0', 'baud': 57600},
+        },
     }
 
     def __init__(self, config_file: str = 'config.json'):
@@ -115,7 +124,7 @@ class Config:
         """
         try:
             if os.path.exists(self.config_file):
-                with open(self.config_file, 'r') as f:
+                with open(self.config_file) as f:
                     loaded_config = json.load(f)
                     # Merge with defaults (in case new keys added)
                     self.config.update(loaded_config)
@@ -393,3 +402,37 @@ def get_config() -> Config:
     if _config_instance is None:
         _config_instance = Config()
     return _config_instance
+
+
+def get_serial_port(plugin_id: str, fallback: str = 'COM7') -> str:
+    """
+    Resolve the serial control port for a camera plugin.
+
+    An explicit user override (``sdk_com_port``) wins, then the platform-
+    appropriate per-plugin default from ``serial_ports``.
+
+    Args:
+        plugin_id: Plugin identifier, e.g. 'flir_boson' or 'flir_tau2'.
+        fallback: Port to use when the plugin has no configured entry.
+    """
+    config = get_config()
+
+    override = config.get('sdk_com_port')
+    if override:
+        return override
+
+    entry = config.get('serial_ports', {}).get(plugin_id, {})
+    key = 'linux_port' if platform.system() != 'Windows' else 'port'
+    return entry.get(key) or fallback
+
+
+def get_serial_baud(plugin_id: str, fallback: int = 115200) -> int:
+    """
+    Resolve the serial baud rate for a camera plugin's CCI channel.
+
+    Args:
+        plugin_id: Plugin identifier, e.g. 'flir_boson' or 'flir_tau2'.
+        fallback: Baud rate to use when the plugin has no configured entry.
+    """
+    entry = get_config().get('serial_ports', {}).get(plugin_id, {})
+    return entry.get('baud', fallback)

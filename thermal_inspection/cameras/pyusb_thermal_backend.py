@@ -108,8 +108,8 @@ class PyUSBThermalBackend(ThermalBackend):
                 logger.info(f"PyUSB thermal backend available (VID:PID {self.vid:04X}:{self.pid:04X})")
             else:
                 logger.warning(
-                    f"PyUSB thermal backend not available - camera not found or using UVC driver\n"
-                    f"To use 16-bit mode, install WinUSB driver with Zadig"
+                    "PyUSB thermal backend not available - camera not found or using UVC driver\n"
+                    "To use 16-bit mode, install WinUSB driver with Zadig"
                 )
 
             return available
@@ -150,7 +150,7 @@ class PyUSBThermalBackend(ThermalBackend):
             # Get active configuration
             try:
                 cfg = self.dev.get_active_configuration()
-            except usb.core.USBError as e:
+            except usb.core.USBError:
                 # Try to set configuration
                 logger.info("Setting USB configuration...")
                 self.dev.set_configuration()
@@ -173,7 +173,7 @@ class PyUSBThermalBackend(ThermalBackend):
             self._is_opened = True
             logger.info("✓ PyUSB thermal backend opened successfully")
             logger.info(f"  Resolution: {self.FRAME_WIDTH}x{self.FRAME_HEIGHT}")
-            logger.info(f"  Bit depth: 16-bit")
+            logger.info("  Bit depth: 16-bit")
             logger.info(f"  Endpoint: 0x{self.endpoint.bEndpointAddress:02X}")
             logger.info(f"  Max packet size: {self.endpoint.wMaxPacketSize}")
 

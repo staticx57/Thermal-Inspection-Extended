@@ -9,7 +9,6 @@ from PyQt6.QtWidgets import (
     QComboBox, QCheckBox, QPushButton, QMessageBox
 )
 from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtGui import QFont
 
 # Import themes from new location
 from thermal_inspection.gui.themes import THEMES

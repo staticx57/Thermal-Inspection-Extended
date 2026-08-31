@@ -7,8 +7,7 @@ Displays a colorbar/legend showing the current palette with temperature labels.
 
 from PyQt6.QtWidgets import QWidget
 from PyQt6.QtGui import QPainter, QColor, QPen, QFont
-from PyQt6.QtCore import Qt, QRect
-import numpy as np
+from PyQt6.QtCore import Qt
 import logging
 
 logger = logging.getLogger(__name__)

@@ -5,7 +5,7 @@ Corrects parallax offset between thermal and RGB cameras using depth estimation.
 The thermal and RGB cameras are mounted side-by-side with a baseline distance,
 causing parallax that varies with object distance.
 
-This module uses depth estimation to estimate per-pixel depth and compute adaptive 
+This module uses depth estimation to estimate per-pixel depth and compute adaptive
 pixel displacement to align the thermal and RGB views.
 
 Architecture:
@@ -99,33 +99,22 @@ class DepthEstimator:
         self.pipeline = None
         self.enabled = False
         self.model_loaded = False
-        
-        # Auto-detect best device
-        if device == "auto":
-            if DEPTH_ESTIMATION_AVAILABLE:
-                try:
-                    import torch
-                    if torch.cuda.is_available():
-                        self.device = "cuda"
-                        logger.info("Auto-detected CUDA GPU for depth estimation")
-                    else:
-                        self.device = "cpu"
-                        logger.info("Using CPU for depth estimation (no GPU detected)")
-                except Exception as e:
-                    logger.warning(f"Could not load PyTorch for device detection: {e}")
-                    self.device = "cpu"
-            else:
-                self.device = "cpu"
-        else:
-            self.device = device
+
+        # Device selection is deferred: probing CUDA means importing torch,
+        # which costs seconds (and on a broken install fails slowly) even
+        # though the default 'simplified' method never touches it. The real
+        # value is resolved by the `device` property when a model loads.
+        self._device_requested = device
+        self._device_resolved: Optional[str] = None if device == "auto" else device
 
         if method == "simplified":
             self.enabled = True
             logger.info("Using simplified depth estimation (geometric heuristics)")
         elif method == "depthanything":
             if DEPTH_ESTIMATION_AVAILABLE and TRANSFORMERS_AVAILABLE:
+                # Device is intentionally not logged here — reading it would
+                # import torch and undo the deferral. load_model() logs it.
                 logger.info(f"DepthAnything V2 ({model_size}) will be loaded on first use")
-                logger.info(f"Device: {self.device}")
                 self.enabled = False  # Will be enabled when model loads
             else:
                 logger.warning("DepthAnything V2 requested but dependencies not available")
@@ -139,10 +128,37 @@ class DepthEstimator:
             self.method = "simplified"
             self.enabled = True
 
+    @property
+    def device(self) -> str:
+        """
+        Compute device for depth estimation, resolved on first access.
+
+        Importing torch to probe for CUDA is slow, so an "auto" request stays
+        unresolved until something actually needs the answer.
+        """
+        if self._device_resolved is not None:
+            return self._device_resolved
+
+        resolved = "cpu"
+        if DEPTH_ESTIMATION_AVAILABLE:
+            try:
+                import torch
+
+                if torch.cuda.is_available():
+                    resolved = "cuda"
+                    logger.info("Auto-detected CUDA GPU for depth estimation")
+                else:
+                    logger.info("Using CPU for depth estimation (no GPU detected)")
+            except Exception as e:
+                logger.warning(f"Could not load PyTorch for device detection: {e}")
+
+        self._device_resolved = resolved
+        return resolved
+
     def load_model(self) -> bool:
         """
         Load depth estimation model (DepthAnything V2).
-        
+
         Model is loaded lazily on first inference call.
 
         Returns:
@@ -157,7 +173,7 @@ class DepthEstimator:
             logger.error("Cannot load model - PyTorch not available")
             logger.error("Install with: pip install torch")
             return False
-        
+
         if self.model_loaded:
             logger.info("Depth model already loaded")
             return True
@@ -175,31 +191,31 @@ class DepthEstimator:
                 except Exception as e:
                     logger.error(f"Cannot load transformers: {e}")
                     return False
-                
+
                 model_map = {
                     "small": "depth-anything/Depth-Anything-V2-Small-hf",
                     "base": "depth-anything/Depth-Anything-V2-Base-hf",
                     "large": "depth-anything/Depth-Anything-V2-Large-hf"
                 }
-                
+
                 model_id = model_map.get(self.model_size, model_map["small"])
                 logger.info(f"Loading DepthAnything V2: {model_id}")
                 logger.info(f"Device: {self.device}")
                 logger.info("First-time download: ~100-350MB (cached for future use)...")
-                
+
                 device_id = 0 if self.device == "cuda" else -1
-                
+
                 self.pipeline = pipeline(
                     task="depth-estimation",
                     model=model_id,
                     device=device_id
                 )
-                
+
                 logger.info(f"✓ DepthAnything V2 ({self.model_size}) loaded successfully")
                 self.model_loaded = True
                 self.enabled = True
                 return True
-                
+
             elif self.method == "midas":
                 logger.warning("MiDaS model loading not yet implemented")
                 logger.warning("Use method='depthanything' for ML depth estimation")
@@ -294,36 +310,36 @@ class DepthEstimator:
             if not self.load_model():
                 logger.error("Failed to load DepthAnything V2 model")
                 return None
-        
+
         try:
             from PIL import Image
-            
+
             if rgb_image.shape[2] == 3:
                 rgb_for_model = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2RGB)
             else:
                 rgb_for_model = rgb_image
-            
+
             pil_image = Image.fromarray(rgb_for_model)
             result = self.pipeline(pil_image)
             depth_pil = result["depth"]
             depth_array = np.array(depth_pil).astype(np.float32)
-            
+
             h, w = rgb_image.shape[:2]
             if depth_array.shape != (h, w):
                 depth_array = cv2.resize(depth_array, (w, h), interpolation=cv2.INTER_LINEAR)
-            
+
             depth_min = depth_array.min()
             depth_max = depth_array.max()
-            
+
             if depth_max > depth_min:
                 depth_normalized = (depth_array - depth_min) / (depth_max - depth_min)
                 depth_inverted = 1.0 - depth_normalized
                 depth_meters = 0.5 + depth_inverted * 4.5
             else:
                 depth_meters = np.full_like(depth_array, 2.0)
-            
+
             return depth_meters
-            
+
         except Exception as e:
             logger.error(f"DepthAnything V2 inference failed: {e}")
             import traceback
@@ -355,7 +371,7 @@ class ParallaxCompensator:
         self.last_depth_map = None
         self.last_displacement_map = None
 
-        logger.info(f"ParallaxCompensator initialized (DISABLED by default)")
+        logger.info("ParallaxCompensator initialized (DISABLED by default)")
         logger.info(f"  Baseline: {self.geometry.baseline_mm}mm")
         logger.info(f"  Depth method: {depth_method}")
 
@@ -507,12 +523,12 @@ if __name__ == "__main__":
 
     compensator = create_parallax_compensator(baseline_mm=50.0, enabled=False)
 
-    print(f"\nCompensator info:")
+    print("\nCompensator info:")
     info = compensator.get_info()
     for key, value in info.items():
         print(f"  {key}: {value}")
 
-    print(f"\nTesting with dummy frames...")
+    print("\nTesting with dummy frames...")
     thermal_dummy = np.random.randint(0, 255, (512, 640, 3), dtype=np.uint8)
     rgb_dummy = np.random.randint(0, 255, (1200, 1920, 3), dtype=np.uint8)
 

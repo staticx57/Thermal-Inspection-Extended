@@ -9,8 +9,7 @@ import time
 import struct
 import logging
 from enum import Enum
-from dataclasses import dataclass
-from typing import Optional, List, Union, Tuple
+from typing import Optional, Tuple
 from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)
@@ -52,7 +51,7 @@ class LeptonTransport(ABC):
     Abstract base class for Lepton communication transport.
     Implementations could be UVC XU, UART, I2C (on embedded), etc.
     """
-    
+
     @abstractmethod
     def write_register(self, address: int, value: int) -> None:
         """Write a 16-bit value to a register address."""
@@ -79,7 +78,7 @@ class LeptonTransport(ABC):
 
 class MockLeptonTransport(LeptonTransport):
     """Mock transport that simulates a Lepton camera."""
-    
+
     def __init__(self):
         self.registers = {
             LeptonRegister.STATUS.value: 0x0006,  # Booted + Ready
@@ -91,13 +90,13 @@ class MockLeptonTransport(LeptonTransport):
     def write_register(self, address: int, value: int) -> None:
         # logger.debug(f"Mock Write Reg: 0x{address:04X} = 0x{value:04X}")
         self.registers[address] = value
-        
+
         # Simulate command processing
         if address == LeptonRegister.COMMAND.value:
             # Set BUSY bit
             self.registers[LeptonRegister.STATUS.value] |= 0x0001
             # Simulate processing time
-            time.sleep(0.01) 
+            time.sleep(0.01)
             # Clear BUSY bit, set success (0 in high byte)
             self.registers[LeptonRegister.STATUS.value] &= ~0x0001
 
@@ -138,20 +137,20 @@ class LeptonSDK:
         logger.error("Timeout waiting for Lepton ready")
         return False
 
-    def run_command(self, module: LeptonModule, command_id: int, 
-                   cmd_type: CommandType, 
-                   data: Optional[bytes] = None, 
+    def run_command(self, module: LeptonModule, command_id: int,
+                   cmd_type: CommandType,
+                   data: Optional[bytes] = None,
                    data_len_words: int = 0) -> Tuple[bool, Optional[bytes]]:
         """
         Execute a Lepton CCI command.
-        
+
         Args:
             module: Target module (AGC, SYS, etc.)
             command_id: Command ID (6 bits)
             cmd_type: GET, SET, or RUN
             data: Data bytes to write (for SET commands)
             data_len_words: Number of 16-bit words to read (for GET commands)
-            
+
         Returns:
             (success, response_data)
         """
@@ -164,7 +163,7 @@ class LeptonSDK:
                 logger.warning("Data length must be even (16-bit words)")
                 # Pad if necessary
                 data += b'\x00'
-            
+
             word_count = len(data) // 2
             self.transport.write_register(LeptonRegister.DATA_LENGTH.value, word_count)
             self.transport.write_data(data)
@@ -180,23 +179,23 @@ class LeptonSDK:
         # [11:8]  Module ID
         # [7:2]   Command ID
         # [1:0]   Type
-        
+
         cmd_reg_val = 0
-        
+
         # Set Protection Bit for OEM and RAD modules
         if module in [LeptonModule.OEM, LeptonModule.RAD]:
             cmd_reg_val |= (1 << 14)
-            
+
         # Module ID (masked to 4 bits)
         module_nibble = (module.value >> 8) & 0x0F
         cmd_reg_val |= (module_nibble << 8)
-        
+
         # Command ID (masked to 6 bits)
         cmd_reg_val |= ((command_id & 0x3F) << 2)
-        
+
         # Type
         cmd_reg_val |= (cmd_type.value & 0x03)
-        
+
         self.transport.write_register(LeptonRegister.COMMAND.value, cmd_reg_val)
 
         # 4. Wait for Completion
@@ -209,7 +208,7 @@ class LeptonSDK:
         # Convert 8-bit signed to int
         if error_code > 127:
             error_code -= 256
-            
+
         if error_code != 0:
             logger.error(f"Lepton command error: {error_code}")
             return False, None
@@ -227,7 +226,7 @@ class LeptonSDK:
 
     def get_serial_number(self) -> Optional[int]:
         """Get Camera Serial Number (SYS 0x0208)."""
-        # Command ID 0x02 (SYS FLIR Serial Number) -> 0x08 / 4 = 0x02? 
+        # Command ID 0x02 (SYS FLIR Serial Number) -> 0x08 / 4 = 0x02?
         # IDD 4.5.3: Command ID 0x02
         success, data = self.run_command(LeptonModule.SYS, 0x02, CommandType.GET, data_len_words=4)
         if success and data:
@@ -344,12 +343,12 @@ class LeptonSDK:
         # This is a complex struct, for simplicity we might just set the one field if possible
         # or we need to read-modify-write.
         # Structure: SceneEmissivity (uint16, 0-8192 mapped to 0-1), TBkgK, TAuxK, etc.
-        
+
         # 1. Get current params
         success, data = self.run_command(LeptonModule.RAD, 0x2C, CommandType.GET, data_len_words=8)
         if not success or not data:
             return False
-            
+
         # Unpack
         # 0: SceneEmissivity (0-8192)
         # 1: TBkgK
@@ -360,12 +359,12 @@ class LeptonSDK:
         # 6: TObjK
         # 7: Reserved
         params = list(struct.unpack('<HHHHHHHH', data))
-        
+
         # Update Emissivity
         # 8192 = 1.0, 82 = 0.01
         emiss_int = int(max(0.01, min(1.0, emissivity)) * 8192)
         params[0] = emiss_int
-        
+
         # Pack and Set
         new_data = struct.pack('<HHHHHHHH', *params)
         success, _ = self.run_command(LeptonModule.RAD, 0x2C, CommandType.SET, data=new_data)
@@ -377,32 +376,32 @@ class LeptonSDK:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    
+
     # Use Mock Transport
     sdk = LeptonSDK()
-    
+
     logger.info("Connecting to (Mock) Lepton...")
-    
+
     # Test SYS
     sn = sdk.get_serial_number()
     logger.info(f"Serial Number: {sn}")
-    
+
     temp = sdk.get_fpa_temperature_celsius()
     logger.info(f"FPA Temp: {temp:.1f}°C")
-    
+
     # Test FFC
     logger.info("Running FFC...")
     sdk.run_ffc()
     status = sdk.get_ffc_status()
     logger.info(f"FFC Status: {status}")
-    
+
     # Test Radiometry
     logger.info("Enabling Radiometry...")
     sdk.set_rad_enable(True)
     sdk.set_tlinear_enable(True)
-    
+
     logger.info("Setting Emissivity to 0.95...")
     sdk.set_emissivity(0.95)
-    
+
     spot = sdk.get_spotmeter_value()
     logger.info(f"Spotmeter: {spot:.1f}°C")

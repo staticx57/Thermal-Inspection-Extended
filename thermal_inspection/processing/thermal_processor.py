@@ -252,12 +252,12 @@ class ThermalProcessor:
                 lut_b = lut[:, 0, 0]  # Blue channel
                 lut_g = lut[:, 0, 1]  # Green channel
                 lut_r = lut[:, 0, 2]  # Red channel
-                
+
                 # Apply LUT to each channel separately
                 b = cv2.LUT(gray, lut_b)
                 g = cv2.LUT(gray, lut_g)
                 r = cv2.LUT(gray, lut_r)
-                
+
                 # Merge channels back to BGR
                 return cv2.merge([b, g, r])
             else:
@@ -294,25 +294,25 @@ class ThermalProcessor:
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             else:
                 gray = frame  # Already grayscale
-            
+
             # Ensure uint8 dtype for OpenCV operations
             if gray.dtype != np.uint8:
                 gray = gray.astype(np.uint8)
-            
+
             gray = cv2.GaussianBlur(gray, (21, 21), 0)
 
             # Initialize previous frame
             if self.prev_frame is None:
                 self.prev_frame = gray.copy()
                 return []
-            
+
             # Check for frame size change
             if self.prev_frame.shape != gray.shape:
                 logger.info(f"Frame size changed from {self.prev_frame.shape} to {gray.shape} - resetting motion detection")
                 self.prev_frame = gray.copy()
                 self.motion_history.clear()
                 return []
-            
+
             # Ensure matching dtypes for absdiff
             if self.prev_frame.dtype != gray.dtype:
                 self.prev_frame = self.prev_frame.astype(gray.dtype)
@@ -419,11 +419,11 @@ class ThermalProcessor:
                     gray_np = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 else:
                     gray_np = frame.copy() if frame.ndim == 2 else frame
-                
+
                 # Ensure uint8 dtype (thermal cameras may output uint16)
                 if gray_np.dtype != np.uint8:
                     gray_np = cv2.convertScaleAbs(gray_np, alpha=(255.0/65535.0) if gray_np.dtype == np.uint16 else 1.0)
-                
+
                 # Ensure contiguous array
                 if not gray_np.flags['C_CONTIGUOUS']:
                     gray_np = np.ascontiguousarray(gray_np)
@@ -608,7 +608,7 @@ class ThermalProcessor:
                     gray = cv2.cvtColor(thermal_frame, cv2.COLOR_BGR2GRAY)
                 else:
                     gray = thermal_frame
-                
+
                 # Normalize to 8-bit if needed
                 if gray.dtype == np.uint16:
                     gray_min = np.min(gray)
@@ -623,7 +623,7 @@ class ThermalProcessor:
                         gray = (gray / gray_max * 255).astype(np.uint8)
                     else:
                         gray = gray.astype(np.uint8)
-                
+
                 return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
             h, w = thermal_frame.shape[:2]
@@ -803,7 +803,7 @@ class ThermalProcessor:
                                     highlight_color: str = "Red") -> np.ndarray:
         """
         Apply isotherm temperature highlighting to thermal frame.
-        
+
         Args:
             colored_frame: Already colorized thermal frame (H, W, 3) BGR
             temp_frame: Temperature data (H, W) float32 in Celsius
@@ -811,20 +811,20 @@ class ThermalProcessor:
             low_threshold: Low temperature threshold (°C)
             high_threshold: High temperature threshold (°C)
             highlight_color: Color name for highlighting
-            
+
         Returns:
             Frame with isotherm regions highlighted
         """
         if colored_frame is None or temp_frame is None:
             return colored_frame
-        
+
         try:
             # Resize temp_frame if needed
             if colored_frame.shape[:2] != temp_frame.shape:
-                temp_frame = cv2.resize(temp_frame, 
+                temp_frame = cv2.resize(temp_frame,
                                       (colored_frame.shape[1], colored_frame.shape[0]),
                                       interpolation=cv2.INTER_LINEAR)
-            
+
             # Create mask based on mode
             if mode == "above":
                 mask = temp_frame > low_threshold
@@ -837,7 +837,7 @@ class ThermalProcessor:
             else:
                 logger.warning(f"Unknown isotherm mode: {mode}")
                 return colored_frame
-            
+
             # Define highlight color
             color_map = {
                 "Red": (0, 0, 255),
@@ -849,19 +849,19 @@ class ThermalProcessor:
                 "White": (255, 255, 255)
             }
             bgr_color = color_map.get(highlight_color, (0, 0, 255))
-            
+
             # Create highlighted overlay
             result = colored_frame.copy()
-            
+
             # Apply semi-transparent highlighting
             overlay = colored_frame.copy()
             overlay[mask] = bgr_color
-            
+
             # Blend 50% overlay with original
             result = cv2.addWeighted(colored_frame, 0.5, overlay, 0.5, 0)
-            
+
             return result
-            
+
         except Exception as e:
             logger.error(f"Error applying isotherm highlighting: {e}")
             return colored_frame

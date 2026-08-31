@@ -5,8 +5,8 @@ Handles alpha blending, fusion modes, and enhancement settings.
 """
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, 
-    QLabel, QComboBox, QSlider, QCheckBox, QScrollArea
+    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
+    QLabel, QComboBox, QSlider, QScrollArea
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 

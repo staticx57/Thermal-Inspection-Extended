@@ -12,14 +12,14 @@ import numpy as np
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout,
     QTabWidget, QScrollArea, QFrame, QFileDialog, QMessageBox,
-    QInputDialog, QApplication
+    QApplication
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor
 
 # Import themes
 from thermal_inspection.gui.themes import (
-    DARK_THEME, LIGHT_THEME, SOLARIZED_THEME, COLORFUL_THEME, THEMES
+    DARK_THEME, LIGHT_THEME, THEMES
 )
 
 # Import widgets
@@ -34,13 +34,13 @@ from thermal_inspection.gui.panels import (
 
 # Import camera control
 from thermal_inspection.gui.camera_control import (
-    BosonControlPanel, BosonSDKPanel, CameraManagerDialog
+    CameraManagerDialog
 )
 
 # Import external modules from package
 from thermal_inspection.processing.roi_manager import ROI, ROIType
 from thermal_inspection.processing.thermal_analyzer import ThermalStatistics, HotSpot, ColdSpot, ThermalAnomaly, TemperatureTrend
-from thermal_inspection.gui.panels.spot_meter_panel import SpotMeterPanel, SpotMeterPresets
+from thermal_inspection.gui.panels.spot_meter_panel import SpotMeterPresets
 
 logger = logging.getLogger(__name__)
 
@@ -54,10 +54,33 @@ class InspectionAppWindow(QMainWindow):
     def __init__(self, app_instance=None):
         super().__init__()
         self.app = app_instance
+        # Central event bus for decoupled GUI ↔ backend communication
+        self.event_bus = getattr(app_instance, 'event_bus', None)
 
         # Window setup
         self.setWindowTitle("Thermal Inspection Fusion Tool v2.0")
         self.setMinimumSize(1280, 720)
+        self.resize(1280, 720)
+
+        # Center on the screen where the cursor currently is
+        from PyQt6.QtGui import QGuiApplication
+        def center_window():
+            screen = QGuiApplication.screenAt(QGuiApplication.primaryScreen().geometry().center())
+            try:
+                screen = QGuiApplication.screenAt(QGuiApplication.queryKeyboardModifiers()) # fallback
+                import PyQt6.QtGui as qtgui
+                screen = qtgui.QCursor.pos()
+                screen = QGuiApplication.screenAt(qtgui.QCursor.pos())
+            except Exception:
+                screen = QGuiApplication.primaryScreen()
+
+            if screen:
+                screen_geometry = screen.geometry()
+                x = screen_geometry.x() + (screen_geometry.width() - self.width()) // 2
+                y = screen_geometry.y() + (screen_geometry.height() - self.height()) // 2
+                self.move(x, y)
+
+        QTimer.singleShot(0, center_window)
 
         # Add status bar
         self.statusBar().showMessage("Developer Mode: ON (Press Ctrl+D to toggle panels)", 8000)
@@ -212,12 +235,25 @@ class InspectionAppWindow(QMainWindow):
                 self.roi_temp_panel.roi_selected.connect(self.video_widget.overlay.set_selected_roi)
                 logger.info("  [OK] Connected ROI Manager.roi_selected to overlay")
 
-            # Connect ROI deletion and palette signals to app
-            if hasattr(self, 'app') and self.app:
-                self.roi_temp_panel.roi_deleted.connect(lambda roi_id: self.app.roi_manager.delete_roi(roi_id) if hasattr(self.app, 'roi_manager') else None)
-                self.roi_temp_panel.roi_palette_changed.connect(lambda roi_id, palette: self.app.set_roi_palette(roi_id, palette) if hasattr(self.app, 'set_roi_palette') else None)
-                logger.info("  [OK] Connected ROI Manager.roi_deleted and roi_palette_changed")
-                
+            # Connect ROI deletion and palette signals — prefer event bus, fallback to app
+            if self.event_bus:
+                self.roi_temp_panel.roi_deleted.connect(
+                    lambda roi_id: self.event_bus.roi_deleted.emit(roi_id)
+                )
+                self.roi_temp_panel.roi_palette_changed.connect(
+                    lambda roi_id, palette: self.event_bus.roi_palette_changed.emit(roi_id, palette)
+                )
+            elif hasattr(self, 'app') and self.app:
+                self.roi_temp_panel.roi_deleted.connect(
+                    lambda roi_id: self.app.roi_manager.delete_roi(roi_id)
+                    if hasattr(self.app, 'roi_manager') else None
+                )
+                self.roi_temp_panel.roi_palette_changed.connect(
+                    lambda roi_id, palette: self.app.set_roi_palette(roi_id, palette)
+                    if hasattr(self.app, 'set_roi_palette') else None
+                )
+            logger.info("  [OK] Connected ROI Manager.roi_deleted and roi_palette_changed")
+
             # Connect export and clear history signals
             self.roi_temp_panel.export_data_requested.connect(self._on_roi_export_data)
             self.roi_temp_panel.clear_history_requested.connect(self._on_roi_clear_history)
@@ -233,6 +269,16 @@ class InspectionAppWindow(QMainWindow):
             self.analysis_tabs.addTab(self.isotherm_panel, "Isotherm")
             logger.info("  [OK] Isotherm panel added")
 
+            from thermal_inspection.gui.panels.gradient_overlay_panel import GradientOverlayPanel
+            self.gradient_panel = GradientOverlayPanel()
+            self.analysis_tabs.addTab(self.gradient_panel, "Gradient")
+            logger.info("  [OK] Gradient overlay panel added")
+
+            from thermal_inspection.gui.panels.line_profile_panel import LineProfilePanel
+            self.line_profile_panel = LineProfilePanel()
+            self.analysis_tabs.addTab(self.line_profile_panel, "Line Profile")
+            logger.info("  [OK] Line profile panel added")
+
             self.right_panel_tabs.addTab(self.analysis_tabs, "Analysis")
             logger.info("[OK] Analysis tab added to right panel")
 
@@ -247,28 +293,28 @@ class InspectionAppWindow(QMainWindow):
             # Tab 3: Cameras
             logger.info("Creating Cameras tab...")
             self.cameras_tabs = QTabWidget()
+            self.camera_panels = {}
 
-            self.boson_panel = BosonControlPanel()
-            self.cameras_tabs.addTab(self.boson_panel, "Boson")
-            logger.info("  [OK] Boson panel added")
+            # Populate registered camera plugins
+            from thermal_inspection.cameras.plugin import get_registry
+            for plugin in get_registry().get_all_plugins():
+                try:
+                    panel = plugin.create_control_panel()
+                    if panel:
+                        self.camera_panels[plugin.plugin_id] = panel
+                        self.cameras_tabs.addTab(panel, plugin.display_name)
+                        self._wire_plugin_panel(plugin, panel)
+                        logger.info(f"  [OK] {plugin.display_name} panel added")
+                except Exception as e:
+                    logger.warning(f"Failed to create panel for {plugin.plugin_id}: {e}")
 
-            from thermal_inspection.gui.camera_control.firefly_control_panel import FireflyControlPanel
-            self.firefly_panel = FireflyControlPanel()
-            self.cameras_tabs.addTab(self.firefly_panel, "Firefly")
-            logger.info("  [OK] Firefly panel added")
-
-            from thermal_inspection.gui.camera_control.lepton_control_panel import LeptonControlPanel
-            self.lepton_panel = LeptonControlPanel()
-            self.cameras_tabs.addTab(self.lepton_panel, "Lepton")
-            logger.info("  [OK] Lepton panel added")
-            
-            # Connect Lepton panel signals
-            self.lepton_panel.connect_requested.connect(self._on_lepton_connect)
-            self.lepton_panel.disconnect_requested.connect(self._on_lepton_disconnect)
-            self.lepton_panel.ffc_requested.connect(self._on_lepton_ffc)
-            self.lepton_panel.radiometry_toggled.connect(self._on_lepton_radiometry_toggled)
-            self.lepton_panel.emissivity_changed.connect(self._on_lepton_emissivity_changed)
-            logger.info("  [OK] Lepton panel signals connected")
+            # Keep convenient attributes for backwards compatibility
+            self.boson_panel = self.camera_panels.get("flir_boson")
+            self.tau2_panel = self.camera_panels.get("flir_tau2")
+            self.lepton_panel = self.camera_panels.get("flir_lepton")
+            self.firefly_panel = self.camera_panels.get("flir_firefly")
+            self.uvc_panel = self.camera_panels.get("generic_uvc")
+            self.gige_panel = self.camera_panels.get("gige_vision")
 
             from thermal_inspection.gui.panels.calibration_panel import CalibrationPanel
             self.calibration_panel = CalibrationPanel()
@@ -429,7 +475,7 @@ class InspectionAppWindow(QMainWindow):
             spot_panel.highlight_spot.connect(self._on_highlight_spot)
             spot_panel.preset_requested.connect(self._on_spot_preset_requested)
             spot_panel.alert_triggered.connect(self._on_spot_alert_triggered)
-            
+
             # Additional spot meter connections
             if hasattr(spot_panel, 'spot_visibility_changed'):
                 spot_panel.spot_visibility_changed.connect(self._on_spot_visibility_changed)
@@ -439,6 +485,9 @@ class InspectionAppWindow(QMainWindow):
                 spot_panel.clear_all_requested.connect(self._on_clear_all_spots)
             if hasattr(spot_panel, 'export_requested'):
                 spot_panel.export_requested.connect(self._on_spot_export_requested)
+
+            if hasattr(spot_panel, 'spot_selected'):
+                spot_panel.spot_selected.connect(self._on_spot_selected)
 
             if hasattr(spot_panel, 'cursor_readout_cb') and hasattr(self, 'video_widget'):
                 spot_panel.cursor_readout_cb.toggled.connect(self._on_cursor_readout_toggled)
@@ -477,36 +526,7 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("manual_threshold_widget", "use_raw_values_changed", self._on_manual_use_raw_changed, "(manual threshold)")
         self._safe_connect("manual_threshold_widget", "visualization_mode_changed", self._on_manual_viz_mode_changed, "(manual threshold)")
 
-        # === BOSON SDK PANEL ===
-        self._safe_connect("boson_panel", "sdk_connect_requested", self._on_boson_connect, "(boson)")
-        self._safe_connect("boson_panel", "sdk_disconnect_requested", self._on_boson_disconnect, "(boson)")
-        self._safe_connect("boson_panel", "ffc_triggered", self._on_boson_ffc, "(boson)")
-        self._safe_connect("boson_panel", "sdk_scan_ports_requested", self._on_boson_scan_ports, "(boson)")
-        self._safe_connect("boson_panel", "gain_mode_changed", self._on_boson_gain_mode, "(boson)")
-        self._safe_connect("boson_panel", "ffc_mode_changed", self._on_boson_ffc_mode, "(boson)")
-        self._safe_connect("boson_panel", "color_lut_changed", self._on_boson_color_lut, "(boson)")
-        self._safe_connect("boson_panel", "agc_max_gain_changed", self._on_agc_max_gain_changed, "(boson AGC)")
-        self._safe_connect("boson_panel", "agc_gamma_changed", self._on_agc_gamma_changed, "(boson AGC)")
-        self._safe_connect("boson_panel", "agc_linearity_changed", self._on_agc_linearity_changed, "(boson AGC)")
-        self._safe_connect("boson_panel", "agc_dde_changed", self._on_agc_dde_changed, "(boson AGC)")
-        self._safe_connect("boson_panel", "agc_plateau_changed", self._on_agc_plateau_changed, "(boson AGC)")
-        self._safe_connect("boson_panel", "agc_dampening_changed", self._on_agc_dampening_changed, "(boson AGC)")
-        self._safe_connect("boson_panel", "agc_reset_requested", self._on_agc_reset, "(boson AGC)")
-        self._safe_connect("boson_panel", "shutter_position_changed", self._on_shutter_position_changed, "(boson shutter)")
-        self._safe_connect("boson_panel", "radiometric_mode_changed", self._on_radiometric_mode_changed, "(boson radiometric)")
-
-        # === FIREFLY CAMERA PANEL ===
-        self._safe_connect("firefly_panel", "exposure_mode_changed", self._on_firefly_exposure_mode, "(firefly)")
-        self._safe_connect("firefly_panel", "exposure_time_changed", self._on_firefly_exposure_time, "(firefly)")
-        self._safe_connect("firefly_panel", "gain_mode_changed", self._on_firefly_gain_mode, "(firefly)")
-        self._safe_connect("firefly_panel", "gain_changed", self._on_firefly_gain, "(firefly)")
-        self._safe_connect("firefly_panel", "white_balance_mode_changed", self._on_firefly_white_balance_mode, "(firefly)")
-        self._safe_connect("firefly_panel", "white_balance_calibrate", self._on_firefly_white_balance_calibrate, "(firefly)")
-        self._safe_connect("firefly_panel", "white_balance_ratio_changed", self._on_firefly_white_balance_ratio, "(firefly)")
-        self._safe_connect("firefly_panel", "trigger_mode_changed", self._on_firefly_trigger_mode, "(firefly)")
-        self._safe_connect("firefly_panel", "trigger_fire", self._on_firefly_trigger_fire, "(firefly)")
-        self._safe_connect("firefly_panel", "gamma_changed", self._on_firefly_gamma, "(firefly)")
-        self._safe_connect("firefly_panel", "sharpness_changed", self._on_firefly_sharpness, "(firefly)")
+        # (Camera panel signals are dynamically wired via _wire_plugin_panel during initialization)
 
         # === CALIBRATION PANEL ===
         self._safe_connect("calibration_panel", "add_calibration_point_clicked", self._on_calibration_add_point_mode, "(calibration)")
@@ -533,6 +553,19 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("parallax_panel", "baseline_changed", self._on_parallax_baseline_changed, "(parallax)")
         self._safe_connect("parallax_panel", "depth_method_changed", self._on_parallax_method_changed, "(parallax)")
         self._safe_connect("parallax_panel.apply_geometry_btn", "clicked", self._on_parallax_geometry_apply, "(parallax)")
+        self._safe_connect("parallax_panel", "show_depth_map_toggled", self._on_show_depth_map_toggled, "(parallax depth)")
+
+        # === GRADIENT OVERLAY PANEL ===
+        self._safe_connect("gradient_panel", "gradient_enabled", self._on_gradient_enabled, "(gradient)")
+        self._safe_connect("gradient_panel", "gradient_mode_changed", self._on_gradient_mode_changed, "(gradient)")
+        self._safe_connect("gradient_panel", "gradient_threshold_changed", self._on_gradient_threshold_changed, "(gradient)")
+        self._safe_connect("gradient_panel", "gradient_color_map_changed", self._on_gradient_colormap_changed, "(gradient)")
+
+        # === LINE PROFILE PANEL ===
+        self._safe_connect("line_profile_panel", "line_mode_toggled", self._on_line_profile_mode_toggled, "(line profile)")
+        self._safe_connect("line_profile_panel", "line_deleted", self._on_line_profile_deleted, "(line profile)")
+        self._safe_connect("line_profile_panel", "clear_all_requested", self._on_line_profile_clear_all, "(line profile)")
+        self._safe_connect("line_profile_panel", "export_requested", self._on_line_profile_export, "(line profile)")
 
         # === RADIOMETRIC PANEL 8-Bit ===
         self._safe_connect("radiometric_panel", "estimation_8bit_enabled_changed", self._on_8bit_estimation_toggled, "(radiometric 8-bit)")
@@ -552,8 +585,9 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("analysis_panel.show_anomalies_checkbox", "toggled", self._on_show_anomalies_toggled, "(detection toggle)")
 
         # === ROI MANAGEMENT ===
-        self._safe_connect("analysis_panel", "roi_selected", self._on_roi_selected, "(analysis)")
-        self._safe_connect("analysis_panel", "roi_deleted", self._on_roi_delete, "(analysis)")
+        # roi_selected and roi_deleted live on roi_temp_panel, not analysis_panel.
+        # roi_temp_panel signals are wired during panel construction above.
+        # Keep this comment so _safe_connect failures are not re-introduced.
 
         # === ENVIRONMENTAL COMPENSATION PANEL ===
         self._safe_connect("env_comp_panel", "emissivity_changed", self._on_emissivity_changed, "(environmental)")
@@ -586,25 +620,364 @@ class InspectionAppWindow(QMainWindow):
 
         logger.info("[OK] Signal connections complete (defensive mode)")
 
-        # === INITIALIZE BOSON PANEL IF SDK ALREADY CONNECTED ===
-        try:
-            if self.app and hasattr(self.app, 'thermal_camera'):
-                thermal_cam = self.app.thermal_camera
-                if hasattr(thermal_cam, 'sdk_connected') and thermal_cam.sdk_connected:
-                    logger.info("[BOSON INIT] SDK already connected, updating panel...")
-                    self.boson_panel.update_connection_status(True)
-                    if hasattr(thermal_cam, 'get_camera_info'):
-                        info = thermal_cam.get_camera_info()
-                        if info:
-                            self.boson_panel.set_status(f"SN: {info.serial_number}")
-                            self.boson_panel.update_camera_info(info)
-                            logger.info(f"[BOSON INIT] Panel updated with camera info (SN: {info.serial_number})")
+        # Connect proactive feedback signals from event bus
+        self._connect_feedback_signals()
+
+        logger.info("Generic signal wiring completed.")
+
+    # ========================================================================
+    # Feedback Signal Connections (backend → GUI, proactive)
+    # ========================================================================
+
+    def _connect_feedback_signals(self):
+        """Connect backend feedback signals to GUI update handlers."""
+        if not self.event_bus:
+            logger.debug("No event_bus available — skipping feedback connections")
+            return
+
+        bus = self.event_bus
+
+        # --- Generic Camera Feedback Signals ---
+        bus.camera_command_result.connect(self._on_bus_camera_command_result)
+        bus.camera_connected.connect(self._on_bus_camera_connected)
+        bus.camera_disconnected.connect(self._on_bus_camera_disconnected)
+        bus.sdk_connected.connect(self._on_bus_sdk_connected)
+        bus.sdk_disconnected.connect(self._on_bus_sdk_disconnected)
+        bus.panel_ready.connect(self._on_bus_panel_ready)
+        bus.ports_scan_result.connect(self._on_bus_ports_scan_result)
+
+        # --- Calibration ---
+        bus.calibration_compute_result.connect(self._on_bus_calibration_compute_result)
+        bus.calibration_export_result.connect(self._on_bus_calibration_export_result)
+        bus.calibration_import_result.connect(self._on_bus_calibration_import_result)
+        bus.calibration_gui_update_requested.connect(self._on_bus_calibration_gui_update)
+
+        # --- Recording ---
+        bus.recording_state_changed.connect(self._on_bus_recording_state_changed)
+
+        # --- Sensor Temps ---
+        bus.sensor_temps_result.connect(self._on_bus_sensor_temps_result)
+
+        logger.info("[OK] Feedback signal connections established")
+
+    def _emit_camera_command(self, role: str, command: str, params: dict):
+        """Emit camera_command_requested on the event bus."""
+        if self.event_bus:
+            self.event_bus.camera_command_requested.emit(role, command, params)
+        elif self.app and hasattr(self.app, 'execute_camera_command'):
+            self.app.execute_camera_command(role, command, params)
+
+    def _parse_connect_args(self, args: tuple) -> dict:
+        """Helper to parse variable argument tuples for connect requests."""
+        if not args:
+            return {}
+        if len(args) == 1:
+            return {'com_port': str(args[0])}
+        elif len(args) >= 2:
+            return {'com_port': str(args[0]), 'baud_rate': int(args[1])}
+        return {}
+
+    def _wire_plugin_panel(self, plugin, panel):
+        """Wire signals from a plugin control panel into the generic event bus."""
+        role = plugin.camera_role.value if hasattr(plugin.camera_role, 'value') else str(plugin.camera_role)
+
+        if hasattr(panel, 'connect_requested'):
+            panel.connect_requested.connect(
+                lambda *args: self._emit_camera_command(role, 'connect', self._parse_connect_args(args))
+            )
+        if hasattr(panel, 'sdk_connect_requested'):
+            panel.sdk_connect_requested.connect(
+                lambda *args: self._emit_camera_command(role, 'connect', self._parse_connect_args(args))
+            )
+        if hasattr(panel, 'disconnect_requested'):
+            panel.disconnect_requested.connect(
+                lambda: self._emit_camera_command(role, 'disconnect', {})
+            )
+        if hasattr(panel, 'sdk_disconnect_requested'):
+            panel.sdk_disconnect_requested.connect(
+                lambda: self._emit_camera_command(role, 'disconnect', {})
+            )
+        if hasattr(panel, 'scan_ports_requested'):
+            panel.scan_ports_requested.connect(
+                lambda: self._emit_camera_command(role, 'scan_ports', {})
+            )
+        if hasattr(panel, 'sdk_scan_ports_requested'):
+            panel.sdk_scan_ports_requested.connect(
+                lambda: self._emit_camera_command(role, 'scan_ports', {})
+            )
+
+        if hasattr(panel, 'ffc_triggered'):
+            panel.ffc_triggered.connect(
+                lambda: self._emit_camera_command(role, 'ffc', {})
+            )
+        if hasattr(panel, 'ffc_requested'):
+            panel.ffc_requested.connect(
+                lambda: self._emit_camera_command(role, 'ffc', {})
+            )
+
+        if hasattr(panel, 'gain_mode_changed'):
+            panel.gain_mode_changed.connect(
+                lambda mode: self._emit_camera_command(role, 'set_gain_mode', {'mode': str(mode)})
+            )
+        if hasattr(panel, 'ffc_mode_changed'):
+            panel.ffc_mode_changed.connect(
+                lambda mode: self._emit_camera_command(role, 'set_ffc_mode', {'mode': str(mode)})
+            )
+        if hasattr(panel, 'color_lut_changed'):
+            panel.color_lut_changed.connect(
+                lambda lut: self._emit_camera_command(role, 'set_palette', {'palette': str(lut)})
+            )
+        if hasattr(panel, 'shutter_position_changed'):
+            panel.shutter_position_changed.connect(
+                lambda pos: self._emit_camera_command(role, 'set_shutter_position', {'position': str(pos)})
+            )
+        if hasattr(panel, 'tlinear_toggled'):
+            panel.tlinear_toggled.connect(
+                lambda en, res='high': self._emit_camera_command(role, 'set_tlinear', {'enabled': en, 'resolution': res})
+            )
+        if hasattr(panel, 'radiometric_mode_changed'):
+            panel.radiometric_mode_changed.connect(
+                lambda en: self._emit_camera_command(role, 'set_radiometric_mode', {'enabled': en})
+            )
+        if hasattr(panel, 'radiometry_toggled'):
+            panel.radiometry_toggled.connect(
+                lambda en: self._emit_camera_command(role, 'set_radiometric', {'enabled': en})
+            )
+        if hasattr(panel, 'fpa_temp_requested'):
+            panel.fpa_temp_requested.connect(
+                lambda: self._emit_camera_command(role, 'get_fpa_temp', {})
+            )
+        if hasattr(panel, 'environmental_settings_changed'):
+            panel.environmental_settings_changed.connect(
+                lambda settings: self._emit_camera_command(role, 'set_environmental', settings)
+            )
+
+        for sig, param in [
+            ('agc_max_gain_changed', 'max_gain'),
+            ('agc_gamma_changed', 'gamma'),
+            ('agc_linearity_changed', 'linearity'),
+            ('agc_dde_changed', 'dde'),
+            ('agc_plateau_changed', 'plateau'),
+            ('agc_dampening_changed', 'dampening'),
+        ]:
+            if hasattr(panel, sig):
+                getattr(panel, sig).connect(
+                    (lambda p: lambda val: self._emit_camera_command(role, 'set_agc', {p: val}))(param)
+                )
+
+        if hasattr(panel, 'exposure_mode_changed'):
+            panel.exposure_mode_changed.connect(
+                lambda mode: self._emit_camera_command(role, 'set_exposure_mode', {'mode': str(mode)})
+            )
+        if hasattr(panel, 'exposure_time_changed'):
+            panel.exposure_time_changed.connect(
+                lambda time_us: self._emit_camera_command(role, 'set_exposure_time', {'time_us': float(time_us)})
+            )
+        if hasattr(panel, 'gain_changed'):
+            panel.gain_changed.connect(
+                lambda gain_db: self._emit_camera_command(role, 'set_gain', {'gain_db': float(gain_db)})
+            )
+        if hasattr(panel, 'white_balance_mode_changed'):
+            panel.white_balance_mode_changed.connect(
+                lambda mode: self._emit_camera_command(role, 'set_white_balance_mode', {'mode': str(mode)})
+            )
+        if hasattr(panel, 'white_balance_calibrate'):
+            panel.white_balance_calibrate.connect(
+                lambda: self._emit_camera_command(role, 'calibrate_white_balance', {})
+            )
+        if hasattr(panel, 'white_balance_ratio_changed'):
+            panel.white_balance_ratio_changed.connect(
+                lambda color, ratio: self._emit_camera_command(role, 'set_white_balance_ratio', {'color': str(color), 'ratio': float(ratio)})
+            )
+        if hasattr(panel, 'trigger_mode_changed'):
+            panel.trigger_mode_changed.connect(
+                lambda en, src='Software': self._emit_camera_command(role, 'set_trigger_mode', {'enabled': bool(en), 'source': str(src)})
+            )
+        if hasattr(panel, 'trigger_fire'):
+            panel.trigger_fire.connect(
+                lambda: self._emit_camera_command(role, 'trigger_fire', {})
+            )
+        if hasattr(panel, 'gamma_changed'):
+            panel.gamma_changed.connect(
+                lambda gamma: self._emit_camera_command(role, 'set_gamma', {'gamma': float(gamma)})
+            )
+        # Generic direct command emission from new panels
+        if hasattr(panel, 'command_requested'):
+            panel.command_requested.connect(
+                lambda cmd, params: self._emit_camera_command(role, cmd, params)
+            )
+        if hasattr(panel, 'agc_reset_requested'):
+            panel.agc_reset_requested.connect(
+                lambda: self._emit_camera_command(role, 'reset_agc', {})
+            )
+        if hasattr(panel, 'housing_temp_requested'):
+            panel.housing_temp_requested.connect(
+                lambda: self._emit_camera_command(role, 'get_housing_temp', {})
+            )
+        if hasattr(panel, 'palette_changed'):
+            panel.palette_changed.connect(
+                lambda pal: self._emit_camera_command(role, 'set_palette', {'palette': str(pal)})
+            )
+        if hasattr(panel, 'do_ffc_requested'):
+            panel.do_ffc_requested.connect(
+                lambda: self._emit_camera_command(role, 'ffc', {})
+            )
+
+    # --- Generic Camera feedback handlers ---
+
+    def _on_bus_camera_command_result(self, role: str, command: str, result: dict):
+        """React to generic camera command execution result."""
+        success = result.get('success', False)
+        for panel in getattr(self, 'camera_panels', {}).values():
+            if command == 'ffc' and hasattr(panel, 'set_status'):
+                if success:
+                    panel.set_status("FFC completed successfully")
+                    if hasattr(self, 'statusBar'):
+                        self.statusBar().showMessage("FFC complete", 3000)
                 else:
-                    logger.info("[BOSON INIT] SDK not connected yet")
-            else:
-                logger.info("[BOSON INIT] App or thermal_camera not available yet")
-        except Exception as e:
-            logger.error(f"[BOSON INIT] Error initializing Boson panel: {e}", exc_info=True)
+                    panel.set_status("FFC failed", is_error=True)
+            elif command == 'scan_ports' and result.get('ports'):
+                if hasattr(panel, 'update_ports'):
+                    panel.update_ports(result['ports'])
+                elif hasattr(panel, 'update_ports_list'):
+                    panel.update_ports_list(result['ports'])
+            elif command in ('get_fpa_temp', 'get_housing_temp', 'get_camera_info') and hasattr(panel, 'update_camera_info'):
+                panel.update_camera_info(result)
+
+    def _on_bus_sdk_connected(self, role: str, info: dict):
+        """React to camera SDK connection."""
+        for panel in getattr(self, 'camera_panels', {}).values():
+            if hasattr(panel, 'update_connection_status'):
+                panel.update_connection_status(True)
+            if info and hasattr(panel, 'update_camera_info'):
+                try:
+                    panel.update_camera_info(info)
+                except Exception:
+                    pass
+
+    def _on_bus_sdk_disconnected(self, role: str):
+        """React to camera SDK disconnection."""
+        for panel in getattr(self, 'camera_panels', {}).values():
+            if hasattr(panel, 'update_connection_status'):
+                panel.update_connection_status(False)
+
+    def _on_bus_camera_connected(self, role: str, capabilities: dict):
+        """React to camera hardware hotplug connection and focus active panel."""
+        model = capabilities.get('model', '').lower()
+        plugin_id = capabilities.get('plugin_id', '').lower()
+        logger.info(f"Camera connected for role '{role}': {capabilities.get('model', 'Unknown')}")
+
+        target_panel = None
+        for pid, p in getattr(self, 'camera_panels', {}).items():
+            if pid == plugin_id or pid in model:
+                target_panel = p
+                break
+            if role == 'thermal':
+                if 'boson' in model and 'boson' in pid:
+                    target_panel = p; break
+                elif 'tau' in model and 'tau' in pid:
+                    target_panel = p; break
+                elif 'lepton' in model and 'lepton' in pid:
+                    target_panel = p; break
+                elif 'gige' in model and 'gige' in pid:
+                    target_panel = p; break
+            elif role == 'rgb':
+                if 'firefly' in model and 'firefly' in pid:
+                    target_panel = p; break
+                elif ('brio' in model or 'uvc' in model or 'webcam' in model or 'camera' in model) and 'uvc' in pid:
+                    target_panel = p; break
+
+        if target_panel and hasattr(self, 'cameras_tabs'):
+            self.cameras_tabs.setCurrentWidget(target_panel)
+
+        cam_name = capabilities.get('model') or f"{role.capitalize()} Camera"
+        msg = f"📷 {cam_name} connected and active"
+        if hasattr(self, 'statusBar'):
+            self.statusBar().showMessage(msg, 5000)
+        self._show_hotplug_banner(msg, warning=False)
+
+    def _on_bus_camera_disconnected(self, role: str):
+        """React to camera hardware disconnection."""
+        logger.info(f"Camera disconnected for role '{role}'")
+        msg = f"⚠  {role.capitalize()} camera disconnected — using placeholder."
+        if hasattr(self, 'statusBar'):
+            self.statusBar().showMessage(msg, 5000)
+        self._show_hotplug_banner(msg, warning=True)
+
+    def _on_bus_panel_ready(self, role: str, panel):
+        """Dynamically add or focus a panel when provided by a plugin."""
+        if hasattr(self, 'cameras_tabs') and panel:
+            for i in range(self.cameras_tabs.count()):
+                if self.cameras_tabs.widget(i) == panel:
+                    self.cameras_tabs.setCurrentWidget(panel)
+                    return
+            title = f"{role.capitalize()}"
+            self.cameras_tabs.addTab(panel, title)
+            self.cameras_tabs.setCurrentWidget(panel)
+
+    def _on_bus_ports_scan_result(self, ports: list):
+        """Update port list from scan result."""
+        for panel in getattr(self, 'camera_panels', {}).values():
+            if hasattr(panel, 'update_ports'):
+                panel.update_ports(ports)
+            elif hasattr(panel, 'update_ports_list'):
+                panel.update_ports_list(ports)
+
+    # --- Calibration feedback handlers ---
+
+    def _on_bus_calibration_compute_result(self, success: bool):
+        """React to calibration compute result."""
+        if success:
+            logger.info("Calibration computed successfully")
+        else:
+            QMessageBox.warning(
+                self, "Calibration Error",
+                "Failed to compute calibration.\n"
+                "Need at least 2 points for linear, more for polynomial."
+            )
+
+    def _on_bus_calibration_export_result(self, success: bool, path: str):
+        """React to calibration export result."""
+        if success:
+            QMessageBox.information(self, "Export Successful",
+                                    f"Calibration exported to:\n{path}")
+        else:
+            QMessageBox.critical(self, "Export Failed",
+                                 "Failed to export calibration")
+
+    def _on_bus_calibration_import_result(self, success: bool, path: str):
+        """React to calibration import result."""
+        if success:
+            QMessageBox.information(self, "Import Successful",
+                                    f"Calibration imported from:\n{path}")
+        else:
+            QMessageBox.critical(self, "Import Failed",
+                                 "Failed to import calibration")
+
+    def _on_bus_calibration_gui_update(self):
+        """Refresh calibration GUI after backend state change."""
+        if self.app and hasattr(self.app, 'update_calibration_gui'):
+            self.app.update_calibration_gui()
+
+    # --- Recording feedback handlers ---
+
+    def _on_bus_recording_state_changed(self, is_recording: bool):
+        """Sync recording UI to actual backend state."""
+        self.recording = is_recording
+        if hasattr(self, 'control_panel'):
+            self.control_panel.update_record_button(is_recording)
+
+    def _on_bus_sensor_temps_result(self, fpa: float, housing: float):
+        """Display sensor temperature results in status bar."""
+        parts = []
+        if fpa:
+            parts.append(f"FPA: {fpa:.1f} K")
+        if housing:
+            parts.append(f"Housing: {housing:.1f} K")
+        msg = "  |  ".join(parts) if parts else "Sensor temps: N/A"
+        if hasattr(self, 'statusBar'):
+            self.statusBar().showMessage(msg, 5000)
+        logger.info(f"Sensor temps — {msg}")
 
     # ========================================================================
     # Keyboard Shortcuts
@@ -702,27 +1075,30 @@ class InspectionAppWindow(QMainWindow):
         logger.info(f"Theme: {next_theme}")
 
     # ========================================================================
-    # Stub Handler Methods (to be connected to app)
+    # Signal Handler Methods
     # ========================================================================
 
     def _on_radiometric_backend_changed(self, backend_text: str):
-        if "Flirpy" in backend_text:
-            backend_id = "flirpy"
-        else:
-            backend_id = "opencv"
+        backend_id = "flirpy" if "Flirpy" in backend_text else "opencv"
         logger.info(f"Radiometric backend switch requested: {backend_text} -> {backend_id}")
-        if self.app:
+        if self.event_bus:
+            self.event_bus.thermal_backend_changed.emit(backend_id)
+        elif self.app:
             self.app.switch_thermal_backend(backend_id)
 
     def _on_radiometric_max_cold_spots_changed(self, count: int):
-        if self.app and hasattr(self.app, 'thermal_analyzer'):
+        if self.event_bus:
+            self.event_bus.max_cold_spots_changed.emit(count)
+        elif self.app and hasattr(self.app, 'thermal_analyzer'):
             self.app.thermal_analyzer.max_cold_spots = count
-            logger.info(f"Max cold spots set to: {count}")
+        logger.info(f"Max cold spots set to: {count}")
 
     def _on_radiometric_max_hot_spots_changed(self, count: int):
-        if self.app and hasattr(self.app, 'thermal_analyzer'):
+        if self.event_bus:
+            self.event_bus.max_hot_spots_changed.emit(count)
+        elif self.app and hasattr(self.app, 'thermal_analyzer'):
             self.app.thermal_analyzer.max_hot_spots = count
-            logger.info(f"Max hot spots set to: {count}")
+        logger.info(f"Max hot spots set to: {count}")
 
     def _on_show_hot_spots_toggled(self, enabled: bool):
         if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
@@ -745,106 +1121,129 @@ class InspectionAppWindow(QMainWindow):
     def _on_radiometric_enable_changed(self, enabled: bool):
         """Handle radiometric enable toggle."""
         logger.info(f"Radiometric enable toggled: {enabled}")
-        if self.app:
+        if self.event_bus:
+            self.event_bus.radiometric_enabled_changed.emit(enabled)
+        elif self.app:
             self.app.enable_radiometric(enabled)
 
     def _on_radiometric_range_apply(self):
         """Apply manual radiometric range."""
-        if not self.app or not hasattr(self, 'radiometric_panel'):
+        if not hasattr(self, 'radiometric_panel'):
             return
-
         try:
             low = self.radiometric_panel.range_low_spin.value()
             high = self.radiometric_panel.range_high_spin.value()
             logger.info(f"Applying radiometric range: {low} - {high}")
-            
-            # Update controller
-            self.app.radiometric_controller.set_temperature_range(low, high)
-            
-            # Also ensure manual mode is active if that's the intent
-            # (The controller usually handles mode switching if needed)
+            if self.event_bus:
+                self.event_bus.radiometric_range_apply_requested.emit(low, high)
+            elif self.app and hasattr(self.app, 'radiometric_controller'):
+                self.app.radiometric_controller.set_temperature_range(low, high)
         except Exception as e:
             logger.error(f"Error applying radiometric range: {e}")
 
     def _on_load_lut(self):
-        """Load custom Look-Up Table (LUT)."""
+        """Load custom Look-Up Table (LUT) and apply to palette manager."""
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Load LUT File", "", "LUT Files (*.csv *.png *.jpg);;All Files (*)"
         )
-        if file_path:
-            logger.info(f"Loading LUT from: {file_path}")
-            if self.app and hasattr(self.app, 'palette_manager'):
-                # Assuming palette manager has a load_lut method
-                # If not, this is a placeholder for that future capability
-                # self.app.palette_manager.load_custom_lut(file_path)
-                logger.info("LUT loading logic would go here (pending PaletteManager update)")
+        if not file_path:
+            return
+        logger.info(f"Loading LUT from: {file_path}")
+        if self.event_bus:
+            # Palette manager wiring is pending — log until PaletteManager.load_custom_lut() is implemented
+            logger.info("[LUT] Event bus path not yet wired — PaletteManager.load_custom_lut() pending implementation")
+        elif self.app and hasattr(self.app, 'palette_manager'):
+            pm = self.app.palette_manager
+            if hasattr(pm, 'load_custom_lut'):
+                success = pm.load_custom_lut(file_path)
+                if success:
+                    QMessageBox.information(self, "LUT Loaded", f"Custom LUT loaded from:\n{file_path}")
+                else:
+                    QMessageBox.warning(self, "LUT Load Failed", f"Could not load LUT from:\n{file_path}")
+            else:
+                logger.info("[LUT] PaletteManager.load_custom_lut() not yet implemented")
 
     def _on_radiometric_method_changed(self):
         """Handle radiometric conversion method change (Linear vs LUT)."""
-        if not self.app or not hasattr(self, 'radiometric_panel'):
+        if not hasattr(self, 'radiometric_panel'):
             return
-            
         is_lut = self.radiometric_panel.method_lut_radio.isChecked()
         mode = "lut" if is_lut else "t-linear"
         logger.info(f"Radiometric method changed to: {mode}")
-        
-        # Update controller
-        # self.app.radiometric_controller.set_conversion_method(mode)
+        if self.event_bus:
+            self.event_bus.radiometric_method_changed.emit(mode)
+        elif self.app and hasattr(self.app, 'radiometric_controller'):
+            if hasattr(self.app.radiometric_controller, 'set_conversion_method'):
+                self.app.radiometric_controller.set_conversion_method(mode)
 
     def _on_spotmeter_enabled_changed(self, enabled: bool):
         """Handle spotmeter enable toggle."""
-        if self.app and hasattr(self.app, 'thermal_analyzer'):
+        if self.event_bus:
+            self.event_bus.spotmeter_enabled_changed.emit(enabled)
+        elif self.app and hasattr(self.app, 'thermal_analyzer'):
             self.app.thermal_analyzer.spotmeter_enabled = enabled
-            logger.info(f"Spotmeter analysis enabled: {enabled}")
+        logger.info(f"Spotmeter analysis enabled: {enabled}")
 
     def _on_spotmeter_mode_changed(self, mode: str):
         """Handle spotmeter mode change (center, max, min)."""
-        if self.app and hasattr(self.app, 'thermal_analyzer'):
+        if self.event_bus:
+            self.event_bus.spotmeter_mode_changed.emit(mode)
+        elif self.app and hasattr(self.app, 'thermal_analyzer'):
             self.app.thermal_analyzer.spotmeter_mode = mode
-            logger.info(f"Spotmeter mode set to: {mode}")
+        logger.info(f"Spotmeter mode set to: {mode}")
 
     def _on_sensor_temps_requested(self):
-        """Handle request for FPA/Housing temperatures."""
-        if not self.app or not self.app.thermal_camera:
-            return
-            
-        try:
-            if hasattr(self.app.thermal_camera, 'get_fpa_temperature'):
-                fpa = self.app.thermal_camera.get_fpa_temperature()
-                msg = f"FPA Temp: {fpa:.2f} K" if fpa else "FPA Temp: N/A"
-                logger.info(msg)
-                self.statusBar().showMessage(msg, 5000)
-        except Exception as e:
-            logger.error(f"Error getting sensor temps: {e}")
+        """Request FPA/Housing temperatures via event bus."""
+        if self.event_bus:
+            self.event_bus.sensor_temps_requested.emit()
+        elif self.app and self.app.thermal_camera:
+            try:
+                if hasattr(self.app.thermal_camera, 'get_fpa_temperature'):
+                    fpa = self.app.thermal_camera.get_fpa_temperature()
+                    msg = f"FPA Temp: {fpa:.2f} K" if fpa else "FPA Temp: N/A"
+                    logger.info(msg)
+                    self.statusBar().showMessage(msg, 5000)
+            except Exception as e:
+                logger.error(f"Error getting sensor temps: {e}")
 
     def _on_8bit_estimation_toggled(self, enabled: bool):
         """Handle 8-bit estimation toggle."""
-        if self.app and hasattr(self.app, 'thermal_analyzer'):
+        if self.event_bus:
+            self.event_bus.estimation_8bit_enabled_changed.emit(enabled)
+        elif self.app and hasattr(self.app, 'thermal_analyzer'):
             self.app.thermal_analyzer.estimator_enabled = enabled
-            logger.info(f"8-bit estimator enabled: {enabled}")
+        logger.info(f"8-bit estimator enabled: {enabled}")
 
     def _on_temperature_range_changed(self, low: float, high: float):
         """Handle temperature range change for estimation."""
-        if self.app and hasattr(self.app, 'thermal_analyzer'):
+        if self.event_bus:
+            self.event_bus.estimation_range_changed.emit(low, high)
+        elif self.app and hasattr(self.app, 'thermal_analyzer'):
             self.app.thermal_analyzer.set_estimation_range(low, high)
 
     def _on_calibrate_single_point(self, temp: float):
         """Handle single point calibration."""
-        if self.app and hasattr(self.app, 'thermal_analyzer'):
+        if self.event_bus:
+            self.event_bus.calibrate_single_point_requested.emit(temp)
+        elif self.app and hasattr(self.app, 'thermal_analyzer'):
             self.app.thermal_analyzer.calibrate_single_point(temp)
-            logger.info(f"Single point calibration triggered at {temp}")
+        logger.info(f"Single point calibration triggered at {temp}")
 
     def _on_calibrate_two_point(self, t1: float, t2: float):
         """Handle two point calibration."""
-        if self.app and hasattr(self.app, 'thermal_analyzer'):
+        if self.event_bus:
+            self.event_bus.calibrate_two_point_requested.emit(t1, t2)
+        elif self.app and hasattr(self.app, 'thermal_analyzer'):
             self.app.thermal_analyzer.calibrate_two_point(t1, t2)
-            logger.info(f"Two point calibration triggered: {t1}, {t2}")
+        logger.info(f"Two point calibration triggered: {t1}, {t2}")
 
     def _on_radiometric_temp_unit_changed(self, unit: str):
         logger.info(f"[MAIN_WINDOW] _on_radiometric_temp_unit_changed called with unit: {unit}")
         if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
             self.video_widget.overlay.set_temperature_unit(unit)
-        if self.app:
+        if self.event_bus:
+            self.event_bus.temperature_unit_changed.emit(unit)
+        elif self.app:
             self.app.set_temperature_unit(unit)
         if hasattr(self, 'isotherm_panel'):
             unit_index_map = {'C': 0, 'F': 1, 'K': 2, 'RAW': 3}
@@ -853,66 +1252,89 @@ class InspectionAppWindow(QMainWindow):
 
     # === FUSION HANDLERS ===
     def _on_fusion_mode_changed(self, mode: str):
-        if self.app:
+        if self.event_bus:
+            self.event_bus.fusion_mode_changed.emit(mode)
+        elif self.app:
             self.app.set_fusion_mode(mode)
         logger.info(f"Fusion mode changed to: {mode}")
 
     def _on_fusion_alpha_changed(self, val: float):
-        if self.app:
+        if self.event_bus:
+            self.event_bus.fusion_alpha_changed.emit(val)
+        elif self.app:
             self.app.set_fusion_alpha(val)
 
     def _on_fusion_priority_changed(self, val: str):
-        # Normalize to lowercase for backend compatibility
         priority = val.lower()
         if priority == 'balanced':
-            priority = 'thermal'  # Default to thermal for 'balanced'
-        
-        if self.app:
+            priority = 'thermal'
+
+        if self.event_bus:
+            self.event_bus.fusion_priority_changed.emit(priority)
+        elif self.app:
             self.app.set_fusion_priority(priority)
-            # Sync overlay with new priority
-            if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
-                current_mode = self.video_widget.overlay.current_view_mode
-                self.video_widget.overlay.set_view_mode(current_mode, priority)
+        # Sync overlay with new priority
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
+            current_mode = self.video_widget.overlay.current_view_mode
+            self.video_widget.overlay.set_view_mode(current_mode, priority)
         logger.info(f"Fusion priority changed to: {priority}")
 
     def _on_fusion_strength_changed(self, val: float):
-        if self.app and hasattr(self.app, 'set_fusion_strength'):
+        if self.event_bus:
+            self.event_bus.fusion_strength_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_fusion_strength'):
             self.app.set_fusion_strength(val)
         logger.info(f"Fusion strength changed to: {val:.2f}")
 
     def _on_fusion_fuzziness_changed(self, val: float):
-        if self.app and hasattr(self.app, 'set_fusion_fuzziness'):
+        if self.event_bus:
+            self.event_bus.fusion_fuzziness_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_fusion_fuzziness'):
             self.app.set_fusion_fuzziness(val)
 
     def _on_fusion_color_mode_changed(self, val: str):
-        if self.app and hasattr(self.app, 'set_fusion_color_mode'):
+        if self.event_bus:
+            self.event_bus.fusion_color_mode_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_fusion_color_mode'):
             self.app.set_fusion_color_mode(val)
 
     def _on_edge_strength_changed(self, val: float):
-        if self.app and hasattr(self.app, 'set_edge_strength'):
+        if self.event_bus:
+            self.event_bus.edge_strength_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_edge_strength'):
             self.app.set_edge_strength(val)
 
     def _on_edge_fuzziness_changed(self, val: float):
-        if self.app and hasattr(self.app, 'set_edge_fuzziness'):
+        if self.event_bus:
+            self.event_bus.edge_fuzziness_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_edge_fuzziness'):
             self.app.set_edge_fuzziness(val)
 
     def _on_edge_color_changed(self, val: str):
-        if self.app and hasattr(self.app, 'set_edge_color'):
+        if self.event_bus:
+            self.event_bus.edge_color_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_edge_color'):
             self.app.set_edge_color(val)
 
     def _on_detail_strength_changed(self, val: float):
-        if self.app and hasattr(self.app, 'set_detail_strength'):
+        if self.event_bus:
+            self.event_bus.detail_strength_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_detail_strength'):
             self.app.set_detail_strength(val)
 
     def _on_detail_quality_changed(self, val: str):
-        if self.app and hasattr(self.app, 'set_detail_quality'):
+        if self.event_bus:
+            self.event_bus.detail_quality_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_detail_quality'):
             self.app.set_detail_quality(val)
 
     # === ANALYSIS HANDLERS ===
     def _on_global_palette_changed(self, palette_name: str):
         try:
             logger.info(f"Attempting to change palette to: '{palette_name}'")
-            if self.app:
+            if self.event_bus:
+                self.event_bus.palette_set.emit(palette_name)
+            elif self.app:
                 self.app.set_palette(palette_name)
             logger.info(f"Global palette changed successfully: {palette_name}")
         except Exception as e:
@@ -939,61 +1361,66 @@ class InspectionAppWindow(QMainWindow):
 
     # === ENVIRONMENTAL COMP HANDLERS ===
     def _on_emissivity_changed(self, val: float):
-        if self.app and hasattr(self.app, 'set_emissivity'):
+        if self.event_bus:
+            self.event_bus.emissivity_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_emissivity'):
             self.app.set_emissivity(val)
         logger.info(f"Emissivity changed to: {val:.2f}")
 
     def _on_atmospheric_temp_changed(self, val: float):
-        if self.app and hasattr(self.app, 'set_atmospheric_temperature'):
+        if self.event_bus:
+            self.event_bus.atmospheric_temperature_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_atmospheric_temperature'):
             self.app.set_atmospheric_temperature(val)
 
     def _on_atmospheric_transmission_changed(self, val: float):
-        if self.app and hasattr(self.app, 'set_atmospheric_transmission'):
+        if self.event_bus:
+            self.event_bus.atmospheric_transmission_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_atmospheric_transmission'):
             self.app.set_atmospheric_transmission(val)
 
     # === ISOTHERM HANDLERS ===
     def _on_isotherm_enabled_changed(self, enabled: bool):
-        if self.app:
-            if hasattr(self.app, 'set_isotherm_enabled'):
-                self.app.set_isotherm_enabled(enabled)
-            else:
-                self.app.isotherm_enabled = enabled
+        if self.event_bus:
+            self.event_bus.isotherm_enabled_changed.emit(enabled)
+        elif self.app:
+            self.app.set_isotherm_enabled(enabled)
 
     def _on_isotherm_mode_changed(self, mode: str):
-        if self.app:
-            if hasattr(self.app, 'set_isotherm_mode'):
-                self.app.set_isotherm_mode(mode)
-            else:
-                self.app.isotherm_mode = mode
+        if self.event_bus:
+            self.event_bus.isotherm_mode_changed.emit(mode)
+        elif self.app:
+            self.app.set_isotherm_mode(mode)
 
     def _on_isotherm_low_threshold_changed(self, val: float):
-        if self.app:
-            if hasattr(self.app, 'set_isotherm_low_threshold'):
-                self.app.set_isotherm_low_threshold(val)
-            else:
-                self.app.isotherm_low_threshold = val
+        if self.event_bus:
+            self.event_bus.isotherm_low_threshold_changed.emit(val)
+        elif self.app:
+            self.app.set_isotherm_low_threshold(val)
 
     def _on_isotherm_high_threshold_changed(self, val: float):
-        if self.app:
-            if hasattr(self.app, 'set_isotherm_high_threshold'):
-                self.app.set_isotherm_high_threshold(val)
-            else:
-                self.app.isotherm_high_threshold = val
+        if self.event_bus:
+            self.event_bus.isotherm_high_threshold_changed.emit(val)
+        elif self.app:
+            self.app.set_isotherm_high_threshold(val)
 
     def _on_isotherm_color_changed(self, val: str):
-        if self.app:
-            if hasattr(self.app, 'set_isotherm_color'):
-                self.app.set_isotherm_color(val)
-            else:
-                self.app.isotherm_color = val
+        if self.event_bus:
+            self.event_bus.isotherm_color_changed.emit(val)
+        elif self.app:
+            self.app.set_isotherm_color(val)
 
     def _on_isotherm_bands_changed(self, band_manager):
-        if self.app:
+        if self.event_bus:
+            self.event_bus.isotherm_band_manager_set.emit(band_manager)
+            if hasattr(self, 'isotherm_panel'):
+                is_multiband = self.isotherm_panel.is_multiband_mode()
+                self.event_bus.isotherm_multiband_changed.emit(is_multiband)
+        elif self.app:
             if hasattr(self.app, 'set_isotherm_band_manager'):
                 self.app.set_isotherm_band_manager(band_manager)
-            if hasattr(self.app, 'set_isotherm_multiband_mode'):
-                is_multiband = self.isotherm_panel.is_multiband_mode()
-                self.app.set_isotherm_multiband_mode(is_multiband)
+            if hasattr(self.app, 'set_isotherm_multiband_mode') and hasattr(self, 'isotherm_panel'):
+                self.app.set_isotherm_multiband_mode(self.isotherm_panel.is_multiband_mode())
 
     # === ROI & VIDEO HANDLERS ===
     def _on_roi_created(self, roi):
@@ -1016,7 +1443,27 @@ class InspectionAppWindow(QMainWindow):
             self.analysis_panel.select_roi(roi_id)
 
     def _on_cursor_moved(self, pos):
-        pass
+        """Display temperature at cursor position in the status bar."""
+        if not self.app:
+            return
+        frame = getattr(self.app, '_last_thermal_frame', None)
+        if frame is None:
+            return
+        try:
+            x, y = pos.x(), pos.y()
+            h, w = frame.shape[:2]
+            if 0 <= y < h and 0 <= x < w:
+                raw_val = float(frame[y, x])
+                # Try radiometric conversion for calibrated temperature
+                analyzer = getattr(self.app, 'thermal_analyzer', None)
+                if analyzer and hasattr(analyzer, 'calculate_spot_temperature'):
+                    temp, unit = analyzer.calculate_spot_temperature(raw_val)
+                    if temp is not None:
+                        self.statusBar().showMessage(f"Cursor: ({x}, {y})  {temp:.1f}{unit}")
+                        return
+                self.statusBar().showMessage(f"Cursor: ({x}, {y})  Raw: {raw_val:.0f}")
+        except Exception:
+            pass  # Don't let cursor tracking errors affect the UI
 
     def _on_roi_export_data(self):
         """Export ROI temperature data to file."""
@@ -1052,22 +1499,54 @@ class InspectionAppWindow(QMainWindow):
 
     # === BASELINE HANDLER ===
     def _on_baseline_toggle(self, enabled: bool):
-        if self.app and hasattr(self.app, 'lock_baseline'):
+        if self.event_bus:
+            self.event_bus.baseline_lock_toggled.emit(enabled)
+        elif self.app and hasattr(self.app, 'lock_baseline'):
             self.app.lock_baseline(enabled)
         logger.info(f"Baseline lock: {'ON' if enabled else 'OFF'}")
 
     # === CONTROL PANEL HANDLERS ===
     def _on_palette_cycle(self):
-        if self.app:
+        if self.event_bus:
+            self.event_bus.palette_cycled.emit()
+        elif self.app:
             self.app.cycle_palette()
         logger.info("Palette cycle")
 
     def _on_view_mode_cycle(self):
-        if self.app:
+        if self.event_bus:
+            self.event_bus.view_mode_cycled.emit()
+        elif self.app:
             self.app.cycle_view_mode()
-            # Sync overlay with new view mode
-            self._sync_overlay_view_mode()
+        # Sync overlay with new view mode
+        self._sync_overlay_view_mode()
         logger.info("View mode cycle")
+
+    def _sync_view_mode_button(self, view_mode=None):
+        """
+        Update the View Mode button label to reflect the current mode.
+        Called when the app auto-switches view mode (e.g. no thermal camera found).
+        """
+        try:
+            from thermal_inspection.core import ViewMode
+            if view_mode is None and self.app:
+                view_mode = getattr(self.app, 'view_mode', None)
+            if view_mode is None:
+                return
+            label_map = {
+                ViewMode.THERMAL_ONLY: "Thermal",
+                ViewMode.RGB_ONLY: "RGB",
+                ViewMode.FUSION: "Fusion",
+                ViewMode.SIDE_BY_SIDE: "Side by Side",
+                ViewMode.PICTURE_IN_PICTURE: "PiP",
+            }
+            label = label_map.get(view_mode, str(view_mode))
+            if hasattr(self, 'control_panel') and hasattr(self.control_panel, 'view_btn'):
+                self.control_panel.view_btn.setText(f"View: {label}")
+            self._sync_overlay_view_mode()
+            logger.info(f"View mode button synced to: {label}")
+        except Exception as e:
+            logger.debug(f"_sync_view_mode_button failed: {e}")
 
     def _sync_overlay_view_mode(self):
         """Sync overlay widget's view mode with current app state."""
@@ -1075,12 +1554,12 @@ class InspectionAppWindow(QMainWindow):
             return
         if not hasattr(self.video_widget, 'overlay'):
             return
-            
+
         # Get current view mode from app
         view_mode = getattr(self.app, 'view_mode', None)
         if view_mode is None:
             return
-            
+
         # Map ViewMode enum to overlay mode string
         from thermal_inspection.core import ViewMode
         mode_map = {
@@ -1091,12 +1570,12 @@ class InspectionAppWindow(QMainWindow):
             ViewMode.PICTURE_IN_PICTURE: 'picture_in_picture',
         }
         mode_str = mode_map.get(view_mode, 'thermal')
-        
+
         # Get fusion priority from fusion processor
         fusion_priority = 'thermal'  # Default
         if hasattr(self.app, 'fusion_processor') and self.app.fusion_processor:
             fusion_priority = getattr(self.app.fusion_processor, 'fusion_priority', 'thermal')
-        
+
         # Update overlay
         self.video_widget.overlay.set_view_mode(mode_str, fusion_priority)
         logger.debug(f"Overlay synced: mode={mode_str}, priority={fusion_priority}")
@@ -1104,26 +1583,34 @@ class InspectionAppWindow(QMainWindow):
     def _on_record_toggle(self, enabled: bool):
         self.recording = enabled
         self.control_panel.update_record_button(enabled)
-        if self.app:
+        if self.event_bus:
+            self.event_bus.recording_toggled.emit(enabled)
+        elif self.app:
             self.app.toggle_recording(enabled)
         logger.info(f"Recording: {'ON' if enabled else 'OFF'}")
 
     def _on_snapshot(self):
-        if self.app:
+        if self.event_bus:
+            self.event_bus.snapshot_requested.emit()
+        elif self.app:
             self.app.capture_snapshot()
         logger.info("Snapshot captured")
 
     def _on_freeze_toggle(self, enabled: bool):
         self.frozen = enabled
         self.control_panel.update_freeze_button(enabled)
-        if self.app:
+        if self.event_bus:
+            self.event_bus.freeze_toggled.emit(enabled)
+        elif self.app:
             self.app.toggle_freeze(enabled)
         logger.info(f"Frame freeze: {'ON' if enabled else 'OFF'}")
 
     def _on_auto_roi(self):
-        if self.app and hasattr(self.app, 'auto_roi_detect'):
+        if self.event_bus:
+            self.event_bus.auto_roi_requested.emit()
+        elif self.app and hasattr(self.app, 'auto_roi_detect'):
             self.app.auto_roi_detect()
-            logger.info("Auto ROI detection triggered")
+        logger.info("Auto ROI detection triggered")
 
     def _on_draw_roi(self):
         if self.video_widget and hasattr(self.video_widget, 'overlay'):
@@ -1132,7 +1619,9 @@ class InspectionAppWindow(QMainWindow):
             self.control_panel.draw_roi_btn.setChecked(True)
 
     def _on_clear_rois(self):
-        if self.app:
+        if self.event_bus:
+            self.event_bus.clear_rois_requested.emit()
+        elif self.app:
             self.app.clear_rois()
         logger.info("ROIs cleared")
 
@@ -1147,17 +1636,21 @@ class InspectionAppWindow(QMainWindow):
             QMessageBox.critical(self, "Error", f"Failed to open camera manager: {e}")
 
     def _on_device_changed(self, device_name: str):
-        if self.app:
+        if self.event_bus:
+            self.event_bus.device_changed.emit(device_name)
+        elif self.app and hasattr(self.app, 'set_device'):
             self.app.set_device(device_name)
         logger.info(f"Device changed to: {device_name}")
 
     def _on_roi_delete(self, roi_id: str):
-        if self.app:
+        if self.event_bus:
+            self.event_bus.roi_deleted.emit(roi_id)
+        elif self.app:
             if hasattr(self.app, 'delete_roi'):
                 self.app.delete_roi(roi_id)
             elif hasattr(self.app, 'roi_manager'):
                 self.app.roi_manager.delete_roi(roi_id)
-            logger.info(f"ROI {roi_id} deleted")
+        logger.info(f"ROI {roi_id} deleted")
 
     # === SPOT METER HANDLERS ===
     def _on_spot_meter_toggled(self, checked: bool):
@@ -1234,6 +1727,23 @@ class InspectionAppWindow(QMainWindow):
 
     def _on_spot_meter_clicked(self, x: int, y: int):
         logger.info(f"Main Window: _on_spot_meter_clicked at ({x}, {y})")
+
+        # Route to calibration point-add handler if that mode is active
+        if getattr(self.app, 'calibration_add_point_mode', False) or \
+                (self.app and getattr(self.app, 'calibration_manager', None) and
+                 getattr(self.app.calibration_manager, 'add_point_mode', False)):
+            logger.info(f"Routing click to calibration point-add at ({x}, {y})")
+            if self.event_bus:
+                # Signal the backend to add a calibration point at these pixel coords.
+                # We re-use calibration_add_point_mode_changed with enabled=True and
+                # reference_temp=0 to trigger backend's point-capture flow; the backend
+                # reads the current spotmeter value at (x,y) to get the raw pixel value.
+                self.event_bus.calibration_add_point_mode_changed.emit(True, 0.0)
+            elif self.app and hasattr(self.app, 'add_calibration_point'):
+                self.app.add_calibration_point(x, y)
+            elif self.app and hasattr(self.app, '_on_add_calibration_point'):
+                self.app._on_add_calibration_point(x, y)
+            return
 
         for existing in self.measurement_points:
             if existing.x == x and existing.y == y:
@@ -1350,311 +1860,298 @@ class InspectionAppWindow(QMainWindow):
 
     # === ANOMALY HANDLERS ===
     def _on_anomaly_priority_toggle(self, enabled: bool):
-        if self.app:
+        if self.event_bus:
+            self.event_bus.anomaly_priority_toggled.emit(enabled)
+        elif self.app:
             self.app.toggle_anomaly_priority(enabled)
         logger.info(f"Anomaly priority: {'ON' if enabled else 'OFF'}")
 
     def _on_anomaly_types_changed(self, types_dict: dict):
-        if self.app:
+        if self.event_bus:
+            self.event_bus.anomaly_types_changed.emit(types_dict)
+        elif self.app:
             self.app.set_enabled_anomaly_types(types_dict)
         logger.info(f"Anomaly types changed: {types_dict}")
 
     def _on_fade_strength_changed(self, value: float):
-        if self.app and hasattr(self.app, 'thermal_processor'):
+        if self.event_bus:
+            self.event_bus.anomaly_fade_strength_changed.emit(value)
+        elif self.app and hasattr(self.app, 'thermal_processor'):
             self.app.thermal_processor.anomaly_fade_strength = value
 
     def _on_fade_distance_changed(self, value: int):
-        if self.app and hasattr(self.app, 'thermal_processor'):
+        if self.event_bus:
+            self.event_bus.anomaly_fade_distance_changed.emit(float(value))
+        elif self.app and hasattr(self.app, 'thermal_processor'):
             self.app.thermal_processor.anomaly_max_distance = value
 
     def _on_motion_threshold_changed(self, value: int):
-        if self.app and hasattr(self.app, 'thermal_processor'):
+        if self.event_bus:
+            self.event_bus.anomaly_motion_threshold_changed.emit(float(value))
+        elif self.app and hasattr(self.app, 'thermal_processor'):
             self.app.thermal_processor.motion_threshold = value
 
     def _on_edge_thresholds_changed(self, low: int, high: int):
-        if self.app and hasattr(self.app, 'thermal_processor'):
+        if self.event_bus:
+            self.event_bus.anomaly_edge_thresholds_changed.emit(float(low), float(high))
+        elif self.app and hasattr(self.app, 'thermal_processor'):
             self.app.thermal_processor.edge_threshold_low = low
             self.app.thermal_processor.edge_threshold_high = high
 
     def _on_hot_spot_percentile_changed(self, value: int):
-        if self.app and hasattr(self.app, 'thermal_analyzer'):
+        if self.event_bus:
+            self.event_bus.hot_spot_percentile_changed.emit(float(value))
+        elif self.app and hasattr(self.app, 'thermal_analyzer'):
             self.app.thermal_analyzer.hot_spot_percentile = value
 
     def _on_cold_spot_percentile_changed(self, value: int):
-        if self.app and hasattr(self.app, 'thermal_analyzer'):
+        if self.event_bus:
+            self.event_bus.cold_spot_percentile_changed.emit(float(value))
+        elif self.app and hasattr(self.app, 'thermal_analyzer'):
             self.app.thermal_analyzer.cold_spot_percentile = value
 
     def _on_min_anomaly_size_changed(self, value: int):
-        if self.app and hasattr(self.app, 'thermal_analyzer'):
+        if self.event_bus:
+            self.event_bus.min_anomaly_size_changed.emit(float(value))
+        elif self.app and hasattr(self.app, 'thermal_analyzer'):
             self.app.thermal_analyzer.min_anomaly_size = value
 
     def _on_manual_threshold_enabled(self, enabled: bool):
-        if self.app:
+        if self.event_bus:
+            self.event_bus.threshold_enabled_changed.emit(enabled)
+        elif self.app:
             self.app.set_manual_threshold_enabled(enabled)
 
     def _on_manual_threshold_mode_changed(self, mode: str):
-        if self.app:
+        if self.event_bus:
+            self.event_bus.threshold_mode_changed.emit(mode)
+        elif self.app:
             self.app.set_manual_threshold_mode(mode)
 
     def _on_manual_min_threshold_changed(self, value: float):
-        if self.app:
+        if self.event_bus:
+            self.event_bus.threshold_min_changed.emit(value)
+        elif self.app:
             self.app.set_manual_min_threshold(value)
 
     def _on_manual_max_threshold_changed(self, value: float):
-        if self.app:
+        if self.event_bus:
+            self.event_bus.threshold_max_changed.emit(value)
+        elif self.app:
             self.app.set_manual_max_threshold(value)
 
     def _on_manual_use_raw_changed(self, use_raw: bool):
-        if self.app:
+        if self.event_bus:
+            self.event_bus.threshold_use_raw_changed.emit(use_raw)
+        elif self.app:
             self.app.set_manual_use_raw_values(use_raw)
 
     def _on_manual_viz_mode_changed(self, mode: str):
-        if self.app:
+        if self.event_bus:
+            self.event_bus.threshold_viz_changed.emit(mode)
+        elif self.app:
             self.app.set_manual_viz_mode(mode)
 
-    # === BOSON HANDLERS ===
-    def _on_boson_connect(self, com_port: str):
-        if self.app and hasattr(self.app, 'connect_boson_sdk'):
-            success = self.app.connect_boson_sdk(com_port)
-            if success:
-                self.boson_panel.update_connection_status(True)
-                logger.info(f"Boson SDK connected on {com_port}")
-                if hasattr(self.app.thermal_camera, 'get_camera_info'):
-                    info = self.app.thermal_camera.get_camera_info()
-                    if info:
-                        self.boson_panel.set_status(f"SN: {info.serial_number}")
-                        self.boson_panel.update_camera_info(info)
-            else:
-                self.boson_panel.set_status("Connection failed", is_error=True)
-
-    def _on_boson_disconnect(self):
-        if self.app and hasattr(self.app, 'disconnect_boson_sdk'):
-            self.app.disconnect_boson_sdk()
-            self.boson_panel.update_connection_status(False)
-            self.boson_panel.set_status("Disconnected")
-
-    def _on_boson_scan_ports(self):
-        if self.app and hasattr(self.app, 'scan_boson_com_ports'):
-            ports = self.app.scan_boson_com_ports()
-            if ports:
-                self.boson_panel.update_ports(ports)
-                self.boson_panel.set_status(f"Found {len(ports)} COM ports")
-
-    def _on_boson_ffc(self):
-        if self.app and hasattr(self.app, 'trigger_ffc'):
-            success = self.app.trigger_ffc()
-            if success:
-                self.boson_panel.set_status("FFC completed successfully")
-
-    def _on_boson_gain_mode(self, mode: str):
-        if self.app and hasattr(self.app, 'set_boson_gain_mode'):
-            self.app.set_boson_gain_mode(mode)
-
-    def _on_boson_ffc_mode(self, mode: str):
-        if self.app and hasattr(self.app, 'set_boson_ffc_mode'):
-            self.app.set_boson_ffc_mode(mode)
-
-    def _on_boson_color_lut(self, lut_name: str):
-        if self.app and hasattr(self.app, 'set_boson_color_lut'):
-            self.app.set_boson_color_lut(lut_name)
-
-    def _on_agc_max_gain_changed(self, gain: float):
-        if self.app and hasattr(self.app, 'set_agc_max_gain'):
-            self.app.set_agc_max_gain(gain)
-
-    def _on_agc_gamma_changed(self, gamma: float):
-        if self.app and hasattr(self.app, 'set_agc_gamma'):
-            self.app.set_agc_gamma(gamma)
-
-    def _on_agc_linearity_changed(self, percent: float):
-        if self.app and hasattr(self.app, 'set_agc_linearity'):
-            self.app.set_agc_linearity(percent)
-
-    def _on_agc_dde_changed(self, dde: float):
-        if self.app and hasattr(self.app, 'set_agc_dde'):
-            self.app.set_agc_dde(dde)
-
-    def _on_agc_reset(self):
-        if self.app and hasattr(self.app, 'reset_agc_settings'):
-            self.app.reset_agc_settings()
-
-    def _on_agc_plateau_changed(self, value: float):
-        if self.app and hasattr(self.app, 'set_agc_plateau'):
-            self.app.set_agc_plateau(value)
-
-    def _on_agc_dampening_changed(self, value: float):
-        if self.app and hasattr(self.app, 'set_agc_dampening'):
-            self.app.set_agc_dampening(value)
-
-    def _on_shutter_position_changed(self, position: str):
-        if self.app and hasattr(self.app, 'set_shutter_position'):
-            self.app.set_shutter_position(position)
-
-    def _on_radiometric_mode_changed(self, enable_radiometric: bool):
-        if self.app and hasattr(self.app, 'set_radiometric_mode'):
-            success = self.app.set_radiometric_mode(enable_radiometric)
-            self.boson_panel.update_radiometric_mode_status(enable_radiometric, success)
-
-    # === LEPTON HANDLERS ===
-    def _on_lepton_connect(self):
-        """Handle Lepton connect request."""
-        logger.info("Lepton connect requested")
-        if self.app and hasattr(self.app, 'connect_lepton'):
-            success = self.app.connect_lepton()
-            if hasattr(self, 'lepton_panel'):
-                self.lepton_panel.update_connection_status(success)
-
-    def _on_lepton_disconnect(self):
-        """Handle Lepton disconnect request."""
-        logger.info("Lepton disconnect requested")
-        if self.app and hasattr(self.app, 'disconnect_lepton'):
-            self.app.disconnect_lepton()
-            if hasattr(self, 'lepton_panel'):
-                self.lepton_panel.update_connection_status(False)
-
-    def _on_lepton_ffc(self):
-        """Handle Lepton FFC request."""
-        logger.info("Lepton FFC requested")
-        if self.app and hasattr(self.app, 'trigger_lepton_ffc'):
-            self.app.trigger_lepton_ffc()
-
-    def _on_lepton_radiometry_toggled(self, enabled: bool):
-        """Handle Lepton radiometry toggle."""
-        logger.info(f"Lepton radiometry: {enabled}")
-        if self.app and hasattr(self.app, 'set_lepton_radiometry'):
-            self.app.set_lepton_radiometry(enabled)
-
-    def _on_lepton_emissivity_changed(self, value: float):
-        """Handle Lepton emissivity change."""
-        logger.info(f"Lepton emissivity: {value}")
-        if self.app:
-            self.app.set_emissivity(value)
-
-    # === FIREFLY HANDLERS ===
-    def _on_firefly_exposure_mode(self, mode: str):
-        if self.app:
-            self.app.set_firefly_exposure_mode(mode)
-
-    def _on_firefly_exposure_time(self, time_us: float):
-        if self.app:
-            self.app.set_firefly_exposure_time(time_us)
-
-    def _on_firefly_gain_mode(self, mode: str):
-        if self.app:
-            self.app.set_firefly_gain_mode(mode)
-
-    def _on_firefly_gain(self, gain_db: float):
-        if self.app:
-            self.app.set_firefly_gain(gain_db)
-
-    def _on_firefly_white_balance_mode(self, mode: str):
-        if self.app:
-            self.app.set_firefly_white_balance_mode(mode)
-
-    def _on_firefly_white_balance_calibrate(self):
-        if self.app:
-            self.app.calibrate_firefly_white_balance()
-
-    def _on_firefly_white_balance_ratio(self, color: str, ratio: float):
-        if self.app:
-            self.app.set_firefly_white_balance_ratio(color, ratio)
-
-    def _on_firefly_trigger_mode(self, enabled: bool, source: str):
-        if self.app:
-            self.app.set_firefly_trigger_mode(enabled, source)
-
-    def _on_firefly_trigger_fire(self):
-        if self.app:
-            self.app.fire_firefly_software_trigger()
-
-    def _on_firefly_gamma(self, gamma: float):
-        if self.app:
-            self.app.set_firefly_gamma(gamma)
-
-    def _on_firefly_sharpness(self, enabled: bool, value: float):
-        if self.app:
-            self.app.set_firefly_sharpness(enabled, value)
+    # (Camera-specific control events are handled by _wire_plugin_panel and generic command dispatch)
 
     # === CALIBRATION HANDLERS ===
     def _on_calibration_add_point_mode(self, reference_temp: float):
-        if self.app and hasattr(self.app, 'set_calibration_add_point_mode'):
+        if self.event_bus:
+            self.event_bus.calibration_add_point_mode_changed.emit(True, reference_temp)
+        elif self.app and hasattr(self.app, 'set_calibration_add_point_mode'):
             self.app.set_calibration_add_point_mode(True, reference_temp)
 
     def _on_compute_calibration(self, method: str, degree: int):
-        if self.app and hasattr(self.app, 'compute_calibration'):
+        if self.event_bus:
+            self.event_bus.calibration_compute_requested.emit(method, degree)
+        elif self.app and hasattr(self.app, 'compute_calibration'):
             if self.app.compute_calibration(method, degree):
                 logger.info(f"Calibration computed using {method} method")
-                if hasattr(self.app, 'update_calibration_gui'):
-                    self.app.update_calibration_gui()
+                self.event_bus.calibration_gui_update_requested.emit() if self.event_bus else (
+                    self.app.update_calibration_gui() if hasattr(self.app, 'update_calibration_gui') else None
+                )
             else:
                 QMessageBox.warning(self, "Calibration Error",
                                    "Failed to compute calibration. Need at least 2 points for linear, more for polynomial.")
 
     def _on_apply_calibration_toggled(self, enabled: bool):
-        if self.app and hasattr(self.app, 'set_calibration_enabled'):
+        if self.event_bus:
+            self.event_bus.calibration_enabled_changed.emit(enabled)
+        elif self.app and hasattr(self.app, 'set_calibration_enabled'):
             self.app.set_calibration_enabled(enabled)
 
     def _on_clear_calibration(self):
-        if self.app and hasattr(self.app, 'clear_calibration'):
+        if self.event_bus:
+            self.event_bus.calibration_clear_requested.emit()
+        elif self.app and hasattr(self.app, 'clear_calibration'):
             self.app.clear_calibration()
-            if hasattr(self.app, 'update_calibration_gui'):
-                self.app.update_calibration_gui()
+            self.event_bus.calibration_gui_update_requested.emit() if self.event_bus else (
+                self.app.update_calibration_gui() if hasattr(self.app, 'update_calibration_gui') else None
+            )
 
     def _on_export_calibration(self):
-        if not self.app or not hasattr(self.app, 'export_calibration'):
-            return
-
         from datetime import datetime
         default_name = f"calibration_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         file_path, _ = QFileDialog.getSaveFileName(
             self, "Export Calibration", default_name, "JSON Files (*.json);;All Files (*.*)"
         )
-
         if file_path:
-            if self.app.export_calibration(file_path):
-                QMessageBox.information(self, "Export Successful", f"Calibration exported to:\n{file_path}")
-            else:
-                QMessageBox.critical(self, "Export Failed", "Failed to export calibration")
+            if self.event_bus:
+                self.event_bus.calibration_export_requested.emit(file_path)
+            elif self.app and hasattr(self.app, 'export_calibration'):
+                if self.app.export_calibration(file_path):
+                    QMessageBox.information(self, "Export Successful", f"Calibration exported to:\n{file_path}")
+                else:
+                    QMessageBox.critical(self, "Export Failed", "Failed to export calibration")
 
     def _on_import_calibration(self):
-        if not self.app or not hasattr(self.app, 'import_calibration'):
-            return
-
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Import Calibration", "", "JSON Files (*.json);;All Files (*.*)"
         )
-
         if file_path:
-            if self.app.import_calibration(file_path):
-                QMessageBox.information(self, "Import Successful", f"Calibration imported from:\n{file_path}")
-                if hasattr(self.app, 'update_calibration_gui'):
-                    self.app.update_calibration_gui()
-            else:
-                QMessageBox.critical(self, "Import Failed", "Failed to import calibration")
+            if self.event_bus:
+                self.event_bus.calibration_import_requested.emit(file_path)
+            elif self.app and hasattr(self.app, 'import_calibration'):
+                if self.app.import_calibration(file_path):
+                    QMessageBox.information(self, "Import Successful", f"Calibration imported from:\n{file_path}")
+                    if hasattr(self.app, 'update_calibration_gui'):
+                        self.app.update_calibration_gui()
+                else:
+                    QMessageBox.critical(self, "Import Failed", "Failed to import calibration")
 
     def _on_remove_calibration_point(self, index: int):
-        if self.app and hasattr(self.app, 'remove_calibration_point'):
+        if self.event_bus:
+            self.event_bus.calibration_point_removed.emit(index)
+        elif self.app and hasattr(self.app, 'remove_calibration_point'):
             if self.app.remove_calibration_point(index):
-                if hasattr(self.app, 'update_calibration_gui'):
-                    self.app.update_calibration_gui()
+                self.event_bus.calibration_gui_update_requested.emit() if self.event_bus else (
+                    self.app.update_calibration_gui() if hasattr(self.app, 'update_calibration_gui') else None
+                )
 
     # === PARALLAX HANDLERS ===
     def _on_parallax_toggled(self, enabled: bool):
-        if self.app and hasattr(self.app, 'enable_parallax_compensation'):
+        if self.event_bus:
+            self.event_bus.parallax_toggled.emit(enabled)
+        elif self.app and hasattr(self.app, 'enable_parallax_compensation'):
             self.app.enable_parallax_compensation(enabled)
 
     def _on_parallax_baseline_changed(self, baseline_mm: float):
-        if self.app and hasattr(self.app, 'set_parallax_baseline'):
+        if self.event_bus:
+            self.event_bus.parallax_baseline_changed.emit(baseline_mm)
+        elif self.app and hasattr(self.app, 'set_parallax_baseline'):
             self.app.set_parallax_baseline(baseline_mm)
 
     def _on_parallax_method_changed(self, method: str):
-        if self.app and hasattr(self.app, 'set_parallax_depth_method'):
+        if self.event_bus:
+            self.event_bus.parallax_method_changed.emit(method)
+        elif self.app and hasattr(self.app, 'set_parallax_depth_method'):
             self.app.set_parallax_depth_method(method)
 
     def _on_parallax_geometry_apply(self):
         baseline = self.parallax_panel.get_baseline()
-        if self.app and hasattr(self.app, 'set_parallax_baseline'):
+        if self.event_bus:
+            self.event_bus.parallax_baseline_changed.emit(baseline)
+        elif self.app and hasattr(self.app, 'set_parallax_baseline'):
             self.app.set_parallax_baseline(baseline)
+
+    def _on_show_depth_map_toggled(self, show: bool):
+        """Show/hide depth map overlay on the video stream."""
+        logger.info(f"Depth map overlay: {'ON' if show else 'OFF'}")
+        if self.event_bus:
+            self.event_bus.depth_map_display_toggled.emit(show)
+        elif self.app and hasattr(self.app, 'parallax_compensator'):
+            pc = self.app.parallax_compensator
+            if hasattr(pc, 'set_depth_display'):
+                pc.set_depth_display(show)
+
+    # ========================================================================
+    # Gradient Overlay Handlers
+    # ========================================================================
+
+    def _on_gradient_enabled(self, enabled: bool):
+        logger.info(f"Gradient overlay: {'ON' if enabled else 'OFF'}")
+        if self.event_bus:
+            self.event_bus.gradient_enabled_changed.emit(enabled)
+        self._apply_gradient_setting(enabled=enabled)
+
+    def _on_gradient_mode_changed(self, mode: str):
+        logger.debug(f"Gradient mode: {mode}")
+        if self.event_bus:
+            self.event_bus.gradient_mode_changed.emit(mode)
+        self._apply_gradient_setting(mode=mode)
+
+    def _on_gradient_threshold_changed(self, value: float):
+        logger.debug(f"Gradient threshold: {value}")
+        if self.event_bus:
+            self.event_bus.gradient_threshold_changed.emit(value)
+        self._apply_gradient_setting(threshold=value)
+
+    def _on_gradient_colormap_changed(self, colormap: str):
+        logger.debug(f"Gradient colormap: {colormap}")
+        if self.event_bus:
+            self.event_bus.gradient_colormap_changed.emit(colormap)
+        self._apply_gradient_setting(colormap=colormap)
+
+    def _apply_gradient_setting(self, **kwargs):
+        """Forward gradient settings to the app's GradientProcessor if available."""
+        if self.app and hasattr(self.app, 'gradient_processor'):
+            self.app.gradient_processor.update_settings(**kwargs)
+
+    # ========================================================================
+    # Line Profile Handlers
+    # ========================================================================
+
+    def _on_line_profile_mode_toggled(self, enabled: bool):
+        """Enable/disable interactive line-drawing mode on the video canvas."""
+        logger.info(f"Line profile draw mode: {'ON' if enabled else 'OFF'}")
+        if self.event_bus:
+            self.event_bus.line_profile_mode_toggled.emit(enabled)
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'set_line_profile_mode'):
+            self.video_widget.set_line_profile_mode(enabled)
+
+    def _on_line_profile_deleted(self, line_id: str):
+        """Remove the line overlay from the video canvas."""
+        logger.info(f"Line profile deleted: {line_id}")
+        if self.event_bus:
+            self.event_bus.line_profile_deleted.emit(line_id)
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'remove_line_profile'):
+            self.video_widget.remove_line_profile(line_id)
+
+    def _on_line_profile_clear_all(self):
+        """Clear all line overlays from the video canvas."""
+        logger.info("Line profiles: clear all")
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'clear_line_profiles'):
+            self.video_widget.clear_line_profiles()
+        if hasattr(self, 'line_profile_panel'):
+            self.line_profile_panel.clear_all_lines()
+
+    def _on_line_profile_export(self, line_id: str):
+        """Export a single line profile to CSV via file dialog."""
+        logger.info(f"Line profile export requested: {line_id}")
+        from PyQt6.QtWidgets import QFileDialog
+        filepath, _ = QFileDialog.getSaveFileName(
+            self, "Export Line Profile", f"line_profile_{line_id}.csv",
+            "CSV Files (*.csv);;All Files (*.*)"
+        )
+        if filepath and hasattr(self, 'line_profile_panel'):
+            self.line_profile_panel.export_line(line_id, filepath)
+
+    # ========================================================================
+    # Spot Selection Handler
+    # ========================================================================
+
+    def _on_spot_selected(self, spot_id: str):
+        """Highlight the selected spot on the video overlay."""
+        logger.debug(f"Spot selected: {spot_id}")
+        if self.event_bus:
+            self.event_bus.spot_selected.emit(spot_id)
+        # Focus/flash the overlay marker for this spot
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
+            overlay = self.video_widget.overlay
+            if hasattr(overlay, 'set_selected_spot'):
+                overlay.set_selected_spot(spot_id)
+        # Also update the highlight via the existing highlight_spot handler
+        self._on_highlight_spot(spot_id)
 
     # ========================================================================
     # Public Update Methods (called from app)
@@ -1663,6 +2160,22 @@ class InspectionAppWindow(QMainWindow):
     def update_frame(self, frame: np.ndarray):
         """Update video display."""
         self.video_widget.update_frame(frame)
+
+    def update_thermal_resolution(self, width: int, height: int):
+        """
+        Sync the overlay's thermal-sensor resolution with the actual camera.
+
+        ROI, hot/cold spot, and spot-meter coordinates are all expressed in
+        thermal sensor pixel space, so every overlay transform (including PIP
+        and side-by-side sub-region placement) depends on this matching the
+        real camera — not the 640x512 the overlay is built with — or markers
+        drift on any camera with a different native resolution or aspect
+        ratio (Tau2, Lepton, a Boson in its 320x256 mode, etc.).
+        """
+        if width <= 0 or height <= 0:
+            return
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.set_thermal_resolution(width, height)
 
     def update_metrics(self, fps: float, roi_count: int, thermal_connected: bool, rgb_connected: bool):
         """Update info panel metrics."""
@@ -1692,16 +2205,16 @@ class InspectionAppWindow(QMainWindow):
         self.analysis_panel.update_cold_spots(cold_spots)
         self.analysis_panel.update_anomalies(anomalies)
         self.analysis_panel.update_trend(trend)
-        
+
         # Update histogram temperature unit based on mode
         if hasattr(self.analysis_panel, 'set_histogram_temperature_unit'):
             unit = 'C' if is_radiometric else 'RAW'
             self.analysis_panel.set_histogram_temperature_unit(unit)
-        
+
         # Update histogram palette LUT if available
         if palette_lut is not None and hasattr(self.analysis_panel, 'set_histogram_palette_lut'):
             self.analysis_panel.set_histogram_palette_lut(palette_lut)
-        
+
         # Update histogram if temp_array is available
         if temp_array is not None and hasattr(self.analysis_panel, 'update_histogram'):
             self.analysis_panel.update_histogram(temp_array)
@@ -1721,6 +2234,197 @@ class InspectionAppWindow(QMainWindow):
             self.isotherm_panel.setEnabled(is_radiometric)
         if hasattr(self, 'env_comp_panel'):
             self.env_comp_panel.setEnabled(is_radiometric)
+
+    # ========================================================================
+    # Camera Status / Hot-Plug Notifications
+    # ========================================================================
+
+    def update_camera_status(self, state):
+        """
+        Reflect the current CameraState in the status bar.
+
+        Args:
+            state: CameraState dataclass from camera_controller.
+        """
+        parts = []
+        if getattr(state, 'thermal_connected', False):
+            dev = getattr(state, 'thermal_device_id', '?')
+            label = 'FLIR Boson' if getattr(state, 'is_flir_boson', False) else 'Thermal'
+            parts.append(f"🌡 {label} [dev {dev}]")
+        else:
+            parts.append("🌡 Thermal: disconnected")
+
+        if getattr(state, 'rgb_available', False):
+            dev = getattr(state, 'rgb_device_id', '?')
+            parts.append(f"📷 RGB [dev {dev}]")
+        else:
+            parts.append("📷 RGB: disconnected")
+
+        msg = "  |  ".join(parts)
+        self.statusBar().showMessage(msg, 0)   # 0 = persist until next message
+
+        # If no thermal but RGB available, hint that view mode was auto-switched
+        if (not getattr(state, 'thermal_connected', False)
+                and getattr(state, 'rgb_available', False)):
+            self.statusBar().showMessage(
+                msg + "  |  ℹ View auto-set to RGB — press V to cycle modes", 0
+            )
+
+        # Ensure all camera control tabs remain accessible
+        if hasattr(self, 'cameras_tabs'):
+            for i in range(self.cameras_tabs.count()):
+                self.cameras_tabs.setTabVisible(i, True)
+
+            # Auto-focus the active camera tab if connected
+            if getattr(state, 'is_flir_boson', False) and getattr(self, 'boson_panel', None):
+                self.cameras_tabs.setCurrentWidget(self.boson_panel)
+            elif getattr(state, 'is_lepton', False) and getattr(self, 'lepton_panel', None):
+                self.cameras_tabs.setCurrentWidget(self.lepton_panel)
+            elif getattr(state, 'is_tau2', False) and getattr(self, 'tau2_panel', None):
+                self.cameras_tabs.setCurrentWidget(self.tau2_panel)
+
+
+    def show_camera_lost_notification(self, role: str):
+        """
+        Show a transient warning when a camera is physically disconnected.
+
+        Args:
+            role: 'thermal' or 'rgb'
+        """
+        label = "Thermal" if role == 'thermal' else "RGB"
+        msg = f"⚠  {label} camera disconnected — using placeholder.  Open Camera Manager to reconnect."
+        self.statusBar().showMessage(msg, 0)
+        self._show_hotplug_banner(msg, warning=True)
+
+    def show_camera_connected_notification(self, device_id: int, name: str,
+                                           resolution: str, suggested_role: str):
+        """
+        Show a banner when a new camera is detected and both slots are full
+        (or the type is ambiguous), prompting the user to assign it manually.
+
+        Args:
+            device_id:      OpenCV device index of the new camera.
+            name:           Human-readable camera name.
+            resolution:     Resolution string e.g. '1920x1080'.
+            suggested_role: 'thermal' or 'rgb' (best-guess from detector).
+        """
+        msg = (
+            f"🔌 New camera detected: {name} ({resolution}) "
+            f"[dev {device_id}]  — Open Camera Manager to assign it."
+        )
+        self.statusBar().showMessage(msg, 12000)
+        self._show_hotplug_banner(msg, warning=False)
+
+    def show_hotplug_result(self, device_id: int, role: str, success: bool):
+        """
+        Called after an auto-assign attempt completes.
+
+        Args:
+            device_id: OpenCV device index.
+            role:      'thermal' or 'rgb'
+            success:   Whether the open/assign succeeded.
+        """
+        label = "Thermal" if role == 'thermal' else "RGB"
+        if success:
+            msg = f"✅ Auto-connected device {device_id} as {label} camera."
+        else:
+            msg = (
+                f"⚠  Could not auto-connect device {device_id} as {label}. "
+                "Open Camera Manager to assign manually."
+            )
+        self.statusBar().showMessage(msg, 8000)
+        self._show_hotplug_banner(msg, warning=not success)
+
+    def _show_hotplug_banner(self, message: str, warning: bool = False):
+        """
+        Display a transient coloured banner at the bottom of the video area.
+        Auto-dismisses after 6 seconds.
+        """
+        from PyQt6.QtCore import Qt, QTimer
+
+        if not hasattr(self, '_hotplug_banner') or self._hotplug_banner is None:
+            self._hotplug_banner = QLabel(self)
+            self._hotplug_banner.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._hotplug_banner.setWordWrap(True)
+            self._hotplug_banner.setAttribute(
+                Qt.WidgetAttribute.WA_TransparentForMouseEvents, False
+            )
+
+        banner = self._hotplug_banner
+        bg = "#7c2d12" if warning else "#14532d"    # dark-red / dark-green
+        banner.setStyleSheet(
+            f"background:{bg}; color:#f5f5f5; font-size:13px; "
+            "padding:8px 16px; border-radius:6px;"
+        )
+        banner.setText(message)
+
+        # Position at bottom-centre of the window
+        w = min(self.width() - 40, 900)
+        h = 52
+        banner.setGeometry(
+            (self.width() - w) // 2,
+            self.height() - h - 36,
+            w, h
+        )
+        banner.raise_()
+        banner.show()
+
+        # Auto-hide after 6 s
+        if hasattr(self, '_hotplug_banner_timer'):
+            self._hotplug_banner_timer.stop()
+        self._hotplug_banner_timer = QTimer(self)
+        self._hotplug_banner_timer.setSingleShot(True)
+        self._hotplug_banner_timer.timeout.connect(banner.hide)
+        self._hotplug_banner_timer.start(6000)
+
+    def show_camera_startup_overlay(self, visible: bool):
+        """
+        Show/hide a translucent 'Detecting cameras…' overlay over the
+        video widget while background camera initialisation runs.
+
+        Args:
+            visible: True to show, False to dismiss.
+        """
+        from PyQt6.QtCore import Qt, QTimer as _QT
+
+        if not hasattr(self, '_startup_overlay') or self._startup_overlay is None:
+            overlay = QLabel(self)
+            overlay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            overlay.setStyleSheet(
+                "background: rgba(10,12,20,200);"
+                "color: #e2e8f0;"
+                "font-size: 15px;"
+                "font-weight: 600;"
+                "border-radius: 12px;"
+                "padding: 20px 32px;"
+            )
+            overlay.setText("🔍  Detecting cameras…")
+            overlay.hide()
+            self._startup_overlay = overlay
+            self._startup_dot_count = 0
+
+            self._startup_anim = _QT(self)
+            self._startup_anim.setInterval(420)
+            def _tick():
+                self._startup_dot_count = (self._startup_dot_count + 1) % 4
+                dots = "." * self._startup_dot_count
+                self._startup_overlay.setText(f"🔍  Detecting cameras{dots}")
+            self._startup_anim.timeout.connect(_tick)
+
+        overlay = self._startup_overlay
+        if visible:
+            w, h = 340, 70
+            overlay.setGeometry(
+                (self.width() - w) // 2,
+                (self.height() - h) // 2,
+                w, h
+            )
+            overlay.raise_()
+            overlay.show()
+            self._startup_anim.start()
+        else:
+            self._startup_anim.stop()
+            overlay.hide()
 
 
 # ============================================================================

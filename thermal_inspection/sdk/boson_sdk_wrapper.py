@@ -652,26 +652,26 @@ class BosonSDK:
     def set_emissivity(self, emissivity: float) -> bool:
         """
         Set target emissivity for accurate temperature measurement.
-        
+
         Emissivity (ε) represents how well a surface emits thermal radiation:
         - 1.0 = perfect blackbody (ideal emitter)
         - 0.9-0.98 = most non-metallic surfaces (paint, plastic, PCB)
         - 0.1-0.3 = oxidized metals
         - <0.1 = highly reflective polished metals
-        
+
         Args:
             emissivity: Emissivity value (0.01-1.0)
-        
+
         Returns:
             True if successful
         """
         if not self.connected or not self.camera:
             logger.warning("Camera not connected - cannot set emissivity")
             return False
-        
+
         # Clamp to valid range
         emissivity = max(0.01, min(1.0, emissivity))
-        
+
         try:
             result = self.camera.radiometrySetEmissivityTarget(emissivity)
             if result.value == 0:
@@ -687,13 +687,13 @@ class BosonSDK:
     def get_emissivity(self) -> Optional[float]:
         """
         Get current target emissivity setting.
-        
+
         Returns:
             Emissivity value (0.01-1.0) or None if error
         """
         if not self.connected or not self.camera:
             return None
-        
+
         try:
             result, emissivity = self.camera.radiometryGetEmissivityTarget()
             if result.value == 0:
@@ -706,20 +706,20 @@ class BosonSDK:
     def set_atmospheric_temperature(self, temp_celsius: float) -> bool:
         """
         Set atmospheric/ambient temperature for compensation.
-        
+
         This helps compensate for atmospheric absorption and emission,
         especially important for long-distance measurements.
-        
+
         Args:
             temp_celsius: Atmospheric temperature in °C (typically -40 to 80°C)
-        
+
         Returns:
             True if successful
         """
         if not self.connected or not self.camera:
             logger.warning("Camera not connected - cannot set atmospheric temperature")
             return False
-        
+
         try:
             # Convert to Kelvin
             temp_k = temp_celsius + 273.15
@@ -737,13 +737,13 @@ class BosonSDK:
     def get_atmospheric_temperature(self) -> Optional[float]:
         """
         Get current atmospheric temperature setting.
-        
+
         Returns:
             Temperature in °C or None if error
         """
         if not self.connected or not self.camera:
             return None
-        
+
         try:
             result, temp_k = self.camera.radiometryGetTempAtmosphere()
             if result.value == 0:
@@ -756,27 +756,27 @@ class BosonSDK:
     def set_atmospheric_transmission(self, transmission: float) -> bool:
         """
         Set atmospheric transmission coefficient.
-        
+
         Transmission represents the fraction of thermal radiation that reaches
         the camera through the atmosphere:
         - 1.0 = no atmospheric absorption (clear, short distance)
         - 0.95 = typical at 1-2m distance
         - 0.9 = moderate humidity or 2-5m distance
         - 0.8 = high humidity or long distance
-        
+
         Args:
             transmission: Transmission value (0.7-1.0)
-        
+
         Returns:
             True if successful
         """
         if not self.connected or not self.camera:
             logger.warning("Camera not connected - cannot set atmospheric transmission")
             return False
-        
+
         # Clamp to reasonable range
         transmission = max(0.7, min(1.0, transmission))
-        
+
         try:
             result = self.camera.radiometrySetTransmissionWindow(transmission)
             if result.value == 0:
@@ -792,13 +792,13 @@ class BosonSDK:
     def get_atmospheric_transmission(self) -> Optional[float]:
         """
         Get current atmospheric transmission coefficient.
-        
+
         Returns:
             Transmission value (0.7-1.0) or None if error
         """
         if not self.connected or not self.camera:
             return None
-        
+
         try:
             result, transmission = self.camera.radiometryGetTransmissionWindow()
             if result.value == 0:
@@ -811,7 +811,7 @@ class BosonSDK:
     def get_environmental_settings(self) -> dict:
         """
         Get all environmental compensation settings.
-        
+
         Returns:
             Dictionary with:
             {
@@ -822,30 +822,30 @@ class BosonSDK:
             }
         """
         settings = {}
-        
+
         if not self.connected or not self.camera:
             return settings
-        
+
         try:
             # Emissivity
             emissivity = self.get_emissivity()
             if emissivity is not None:
                 settings['emissivity'] = emissivity
-            
+
             # Atmospheric temperature
             temp_c = self.get_atmospheric_temperature()
             if temp_c is not None:
                 settings['atmospheric_temp_c'] = temp_c
                 settings['atmospheric_temp_k'] = temp_c + 273.15
-            
+
             # Atmospheric transmission
             transmission = self.get_atmospheric_transmission()
             if transmission is not None:
                 settings['atmospheric_transmission'] = transmission
-        
+
         except Exception as e:
             logger.warning(f"Could not read full environmental settings: {e}")
-        
+
         return settings
 
     # ========================================================================
@@ -1027,16 +1027,16 @@ class BosonSDK:
     def spotmeter_enable(self, enable: bool) -> bool:
         """
         Enable/disable hardware spotmeter.
-        
+
         Args:
             enable: True to enable, False to disable
-            
+
         Returns:
             True if successful
         """
         if not self.connected or not self.camera:
             return False
-            
+
         try:
             result = self.camera.bosonSetSpotmeterMode(1 if enable else 0)
             if result.value == 0:
@@ -1053,23 +1053,23 @@ class BosonSDK:
     def spotmeter_set_roi(self, x: int, y: int, width: int = 4, height: int = 4) -> bool:
         """
         Set spotmeter region of interest.
-        
+
         Args:
             x: X coordinate (pixel)
             y: Y coordinate (pixel)
             width: ROI width (default 4)
             height: ROI height (default 4)
-            
+
         Returns:
             True if successful
         """
         if not self.connected or not self.camera:
             return False
-            
+
         try:
             x_start = max(0, x - width // 2)
             y_start = max(0, y - height // 2)
-            
+
             result = self.camera.bosonSetSpotmeterROI(x_start, y_start, width, height)
             if result.value == 0:
                 return True
@@ -1084,13 +1084,13 @@ class BosonSDK:
     def spotmeter_get_temperature(self) -> Optional[float]:
         """
         Get temperature from hardware spotmeter.
-        
+
         Returns:
             Temperature in Celsius or None
         """
         if not self.connected or not self.camera:
             return None
-            
+
         try:
             result, temp_k_x10 = self.camera.bosonGetSpotmeterTemp()
             if result.value == 0:
@@ -1106,26 +1106,26 @@ class BosonSDK:
     def spotmeter_set_statistics_mode(self, mode: str) -> bool:
         """
         Set spotmeter statistics mode.
-        
+
         Args:
             mode: 'center', 'average', 'max', or 'min'
-            
+
         Returns:
             True if successful
         """
         if not self.connected or not self.camera:
             return False
-            
+
         mode_map = {
             'center': 0,
             'average': 1,
             'max': 2,
             'min': 3
         }
-        
+
         if mode.lower() not in mode_map:
             return False
-            
+
         try:
             result = self.camera.bosonSetSpotmeterStatisticsMode(mode_map[mode.lower()])
             if result.value == 0:
@@ -1554,7 +1554,7 @@ def main():
     print("="*80)
 
     if not SDK_AVAILABLE:
-        print(f"\nERROR: Boson SDK not found at:")
+        print("\nERROR: Boson SDK not found at:")
         print(f"  {SDK_PATH}")
         print("\nPlease ensure the boson3dmapping project is available.")
         return 1

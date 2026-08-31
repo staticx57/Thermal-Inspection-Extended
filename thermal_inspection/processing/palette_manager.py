@@ -7,7 +7,7 @@ import numpy as np
 import cv2
 from typing import Dict, List, Optional, Tuple
 from enum import Enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import json
 import logging
 
@@ -716,17 +716,17 @@ class PaletteManager:
         elif palette_type in self.palette_cache:
             # Use custom palette - LUT is (256, 3)
             lut = self.palette_cache[palette_type]
-            
+
             # Split into separate channel LUTs for cv2.LUT()
             lut_b = lut[:, 0]  # Blue channel
-            lut_g = lut[:, 1]  # Green channel  
+            lut_g = lut[:, 1]  # Green channel
             lut_r = lut[:, 2]  # Red channel
-            
+
             # Apply to each channel
             b = cv2.LUT(thermal_adjusted, lut_b)
             g = cv2.LUT(thermal_adjusted, lut_g)
             r = cv2.LUT(thermal_adjusted, lut_r)
-            
+
             # Merge channels
             colorized = cv2.merge([b, g, r])
         else:
@@ -756,14 +756,14 @@ class PaletteManager:
         # Apply ROI-specific palettes (from roi_palettes dict - legacy)
         if self.roi_palettes:
             logger.debug(f"Applying {len(self.roi_palettes)} ROI palettes from config")
-        
+
         # Cleanup stale ROI palettes (self-healing)
         stale_rois = []
         for roi_id in self.roi_palettes:
             roi = roi_manager.get_roi(roi_id)
             if roi is None:
                 stale_rois.append(roi_id)
-                
+
         for roi_id in stale_rois:
             del self.roi_palettes[roi_id]
             logger.debug(f"Cleaned up stale palette for missing ROI {roi_id}")
@@ -932,7 +932,7 @@ class PaletteManager:
         Args:
             filepath: Path to load file
         """
-        with open(filepath, 'r') as f:
+        with open(filepath) as f:
             config = json.load(f)
 
         # Load global palette

@@ -8,7 +8,8 @@
 #   pip install -r requirements.txt
 #
 # For FLIR Firefly camera support:
-#   See: archive/implementation-docs/install_pyspin.md
+#   Download Spinnaker SDK: https://www.flir.com/products/spinnaker-sdk/
+#   then pip install the matching PySpin wheel from the SDK folder.
 
 # ============================================================================
 # Core Computer Vision
@@ -27,34 +28,22 @@ PyQt6>=6.0.0                # Qt6 bindings for Python (modern, actively develope
 # System Monitoring & Performance
 # ============================================================================
 psutil>=5.9.0               # System and process utilities
+# ============================================================================
+# Camera Interfaces & Hardware Communication
+# ============================================================================
+pyserial>=3.5               # Serial port communication for FLIR Boson (921600 baud) and FLIR Tau 2 (57600 baud) CCI protocols
+pygrabber>=0.2              # Native Windows DirectShow device enumeration & probing
+comtypes>=1.1.7             # DirectShow COM interface (required by pygrabber)
 
 # ============================================================================
-# FLIR Boson Serial Communication
+# Camera Plugin Support Notes:
 # ============================================================================
-pyserial>=3.5               # Serial port communication for Boson SDK/CCI protocol
-
-# ============================================================================
-# Optional: Jetson-Specific (Install separately on Jetson)
-# ============================================================================
-# jetson-stats>=4.2.0       # Jetson system monitoring (jtop)
-#   Install with: sudo pip3 install jetson-stats
-#   Requires sudo for hardware access
-
-# ============================================================================
-# Optional: FLIR Firefly Camera Support (PySpin)
-# ============================================================================
-# PySpin is NOT available on PyPI - must be installed manually
-#
-# Installation steps:
-#   1. Download Spinnaker SDK: https://www.flir.com/products/spinnaker-sdk/
-#   2. Install Spinnaker SDK for your platform
-#   3. Install PySpin wheel from SDK:
-#      - Windows: C:\Program Files\FLIR Systems\Spinnaker\bin64\vs2015\
-#      - Linux: /opt/spinnaker/lib/ or SDK download folder
-#   4. pip install spinnaker_python-X.X.X-cpXX-cpXX-[platform].whl
-#
-# See detailed guide: archive/implementation-docs/install_pyspin.md
-# Run diagnostic: python diagnose_spinnaker.py
+# 1. FLIR Boson: USB UVC Video + COM Port serial control (pyserial)
+# 2. FLIR Tau 2: USB Y16 DirectShow/V4L2 14-bit capture + COM Port serial control (pyserial)
+# 3. FLIR Lepton: SPI / VoSPI / UVC Telemetry & Radiometric ingestion
+# 4. FLIR Firefly / Blackfly (RGB): Spinnaker SDK / PySpin (optional, see below)
+# 5. Generic USB / UVC Webcams: DirectShow (Windows) / V4L2 (Linux) - zero extra dependencies
+# 6. GigE Vision (Ethernet): Pure Python GVCP UDP Port 3956 broadcast discovery & ForceIP built-in
 
 # ============================================================================
 # Development & Testing (Optional)
@@ -139,4 +128,4 @@ huggingface-hub>=0.16.0   # Model downloads and caching
 #   - Windows: Check Device Manager
 #   - Linux: ls /dev/video* or v4l2-ctl --list-devices
 #
-# For detailed help: See archive/implementation-docs/DEBUGGING_GUIDELINES.md
+# For detailed help: See README.md Troubleshooting section

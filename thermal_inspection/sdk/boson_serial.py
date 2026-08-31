@@ -18,7 +18,7 @@ import serial.tools.list_ports
 import struct
 import time
 import logging
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple
 from enum import Enum
 from dataclasses import dataclass
 
@@ -601,7 +601,7 @@ def main():
 
             # Get camera info
             info = boson.get_camera_info()
-            print(f"\nCamera Info:")
+            print("\nCamera Info:")
             print(f"  Model: {info.model}")
             print(f"  Resolution: {info.resolution[0]}x{info.resolution[1]}")
             print(f"  Serial Number: {info.serial_number or 'N/A'}")

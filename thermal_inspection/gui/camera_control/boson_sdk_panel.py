@@ -80,6 +80,11 @@ class BosonSDKPanel(QGroupBox):
         self.message_label.setStyleSheet("font-size: 9pt; color: #666;")
         layout.addWidget(self.message_label)
 
+        # FPA Temperature display
+        self.fpa_temp_label = QLabel("FPA: --")
+        self.fpa_temp_label.setStyleSheet("font-size: 9pt; color: #aaa; font-weight: bold;")
+        layout.addWidget(self.fpa_temp_label)
+
         self.setLayout(layout)
 
     def _on_connect(self):
@@ -140,4 +145,11 @@ class BosonSDKPanel(QGroupBox):
 
     def update_fpa_temperature(self, temp_k: float, temp_c: float):
         """Update FPA temperature display."""
-        pass
+        self.fpa_temp_label.setText(f"FPA: {temp_c:.1f}°C ({temp_k:.1f}K)")
+        # Color-code: green if normal range, yellow/red if hot
+        if temp_c < 40.0:
+            self.fpa_temp_label.setStyleSheet("font-size: 9pt; color: #51cf66; font-weight: bold;")
+        elif temp_c < 55.0:
+            self.fpa_temp_label.setStyleSheet("font-size: 9pt; color: #ffd43b; font-weight: bold;")
+        else:
+            self.fpa_temp_label.setStyleSheet("font-size: 9pt; color: #ff6b6b; font-weight: bold;")

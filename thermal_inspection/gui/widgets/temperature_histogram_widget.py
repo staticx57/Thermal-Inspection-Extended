@@ -73,7 +73,7 @@ class TemperatureHistogramWidget(QWidget):
         self.plot.setLabel('bottom', 'Temperature', units='°C')
         self.plot.showGrid(x=True, y=True, alpha=0.3)
         self.plot.setMinimumHeight(80)  # Ensure plot has minimum height
-        
+
         # Add plot with stretch to give it priority in layout
         layout.addWidget(self.plot, stretch=1)
 
@@ -99,7 +99,7 @@ class TemperatureHistogramWidget(QWidget):
 
     def set_temperature_unit(self, unit: str):
         """Set the temperature unit for display.
-        
+
         Args:
             unit: 'C' for Celsius, 'F' for Fahrenheit, 'K' for Kelvin, 'RAW' for raw values
         """
@@ -110,14 +110,14 @@ class TemperatureHistogramWidget(QWidget):
                 'C': '°C', 'F': '°F', 'K': 'K', 'RAW': '(raw)'
             }
             self.plot.setLabel('bottom', 'Temperature', units=unit_labels.get(unit, '°C'))
-        
+
         # Refresh if we have data
         if self.current_temps is not None:
             self.update_histogram(self.current_temps)
 
     def set_palette_lut(self, lut: np.ndarray):
         """Set the palette LUT for coloring histogram bars.
-        
+
         Args:
             lut: 256x3 numpy array of RGB colors
         """
@@ -143,14 +143,14 @@ class TemperatureHistogramWidget(QWidget):
             temperatures: 1D array of temperature values
         """
         import time
-        
+
         # Throttle updates to max 5 per second for performance
         current_time = time.time()
         if hasattr(self, '_last_update_time'):
             if current_time - self._last_update_time < 0.2:  # 200ms minimum
                 return
         self._last_update_time = current_time
-        
+
         self._do_update_histogram(temperatures)
 
     def _do_update_histogram(self, temperatures: np.ndarray):
@@ -194,7 +194,7 @@ class TemperatureHistogramWidget(QWidget):
             brush_color = (int(mid_color[2]), int(mid_color[1]), int(mid_color[0]))
         else:
             brush_color = (255, 165, 0)  # Orange fallback
-        
+
         # Use PlotCurveItem with stepMode for reliable histogram rendering
         # This works better than BarGraphItem in many PyQtGraph versions
         curve = pg.PlotCurveItem(
@@ -206,7 +206,7 @@ class TemperatureHistogramWidget(QWidget):
             pen=pg.mkPen('w', width=1)
         )
         self.plot.addItem(curve)
-        
+
         # Log for debugging
         max_count = int(max(counts)) if len(counts) > 0 else 0
         logger.info(f"Histogram: range={temp_min:.1f}-{temp_max:.1f}, bins={bins}, max_count={max_count}")

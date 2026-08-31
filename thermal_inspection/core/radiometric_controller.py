@@ -6,11 +6,10 @@ Extracted from ThermalInspectionFusion class in inspection_main.py.
 """
 
 import logging
-from typing import Optional, Callable, Dict, Any, Tuple
-from dataclasses import dataclass, field
+from typing import Optional, Callable, Dict, Any
+from dataclasses import dataclass
 from enum import Enum, auto
 
-import numpy as np
 
 logger = logging.getLogger(__name__)
 

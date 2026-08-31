@@ -153,7 +153,7 @@ class TestPaletteSwitching:
         """Test getting global palette configuration."""
         manager = PaletteManager()
         global_palette = manager.get_global_palette()
-        
+
         assert isinstance(global_palette, PaletteConfig)
 
 
@@ -166,7 +166,7 @@ class TestROIPaletteOverrides:
         manager = PaletteManager()
 
         manager.set_roi_palette("roi_1", PaletteType.RAINBOW)
-        
+
         assert manager.has_roi_palette("roi_1")
         roi_palette = manager.get_roi_palette("roi_1")
         assert roi_palette.palette_type == PaletteType.RAINBOW
@@ -203,7 +203,7 @@ class TestPaletteConfig:
     def test_palette_config_defaults(self):
         """Test PaletteConfig has sensible defaults."""
         config = PaletteConfig(palette_type=PaletteType.IRONBOW)
-        
+
         assert config.auto_contrast is True
         assert config.gamma == 1.0
         assert config.invert is False
@@ -219,7 +219,7 @@ class TestPaletteConfig:
             gamma=1.5,
             invert=True
         )
-        
+
         assert config.palette_type == PaletteType.RAINBOW
         assert config.auto_contrast is False
         assert config.contrast_min == 0.1
@@ -244,7 +244,7 @@ class TestPaletteLUT:
     def test_palette_cache_populated(self):
         """Test that palette cache is populated on init."""
         manager = PaletteManager()
-        
+
         # Most palette types should be in cache
         assert len(manager.palette_cache) > 20
 

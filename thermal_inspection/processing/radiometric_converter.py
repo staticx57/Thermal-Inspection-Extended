@@ -14,7 +14,7 @@ Supports:
 
 import numpy as np
 import logging
-from typing import Optional, Tuple, Dict
+from typing import Optional, Dict
 from pathlib import Path
 import csv
 from datetime import datetime
@@ -54,14 +54,103 @@ class TLinearConverter:
         self.calibration_offset = None
         self.is_calibrated = False
 
+        # Environmental Compensation Parameters (Radiometric Planck / Stefan-Boltzmann model)
+        self.emissivity = 0.95
+        self.distance_m = 1.0
+        self.atmospheric_temp_c = 20.0
+        self.reflected_temp_c = 20.0
+        self.atmospheric_transmission = 1.0
+        self.enable_environmental_compensation = False
+
         logger.info(f"Radiometric converter initialized (method: {method}, unit: {temperature_unit})")
 
+    def set_environmental_parameters(
+        self,
+        emissivity: Optional[float] = None,
+        distance_m: Optional[float] = None,
+        atmospheric_temp_c: Optional[float] = None,
+        reflected_temp_c: Optional[float] = None,
+        transmission: Optional[float] = None,
+        enable: Optional[bool] = None,
+    ):
+        """
+        Set environmental compensation parameters for thermal radiometric conversion.
+
+        Args:
+            emissivity: Target surface emissivity (0.01 - 1.00)
+            distance_m: Distance to target in meters
+            atmospheric_temp_c: Atmospheric temperature in Celsius
+            reflected_temp_c: Reflected background temperature in Celsius
+            transmission: Atmospheric transmission coefficient (0.01 - 1.00)
+            enable: Enable or disable environmental compensation
+        """
+        if emissivity is not None:
+            self.emissivity = float(np.clip(emissivity, 0.01, 1.00))
+        if distance_m is not None:
+            self.distance_m = max(0.1, float(distance_m))
+        if atmospheric_temp_c is not None:
+            self.atmospheric_temp_c = float(atmospheric_temp_c)
+        if reflected_temp_c is not None:
+            self.reflected_temp_c = float(reflected_temp_c)
+        if transmission is not None:
+            self.atmospheric_transmission = float(np.clip(transmission, 0.01, 1.00))
+        if enable is not None:
+            self.enable_environmental_compensation = bool(enable)
+
+        logger.info(
+            f"Environmental params set: emissivity={self.emissivity:.2f}, "
+            f"dist={self.distance_m:.1f}m, T_atm={self.atmospheric_temp_c:.1f}°C, "
+            f"T_refl={self.reflected_temp_c:.1f}°C, tau={self.atmospheric_transmission:.2f}, "
+            f"enabled={self.enable_environmental_compensation}"
+        )
+
+    def apply_environmental_compensation(self, temp_c: float | np.ndarray) -> float | np.ndarray:
+        """
+        Apply Stefan-Boltzmann radiometric radiation law to compensate apparent
+        temperature for emissivity, reflected background radiation, and atmospheric absorption.
+
+        Formula:
+            K_obj^4 = (K_apparent^4 - (1 - e)*tau*K_refl^4 - (1 - tau)*K_atm^4) / (e * tau)
+            T_obj = K_obj - 273.15
+
+        Args:
+            temp_c: Apparent temperature (or float32 array) in Celsius
+
+        Returns:
+            True compensated object surface temperature in Celsius
+        """
+        if not self.enable_environmental_compensation:
+            return temp_c
+
+        e = self.emissivity
+        tau = self.atmospheric_transmission
+        k_refl_4 = (self.reflected_temp_c + 273.15) ** 4
+        k_atm_4 = (self.atmospheric_temp_c + 273.15) ** 4
+
+        is_array = isinstance(temp_c, np.ndarray)
+        k_app = (temp_c + 273.15)
+        k_app_4 = k_app ** 4
+
+        # Compensate radiance in Kelvin^4 space
+        k_obj_4 = (k_app_4 - (1.0 - e) * tau * k_refl_4 - (1.0 - tau) * k_atm_4) / (e * tau)
+
+        # Clip to non-negative Kelvin^4 before 4th root
+        if is_array:
+            k_obj_4 = np.maximum(k_obj_4, 0.0)
+            t_obj = np.power(k_obj_4, 0.25) - 273.15
+        else:
+            k_obj_4 = max(0.0, k_obj_4)
+            t_obj = (k_obj_4 ** 0.25) - 273.15
+
+        return t_obj
+
+
     # Temperature Unit Conversion Methods
-    
+
     def celsius_to_fahrenheit(self, temp_c: float) -> float:
         """Convert Celsius to Fahrenheit. Formula: F = C * 9/5 + 32"""
         return (temp_c * 9.0 / 5.0) + 32.0
-    
+
     def fahrenheit_to_celsius(self, temp_f: float) -> float:
         """Convert Fahrenheit to Celsius. Formula: C = (F - 32) * 5/9"""
         return (temp_f - 32.0) * 5.0 / 9.0
@@ -109,7 +198,7 @@ class TLinearConverter:
             raise ValueError("Unit must be 'C', 'F', or 'K'")
         self.temperature_unit = unit
         logger.info(f"Temperature unit set to: {unit}")
-    
+
     def get_temperature_unit(self) -> str:
         """Get current temperature unit"""
         return self.temperature_unit
@@ -203,9 +292,14 @@ class TLinearConverter:
             Temperature in Celsius
         """
         if self.method == "lut" and self.lut is not None:
-            return self.pixel_to_temperature_lut(pixel_value)
+            temp_c = self.pixel_to_temperature_lut(pixel_value)
         else:
-            return self.pixel_to_temperature_linear(pixel_value)
+            temp_c = self.pixel_to_temperature_linear(pixel_value)
+
+        if temp_c is not None:
+            temp_c = self.apply_environmental_compensation(temp_c)
+
+        return temp_c
 
     def convert_frame(self, frame_16bit: np.ndarray) -> np.ndarray:
         """
@@ -243,7 +337,11 @@ class TLinearConverter:
                 normalized = (frame_16bit.astype(np.float32) - self.min_pixel_value) / (self.max_pixel_value - self.min_pixel_value)
                 temp_frame = self.min_temp_celsius + (normalized * (self.max_temp_celsius - self.min_temp_celsius))
 
+        if self.enable_environmental_compensation:
+            temp_frame = self.apply_environmental_compensation(temp_frame)
+
         return temp_frame
+
 
     def get_spot_temperature(self, frame_16bit: np.ndarray, x: int, y: int) -> Optional[float]:
         """
@@ -375,7 +473,7 @@ class TLinearConverter:
 
             lut_dict = {}
 
-            with open(filepath, 'r') as f:
+            with open(filepath) as f:
                 reader = csv.reader(f)
 
                 for i, row in enumerate(reader):
@@ -493,7 +591,7 @@ class TLinearConverter:
         errors = predicted_temps - temps
         rmse = np.sqrt(np.mean(errors ** 2))
 
-        logger.info(f"Calibration complete:")
+        logger.info("Calibration complete:")
         logger.info(f"  Reference points: {len(reference_points)}")
         logger.info(f"  RMSE: {rmse:.3f}°C")
         logger.info(f"  Max error: {np.max(np.abs(errors)):.3f}°C")
@@ -620,7 +718,7 @@ class RadiometricCalibration:
 
             self.reference_points = []
 
-            with open(filepath, 'r') as f:
+            with open(filepath) as f:
                 reader = csv.reader(f)
                 next(reader)  # Skip header
 
@@ -635,7 +733,7 @@ class RadiometricCalibration:
                     if len(row) >= 3:
                         try:
                             timestamp = datetime.fromisoformat(row[2])
-                        except:
+                        except Exception:
                             timestamp = datetime.now()
                     else:
                         timestamp = datetime.now()
@@ -684,12 +782,12 @@ if __name__ == "__main__":
     # Test spot conversion
     test_pixel = 32768  # Mid-range
     temp = converter.pixel_to_temperature(test_pixel)
-    print(f"\nSpot conversion test:")
+    print("\nSpot conversion test:")
     print(f"  Pixel value: {test_pixel}")
     print(f"  Temperature: {temp:.2f}°C")
 
     # Test frame conversion
-    print(f"\nFrame conversion test:")
+    print("\nFrame conversion test:")
     test_frame = np.random.randint(10000, 40000, size=(512, 640), dtype=np.uint16)
     temp_frame = converter.convert_frame(test_frame)
 
@@ -700,13 +798,13 @@ if __name__ == "__main__":
         print(f"  Mean temperature: {temp_frame.mean():.1f}°C")
 
     # Test calibration
-    print(f"\nCalibration test:")
+    print("\nCalibration test:")
     calib = RadiometricCalibration()
     calib.add_reference_point(7500, 0.0)    # Ice water
     calib.add_reference_point(45000, 100.0)  # Boiling water
 
     if calib.compute_calibration(converter):
-        print(f"  Calibration applied successfully")
+        print("  Calibration applied successfully")
 
         # Test calibrated conversion
         temp_calibrated = converter.pixel_to_temperature(test_pixel)
