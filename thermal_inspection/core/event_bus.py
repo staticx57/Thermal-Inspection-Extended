@@ -35,7 +35,6 @@ class AppEventBus(QObject):
     camera_command_requested = pyqtSignal(str, str, dict)   # (role: 'thermal'|'rgb', command_name: str, params: dict)
     camera_reassign_requested = pyqtSignal(int, int)        # (thermal_id, rgb_id)
     device_changed = pyqtSignal(str)                        # device_name
-    thermal_backend_changed = pyqtSignal(str)               # backend_id
 
     # Camera Feedback Signals
     camera_command_result = pyqtSignal(str, str, dict)      # (role, command_name, result_dict)

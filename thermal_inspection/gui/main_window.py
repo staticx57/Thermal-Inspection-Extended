@@ -19,7 +19,7 @@ from PyQt6.QtGui import QColor
 
 # Import themes
 from thermal_inspection.gui.themes import (
-    DARK_THEME, LIGHT_THEME, THEMES
+    DARK_THEME, LIGHT_THEME, THEMES, STATE_COLORS_QSS
 )
 
 # Import widgets
@@ -441,7 +441,6 @@ class InspectionAppWindow(QMainWindow):
 
         # === SETTINGS PANEL ===
         self._safe_connect("settings_panel", "device_changed", self._on_device_changed, "(settings)")
-        self._safe_connect("settings_panel", "backend_changed", self._on_radiometric_backend_changed, "(settings)")
         self._safe_connect("settings_panel", "theme_changed", self._on_theme_changed, "(settings)")
         self._safe_connect("settings_panel", "baseline_lock_toggled", self._on_baseline_toggle, "(settings)")
         self._safe_connect("settings_panel", "palette_changed", self._on_global_palette_changed, "(settings)")
@@ -577,7 +576,6 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("radiometric_panel", "temperature_unit_changed", self._on_radiometric_temp_unit_changed, "(radiometric unit)")
         self._safe_connect("radiometric_panel", "max_hot_spots_changed", self._on_radiometric_max_hot_spots_changed, "(radiometric spots)")
         self._safe_connect("radiometric_panel", "max_cold_spots_changed", self._on_radiometric_max_cold_spots_changed, "(radiometric spots)")
-        self._safe_connect("radiometric_panel", "backend_changed", self._on_radiometric_backend_changed, "(radiometric backend)")
 
         # === GENERAL ANALYSIS PANEL Detection Toggles ===
         self._safe_connect("analysis_panel.show_hot_spots_checkbox", "toggled", self._on_show_hot_spots_toggled, "(detection toggle)")
@@ -828,7 +826,21 @@ class InspectionAppWindow(QMainWindow):
     def _on_bus_camera_command_result(self, role: str, command: str, result: dict):
         """React to generic camera command execution result."""
         success = result.get('success', False)
-        for panel in getattr(self, 'camera_panels', {}).values():
+
+        # camera_panels is keyed by plugin_id, not role - resolve to the one
+        # panel that actually issued this command. Iterating every panel
+        # unfiltered fed every camera's command results (including another
+        # camera's FPA-temp tuple/shape) into every OTHER camera's panel,
+        # e.g. a connected Boson's result reaching Tau2ControlPanel and
+        # crashing it on a value it never expected.
+        target_panel = None
+        if self.app and hasattr(self.app, 'plugin_host'):
+            active = self.app.plugin_host.get_active_camera(role)
+            if active:
+                target_panel = getattr(self, 'camera_panels', {}).get(active.plugin.plugin_id)
+        panels = [target_panel] if target_panel else []
+
+        for panel in panels:
             if command == 'ffc' and hasattr(panel, 'set_status'):
                 if success:
                     panel.set_status("FFC completed successfully")
@@ -846,20 +858,49 @@ class InspectionAppWindow(QMainWindow):
 
     def _on_bus_sdk_connected(self, role: str, info: dict):
         """React to camera SDK connection."""
-        for panel in getattr(self, 'camera_panels', {}).values():
-            if hasattr(panel, 'update_connection_status'):
-                panel.update_connection_status(True)
-            if info and hasattr(panel, 'update_camera_info'):
+        # Same role -> plugin_id -> panel resolution as
+        # _on_bus_camera_command_result - broadcasting to every panel showed
+        # "Connected" on cameras that were never touched.
+        target_panel = None
+        if self.app and hasattr(self.app, 'plugin_host'):
+            active = self.app.plugin_host.get_active_camera(role)
+            if active:
+                target_panel = getattr(self, 'camera_panels', {}).get(active.plugin.plugin_id)
+
+        if target_panel:
+            if hasattr(target_panel, 'update_connection_status'):
+                target_panel.update_connection_status(True)
+            if info and hasattr(target_panel, 'update_camera_info'):
                 try:
-                    panel.update_camera_info(info)
+                    target_panel.update_camera_info(info)
                 except Exception:
                     pass
 
+        # 8-bit estimation is a stand-in for cameras that can't produce true
+        # calibrated temperature; only offer it once we can tell (SDK
+        # connected) and only for non-radiometric hardware. A radiometric
+        # camera should use its real conversion, not an AGC guess.
+        if role == 'thermal' and hasattr(self, 'radiometric_panel'):
+            # Default True (assume radiometric) when a plugin doesn't report
+            # this key at all — Tau2/Lepton already do real conversion via
+            # their own path, and offering an AGC-guess toggle on top of a
+            # camera that already produces calibrated temperatures would be
+            # actively misleading, not just redundant.
+            is_rad = bool((info or {}).get('radiometric_capable', True))
+            self.radiometric_panel.set_8bit_estimation_available(not is_rad)
+
     def _on_bus_sdk_disconnected(self, role: str):
         """React to camera SDK disconnection."""
-        for panel in getattr(self, 'camera_panels', {}).values():
-            if hasattr(panel, 'update_connection_status'):
-                panel.update_connection_status(False)
+        target_panel = None
+        if self.app and hasattr(self.app, 'plugin_host'):
+            active = self.app.plugin_host.get_active_camera(role)
+            if active:
+                target_panel = getattr(self, 'camera_panels', {}).get(active.plugin.plugin_id)
+        if target_panel and hasattr(target_panel, 'update_connection_status'):
+            target_panel.update_connection_status(False)
+
+        if role == 'thermal' and hasattr(self, 'radiometric_panel'):
+            self.radiometric_panel.set_8bit_estimation_available(False)
 
     def _on_bus_camera_connected(self, role: str, capabilities: dict):
         """React to camera hardware hotplug connection and focus active panel."""
@@ -1043,12 +1084,16 @@ class InspectionAppWindow(QMainWindow):
             hour = datetime.datetime.now().hour
             actual_theme = "Light Mode" if 7 <= hour < 19 else "Dark Mode"
 
+        # STATE_COLORS_QSS is appended after every theme (not baked into
+        # each one) so recording/frozen/primary-action buttons keep a fixed,
+        # recognizable color while inheriting that theme's own QPushButton
+        # border-radius/padding/border via the cascade - see its docstring.
         if actual_theme in THEMES:
-            self.setStyleSheet(THEMES[actual_theme])
+            self.setStyleSheet(THEMES[actual_theme] + STATE_COLORS_QSS)
         elif actual_theme == "light":
-            self.setStyleSheet(THEMES.get("Light Mode", LIGHT_THEME))
+            self.setStyleSheet(THEMES.get("Light Mode", LIGHT_THEME) + STATE_COLORS_QSS)
         elif actual_theme == "dark":
-            self.setStyleSheet(THEMES.get("Dark Mode", DARK_THEME))
+            self.setStyleSheet(THEMES.get("Dark Mode", DARK_THEME) + STATE_COLORS_QSS)
         else:
             logger.warning(f"Unknown theme: {actual_theme}")
 
@@ -1077,14 +1122,6 @@ class InspectionAppWindow(QMainWindow):
     # ========================================================================
     # Signal Handler Methods
     # ========================================================================
-
-    def _on_radiometric_backend_changed(self, backend_text: str):
-        backend_id = "flirpy" if "Flirpy" in backend_text else "opencv"
-        logger.info(f"Radiometric backend switch requested: {backend_text} -> {backend_id}")
-        if self.event_bus:
-            self.event_bus.thermal_backend_changed.emit(backend_id)
-        elif self.app:
-            self.app.switch_thermal_backend(backend_id)
 
     def _on_radiometric_max_cold_spots_changed(self, count: int):
         if self.event_bus:
@@ -1210,31 +1247,58 @@ class InspectionAppWindow(QMainWindow):
         """Handle 8-bit estimation toggle."""
         if self.event_bus:
             self.event_bus.estimation_8bit_enabled_changed.emit(enabled)
-        elif self.app and hasattr(self.app, 'thermal_analyzer'):
-            self.app.thermal_analyzer.estimator_enabled = enabled
         logger.info(f"8-bit estimator enabled: {enabled}")
 
     def _on_temperature_range_changed(self, low: float, high: float):
         """Handle temperature range change for estimation."""
         if self.event_bus:
             self.event_bus.estimation_range_changed.emit(low, high)
-        elif self.app and hasattr(self.app, 'thermal_analyzer'):
-            self.app.thermal_analyzer.set_estimation_range(low, high)
 
-    def _on_calibrate_single_point(self, temp: float):
-        """Handle single point calibration."""
+    def _on_calibrate_single_point(self):
+        """
+        Handle single point calibration.
+
+        radiometric_panel.calibrate_single_point_requested fires with no
+        arguments (it's just a button click) — the reference temperature
+        has no other input field in the UI, so it's collected here.
+        """
+        from PyQt6.QtWidgets import QInputDialog
+        temp, ok = QInputDialog.getDouble(
+            self, "Single-Point Calibration",
+            "Known reference temperature (°C) at the center of frame\n"
+            "(point the camera at the reference object first):",
+            20.0, -40.0, 550.0, 1
+        )
+        if not ok:
+            return
         if self.event_bus:
             self.event_bus.calibrate_single_point_requested.emit(temp)
-        elif self.app and hasattr(self.app, 'thermal_analyzer'):
-            self.app.thermal_analyzer.calibrate_single_point(temp)
         logger.info(f"Single point calibration triggered at {temp}")
 
-    def _on_calibrate_two_point(self, t1: float, t2: float):
-        """Handle two point calibration."""
+    def _on_calibrate_two_point(self):
+        """
+        Handle two point calibration.
+
+        Same no-argument signal as above. Both reference temperatures are
+        collected here; app.py samples the coldest/hottest points already
+        in the current frame, so both references need to be visible in the
+        same shot (e.g. ice water and boiling water side by side).
+        """
+        from PyQt6.QtWidgets import QInputDialog
+        t1, ok1 = QInputDialog.getDouble(
+            self, "Two-Point Calibration",
+            "Cold reference temperature (°C):", 0.0, -40.0, 550.0, 1
+        )
+        if not ok1:
+            return
+        t2, ok2 = QInputDialog.getDouble(
+            self, "Two-Point Calibration",
+            "Hot reference temperature (°C):", 100.0, -40.0, 550.0, 1
+        )
+        if not ok2:
+            return
         if self.event_bus:
             self.event_bus.calibrate_two_point_requested.emit(t1, t2)
-        elif self.app and hasattr(self.app, 'thermal_analyzer'):
-            self.app.thermal_analyzer.calibrate_two_point(t1, t2)
         logger.info(f"Two point calibration triggered: {t1}, {t2}")
 
     def _on_radiometric_temp_unit_changed(self, unit: str):
@@ -1256,6 +1320,12 @@ class InspectionAppWindow(QMainWindow):
             self.event_bus.fusion_mode_changed.emit(mode)
         elif self.app:
             self.app.set_fusion_mode(mode)
+        # The overlay's coordinate transform needs to know when the Fusion
+        # Mode dropdown itself picks a layout-changing algorithm (e.g.
+        # 'side_by_side') - this used to only resync on the top-level View
+        # Mode button, so choosing that layout from here left the overlay
+        # thinking it was still in generic single-frame 'fusion' mode.
+        self._sync_overlay_view_mode()
         logger.info(f"Fusion mode changed to: {mode}")
 
     def _on_fusion_alpha_changed(self, val: float):
@@ -1576,6 +1646,20 @@ class InspectionAppWindow(QMainWindow):
         if hasattr(self.app, 'fusion_processor') and self.app.fusion_processor:
             fusion_priority = getattr(self.app.fusion_processor, 'fusion_priority', 'thermal')
 
+        # ViewMode.FUSION collapses every FusionProcessor.fusion_mode choice
+        # to the single generic string 'fusion', but the overlay's
+        # coordinate transform has dedicated layout-aware handling only for
+        # specific mode strings like 'side_by_side' - selecting that
+        # algorithm from the Fusion Mode dropdown (as opposed to the
+        # top-level View Mode button) never reached that branch, so
+        # coordinates meant to stay within the thermal half were instead
+        # scaled across the entire combined frame's width. Surface the
+        # actual algorithm the overlay needs to know about.
+        if view_mode == ViewMode.FUSION and self.app.fusion_processor:
+            inner_mode = getattr(self.app.fusion_processor, 'fusion_mode', None)
+            if inner_mode == 'side_by_side':
+                mode_str = 'side_by_side'
+
         # Update overlay
         self.video_widget.overlay.set_view_mode(mode_str, fusion_priority)
         logger.debug(f"Overlay synced: mode={mode_str}, priority={fusion_priority}")
@@ -1842,7 +1926,10 @@ class InspectionAppWindow(QMainWindow):
         logger.info("Clear all spots requested")
         self.measurement_points.clear()
         if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
-            self.video_widget.overlay.clear_spots()
+            # overlay.clear_spots() never existed - the overlay's own spot
+            # list is only ever set via update_measurement_points().
+            self.video_widget.overlay.update_measurement_points([])
+            self.video_widget.overlay.update()
         if hasattr(self.analysis_panel, 'spot_meter_panel'):
             self.analysis_panel.spot_meter_panel.clear_all_spots()
 

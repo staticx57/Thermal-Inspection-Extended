@@ -318,12 +318,23 @@ class Tau2Serial:
 
 
 def scan_tau2_ports() -> List[str]:
-    """Scan available serial ports for potential Tau 2 camera interfaces."""
+    """
+    Find COM ports a Tau 2 breakout board's CCI serial interface is likely on.
+
+    "flir" is deliberately excluded from the keyword match - a Boson's own
+    serial control port also self-identifies as "FLIR Control", and with
+    both cameras attached this keyword claimed the Boson's COM port as a
+    Tau2 candidate too. Returns empty (not "every port on the system") when
+    nothing matches: a Tau2 breakout board with no exposed CCI line (video-
+    only, confirmed to exist in the wild) has no serial port at all, and
+    guessing a random unrelated port (Bluetooth, AMT SOL) to connect to is
+    worse than reporting none.
+    """
     ports = serial.tools.list_ports.comports()
     results = []
     for p in ports:
         desc = (p.description or "").lower()
         hwid = (p.hwid or "").lower()
-        if any(k in desc or k in hwid for k in ["tau", "flir", "ftdi", "thermalcapture", "usb serial"]):
+        if any(k in desc or k in hwid for k in ["tau", "ftdi", "thermalcapture"]):
             results.append(p.device)
-    return results if results else [p.device for p in ports]
+    return results

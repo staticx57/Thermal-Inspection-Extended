@@ -190,17 +190,26 @@ class CameraPluginHost(QObject):
             with self._lock:
                 self._active_cameras[role_key] = active
 
-            # 4. Attempt automatic SDK connection if COM port provided
+            # 4. Attempt automatic SDK connection.
+            #
+            # This used to be gated behind `if target_match.com_port:`,
+            # written back when every plugin's SDK was serial (Boson/Tau2).
+            # UVC and GigE cameras have a real CameraSDK too (their connect()
+            # just checks the backend's already-open capture handle - no
+            # port needed), but com_port is always None for them, so that
+            # gate silently skipped sdk.connect() and the sdk_connected
+            # emit entirely - their control panels never got
+            # on_sdk_connected()/update_camera_info(), so e.g. the USB
+            # Webcam tab stayed blank even with a camera actively streaming.
             if sdk:
-                if target_match.com_port:
-                    try:
-                        ok = sdk.connect()
-                        if ok:
-                            plugin.on_sdk_connected(sdk, panel)
-                            info_res = sdk.execute("get_camera_info")
-                            self.sdk_connected.emit(role_key, info_res if info_res.get("success") else {})
-                    except Exception as e:
-                        logger.warning(f"Initial SDK connect on {target_match.com_port} failed: {e}")
+                try:
+                    ok = sdk.connect()
+                    if ok:
+                        plugin.on_sdk_connected(sdk, panel)
+                        info_res = sdk.execute("get_camera_info")
+                        self.sdk_connected.emit(role_key, info_res if info_res.get("success") else {})
+                except Exception as e:
+                    logger.warning(f"Initial SDK connect for '{plugin.plugin_id}' failed: {e}")
 
             # 5. Emit events
             #

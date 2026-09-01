@@ -48,7 +48,7 @@ class GradientOverlayPanel(QWidget):
         desc = QLabel("Visualizes areas of rapid temperature change. "
                      "Useful for detecting thermal boundaries and anomalies.")
         desc.setWordWrap(True)
-        desc.setStyleSheet("color: #888; font-size: 10px;")
+        desc.setStyleSheet("color: #888888; font-size: 10px;")
         layout.addWidget(desc)
 
         # Mode selection

@@ -452,23 +452,23 @@ class InspectionOverlayWidget(QWidget):
 
             if roi.roi_type == ROIType.RECTANGLE:
                 x, y, w, h = roi.get_bbox()
-                wx1, wy1 = self.frame_to_widget(x, y)
-                wx2, wy2 = self.frame_to_widget(x + w, y + h)
+                wx1, wy1 = self._transform_thermal_coords(x, y)
+                wx2, wy2 = self._transform_thermal_coords(x + w, y + h)
                 painter.drawRect(wx1, wy1, wx2 - wx1, wy2 - wy1)
             elif roi.roi_type == ROIType.POLYGON:
                 from PyQt6.QtCore import QPoint
-                points = [QPoint(int(self.frame_to_widget(p[0], p[1])[0]),
-                                int(self.frame_to_widget(p[0], p[1])[1])) for p in roi.points]
+                points = [QPoint(int(self._transform_thermal_coords(p[0], p[1])[0]),
+                                int(self._transform_thermal_coords(p[0], p[1])[1])) for p in roi.points]
                 painter.drawPolygon(QPolygon(points))
             elif roi.roi_type == ROIType.ELLIPSE:
                 x, y, w, h = roi.get_bbox()
-                wx1, wy1 = self.frame_to_widget(x, y)
-                wx2, wy2 = self.frame_to_widget(x + w, y + h)
+                wx1, wy1 = self._transform_thermal_coords(x, y)
+                wx2, wy2 = self._transform_thermal_coords(x + w, y + h)
                 painter.drawEllipse(wx1, wy1, wx2 - wx1, wy2 - wy1)
             elif roi.roi_type == ROIType.CIRCLE:
                 x, y, w, h = roi.get_bbox()
-                wx1, wy1 = self.frame_to_widget(x, y)
-                wx2, wy2 = self.frame_to_widget(x + w, y + h)
+                wx1, wy1 = self._transform_thermal_coords(x, y)
+                wx2, wy2 = self._transform_thermal_coords(x + w, y + h)
                 ww = wx2 - wx1
                 radius = int(ww / 2)
                 center_x = int(wx1 + radius)
@@ -481,7 +481,7 @@ class InspectionOverlayWidget(QWidget):
                     display_text += f" [{roi.custom_palette}]"
 
                 x, y, _, _ = roi.get_bbox()
-                wx, wy = self.frame_to_widget(x, y)
+                wx, wy = self._transform_thermal_coords(x, y)
                 draw_label(int(wx), int(wy) - 5, display_text, color)
 
         # Draw hot spots

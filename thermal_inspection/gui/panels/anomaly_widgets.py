@@ -124,7 +124,7 @@ class ManualThresholdWidget(QWidget):
         threshold_layout.addLayout(max_layout)
 
         self.threshold_hint = QLabel("Using percentage (0-100%)")
-        self.threshold_hint.setStyleSheet("font-size: 9px; color: #888;")
+        self.threshold_hint.setStyleSheet("font-size: 9px; color: #888888;")
         threshold_layout.addWidget(self.threshold_hint)
 
         config_layout.addWidget(threshold_group)
@@ -157,7 +157,7 @@ class ManualThresholdWidget(QWidget):
         stats_layout.addWidget(self.anomaly_percentage_label)
 
         self.anomaly_count_label = QLabel("0 / 0 pixels")
-        self.anomaly_count_label.setStyleSheet("font-size: 10px; color: #888;")
+        self.anomaly_count_label.setStyleSheet("font-size: 10px; color: #888888;")
         stats_layout.addWidget(self.anomaly_count_label)
 
         config_layout.addWidget(stats_group)

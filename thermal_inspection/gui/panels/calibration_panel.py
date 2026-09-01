@@ -54,12 +54,12 @@ class CalibrationPanel(QWidget):
         status_layout.setSpacing(6)
 
         self.status_label = QLabel("Not Calibrated")
-        self.status_label.setStyleSheet("color: #ff6b6b; font-weight: bold; font-size: 11pt;")
+        self.status_label.setStyleSheet("color: #ff4444; font-weight: bold; font-size: 11pt;")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         status_layout.addWidget(self.status_label)
 
         self.stats_label = QLabel("No calibration points")
-        self.stats_label.setStyleSheet("color: #666; font-size: 9pt;")
+        self.stats_label.setStyleSheet("color: #888888; font-size: 9pt;")
         self.stats_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         status_layout.addWidget(self.stats_label)
 
@@ -76,7 +76,7 @@ class CalibrationPanel(QWidget):
         # Instructions
         instructions = QLabel("1. Point camera at reference source\n2. Enter known temperature\n3. Click on thermal view")
         instructions.setWordWrap(True)
-        instructions.setStyleSheet("color: #888; font-size: 9pt;")
+        instructions.setStyleSheet("color: #888888; font-size: 9pt;")
         add_layout.addWidget(instructions)
 
         # Reference temperature input
@@ -214,14 +214,16 @@ class CalibrationPanel(QWidget):
 
     def _on_add_point_mode_toggled(self, checked: bool):
         """Handle add point mode toggle."""
+        # No manual setStyleSheet() here - the button is already
+        # setCheckable(True), so every theme's native QPushButton:checked
+        # style already highlights it; a manual override on top both
+        # duplicated that and discarded the theme's border-radius/padding.
         if checked:
             self.add_point_btn.setText("🎯 Click Thermal View (Active)")
-            self.add_point_btn.setStyleSheet("background-color: #4a4; font-weight: bold;")
             # Emit signal with current reference temperature
             self.add_calibration_point_clicked.emit(self.ref_temp_spin.value())
         else:
             self.add_point_btn.setText("📍 Click Thermal View to Add Point")
-            self.add_point_btn.setStyleSheet("")
 
     def _on_compute_calibration(self):
         """Handle compute calibration button click."""
@@ -286,7 +288,7 @@ class CalibrationPanel(QWidget):
         """
         if is_calibrated and stats:
             self.status_label.setText("✓ Calibrated")
-            self.status_label.setStyleSheet("color: #51cf66; font-weight: bold; font-size: 11pt;")
+            self.status_label.setStyleSheet("color: #4CAF50; font-weight: bold; font-size: 11pt;")
 
             stats_text = f"Points: {stats.get('point_count', 0)} | "
             stats_text += f"Method: {stats.get('method', 'unknown').capitalize()} | "
@@ -297,7 +299,7 @@ class CalibrationPanel(QWidget):
             self.export_btn.setEnabled(True)
         else:
             self.status_label.setText("Not Calibrated")
-            self.status_label.setStyleSheet("color: #ff6b6b; font-weight: bold; font-size: 11pt;")
+            self.status_label.setStyleSheet("color: #ff4444; font-weight: bold; font-size: 11pt;")
 
             point_count = stats.get('point_count', 0) if stats else 0
             if point_count > 0:

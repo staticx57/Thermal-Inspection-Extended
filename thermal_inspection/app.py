@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 import cv2
 import numpy as np
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, Qt
 
 from .core import (
     FusionController, FusionState, ViewMode,
@@ -39,7 +39,6 @@ class AppConfig:
     disable_rgb: bool = False
     width: int = 640
     height: int = 512
-    thermal_backend: str = 'opencv'
     enable_boson_sdk: bool = True
     boson_com_port: str = 'COM7'
 
@@ -56,6 +55,10 @@ class AppConfig:
     gui_type: str = 'qt'
     headless: bool = False
 
+    # Automated testing: self-drive through every fusion mode instead of
+    # requiring manual UI clicking, then exit. None disables it.
+    auto_cycle_fusion_modes: Optional[float] = None
+
     @classmethod
     def from_args(cls, args) -> 'AppConfig':
         """Create config from argparse namespace."""
@@ -65,7 +68,6 @@ class AppConfig:
             disable_rgb=getattr(args, 'disable_rgb', False),
             width=getattr(args, 'width', 640),
             height=getattr(args, 'height', 512),
-            thermal_backend=getattr(args, 'thermal_backend', 'opencv'),
             enable_boson_sdk=getattr(args, 'enable_boson_sdk', True),
             boson_com_port=getattr(args, 'boson_com_port', 'COM7'),
             fusion_mode=getattr(args, 'fusion_mode', 'thermal_overlay'),
@@ -75,6 +77,7 @@ class AppConfig:
             radiometric=getattr(args, 'radiometric', False),
             gui_type=getattr(args, 'gui', 'qt'),
             headless=getattr(args, 'headless', False),
+            auto_cycle_fusion_modes=getattr(args, 'auto_cycle_fusion_modes', None),
         )
 
 
@@ -145,14 +148,44 @@ class ThermalInspectionApp:
         self.view_mode = ViewMode.THERMAL_ONLY # Initial default
         self.args = config # Legacy compatibility for GUI
 
+        # Automated fusion-mode sweep (see AppConfig.auto_cycle_fusion_modes) -
+        # self-drives through every mode instead of requiring manual UI
+        # clicking, for performance testing. None/-1 idx = not yet started.
+        self._auto_cycle_modes = None
+        self._auto_cycle_idx = -1
+        self._auto_cycle_deadline = 0.0
+
+        # Throttle for handing frames to ThreadedAnalyzer - see its
+        # submission call site in _process_frame_loop for why.
+        self._last_analysis_submit_time = 0.0
+        self._analysis_submit_interval_s = 1.0 / 30.0
+
         # New: Processing loop state
         self.timer = QTimer()
+        # Qt's default CoarseTimer can coalesce/drift by several ms on
+        # Windows (~15.6ms system tick) - a big fraction of an 8ms nominal
+        # interval, which reads as uneven frame pacing ("jumpy") even when
+        # the averaged fps looks fine over a 30-frame window. PreciseTimer
+        # asks for real millisecond accuracy instead.
+        self.timer.setTimerType(Qt.TimerType.PreciseTimer)
         self.timer.timeout.connect(self._process_frame_loop)
         self.frame_count = 0
         self.last_fps_time = time.time()
         self.frame_times = []
         self.smoothed_fps = 0.0
         self._health_check_counter = 0
+
+        # thermal_analyzer.analyze() (stats/hot/cold/anomaly detection, plus
+        # the 8-bit estimator when enabled) costs 10-40ms/frame on a
+        # 640x512 frame. Running it inline on this thread capped video
+        # rendering at that same rate regardless of CPU power, since a
+        # single synchronous call blocks everything else in this loop
+        # until it returns - more cores don't parallelize one sequential
+        # call. See processing/threaded_analyzer.py: it now runs on its
+        # own thread, and this loop just reads whatever its latest
+        # completed result is, non-blocking, so video rendering is no
+        # longer gated by analysis cost at all.
+        self._last_analysis_results = None
 
         # Placeholders
         self.thermal_placeholder = None
@@ -332,7 +365,6 @@ class ThermalInspectionApp:
             lambda low, high: self.radiometric_controller.set_temperature_range(low, high)
         )
         bus.radiometric_method_changed.connect(self._bus_set_radiometric_method)
-        bus.thermal_backend_changed.connect(self._bus_switch_thermal_backend)
 
         # --- Camera management ---
         bus.device_changed.connect(
@@ -380,6 +412,16 @@ class ThermalInspectionApp:
             self.camera_state.is_radiometric = is_rad
             self.radiometric_controller.state.capable = is_rad
             self.radiometric_controller.state.enabled = is_rad
+            self.radiometric_controller.state.mode = "16-bit Radiometric" if is_rad else "8-bit AGC"
+            if self.thermal_analyzer:
+                self.thermal_analyzer.set_radiometric_mode(is_rad)
+            # Setting the dataclass fields above doesn't itself notify
+            # listeners (only the controller's own setter methods do) - the
+            # radiometric panel's "Active Mode" banner was stuck on its
+            # construction-time "Checking..." placeholder forever because
+            # nothing ever pushed a first real state to it. Reuse the same
+            # state-change handler camera connect uses everywhere else.
+            self._on_radiometric_state_change(self.radiometric_controller.state)
 
             active = self.plugin_host.get_active_camera('thermal')
             if active:
@@ -411,6 +453,13 @@ class ThermalInspectionApp:
             self.camera_state.is_firefly = False
             self.camera_state.is_radiometric = False
             self.camera_state.thermal_device_id = None
+            self.radiometric_controller.state.capable = False
+            self.radiometric_controller.state.enabled = False
+            self.radiometric_controller.state.mode = '8-bit AGC'
+            self.radiometric_controller.state.estimation_enabled = False
+            if self.thermal_analyzer:
+                self.thermal_analyzer.set_radiometric_mode(False)
+            self._on_radiometric_state_change(self.radiometric_controller.state)
             self._restart_threaded_capture()
         elif role == 'rgb':
             self.camera_state.rgb_available = False
@@ -618,7 +667,7 @@ class ThermalInspectionApp:
 
     def _on_fusion_mode_change(self, mode: str):
         """Handle fusion mode change."""
-        if self.gui and hasattr(self.gui, 'control_panel'):
+        if self.gui and hasattr(self.gui, 'control_panel') and hasattr(self.gui.control_panel, 'update_fusion_mode_button'):
             self.gui.control_panel.update_fusion_mode_button(mode)
 
     def _on_rois_changed(self, roi_data: dict):
@@ -631,6 +680,19 @@ class ThermalInspectionApp:
         if self.gui and hasattr(self.gui, 'radiometric_panel'):
             self.gui.radiometric_panel.set_radiometric_status(
                 state.capable, state.enabled, state.mode
+            )
+
+            active = self.radiometric_controller.get_active_mode()
+            # get_active_mode()'s vocabulary ('radiometric'/'estimated'/'agc',
+            # accuracy as 'high'/'medium'/'relative') and the banner's
+            # ('16bit'/'8bit'/'none', accuracy as a literal +/-X C string)
+            # were never reconciled - translate between them here.
+            mode_map = {'radiometric': '16bit', 'estimated': '8bit', 'agc': 'none'}
+            accuracy_map = {'radiometric': '±2°C', 'estimated': '±5-10°C', 'agc': 'N/A'}
+            self.gui.radiometric_panel.update_active_mode_status(
+                mode_map.get(active['mode'], 'none'),
+                accuracy_map.get(active['mode'], 'N/A'),
+                active['description']
             )
 
     def initialize(self) -> bool:
@@ -682,6 +744,18 @@ class ThermalInspectionApp:
 
             self.thermal_processor = ThermalProcessor({'device': self.config.device})
             self.thermal_analyzer = ThermalAnalyzer()
+
+            from .utils.thermal_estimator import ThermalTemperatureEstimator
+            self.thermal_estimator = ThermalTemperatureEstimator()
+            self._last_fpa_temp_c: Optional[float] = None
+            # hot/cold-spot detection and frame stats live in thermal_analyzer,
+            # which needs the estimator directly to convert AGC values itself.
+            self.thermal_analyzer.thermal_estimator = self.thermal_estimator
+
+            from .processing.threaded_analyzer import ThreadedAnalyzer
+            self.threaded_analyzer = ThreadedAnalyzer(self.thermal_analyzer)
+            self.threaded_analyzer.start()
+
             self.roi_manager = ROIManager()
             self.palette_manager = PaletteManager({'default_palette': self.config.palette})
 
@@ -751,8 +825,14 @@ class ThermalInspectionApp:
         self.running = True
         logger.info("Starting main loop")
 
-        # Start frame loop immediately in placeholder mode
-        self.timer.start(33)
+        # Start frame loop immediately in placeholder mode.
+        # threaded_capture.get_frames() returns the latest cached frame
+        # non-blocking, so this interval isn't "the" frame rate — it's just
+        # how often we poll for one. 33ms hardcoded a ~30fps ceiling on every
+        # camera combination, including the 60fps thermal path; poll fast
+        # enough that actual throughput is bounded by real per-frame work,
+        # not this timer.
+        self.timer.start(8)
 
         # Kick off camera detection in background after Qt is running
         if self.qt_app:
@@ -858,6 +938,8 @@ class ThermalInspectionApp:
         logger.info("Cleaning up...")
         self.running = False
         self.timer.stop()
+        if getattr(self, 'threaded_analyzer', None):
+            self.threaded_analyzer.stop()
 
         # Stop any active recording cleanly before camera release
         if self.media_manager:
@@ -942,9 +1024,37 @@ class ThermalInspectionApp:
         """Set temperature display unit."""
         self.radiometric_controller.set_temperature_unit(unit)
 
-    def enable_radiometric(self, enable: bool):
-        """Enable/disable radiometric mode."""
-        return self.radiometric_controller.enable_radiometric(enable)
+    def enable_radiometric(self, enable: bool) -> bool:
+        """
+        Enable/disable radiometric mode.
+
+        The active thermal plugin owns the actual switching mechanism (SDK
+        calls, backend swap, whatever a given camera needs) - this only
+        asks for it and reflects the real outcome. It used to go through
+        radiometric_controller.enable_radiometric(), which called
+        self.thermal_camera.enable_radiometric() on the backend object;
+        that backend no longer owns an SDK connection at all (disabled to
+        fix a port conflict with the plugin's own connection - see
+        BosonPlugin.create_backend), so that path was silently a no-op.
+        """
+        result = self.plugin_host.execute_command('thermal', 'set_radiometric_mode', {'enabled': enable})
+        success = result.get('success', False)
+        actual_enabled = enable if success else self.radiometric_controller.state.enabled
+
+        self.radiometric_controller.state.enabled = actual_enabled
+        self.camera_state.is_radiometric = actual_enabled and self.radiometric_controller.state.capable
+        if self.thermal_analyzer:
+            self.thermal_analyzer.set_radiometric_mode(self.camera_state.is_radiometric)
+        self._on_radiometric_state_change(self.radiometric_controller.state)
+
+        if self.gui:
+            for panel in getattr(self.gui, 'camera_panels', {}).values():
+                if hasattr(panel, 'update_radiometric_mode_status'):
+                    panel.update_radiometric_mode_status(actual_enabled, success)
+
+        if not success:
+            logger.warning(f"set_radiometric_mode({enable}) failed: {result.get('error')}")
+        return success
 
     def reassign_cameras(self, thermal_id: int, rgb_id: int):
         """Reassign camera device IDs."""
@@ -969,7 +1079,6 @@ class ThermalInspectionApp:
             finally:
                 self._suppress_capture_restart = False
 
-            cv2.waitKey(1)
             time.sleep(1.0)
             self._init_cameras_sync()
             return True
@@ -1047,15 +1156,6 @@ class ThermalInspectionApp:
             r_id if r_id is not None else 1,
         )
 
-    def switch_thermal_backend(self, backend_id: str):
-        """Switch thermal camera backend."""
-        logger.info(f"Switching thermal backend to {backend_id}")
-        self.config.thermal_backend = backend_id
-        return self.reassign_cameras(
-            self.camera_state.thermal_device_id,
-            self.camera_state.rgb_device_id
-        )
-
     def trigger_ffc(self):
         """Trigger Flat Field Correction (FFC)."""
         return self.plugin_host.execute_command("thermal", "ffc")
@@ -1074,6 +1174,70 @@ class ThermalInspectionApp:
         cv2.putText(self.rgb_placeholder, "NO RGB SIGNAL", (w//3, h//2),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 200), 2)
 
+    def _auto_cycle_fusion_modes_tick(self):
+        """
+        Self-drive through every fusion mode when --auto-cycle-fusion-modes
+        is set, instead of requiring someone to click through the UI. Each
+        tick just checks a deadline - cheap enough to call unconditionally
+        from the render loop, and it's a no-op (single None check) when the
+        flag isn't set.
+
+        Written for automated performance testing (e.g. sweeping fusion_ms/
+        fps/jitter across every mode without a human present at the
+        keyboard) - not something normal runs should enable.
+        """
+        interval = self.config.auto_cycle_fusion_modes
+        if interval is None:
+            return
+
+        if self.fusion_processor is None:
+            return  # cameras/processing not initialized yet
+
+        # Re-asserted every tick, not just once at start: something else in
+        # GUI/config initialization was observed overriding view_mode back
+        # to a persisted setting (e.g. Picture-in-Picture) shortly after
+        # this set it to Fusion once, which silently made the whole sweep
+        # exercise _picture_in_picture() instead of fusion_processor.process()
+        # for every mode after the first - fusion_mode was cycling correctly
+        # the whole time, but the render loop was never actually taking the
+        # Fusion-view code path that reads it. This is a testing/automation
+        # feature owning view_mode outright for its duration is the
+        # pragmatic fix, rather than chasing down every place that might
+        # touch it.
+        self.view_mode = ViewMode.FUSION
+
+        now = time.time()
+
+        if self._auto_cycle_modes is None:
+            # First tick: capture the mode list.
+            self._auto_cycle_modes = self.fusion_processor.get_available_modes()
+            self._auto_cycle_idx = 0
+            self._auto_cycle_deadline = now + interval
+            mode = self._auto_cycle_modes[0]
+            self.fusion_processor.set_fusion_mode(mode)
+            logger.info(f"[AUTO_CYCLE] mode 1/{len(self._auto_cycle_modes)}: {mode}")
+            print(f"[AUTO_CYCLE] mode=1/{len(self._auto_cycle_modes)} name={mode}", flush=True)
+            return
+
+        if now < self._auto_cycle_deadline:
+            return
+
+        self._auto_cycle_idx += 1
+        if self._auto_cycle_idx >= len(self._auto_cycle_modes):
+            print("[AUTO_CYCLE_DONE]", flush=True)
+            logger.info("[AUTO_CYCLE] Sweep complete - exiting")
+            if self.qt_app:
+                self.qt_app.quit()
+            else:
+                self.running = False
+            return
+
+        mode = self._auto_cycle_modes[self._auto_cycle_idx]
+        self.fusion_processor.set_fusion_mode(mode)
+        self._auto_cycle_deadline = now + interval
+        logger.info(f"[AUTO_CYCLE] mode {self._auto_cycle_idx + 1}/{len(self._auto_cycle_modes)}: {mode}")
+        print(f"[AUTO_CYCLE] mode={self._auto_cycle_idx + 1}/{len(self._auto_cycle_modes)} name={mode}", flush=True)
+
     def _process_frame_loop(self):
         """Main processing loop triggered by timer."""
         if not self.running:
@@ -1083,13 +1247,29 @@ class ThermalInspectionApp:
             self._loop_idle_event.set()
             return
 
+        self._auto_cycle_fusion_modes_tick()
+
         # Note: Health checks are now driven by SDK heartbeat and hotplug monitor
         self._health_check_counter += 1
         if self._health_check_counter >= 30:
             self._health_check_counter = 0
 
+            # FPA temp anchors the 8-bit estimator's AGC->celsius mapping.
+            # It changes slowly, so once per ~30 ticks (not every frame) is
+            # plenty and keeps this serial round-trip off the hot path.
+            if self.radiometric_controller.state.estimation_enabled:
+                try:
+                    result = self.plugin_host.execute_command('thermal', 'get_fpa_temp')
+                    if result.get('success') and result.get('celsius') is not None:
+                        self._last_fpa_temp_c = float(result['celsius'])
+                        if self.thermal_analyzer:
+                            self.thermal_analyzer.last_fpa_temp_c = self._last_fpa_temp_c
+                except Exception as e:
+                    logger.debug(f"FPA temp poll for estimation failed: {e}")
+
         loop_start = time.time()
         self.frame_count += 1
+        _prof_stage_t = loop_start
 
         try:
             # 1. Capture frames
@@ -1141,6 +1321,8 @@ class ThermalInspectionApp:
             if rgb_frame is None and not self.config.disable_rgb:
                 rgb_frame = self.rgb_placeholder
 
+            _prof_t_capture = time.time()
+
             # 2. Process thermal & Colorization
             # Use the snapshotted reference — safe even if reassign fires mid-tick
             thermal_16bit = None
@@ -1150,7 +1332,27 @@ class ThermalInspectionApp:
                 thermal_16bit = thermal_frame
 
             # Base colorized frame
+            already_colorized = (
+                thermal_frame is not self.thermal_placeholder
+                and thermal_frame.dtype == np.uint8
+                and thermal_frame.ndim == 3
+                and thermal_frame.shape[2] == 3
+                and not np.array_equal(thermal_frame[:, :, 0], thermal_frame[:, :, 1])
+            )
             if thermal_frame is self.thermal_placeholder:
+                colorized_thermal = thermal_frame
+            elif already_colorized:
+                # A genuinely false-colored frame straight from the camera's
+                # own onboard processing (e.g. a Tau2 breakout board with no
+                # CCI line - it can't be commanded into a raw/grayscale
+                # output mode, so this IS the display-ready image, the same
+                # feed Windows' own Camera app shows). Re-running this
+                # through apply_composite_palette() would collapse it to
+                # grayscale (throwing away 2 of 3 real color channels) and
+                # recolor what's left with an unrelated palette. A camera
+                # whose channels are actually equal (grayscale replicated
+                # into BGR by the UVC layer, e.g. a non-radiometric Boson)
+                # still takes the normal palette path below.
                 colorized_thermal = thermal_frame
             elif self.palette_manager:
                 colorized_thermal = self.palette_manager.apply_composite_palette(thermal_frame, self.roi_controller.roi_manager)
@@ -1172,9 +1374,34 @@ class ThermalInspectionApp:
             }
 
             if self.thermal_analyzer and thermal_frame is not self.thermal_placeholder:
-                # Use 16bit for analysis if available
-                source_for_analysis = thermal_16bit if thermal_16bit is not None else thermal_frame
-                analysis_results = self.thermal_analyzer.analyze(source_for_analysis)
+                # Throttled to ~30Hz, not submitted every render tick.
+                # ThreadedAnalyzer has no pacing of its own - it processes
+                # whatever's submitted as fast as analyze() allows (10-40ms/
+                # frame) with no idle time in between, so at the render
+                # loop's now much higher fps (300+ after the palette
+                # optimization) it was submitting a new frame again well
+                # before the previous analysis finished, keeping the
+                # analyzer thread continuously busy on a CPU core with no
+                # gaps. That's a genuine, sustained contender for the same
+                # shared memory bandwidth the main thread's fusion
+                # processing needs (this hardware's fusion blends were
+                # already established as memory-bandwidth-bound, not
+                # compute-bound, earlier this session) - a background
+                # thread saturating a core is exactly the kind of
+                # concurrent load that would show up as the fusion_dispatch
+                # jitter reported live (12-20ms swing on the same mode,
+                # same resolution). Hot/cold-spot overlays don't need
+                # updates faster than a human can perceive anyway.
+                _now = time.time()
+                if _now - self._last_analysis_submit_time >= self._analysis_submit_interval_s:
+                    self._last_analysis_submit_time = _now
+                    source_for_analysis = thermal_16bit if thermal_16bit is not None else thermal_frame
+                    self.threaded_analyzer.submit_frame(source_for_analysis)
+                latest = self.threaded_analyzer.get_latest_results()
+                if latest is not None:
+                    self._last_analysis_results = latest
+                if self._last_analysis_results is not None:
+                    analysis_results = self._last_analysis_results
 
             # Enrich analysis with proc_results (motion, edges)
             analysis_results['motion_detections'] = proc_results.get('motion_detections', [])
@@ -1223,6 +1450,8 @@ class ThermalInspectionApp:
                 except Exception as _thresh_err:
                     logger.debug(f"Manual threshold overlay error: {_thresh_err}")
 
+            _prof_t_preprocess = time.time()
+
             display_frame = colorized_thermal  # Default
 
             if self.view_mode == ViewMode.THERMAL_ONLY:
@@ -1239,7 +1468,13 @@ class ThermalInspectionApp:
                     if self._fusion_color_mode == "grayscale" and rgb_frame is not None:
                         gray = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2GRAY)
                         fusion_rgb = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+                    _fus_t0 = time.perf_counter()
                     display_frame = self.fusion_processor.process(colorized_thermal, fusion_rgb)
+                    _fus_ms = (time.perf_counter() - _fus_t0) * 1000
+                    if self.frame_count % 30 == 0:
+                        print(f"[PROFILE_FUSION2] mode={self.fusion_processor.fusion_mode} "
+                              f"thermal_shape={colorized_thermal.shape} rgb_in_shape={fusion_rgb.shape} "
+                              f"fusion_ms={_fus_ms:.2f}", flush=True)
                 else:
                     display_frame = colorized_thermal
             elif self.view_mode == ViewMode.SIDE_BY_SIDE:
@@ -1252,7 +1487,20 @@ class ThermalInspectionApp:
                         rgb_resized = cv2.resize(rgb_frame, (int(w2 * h1 / h2), h1))
                     else:
                         rgb_resized = rgb_frame
-                    display_frame = cv2.hconcat([colorized_thermal, rgb_resized])
+                    # Order must match InspectionOverlayWidget._transform_thermal_coords'
+                    # side_by_side branch, which places thermal at x=0 when
+                    # fusion_priority=='thermal' and at x=(fw-tw) otherwise - it has
+                    # no way to know the actual concat order, only to assume it
+                    # matches this setting. This used to always put thermal first
+                    # regardless of priority, so with priority set to 'rgb' every
+                    # overlay marker (ROIs, hot/cold spots, spot meters) mapped to
+                    # the wrong side of the frame - spread out over what looked like
+                    # the whole fused frame's width once the offset was that far off.
+                    priority = getattr(self.fusion_processor, 'fusion_priority', 'thermal')
+                    if priority == 'thermal':
+                        display_frame = cv2.hconcat([colorized_thermal, rgb_resized])
+                    else:
+                        display_frame = cv2.hconcat([rgb_resized, colorized_thermal])
                 else:
                     display_frame = colorized_thermal
             elif self.view_mode == ViewMode.PICTURE_IN_PICTURE:
@@ -1267,6 +1515,8 @@ class ThermalInspectionApp:
                 else:
                     display_frame = colorized_thermal
 
+            _prof_t_fusion = time.time()
+
             # 5. Push to GUI
             if self.gui:
                 if self._last_thermal_resolution != self._gui_thermal_resolution_synced:
@@ -1274,6 +1524,8 @@ class ThermalInspectionApp:
                     self._gui_thermal_resolution_synced = self._last_thermal_resolution
 
                 self.gui.update_frame(display_frame)
+
+                _prof_t_guiframe = time.time()
 
                 # Update metrics
                 state = self.camera_state
@@ -1317,12 +1569,27 @@ class ThermalInspectionApp:
                         if cam and hasattr(cam, 'get_spot_temperature'):
                             temp = cam.get_spot_temperature(point.x, point.y)
 
-                        # Fallback to estimation using the raw pixel value from the cached frame
-                        if temp is None and self.thermal_analyzer and self._last_thermal_frame is not None:
+                        # Fallback: true radiometric conversion isn't available. If the
+                        # user has opted into 8-bit estimation, use the FPA-referenced
+                        # estimator; otherwise fall back further to the analyzer's raw
+                        # AGC display (no estimate, honest "(AGC)" label).
+                        if temp is None and self._last_thermal_frame is not None:
                             h, w = self._last_thermal_frame.shape[:2]
                             if 0 <= point.x < w and 0 <= point.y < h:
-                                raw_pixel = float(self._last_thermal_frame[point.y, point.x])
-                                temp, unit = self.thermal_analyzer.calculate_spot_temperature(raw_pixel)
+                                if (self.radiometric_controller.state.estimation_enabled
+                                        and hasattr(self, 'thermal_estimator')):
+                                    fpa = self._last_fpa_temp_c if self._last_fpa_temp_c is not None else 25.0
+                                    temp_c = self.thermal_estimator.get_pixel_temperature(
+                                        self._last_thermal_frame, point.x, point.y, fpa
+                                    )
+                                    # get_pixel_temperature always returns Celsius -
+                                    # respect whatever unit the user picked instead
+                                    # of hardcoding °C regardless of that choice.
+                                    temp = self.radiometric_controller.convert_temperature(temp_c) if temp_c is not None else None
+                                    unit = f"{self.radiometric_controller.get_unit_symbol()} (est)"
+                                elif self.thermal_analyzer:
+                                    raw_pixel = float(self._last_thermal_frame[point.y, point.x])
+                                    temp, unit = self.thermal_analyzer.calculate_spot_temperature(raw_pixel)
 
                         if temp is not None:
                             # Use radiometric unit symbol if available
@@ -1365,6 +1632,27 @@ class ThermalInspectionApp:
 
         if self.frame_count % 30 == 0:
             logger.debug(f"Loop running: {self.smoothed_fps:.1f} FPS")
+            rgb_shape = getattr(locals().get('rgb_frame'), 'shape', None)
+            fmode = getattr(self.fusion_processor, 'fusion_mode', None) if self.fusion_processor else None
+            loop_max_ms = max(self.frame_times) * 1000
+            loop_min_ms = min(self.frame_times) * 1000
+            rgb_cap_fps = None
+            rgb_cap_err = None
+            if getattr(self, 'threaded_capture', None) and self.threaded_capture.rgb_capture:
+                rgb_cap_fps = self.threaded_capture.rgb_capture.fps
+                rgb_cap_err = self.threaded_capture.rgb_capture.error_count
+            _lv = locals()
+            _stage_capture_ms = (_lv.get('_prof_t_capture', loop_start) - loop_start) * 1000
+            _stage_preprocess_ms = (_lv.get('_prof_t_preprocess', loop_start) - _lv.get('_prof_t_capture', loop_start)) * 1000
+            _stage_fusion_ms = (_lv.get('_prof_t_fusion', loop_start) - _lv.get('_prof_t_preprocess', loop_start)) * 1000
+            _stage_guiframe_ms = (_lv.get('_prof_t_guiframe', loop_start) - _lv.get('_prof_t_fusion', loop_start)) * 1000
+            _stage_rest_ms = loop_time * 1000 - (_stage_capture_ms + _stage_preprocess_ms + _stage_fusion_ms + _stage_guiframe_ms)
+            print(f"[PROFILE_STAGES] capture={_stage_capture_ms:.1f} preprocess={_stage_preprocess_ms:.1f} "
+                  f"fusion_dispatch={_stage_fusion_ms:.1f} gui_update_frame={_stage_guiframe_ms:.1f} "
+                  f"rest={_stage_rest_ms:.1f} total={loop_time*1000:.1f}", flush=True)
+            print(f"[PROFILE_COMBO] fps={self.smoothed_fps:.1f} jitter_ms={loop_max_ms - loop_min_ms:.1f} "
+                  f"loop_max={loop_max_ms:.1f} loop_min={loop_min_ms:.1f} view={self.view_mode} "
+                  f"fusion_mode={fmode} rgb_shape={rgb_shape} rgb_cap_fps={rgb_cap_fps} rgb_cap_err={rgb_cap_err}", flush=True)
 
     def toggle_freeze(self, enabled: bool):
         """Toggle frame freeze."""
@@ -1819,22 +2107,47 @@ class ThermalInspectionApp:
             self.thermal_analyzer.spotmeter_mode = mode
 
     def _bus_set_estimation_enabled(self, enabled: bool):
-        if hasattr(self, 'thermal_analyzer'):
-            self.thermal_analyzer.estimator_enabled = enabled
+        self.radiometric_controller.set_estimation_enabled(enabled)
+        if self.thermal_analyzer:
+            self.thermal_analyzer.estimation_enabled = enabled
 
     def _bus_set_estimation_range(self, low: float, high: float):
-        if hasattr(self, 'thermal_analyzer') and hasattr(self.thermal_analyzer, 'set_estimation_range'):
-            self.thermal_analyzer.set_estimation_range(low, high)
+        if hasattr(self, 'thermal_estimator'):
+            self.thermal_estimator.scene_min_c = low
+            self.thermal_estimator.scene_max_c = high
+            logger.info(f"Estimation scene range set to {low:.1f}C - {high:.1f}C")
 
     def _bus_calibrate_single_point(self, temp: float):
-        if hasattr(self, 'thermal_analyzer') and hasattr(self.thermal_analyzer, 'calibrate_single_point'):
-            self.thermal_analyzer.calibrate_single_point(temp)
-            logger.info(f"Single-point calibration at {temp}")
+        """Single-point calibration: sample the current center pixel as the reference."""
+        if not hasattr(self, 'thermal_estimator') or self._last_thermal_frame is None:
+            return
+        frame = self._last_thermal_frame
+        h, w = frame.shape[:2]
+        agc_value = int(frame[h // 2, w // 2])
+        fpa = self._last_fpa_temp_c if self._last_fpa_temp_c is not None else 25.0
+        self.thermal_estimator.calibrate_single_point(agc_value, temp, fpa)
+        if self.gui and hasattr(self.gui, 'radiometric_panel'):
+            self.gui.radiometric_panel.set_calibration_offset(self.thermal_estimator.calibration_offset)
+        logger.info(f"Single-point calibration: AGC={agc_value} at center -> {temp}C")
 
     def _bus_calibrate_two_point(self, t1: float, t2: float):
-        if hasattr(self, 'thermal_analyzer') and hasattr(self.thermal_analyzer, 'calibrate_two_point'):
-            self.thermal_analyzer.calibrate_two_point(t1, t2)
-            logger.info(f"Two-point calibration: {t1}, {t2}")
+        """
+        Two-point calibration: read the coldest/hottest values already in
+        the current frame (5th/95th percentile, avoiding single-pixel noise)
+        as the two AGC references, paired with the two known temperatures.
+        Assumes both reference objects (e.g. ice water and boiling water)
+        are visible in the same frame at calibration time.
+        """
+        if not hasattr(self, 'thermal_estimator') or self._last_thermal_frame is None:
+            return
+        frame = self._last_thermal_frame
+        agc_low = float(np.percentile(frame, 5))
+        agc_high = float(np.percentile(frame, 95))
+        fpa = self._last_fpa_temp_c if self._last_fpa_temp_c is not None else 25.0
+        self.thermal_estimator.calibrate_two_point(agc_low, t1, agc_high, t2, fpa)
+        if self.gui and hasattr(self.gui, 'radiometric_panel'):
+            self.gui.radiometric_panel.set_calibration_offset(self.thermal_estimator.calibration_offset)
+        logger.info(f"Two-point calibration: AGC {agc_low:.0f}->{t1}C, {agc_high:.0f}->{t2}C")
 
     def _bus_get_sensor_temps(self):
         """Fetch FPA/housing temps and emit result signal."""
@@ -1859,13 +2172,6 @@ class ThermalInspectionApp:
             logger.info(f"Radiometric method set to: {mode}")
         else:
             logger.debug(f"radiometric_controller.set_conversion_method not available — mode={mode}")
-
-    def _bus_switch_thermal_backend(self, backend_id: str):
-        """Switch thermal backend (opencv / flirpy)."""
-        if hasattr(self, 'switch_thermal_backend'):
-            self.switch_thermal_backend(backend_id)
-        else:
-            logger.debug(f"switch_thermal_backend not available — backend_id={backend_id}")
 
     # --- ROI palette clear helper ---
 

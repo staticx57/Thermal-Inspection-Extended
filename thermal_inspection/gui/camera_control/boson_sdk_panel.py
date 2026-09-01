@@ -33,7 +33,7 @@ class BosonSDKPanel(QGroupBox):
         status_layout = QHBoxLayout()
         status_layout.addWidget(QLabel("Status:"))
         self.status_label = QLabel("Disconnected")
-        self.status_label.setStyleSheet("color: #ff6b6b; font-weight: bold;")
+        self.status_label.setStyleSheet("color: #ff4444; font-weight: bold;")
         status_layout.addWidget(self.status_label)
         status_layout.addStretch()
         layout.addLayout(status_layout)
@@ -77,12 +77,12 @@ class BosonSDKPanel(QGroupBox):
         # Status Message
         self.message_label = QLabel("")
         self.message_label.setWordWrap(True)
-        self.message_label.setStyleSheet("font-size: 9pt; color: #666;")
+        self.message_label.setStyleSheet("font-size: 9pt; color: #888888;")
         layout.addWidget(self.message_label)
 
         # FPA Temperature display
         self.fpa_temp_label = QLabel("FPA: --")
-        self.fpa_temp_label.setStyleSheet("font-size: 9pt; color: #aaa; font-weight: bold;")
+        self.fpa_temp_label.setStyleSheet("font-size: 9pt; color: #888888; font-weight: bold;")
         layout.addWidget(self.fpa_temp_label)
 
         self.setLayout(layout)
@@ -108,7 +108,7 @@ class BosonSDKPanel(QGroupBox):
         """Update UI for connection state."""
         if connected:
             self.status_label.setText("Connected")
-            self.status_label.setStyleSheet("color: #51cf66; font-weight: bold;")
+            self.status_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
             self.connect_btn.setEnabled(False)
             self.disconnect_btn.setEnabled(True)
             self.ffc_btn.setEnabled(True)
@@ -116,7 +116,7 @@ class BosonSDKPanel(QGroupBox):
             self.scan_btn.setEnabled(False)
         else:
             self.status_label.setText("Disconnected")
-            self.status_label.setStyleSheet("color: #ff6b6b; font-weight: bold;")
+            self.status_label.setStyleSheet("color: #ff4444; font-weight: bold;")
             self.connect_btn.setEnabled(True)
             self.disconnect_btn.setEnabled(False)
             self.ffc_btn.setEnabled(False)
@@ -127,9 +127,9 @@ class BosonSDKPanel(QGroupBox):
         """Set status message."""
         self.message_label.setText(message)
         if is_error:
-            self.message_label.setStyleSheet("font-size: 9pt; color: #ff6b6b;")
+            self.message_label.setStyleSheet("font-size: 9pt; color: #ff4444;")
         else:
-            self.message_label.setStyleSheet("font-size: 9pt; color: #51cf66;")
+            self.message_label.setStyleSheet("font-size: 9pt; color: #4CAF50;")
 
     def update_ports(self, ports: list):
         """Update COM port dropdown."""
@@ -148,8 +148,8 @@ class BosonSDKPanel(QGroupBox):
         self.fpa_temp_label.setText(f"FPA: {temp_c:.1f}°C ({temp_k:.1f}K)")
         # Color-code: green if normal range, yellow/red if hot
         if temp_c < 40.0:
-            self.fpa_temp_label.setStyleSheet("font-size: 9pt; color: #51cf66; font-weight: bold;")
+            self.fpa_temp_label.setStyleSheet("font-size: 9pt; color: #4CAF50; font-weight: bold;")
         elif temp_c < 55.0:
-            self.fpa_temp_label.setStyleSheet("font-size: 9pt; color: #ffd43b; font-weight: bold;")
+            self.fpa_temp_label.setStyleSheet("font-size: 9pt; color: #ffaa00; font-weight: bold;")
         else:
-            self.fpa_temp_label.setStyleSheet("font-size: 9pt; color: #ff6b6b; font-weight: bold;")
+            self.fpa_temp_label.setStyleSheet("font-size: 9pt; color: #ff4444; font-weight: bold;")

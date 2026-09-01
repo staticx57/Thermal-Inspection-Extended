@@ -2,7 +2,8 @@
 Application themes for the Thermal Inspection GUI.
 
 Themes are defined as Qt stylesheet (QSS) strings.
-Available themes: Dark Mode, Light Mode, Solarized, Colorful, Win XP Luna, Silver, Olive
+Available themes: Dark Mode, Light Mode, Solarized, Colorful, Win XP Luna, Silver, Olive,
+Classic IBM, Classic HP
 """
 
 DARK_THEME = """
@@ -807,6 +808,154 @@ QScrollBar::handle:horizontal { background: qlineargradient(x1:0, y1:0, x2:0, y2
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; }
 """
 
+IBM_THEME = """
+QMainWindow, QWidget { background-color: #D4D4D4; color: #000000; font-family: 'IBM Plex Mono', 'Consolas', 'Courier New'; font-size: 9pt; }
+QPushButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #C8C8C8);
+    color: #000000; border: 2px solid #1F70C1;
+    border-radius: 2px; padding: 7px; font-weight: bold;
+    min-height: 20px;
+}
+QPushButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #EAF2FC, stop:1 #C3DBF5);
+    border-color: #003399; border-width: 2px;
+}
+QPushButton:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #A8A8A8, stop:1 #BEBEBE);
+    border-color: #001F5C;
+}
+QPushButton:checked {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1F70C1, stop:1 #003399);
+    color: #FFFFFF; border-color: #CC0000;
+}
+QPushButton:disabled {
+    background-color: #D4D4D4; color: #8A8A8A; border: 2px solid #A0A0A0;
+}
+QGroupBox {
+    border: 2px solid #1F70C1; border-radius: 2px; margin-top: 20px;
+    padding-top: 5px;
+    background-color: #EAEAEA; color: #000000; font-weight: bold;
+}
+QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 10px; padding: 0 3px; color: #003399; font-size: 11pt; }
+QLabel { color: #000000; background-color: transparent; }
+QLabel#info_panel {
+    background-color: rgba(0, 15, 40, 200);
+    color: #6BD4FF;
+    border: 1px solid #1F70C1;
+    border-radius: 2px;
+    padding: 10px;
+    font-size: 12px;
+    font-family: 'IBM Plex Mono', 'Consolas', monospace;
+}
+QCheckBox { spacing: 5px; color: #000000; font-weight: bold; }
+QCheckBox::indicator { width: 13px; height: 13px; border: 1px solid #1F70C1; background-color: #FFFFFF; }
+QCheckBox::indicator:checked { background-color: #CC0000; }
+QRadioButton { spacing: 5px; color: #000000; font-weight: bold; }
+QRadioButton::indicator { width: 13px; height: 13px; border: 2px solid #1F70C1; border-radius: 7px; background-color: #FFFFFF; }
+QRadioButton::indicator:checked { background-color: #CC0000; }
+QTabWidget::pane { border: 2px solid #1F70C1; background-color: #D4D4D4; }
+QTabBar::tab {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #E4E4E4, stop:1 #B8B8B8);
+    color: #000000; border: 1px solid #1F70C1;
+    padding: 8px 14px; margin-right: 2px; font-weight: bold;
+}
+QTabBar::tab:selected {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1F70C1, stop:1 #003399);
+    color: #FFFFFF; border-bottom-color: #003399; border-width: 2px; border-bottom-width: 0px;
+}
+QTabBar::tab:hover { background: #C3DBF5; }
+QListWidget { background-color: #FFFFFF; color: #000000; border: 2px solid #1F70C1; }
+QListWidget::item:selected { background-color: #1F70C1; color: #FFFFFF; }
+QLineEdit, QTextEdit { background-color: #FFFFFF; color: #000000; border: 1px solid #1F70C1; padding: 3px; selection-background-color: #003399; selection-color: #FFFFFF; }
+QSpinBox, QDoubleSpinBox, QComboBox { background-color: #FFFFFF; color: #000000; border: 1px solid #1F70C1; padding: 3px; }
+QSpinBox:hover, QDoubleSpinBox:hover, QComboBox:hover { border: 1px solid #CC0000; }
+QComboBox::drop-down { border-left: 1px solid #1F70C1; background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #E4E4E4, stop:1 #B8B8B8); }
+QComboBox QAbstractItemView { background-color: #FFFFFF; color: #000000; selection-background-color: #1F70C1; selection-color: #FFFFFF; }
+QSlider::groove:horizontal { border: 1px solid #1F70C1; height: 6px; background: #C8C8C8; }
+QSlider::handle:horizontal { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #B8B8B8);
+    border: 2px solid #1F70C1; width: 14px; margin: -5px 0; border-radius: 7px; }
+QScrollBar:vertical { border: 1px solid #1F70C1; background: #D4D4D4; width: 16px; }
+QScrollBar::handle:vertical { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #FFFFFF, stop:1 #B8B8B8); min-height: 20px; border: 1px solid #1F70C1; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
+QScrollBar:horizontal { border: 1px solid #1F70C1; background: #D4D4D4; height: 16px; }
+QScrollBar::handle:horizontal { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #B8B8B8); min-width: 20px; border: 1px solid #1F70C1; }
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; }
+"""
+
+HP_THEME = """
+QMainWindow, QWidget { background-color: #DDD8CE; color: #24272B; font-family: 'Segoe UI', 'Tahoma'; font-size: 9pt; }
+QPushButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FDFCFA, stop:1 #D8D2C4);
+    color: #24272B; border: 2px solid #0096D6;
+    border-radius: 4px; padding: 7px; font-weight: bold;
+    min-height: 20px;
+}
+QPushButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #EAF7FF, stop:1 #C6E8FA);
+    border-color: #FF8200; border-width: 2px;
+}
+QPushButton:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #B7B0A0, stop:1 #CAC3B2);
+    border-color: #003C64;
+}
+QPushButton:checked {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0096D6, stop:1 #003C64);
+    color: #FFFFFF; border-color: #FF8200;
+}
+QPushButton:disabled {
+    background-color: #DDD8CE; color: #9B9488; border-radius: 4px; border: 2px solid #B8B2A4;
+}
+QGroupBox {
+    border: 2px solid #0096D6; border-radius: 4px; margin-top: 20px;
+    padding-top: 5px;
+    background-color: #F1EEE6; color: #24272B; font-weight: bold;
+}
+QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 10px; padding: 0 3px; color: #003C64; font-size: 11pt; }
+QLabel { color: #24272B; background-color: transparent; }
+QLabel#info_panel {
+    background-color: rgba(36, 39, 43, 200);
+    color: #FF8200;
+    border: 1px solid #0096D6;
+    border-radius: 4px;
+    padding: 10px;
+    font-size: 12px;
+    font-family: 'Consolas', monospace;
+}
+QCheckBox { spacing: 5px; color: #24272B; font-weight: bold; }
+QCheckBox::indicator { width: 13px; height: 13px; border: 1px solid #0096D6; background-color: #FFFFFF; }
+QCheckBox::indicator:checked { background-color: #FF8200; }
+QRadioButton { spacing: 5px; color: #24272B; font-weight: bold; }
+QRadioButton::indicator { width: 13px; height: 13px; border: 2px solid #0096D6; border-radius: 7px; background-color: #FFFFFF; }
+QRadioButton::indicator:checked { background-color: #FF8200; }
+QTabWidget::pane { border: 2px solid #0096D6; background-color: #DDD8CE; }
+QTabBar::tab {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #EDEAE0, stop:1 #CAC3B2);
+    color: #24272B; border: 1px solid #0096D6;
+    padding: 8px 14px; margin-right: 2px; font-weight: bold;
+}
+QTabBar::tab:selected {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0096D6, stop:1 #003C64);
+    color: #FFFFFF; border-bottom-color: #003C64; border-width: 2px; border-bottom-width: 0px;
+}
+QTabBar::tab:hover { background: #C6E8FA; }
+QListWidget { background-color: #FFFFFF; color: #24272B; border: 2px solid #0096D6; }
+QListWidget::item:selected { background-color: #0096D6; color: #FFFFFF; }
+QLineEdit, QTextEdit { background-color: #FFFFFF; color: #24272B; border: 1px solid #0096D6; padding: 3px; selection-background-color: #FF8200; selection-color: #FFFFFF; }
+QSpinBox, QDoubleSpinBox, QComboBox { background-color: #FFFFFF; color: #24272B; border: 1px solid #0096D6; padding: 3px; }
+QSpinBox:hover, QDoubleSpinBox:hover, QComboBox:hover { border: 1px solid #FF8200; }
+QComboBox::drop-down { border-left: 1px solid #0096D6; background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #EDEAE0, stop:1 #CAC3B2); }
+QComboBox QAbstractItemView { background-color: #FFFFFF; color: #24272B; selection-background-color: #0096D6; selection-color: #FFFFFF; }
+QSlider::groove:horizontal { border: 1px solid #0096D6; height: 6px; background: #D0CABC; }
+QSlider::handle:horizontal { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FDFCFA, stop:1 #C6E8FA);
+    border: 2px solid #0096D6; width: 14px; margin: -5px 0; border-radius: 7px; }
+QScrollBar:vertical { border: 1px solid #0096D6; background: #DDD8CE; width: 16px; }
+QScrollBar::handle:vertical { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #FDFCFA, stop:1 #CAC3B2); min-height: 20px; border: 1px solid #0096D6; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
+QScrollBar:horizontal { border: 1px solid #0096D6; background: #DDD8CE; height: 16px; }
+QScrollBar::handle:horizontal { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FDFCFA, stop:1 #CAC3B2); min-width: 20px; border: 1px solid #0096D6; }
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; }
+"""
+
 # Theme name to stylesheet mapping
 THEMES = {
     "Dark Mode": DARK_THEME,
@@ -815,8 +964,60 @@ THEMES = {
     "Colorful": COLORFUL_THEME,
     "Win XP Luna": LUNA_THEME,
     "Silver": SILVER_THEME,
-    "Olive": OLIVE_THEME
+    "Olive": OLIVE_THEME,
+    "Classic IBM": IBM_THEME,
+    "Classic HP": HP_THEME
 }
+
+# Cross-theme state-color overrides for buttons whose meaning (recording,
+# frozen, primary action) needs a fixed, universally-recognizable color
+# regardless of the active theme's palette.
+#
+# These use attribute selectors (QPushButton[state="true"]) rather than a
+# widget-level setStyleSheet() override, so Qt's cascade only replaces
+# background-color/color and leaves each theme's own QPushButton rule
+# (border-radius, padding, border-width, min-width) in place. The previous
+# pattern - e.g. record_btn.setStyleSheet("background-color: #ff4444; color:
+# white;") - replaced the ENTIRE stylesheet for that widget, so the button
+# visually "flattened" (square corners, no border, no padding) the instant
+# recording started, on every one of the 9 themes.
+#
+# Append this to whichever theme stylesheet is applied; use
+# set_button_state() below instead of setStyleSheet() to toggle a button
+# into one of these states.
+STATE_COLORS_QSS = """
+QPushButton[recording="true"] {
+    background-color: #ff4444;
+    color: #ffffff;
+}
+
+QPushButton[frozen="true"] {
+    background-color: #4444ff;
+    color: #ffffff;
+}
+
+QPushButton[accent="primary"] {
+    background-color: #4CAF50;
+    color: #ffffff;
+}
+"""
+
+
+def set_button_state(button, property_name: str, value) -> None:
+    """
+    Set one of STATE_COLORS_QSS's attribute-selector properties on a button.
+
+    ``value`` matches whatever the corresponding QSS selector compares
+    against - a bool for e.g. ``[recording="true"]``, or a string for e.g.
+    ``[accent="primary"]``.
+
+    Qt only re-evaluates a stylesheet attribute selector after the widget's
+    style is explicitly unpolished/repolished - a bare setProperty() call is
+    silently ignored until the next full style refresh.
+    """
+    button.setProperty(property_name, value)
+    button.style().unpolish(button)
+    button.style().polish(button)
 
 __all__ = [
     'DARK_THEME',
@@ -826,5 +1027,9 @@ __all__ = [
     'LUNA_THEME',
     'SILVER_THEME',
     'OLIVE_THEME',
-    'THEMES'
+    'IBM_THEME',
+    'HP_THEME',
+    'THEMES',
+    'STATE_COLORS_QSS',
+    'set_button_state',
 ]

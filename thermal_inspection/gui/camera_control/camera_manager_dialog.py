@@ -285,7 +285,7 @@ class CameraManagerDialog(QDialog):
     def _refresh_status(self):
         """Pull live CameraState and update the status cards."""
         try:
-            state = getattr(self._app, 'camera_state', getattr(self._app.camera_controller, 'state', None))
+            state = getattr(self._app, 'camera_state', None)
 
             if state.thermal_connected:
                 dev  = state.thermal_device_id
@@ -319,7 +319,7 @@ class CameraManagerDialog(QDialog):
         table = self._table
         table.setRowCount(0)
 
-        state = getattr(self._app, 'camera_state', getattr(self._app.camera_controller, 'state', None))
+        state = getattr(self._app, 'camera_state', None)
 
         for cam in cameras:
             row = table.rowCount()

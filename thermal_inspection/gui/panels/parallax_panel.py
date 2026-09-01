@@ -50,7 +50,7 @@ class ParallaxPanel(QWidget):
 
         # Status label
         self.status_label = QLabel("Status: DISABLED")
-        self.status_label.setStyleSheet("color: #fa0; font-weight: bold;")
+        self.status_label.setStyleSheet("color: #ffaa00; font-weight: bold;")
         status_layout.addWidget(self.status_label)
 
         # Enable/disable toggle
@@ -69,7 +69,7 @@ class ParallaxPanel(QWidget):
             "This correction uses depth estimation to align the views."
         )
         info_label.setWordWrap(True)
-        info_label.setStyleSheet("color: #666; font-size: 9pt;")
+        info_label.setStyleSheet("color: #888888; font-size: 9pt;")
         status_layout.addWidget(info_label)
 
         status_group.setLayout(status_layout)
@@ -133,7 +133,7 @@ class ParallaxPanel(QWidget):
 
         # Method status
         self.method_status_label = QLabel("Status: Ready")
-        self.method_status_label.setStyleSheet("color: #0a0; font-size: 9pt;")
+        self.method_status_label.setStyleSheet("color: #4CAF50; font-size: 9pt;")
         depth_layout.addWidget(self.method_status_label)
 
         depth_group.setLayout(depth_layout)
@@ -200,10 +200,10 @@ class ParallaxPanel(QWidget):
         # Update status label
         if enabled:
             self.status_label.setText("Status: ENABLED")
-            self.status_label.setStyleSheet("color: #0a0; font-weight: bold;")
+            self.status_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
         else:
             self.status_label.setText("Status: DISABLED")
-            self.status_label.setStyleSheet("color: #fa0; font-weight: bold;")
+            self.status_label.setStyleSheet("color: #ffaa00; font-weight: bold;")
 
         # Enable/disable controls
         self.apply_geometry_btn.setEnabled(enabled)
@@ -262,11 +262,11 @@ class ParallaxPanel(QWidget):
 
         # Color-code total overhead
         if total_ms < 10.0:
-            self.total_overhead_label.setStyleSheet("color: #0a0; font-weight: bold; font-size: 9pt;")
+            self.total_overhead_label.setStyleSheet("color: #4CAF50; font-weight: bold; font-size: 9pt;")
         elif total_ms < 30.0:
-            self.total_overhead_label.setStyleSheet("color: #fa0; font-weight: bold; font-size: 9pt;")
+            self.total_overhead_label.setStyleSheet("color: #ffaa00; font-weight: bold; font-size: 9pt;")
         else:
-            self.total_overhead_label.setStyleSheet("color: #d00; font-weight: bold; font-size: 9pt;")
+            self.total_overhead_label.setStyleSheet("color: #ff4444; font-weight: bold; font-size: 9pt;")
 
     def set_method_status(self, status: str, is_error: bool = False):
         """
@@ -278,9 +278,9 @@ class ParallaxPanel(QWidget):
         """
         self.method_status_label.setText(f"Status: {status}")
         if is_error:
-            self.method_status_label.setStyleSheet("color: #d00; font-size: 9pt;")
+            self.method_status_label.setStyleSheet("color: #ff4444; font-size: 9pt;")
         else:
-            self.method_status_label.setStyleSheet("color: #0a0; font-size: 9pt;")
+            self.method_status_label.setStyleSheet("color: #4CAF50; font-size: 9pt;")
 
     def get_baseline(self) -> float:
         """Get configured baseline distance in millimeters."""

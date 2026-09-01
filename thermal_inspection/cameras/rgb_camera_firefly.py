@@ -343,6 +343,19 @@ class RGBCameraFirefly:
                 image_converted = image_result.Convert(PySpin.PixelFormat_BGR8, PySpin.HQ_LINEAR)
                 image_data = image_converted.GetNDArray()
 
+            # GetNDArray() returns a view into Spinnaker's own internal
+            # image buffer, not a copy - Release() below returns that
+            # buffer to Spinnaker's pool for reuse by the very next
+            # GetNextImage() call (which happens almost immediately in a
+            # tight capture loop), so without copying here, the array
+            # this method returns would reference memory the SDK can
+            # overwrite before any caller gets to use it. Copy before
+            # releasing, so every caller downstream (e.g.
+            # ThreadedCameraCapture, which skips its own defensive copy on
+            # the assumption every backend already hands back a safe,
+            # independent buffer) gets one.
+            image_data = image_data.copy()
+
             # Release image
             image_result.Release()
 

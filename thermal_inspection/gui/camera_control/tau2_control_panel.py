@@ -81,7 +81,7 @@ class Tau2ControlPanel(QWidget):
 
         btn_box = QHBoxLayout()
         self.connect_btn = QPushButton("Connect Serial")
-        self.connect_btn.setStyleSheet("font-weight: bold; background-color: #2e7d32; color: white;")
+        self.connect_btn.setStyleSheet("font-weight: bold; background-color: #4CAF50; color: white;")
         self.disconnect_btn = QPushButton("Disconnect")
         self.disconnect_btn.setEnabled(False)
         btn_box.addWidget(self.connect_btn)
@@ -96,7 +96,7 @@ class Tau2ControlPanel(QWidget):
 
         i_layout.addWidget(QLabel("Link Status:"), 0, 0)
         self.status_lbl = QLabel("Disconnected")
-        self.status_lbl.setStyleSheet("color: #d32f2f; font-weight: bold;")
+        self.status_lbl.setStyleSheet("color: #ff4444; font-weight: bold;")
         i_layout.addWidget(self.status_lbl, 0, 1)
 
         i_layout.addWidget(QLabel("Serial Number:"), 1, 0)
@@ -239,12 +239,12 @@ class Tau2ControlPanel(QWidget):
     def update_connection_status(self, connected: bool):
         if connected:
             self.status_lbl.setText("Connected (Serial OK)")
-            self.status_lbl.setStyleSheet("color: #2e7d32; font-weight: bold;")
+            self.status_lbl.setStyleSheet("color: #4CAF50; font-weight: bold;")
             self.connect_btn.setEnabled(False)
             self.disconnect_btn.setEnabled(True)
         else:
             self.status_lbl.setText("Disconnected")
-            self.status_lbl.setStyleSheet("color: #d32f2f; font-weight: bold;")
+            self.status_lbl.setStyleSheet("color: #ff4444; font-weight: bold;")
             self.connect_btn.setEnabled(True)
             self.disconnect_btn.setEnabled(False)
 

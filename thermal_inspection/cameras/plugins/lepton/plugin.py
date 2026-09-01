@@ -78,7 +78,11 @@ class LeptonCameraSDK(CameraSDK):
                     return {"success": bool(ok)}
                 return {"success": False, "error": "FFC not available on Lepton"}
 
-            elif command == "set_radiometric":
+            elif command in ("set_radiometric", "set_radiometric_mode"):
+                # set_radiometric_mode is the canonical cross-plugin command
+                # name (see BosonPlugin/Tau2Plugin) - the UI only ever asks
+                # for "radiometric mode", not each camera's own term for it.
+                # set_radiometric stays as Lepton's own historical name.
                 enabled = params.get("enabled", True)
                 if sdk and hasattr(sdk, "set_radiometry"):
                     ok = sdk.set_radiometry(enabled)
@@ -100,7 +104,7 @@ class LeptonCameraSDK(CameraSDK):
             return {"success": False, "error": str(e)}
 
     def get_supported_commands(self) -> List[str]:
-        return ["connect", "disconnect", "ffc", "set_radiometric", "get_camera_info"]
+        return ["connect", "disconnect", "ffc", "set_radiometric", "set_radiometric_mode", "get_camera_info"]
 
 
 class LeptonPlugin(CameraPlugin):

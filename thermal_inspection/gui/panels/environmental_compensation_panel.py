@@ -38,7 +38,7 @@ class EnvironmentalCompensationPanel(QWidget):
         layout.addWidget(header)
 
         info = QLabel("Adjust parameters for accurate temperature measurement")
-        info.setStyleSheet("color: #888; font-size: 10pt;")
+        info.setStyleSheet("color: #888888; font-size: 10pt;")
         layout.addWidget(info)
 
         layout.addWidget(self._create_separator())
@@ -108,7 +108,7 @@ class EnvironmentalCompensationPanel(QWidget):
         # Description
         self.material_description = QLabel("Emissivity: 1.0 = perfect blackbody, <0.1 = reflective metal")
         self.material_description.setWordWrap(True)
-        self.material_description.setStyleSheet("color: #666; font-size: 9pt;")
+        self.material_description.setStyleSheet("color: #888888; font-size: 9pt;")
         layout.addWidget(self.material_description)
 
         group.setLayout(layout)
@@ -150,7 +150,7 @@ class EnvironmentalCompensationPanel(QWidget):
         layout.addWidget(self.transmission_slider)
 
         trans_desc = QLabel("1.0 = clear, 0.9 = typical 1-2m, 0.8 = humid/far")
-        trans_desc.setStyleSheet("color: #666; font-size: 9pt;")
+        trans_desc.setStyleSheet("color: #888888; font-size: 9pt;")
         trans_desc.setWordWrap(True)
         layout.addWidget(trans_desc)
 
@@ -163,12 +163,12 @@ class EnvironmentalCompensationPanel(QWidget):
         layout = QVBoxLayout()
 
         self.accuracy_label = QLabel("±0.5-1.0°C")
-        self.accuracy_label.setStyleSheet("font-size: 16pt; font-weight: bold; color: #0a0;")
+        self.accuracy_label.setStyleSheet("font-size: 16pt; font-weight: bold; color: #4CAF50;")
         self.accuracy_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.accuracy_label)
 
         self.accuracy_note = QLabel("With proper environmental compensation")
-        self.accuracy_note.setStyleSheet("color: #888; font-size: 9pt;")
+        self.accuracy_note.setStyleSheet("color: #888888; font-size: 9pt;")
         self.accuracy_note.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.accuracy_note)
 
@@ -230,13 +230,13 @@ class EnvironmentalCompensationPanel(QWidget):
         # Simple heuristic for accuracy estimation
         if emissivity > 0.8 and transmission > 0.95:
             accuracy = "±0.5-1.0°C"
-            color = "#0a0"  # Green - excellent
+            color = "#4CAF50"  # Green - excellent
         elif emissivity > 0.5 and transmission > 0.85:
             accuracy = "±1.0-2.0°C"
-            color = "#fa0"  # Orange - good
+            color = "#ffaa00"  # Orange - good
         else:
             accuracy = "±2.0-5.0°C"
-            color = "#f00"  # Red - poor
+            color = "#ff4444"  # Red - poor
 
         self.accuracy_label.setText(accuracy)
         self.accuracy_label.setStyleSheet(f"font-size: 16pt; font-weight: bold; color: {color};")

@@ -55,6 +55,8 @@ class RGBCameraUVC:
         self.camera_type = "UVC Webcam"
         self._consecutive_failures = 0
         self._MAX_CONSECUTIVE_FAILURES = 10  # ~0.3 s at 30 fps
+        self._last_reopen_attempt = 0.0
+        self._reopen_interval_s = 2.0  # don't hammer a truly-unplugged camera
 
     def _create_gstreamer_pipeline(self) -> str:
         """
@@ -261,7 +263,19 @@ class RGBCameraUVC:
             a hot-unplug.
         """
         if not self.is_open or self.cap is None:
-            return False, None
+            # Self-heal: previously, once marked disconnected, read() just
+            # returned (False, None) forever - nothing anywhere ever called
+            # open() again, so a brief driver/USB hiccup permanently froze
+            # the feed on whatever frame was last cached for the rest of
+            # the session, even though the physical camera was fine and
+            # still streaming to everything else on the system. Retry the
+            # open on a cooldown instead of giving up outright.
+            now = time.time()
+            if now - self._last_reopen_attempt < self._reopen_interval_s:
+                return False, None
+            self._last_reopen_attempt = now
+            if not self.open():
+                return False, None
 
         try:
             if flush_buffer:

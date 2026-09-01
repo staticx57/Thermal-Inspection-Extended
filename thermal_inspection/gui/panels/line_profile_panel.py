@@ -55,7 +55,7 @@ class LineProfilePanel(QWidget):
 
         # Instructions
         instructions = QLabel("Click and drag to draw a line.\nRelease to analyze temperature profile.")
-        instructions.setStyleSheet("color: #888; font-size: 10px;")
+        instructions.setStyleSheet("color: #888888; font-size: 10px;")
         instructions.setWordWrap(True)
         layout.addWidget(instructions)
 

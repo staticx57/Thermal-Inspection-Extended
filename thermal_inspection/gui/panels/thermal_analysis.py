@@ -621,16 +621,25 @@ class ThermalAnalysisPanel(QWidget):
         """
         if self.histogram_widget is not None and temp_array is not None:
             import numpy as np
-            # Flatten if 2D
+            # Flatten if 2D - ravel(), not flatten(): a view when the array is
+            # already contiguous (the common case here) instead of an
+            # unconditional copy of the full ~327K-element frame, right before
+            # 97% of it gets thrown away by the downsampling below anyway.
             if len(temp_array.shape) > 1:
-                temp_array = temp_array.flatten()
+                temp_array = temp_array.ravel()
 
-            # Downsample for performance - histogram only needs ~10K samples for accuracy
+            # Downsample for performance - histogram only needs ~10K samples for accuracy.
+            # np.random.choice(..., replace=False) on ~327K elements runs every
+            # frame on the main thread (this is called straight from the render
+            # loop) - sampling without replacement is effectively a partial
+            # shuffle, measured as a real per-frame cost. A thermal frame has no
+            # periodic structure that would bias a temperature histogram's shape
+            # under a fixed stride, so a strided sample (just an array view, no
+            # RNG work at all) gives visually equivalent results for free.
             max_samples = 10000
             if len(temp_array) > max_samples:
-                # Random sampling preserves distribution better than uniform stride
-                indices = np.random.choice(len(temp_array), max_samples, replace=False)
-                temp_array = temp_array[indices]
+                stride = len(temp_array) // max_samples
+                temp_array = temp_array[::stride]
 
             self.histogram_widget.update_histogram(temp_array)
 

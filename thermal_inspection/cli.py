@@ -39,9 +39,13 @@ def parse_arguments():
     parser.add_argument('--boson-com-port', type=str, default='COM7',
                        help='Boson COM port for SDK control (default: COM7)')
 
-    # Thermal backend selection
+    # Deprecated: each camera plugin now picks its own backend based on
+    # actual hardware capability (e.g. BosonPlugin probes the -R part number
+    # and switches to the flirpy backend itself). Kept parseable so existing
+    # launch scripts don't fail on an unrecognized argument; the value is no
+    # longer read anywhere.
     parser.add_argument('--thermal-backend', type=str, choices=['opencv', 'flirpy'], default='opencv',
-                       help='Thermal camera backend: opencv (8-bit AGC) or flirpy (16-bit Y16 radiometric) (default: opencv)')
+                       help='Deprecated, ignored - backend selection is now automatic per camera plugin')
 
     # Processing settings
     parser.add_argument('--device', choices=['cuda', 'cpu'], default='cuda',
@@ -62,6 +66,12 @@ def parse_arguments():
                        help='Fusion alpha for alpha_blend mode (default: 0.5)')
     parser.add_argument('--calibration-file', type=str,
                        help='Camera calibration file for alignment')
+    parser.add_argument('--auto-cycle-fusion-modes', type=float, default=None,
+                       metavar='SECONDS',
+                       help='Self-drive through every fusion mode (get_available_modes()), '
+                            'holding each for SECONDS, then exit automatically. Switches to '
+                            'Fusion view mode if not already. For automated performance '
+                            'testing without manual UI clicking - not for normal use.')
 
     # Inspection settings
     parser.add_argument('--mode', choices=['realtime', 'playback'], default='realtime',

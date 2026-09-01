@@ -7,6 +7,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import pyqtSignal
 
+from thermal_inspection.gui.themes import set_button_state
+
 
 class ControlPanel(QWidget):
     """
@@ -113,20 +115,22 @@ class ControlPanel(QWidget):
         """Update record button state."""
         if recording:
             self.record_btn.setText("⏹ Stop")
-            self.record_btn.setStyleSheet("background-color: #ff4444; color: white;")
         else:
             self.record_btn.setText("⏺ Record")
-            self.record_btn.setStyleSheet("")
+        # setProperty + repolish (not setStyleSheet) - see STATE_COLORS_QSS's
+        # docstring: a full setStyleSheet() override here discarded the
+        # active theme's border-radius/padding/border the instant recording
+        # started, flattening the button on every one of the 9 themes.
+        set_button_state(self.record_btn, "recording", recording)
         self.record_btn.setChecked(recording)
 
     def update_freeze_button(self, frozen: bool):
         """Update freeze button state."""
         if frozen:
             self.freeze_btn.setText("▶ Resume")
-            self.freeze_btn.setStyleSheet("background-color: #4444ff; color: white;")
         else:
             self.freeze_btn.setText("⏸ Freeze")
-            self.freeze_btn.setStyleSheet("")
+        set_button_state(self.freeze_btn, "frozen", frozen)
         self.freeze_btn.setChecked(frozen)
 
     def update_theme_button(self, theme: str):

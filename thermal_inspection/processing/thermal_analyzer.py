@@ -154,6 +154,16 @@ class ThermalAnalyzer:
         """
         self.config = config or {}
 
+        # 8-bit estimation (non-radiometric cameras only) - set externally
+        # by app.py once a ThermalTemperatureEstimator exists and the user
+        # opts in. Without this, hot/cold-spot stats have no way to know
+        # estimation exists at all and always fall back to raw AGC values.
+        self.thermal_estimator = None
+        self.estimation_enabled = False
+        self.last_fpa_temp_c: Optional[float] = None
+        self._est_map_cache_key: Optional[int] = None
+        self._est_map_cache: Optional[np.ndarray] = None
+
         # Temperature settings
         self.temp_unit = TemperatureUnit(
             self.config.get("temperature_unit", "C")
@@ -272,6 +282,14 @@ class ThermalAnalyzer:
         Returns:
             Dict containing stats, hot_spots, cold_spots, anomalies, etc.
         """
+        # detect_hot_spots/detect_cold_spots each convert a 3-channel frame
+        # to grayscale internally, producing a fresh array each time. Doing
+        # it once here means every downstream call shares the same array
+        # object, so _estimated_map()'s identity-based cache actually hits
+        # instead of recomputing the estimator's adaptive-range scan per call.
+        if thermal_frame is not None and len(thermal_frame.shape) == 3:
+            thermal_frame = cv2.cvtColor(thermal_frame, cv2.COLOR_BGR2GRAY)
+
         stats = self.compute_statistics(thermal_frame)
         hot_spots = self.detect_hot_spots(thermal_frame)
         cold_spots = self.detect_cold_spots(thermal_frame)
@@ -312,6 +330,35 @@ class ThermalAnalyzer:
             Temperature in Celsius
         """
         return (value / 100.0) - 273.15
+
+    def _estimated_map(self, thermal_frame: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Full-frame estimated Celsius map from the 8-bit estimator, or None
+        if estimation isn't active (not enabled, no estimator wired, or the
+        camera is actually radiometric and shouldn't use a guess at all).
+
+        compute_statistics/detect_hot_spots/detect_cold_spots each call this
+        once, and detect_anomalies calls compute_statistics again internally
+        - a single analyze() pass was recomputing the estimator's adaptive-
+        range percentile scan 4-5x on the same frame. Cached by frame
+        identity (valid for the lifetime of one analyze() call, since a new
+        frame object arrives each time the throttle in app.py lets one
+        through).
+        """
+        if self.is_radiometric or not self.estimation_enabled or self.thermal_estimator is None:
+            return None
+        cache_key = id(thermal_frame)
+        if self._est_map_cache_key == cache_key:
+            return self._est_map_cache
+        fpa = self.last_fpa_temp_c if self.last_fpa_temp_c is not None else 25.0
+        try:
+            est_map = self.thermal_estimator.estimate_temperature_map(thermal_frame, fpa)
+        except Exception as e:
+            logger.debug(f"8-bit estimation map failed: {e}")
+            est_map = None
+        self._est_map_cache_key = cache_key
+        self._est_map_cache = est_map
+        return est_map
 
     def reset_background_model(self):
         """Reset background model and frame count (call when frame size changes)."""
@@ -415,7 +462,11 @@ class ThermalAnalyzer:
             masked_frame = cv2.bitwise_and(thermal_frame, thermal_frame, mask=roi_mask)
             pixels = masked_frame[roi_mask > 0]
         else:
-            pixels = thermal_frame.flatten()
+            # ravel(), not flatten(): flatten() always copies; the
+            # astype() right below copies unconditionally too (copy=True
+            # is astype's default regardless of whether dtype already
+            # matches), so flatten()'s own copy was pure redundant work.
+            pixels = thermal_frame.ravel()
 
         if pixels.size == 0:
             return None
@@ -427,16 +478,20 @@ class ThermalAnalyzer:
         if self.calibration_scale != 1.0 or self.calibration_offset != 0.0:
             pixels = pixels * self.calibration_scale + self.calibration_offset
 
-        # Compute raw statistics first
-        min_raw = float(np.min(pixels))
-        max_raw = float(np.max(pixels))
+        # Compute raw statistics first. min/max/median/p95/p5 were 5
+        # separate calls, each independently sorting/partitioning the same
+        # ~327K-element array (profiled: percentile+median machinery was
+        # the single largest cost in the whole analysis pipeline, well
+        # above hot/cold-spot detection). One combined percentile call does
+        # one partition pass instead of five.
+        min_raw, p5_raw, median_raw, p95_raw, max_raw = (
+            float(v) for v in np.percentile(pixels, [0, 5, 50, 95, 100])
+        )
         mean_raw = float(np.mean(pixels))
-        median_raw = float(np.median(pixels))
         std_raw = float(np.std(pixels))
-        p95_raw = float(np.percentile(pixels, 95))
-        p5_raw = float(np.percentile(pixels, 5))
 
         # Convert to Celsius if radiometric (Y16 format: value = Kelvin × 100)
+        est_map = None
         if self.is_radiometric:
             min_val = self._y16_to_celsius(min_raw)
             max_val = self._y16_to_celsius(max_raw)
@@ -448,14 +503,24 @@ class ThermalAnalyzer:
             p5_val = self._y16_to_celsius(p5_raw)
             temp_range = max_val - min_val
         else:
-            min_val = min_raw
-            max_val = max_raw
-            mean_val = mean_raw
-            median_val = median_raw
-            std_val = std_raw
-            p95_val = p95_raw
-            p5_val = p5_raw
-            temp_range = max_raw - min_raw
+            est_map = self._estimated_map(thermal_frame)
+            if est_map is not None:
+                est_pixels = (est_map[roi_mask > 0] if roi_mask is not None else est_map.ravel()).astype(np.float32)
+                min_val, p5_val, median_val, p95_val, max_val = (
+                    float(v) for v in np.percentile(est_pixels, [0, 5, 50, 95, 100])
+                )
+                mean_val = float(np.mean(est_pixels))
+                std_val = float(np.std(est_pixels))
+                temp_range = max_val - min_val
+            else:
+                min_val = min_raw
+                max_val = max_raw
+                mean_val = mean_raw
+                median_val = median_raw
+                std_val = std_raw
+                p95_val = p95_raw
+                p5_val = p5_raw
+                temp_range = max_raw - min_raw
 
         relative_mean = None
         if self.baseline_value is not None:
@@ -495,7 +560,7 @@ class ThermalAnalyzer:
             percentile_95=p95_val,
             percentile_5=p5_val,
             pixel_count=int(pixels.size),
-            unit=unit_symbol if self.is_radiometric else " (raw)",
+            unit=unit_symbol if self.is_radiometric else (f"{unit_symbol} (est)" if est_map is not None else " (raw)"),
             relative_mean=relative_mean
         )
 
@@ -537,6 +602,9 @@ class ThermalAnalyzer:
         # Find contours with SIMPLE approximation for speed
         contours, _ = cv2.findContours(hot_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+        # Computed once for the whole frame, not per-spot below.
+        est_map = self._estimated_map(thermal_frame)
+
         hot_spots = []
         for contour in contours:
             area = cv2.contourArea(contour)
@@ -558,19 +626,30 @@ class ThermalAnalyzer:
             max_raw = float(np.max(roi))
             mean_raw = float(np.mean(roi))
 
-            # Calculate confidence based on how much hotter than threshold (in raw units)
-            confidence = min(1.0, (max_raw - threshold_value) / (threshold_value * 0.5))
+            # Calculate confidence based on how much hotter than threshold (in raw units).
+            # threshold_value can legitimately be 0 (e.g. a mostly-black scene,
+            # or non-radiometric video whose raw counts sit near zero) - divide
+            # by it unconditionally warned every single frame instead of just
+            # treating "no meaningful threshold" as full confidence.
+            confidence = 1.0 if threshold_value <= 0 else min(1.0, (max_raw - threshold_value) / (threshold_value * 0.5))
 
             # Convert to Celsius if radiometric (Y16 format: value = Kelvin × 100)
             if self.is_radiometric:
                 max_temp = self._y16_to_celsius(max_raw)
                 mean_temp = self._y16_to_celsius(mean_raw)
+            elif est_map is not None:
+                est_roi = est_map[y:y+h, x:x+w]
+                max_temp = float(np.max(est_roi))
+                mean_temp = float(np.mean(est_roi))
             else:
                 max_temp = max_raw
                 mean_temp = mean_raw
 
-            # Convert to target unit
-            if self.is_radiometric:
+            # Convert to target unit - estimated values are Celsius from the
+            # estimator same as radiometric ones are from Y16, so both need
+            # this, not just is_radiometric (raw AGC has no real unit to
+            # convert from, so it's excluded).
+            if self.is_radiometric or est_map is not None:
                 max_temp = self.convert_temperature(max_temp, TemperatureUnit.CELSIUS, self.temp_unit)
                 mean_temp = self.convert_temperature(mean_temp, TemperatureUnit.CELSIUS, self.temp_unit)
 
@@ -583,7 +662,7 @@ class ThermalAnalyzer:
                 mean_temp=mean_temp,
                 area=int(area),
                 confidence=confidence,
-                unit=unit_symbol if self.is_radiometric else " (raw)",
+                unit=unit_symbol if self.is_radiometric else (f"{unit_symbol} (est)" if est_map is not None else " (raw)"),
                 raw_value=max_raw  # Store raw Y16 value (kelvin×100)
             )
             hot_spots.append(hot_spot)
@@ -633,6 +712,9 @@ class ThermalAnalyzer:
         # Find contours with SIMPLE approximation for speed
         contours, _ = cv2.findContours(cold_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+        # Computed once for the whole frame, not per-spot below.
+        est_map = self._estimated_map(thermal_frame)
+
         cold_spots = []
         for contour in contours:
             area = cv2.contourArea(contour)
@@ -654,19 +736,26 @@ class ThermalAnalyzer:
             min_raw = float(np.min(roi))
             mean_raw = float(np.mean(roi))
 
-            # Calculate confidence based on how much colder than threshold (in raw units)
-            confidence = min(1.0, (threshold_value - min_raw) / (threshold_value * 0.5))
+            # Calculate confidence based on how much colder than threshold (in raw units).
+            # See detect_hot_spots' identical guard - threshold_value can
+            # legitimately be 0.
+            confidence = 1.0 if threshold_value <= 0 else min(1.0, (threshold_value - min_raw) / (threshold_value * 0.5))
 
             # Convert to Celsius if radiometric (Y16 format: value = Kelvin × 100)
             if self.is_radiometric:
                 min_temp = self._y16_to_celsius(min_raw)
                 mean_temp = self._y16_to_celsius(mean_raw)
+            elif est_map is not None:
+                est_roi = est_map[y:y+h, x:x+w]
+                min_temp = float(np.min(est_roi))
+                mean_temp = float(np.mean(est_roi))
             else:
                 min_temp = min_raw
                 mean_temp = mean_raw
 
-            # Convert to target unit
-            if self.is_radiometric:
+            # Convert to target unit - same as detect_hot_spots, estimated
+            # values need this too, not just radiometric ones.
+            if self.is_radiometric or est_map is not None:
                 min_temp = self.convert_temperature(min_temp, TemperatureUnit.CELSIUS, self.temp_unit)
                 mean_temp = self.convert_temperature(mean_temp, TemperatureUnit.CELSIUS, self.temp_unit)
 
@@ -679,7 +768,7 @@ class ThermalAnalyzer:
                 mean_temp=mean_temp,
                 area=int(area),
                 confidence=float(confidence),
-                unit=unit_symbol if self.is_radiometric else " (raw)",
+                unit=unit_symbol if self.is_radiometric else (f"{unit_symbol} (est)" if est_map is not None else " (raw)"),
                 raw_value=min_raw  # Store raw Y16 value (kelvin×100)
             )
             cold_spots.append(cold_spot)
@@ -735,47 +824,75 @@ class ThermalAnalyzer:
         if thermal_frame is None or thermal_frame.size == 0:
             return anomalies
 
-        current_stats = self.compute_statistics(thermal_frame)
-        if current_stats is None:
-            return anomalies
+        # Only .mean_temp and .timestamp are ever read from this (below, and
+        # next call's prev_stats comparison) - calling the full
+        # compute_statistics() paid for percentile/median/std/min/max
+        # (profiled as the single largest cost in the whole analysis
+        # pipeline) on every detect_anomalies() call for values nothing
+        # reads, and it ran unconditionally even when is_radiometric is
+        # False, where the result is never read at all (the block that
+        # consumes it is gated on that same flag below).
+        mean_raw = float(np.mean(thermal_frame))
+        current_stats = ThermalStatistics(
+            min_temp=0.0, max_temp=0.0,
+            mean_temp=self._y16_to_celsius(mean_raw) if self.is_radiometric else mean_raw,
+            median_temp=0.0, std_temp=0.0, temp_range=0.0,
+            percentile_95=0.0, percentile_5=0.0,
+            pixel_count=thermal_frame.size,
+        )
 
         # ── Fix 5: Grid-based rate-of-change (localised hotspot detection) ──────
         # Detects rapid heating in individual 8x8 grid cells, not just global mean.
-        anomalies.extend(self._detect_grid_rate_of_change(thermal_frame))
+        #
+        # rapid_change_threshold/gradient_threshold below are calibrated in
+        # actual degrees, which only means something once the frame holds
+        # calibrated temperature values (radiometric mode). On a raw 8-bit
+        # AGC frame, per-frame contrast re-stretching alone routinely swings
+        # raw values by more than these thresholds, so every one of these
+        # degree-based detectors floods the overlay with false positives.
+        # Restrict them to radiometric frames; the statistical-outlier
+        # background model below is scale-relative and stays on for both.
+        if self.is_radiometric:
+            anomalies.extend(self._detect_grid_rate_of_change(thermal_frame))
 
-        # ── Global rate-of-change (kept as fast coarse filter) ──────────────────
-        if roi_id in self.last_frame_stats:
-            prev_stats = self.last_frame_stats[roi_id]
+            # ── Global rate-of-change (kept as fast coarse filter) ──────────
+            if roi_id in self.last_frame_stats:
+                prev_stats = self.last_frame_stats[roi_id]
 
-            temp_change = current_stats.mean_temp - prev_stats.mean_temp
-            time_delta = current_stats.timestamp - prev_stats.timestamp
-            if time_delta > 0:
-                rate_of_change = temp_change / time_delta
+                temp_change = current_stats.mean_temp - prev_stats.mean_temp
+                time_delta = current_stats.timestamp - prev_stats.timestamp
+                if time_delta > 0:
+                    rate_of_change = temp_change / time_delta
 
-                if rate_of_change > self.rapid_change_threshold:
-                    h, w = thermal_frame.shape[:2]
-                    anomalies.append(ThermalAnomaly(
-                        anomaly_type=AnomalyType.RAPID_INCREASE,
-                        location=(w//2, h//2),
-                        bbox=(0, 0, w, h),
-                        severity=min(1.0, rate_of_change / (self.rapid_change_threshold * 2)),
-                        description=f"Rapid temperature increase: {rate_of_change:.1f}°/s",
-                        metadata={"rate": rate_of_change}
-                    ))
+                    if rate_of_change > self.rapid_change_threshold:
+                        h, w = thermal_frame.shape[:2]
+                        anomalies.append(ThermalAnomaly(
+                            anomaly_type=AnomalyType.RAPID_INCREASE,
+                            location=(w//2, h//2),
+                            bbox=(0, 0, w, h),
+                            severity=min(1.0, rate_of_change / (self.rapid_change_threshold * 2)),
+                            description=f"Rapid temperature increase: {rate_of_change:.1f}°/s",
+                            metadata={"rate": rate_of_change}
+                        ))
 
-                elif rate_of_change < -self.rapid_change_threshold:
-                    h, w = thermal_frame.shape[:2]
-                    anomalies.append(ThermalAnomaly(
-                        anomaly_type=AnomalyType.RAPID_DECREASE,
-                        location=(w//2, h//2),
-                        bbox=(0, 0, w, h),
-                        severity=min(1.0, abs(rate_of_change) / (self.rapid_change_threshold * 2)),
-                        description=f"Rapid temperature decrease: {rate_of_change:.1f}°/s",
-                        metadata={"rate": rate_of_change}
-                    ))
+                    elif rate_of_change < -self.rapid_change_threshold:
+                        h, w = thermal_frame.shape[:2]
+                        anomalies.append(ThermalAnomaly(
+                            anomaly_type=AnomalyType.RAPID_DECREASE,
+                            location=(w//2, h//2),
+                            bbox=(0, 0, w, h),
+                            severity=min(1.0, abs(rate_of_change) / (self.rapid_change_threshold * 2)),
+                            description=f"Rapid temperature decrease: {rate_of_change:.1f}°/s",
+                            metadata={"rate": rate_of_change}
+                        ))
+
+        # Store current stats for next frame comparison regardless of mode,
+        # so rate-of-change has a valid baseline the moment radiometric mode
+        # is turned on mid-session.
+        self.last_frame_stats[roi_id] = current_stats
 
         # ── Fix 3: Region-based gradient anomaly (replaces single-pixel argmax) ─
-        gradient = self.compute_temperature_gradient(thermal_frame)
+        gradient = self.compute_temperature_gradient(thermal_frame) if self.is_radiometric else None
         if gradient is not None:
             gradient_mask = (gradient > self.gradient_threshold).astype(np.uint8) * 255
             if gradient_mask.any():
@@ -807,9 +924,6 @@ class ThermalAnalyzer:
                         description=f"Gradient region: {max_grad:.1f}° over {area:.0f}px²",
                         metadata={"max_gradient": max_grad, "area": float(area)}
                     ))
-
-        # Store current stats for next frame comparison
-        self.last_frame_stats[roi_id] = current_stats
 
         # ── Statistical Background Modeling ─────────────────────────────────────
         if thermal_frame is not None:

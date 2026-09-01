@@ -46,9 +46,6 @@ class RadiometricPanel(QWidget):
     max_hot_spots_changed = pyqtSignal(int)  # Emits max number of hot spots
     max_cold_spots_changed = pyqtSignal(int)  # Emits max number of cold spots
 
-    # Backend Selector Signal
-    backend_changed = pyqtSignal(str)  # Emits 'opencv', 'usb', or 'flirpy'
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.init_ui()
@@ -84,11 +81,11 @@ class RadiometricPanel(QWidget):
         status_layout.setSpacing(6)
 
         self.capability_label = QLabel("Camera Type: Checking...")
-        self.capability_label.setStyleSheet("color: #666;")
+        self.capability_label.setStyleSheet("color: #888888;")
         status_layout.addWidget(self.capability_label)
 
         self.mode_label = QLabel("Mode: Unknown")
-        self.mode_label.setStyleSheet("color: #666;")
+        self.mode_label.setStyleSheet("color: #888888;")
         status_layout.addWidget(self.mode_label)
 
         self.enable_checkbox = QCheckBox("Enable Radiometric Conversion")
@@ -207,7 +204,7 @@ class RadiometricPanel(QWidget):
         method_layout.addWidget(self.load_lut_btn)
 
         self.lut_status_label = QLabel("No LUT loaded")
-        self.lut_status_label.setStyleSheet("color: #666; font-size: 9pt;")
+        self.lut_status_label.setStyleSheet("color: #888888; font-size: 9pt;")
         method_layout.addWidget(self.lut_status_label)
 
         method_group.setLayout(method_layout)
@@ -223,7 +220,7 @@ class RadiometricPanel(QWidget):
 
         # Info label
         info_label = QLabel("Works on ALL Boson cameras (320, 640, -R variants)")
-        info_label.setStyleSheet("color: #0a0; font-size: 9pt; font-style: italic;")
+        info_label.setStyleSheet("color: #4CAF50; font-size: 9pt; font-style: italic;")
         info_label.setWordWrap(True)
         estimation_layout.addWidget(info_label)
 
@@ -296,7 +293,7 @@ class RadiometricPanel(QWidget):
 
         # Calibration offset display
         self.calib_offset_label = QLabel("Current Offset: 0.0°C")
-        self.calib_offset_label.setStyleSheet("color: #666; font-size: 9pt;")
+        self.calib_offset_label.setStyleSheet("color: #888888; font-size: 9pt;")
         estimation_layout.addWidget(self.calib_offset_label)
 
         estimation_group.setLayout(estimation_layout)
@@ -451,7 +448,7 @@ class RadiometricPanel(QWidget):
             "cannot provide absolute temperature measurements."
         )
         info_text.setWordWrap(True)
-        info_text.setStyleSheet("color: #666; font-size: 9pt;")
+        info_text.setStyleSheet("color: #888888; font-size: 9pt;")
         info_layout.addWidget(info_text)
 
         info_group.setLayout(info_layout)
@@ -461,10 +458,65 @@ class RadiometricPanel(QWidget):
         self.setLayout(layout)
 
     def _on_apply_scene_range(self):
-        """Handle apply scene range button click."""
-        min_c = self.scene_min_spin.value()
-        max_c = self.scene_max_spin.value()
+        """
+        Handle apply scene range button click.
+
+        The spin boxes display in whatever unit the user has selected (see
+        _update_scene_range_unit) - the estimator's scene_min_c/scene_max_c
+        are Celsius-native, so convert here rather than assuming the boxes
+        are always in Celsius (they used to be labeled " C" unconditionally
+        regardless of the Display Unit selector next to them).
+        """
+        unit = getattr(self, '_scene_range_unit', 'C')
+        min_c = self._unit_to_celsius(self.scene_min_spin.value(), unit)
+        max_c = self._unit_to_celsius(self.scene_max_spin.value(), unit)
         self.temperature_range_changed.emit(min_c, max_c)
+
+    @staticmethod
+    def _celsius_to_unit(value_c: float, unit: str) -> float:
+        if unit == 'F':
+            return value_c * 9.0 / 5.0 + 32.0
+        elif unit == 'K':
+            return value_c + 273.15
+        elif unit == 'RAW':
+            return (value_c + 273.15) * 100.0
+        return value_c
+
+    @staticmethod
+    def _unit_to_celsius(value, unit: str) -> float:
+        if unit == 'F':
+            return (value - 32.0) * 5.0 / 9.0
+        elif unit == 'K':
+            return value - 273.15
+        elif unit == 'RAW':
+            return value / 100.0 - 273.15
+        return value
+
+    def _update_scene_range_unit(self, unit: str):
+        """
+        Keep the Expected Scene Range spin boxes in the same unit as the
+        rest of the display. Converts their current values and relabels the
+        suffix on a unit change, rather than leaving the same number under
+        a silently-changed unit (typing "110" meaning 110C, then switching
+        the display to Fahrenheit, must not leave "110" reading as 110F).
+        """
+        old_unit = getattr(self, '_scene_range_unit', 'C')
+        if unit == old_unit:
+            return
+        suffix_map = {'C': ' °C', 'F': ' °F', 'K': ' K', 'RAW': ' (Y16)'}
+        range_map = {
+            'C': (-40.0, 550.0), 'F': (-40.0, 1022.0),
+            'K': (233.15, 823.15), 'RAW': (23315.0, 82315.0),
+        }
+        for spin in (self.scene_min_spin, self.scene_max_spin):
+            val_c = self._unit_to_celsius(spin.value(), old_unit)
+            new_val = self._celsius_to_unit(val_c, unit)
+            spin.blockSignals(True)
+            spin.setRange(*range_map.get(unit, (-40.0, 550.0)))
+            spin.setSuffix(suffix_map.get(unit, ' °C'))
+            spin.setValue(new_val)
+            spin.blockSignals(False)
+        self._scene_range_unit = unit
 
     def _on_hw_spotmeter_toggled(self, enabled: bool):
         """Handle hardware spotmeter toggle."""
@@ -496,16 +548,16 @@ class RadiometricPanel(QWidget):
         """Update radiometric status display."""
         if capable:
             self.capability_label.setText("Camera Type: Radiometric (16-bit)")
-            self.capability_label.setStyleSheet("color: #0a0; font-weight: bold;")
+            self.capability_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
         else:
             self.capability_label.setText("Camera Type: Non-Radiometric (8-bit)")
-            self.capability_label.setStyleSheet("color: #fa0;")
+            self.capability_label.setStyleSheet("color: #ffaa00;")
 
         self.mode_label.setText(f"Mode: {mode}")
         if enabled:
-            self.mode_label.setStyleSheet("color: #0a0; font-weight: bold;")
+            self.mode_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
         else:
-            self.mode_label.setStyleSheet("color: #666;")
+            self.mode_label.setStyleSheet("color: #888888;")
 
         self.enable_checkbox.setEnabled(capable)
         self.apply_range_btn.setEnabled(capable and enabled)
@@ -515,6 +567,11 @@ class RadiometricPanel(QWidget):
         """Update center crosshair temperature display."""
         self.center_temp_label.setText(f"Center: {temp_celsius:.1f}°C")
 
+        # This is a cold/mild/warm/hot temperature-severity gradient, not a
+        # system status indicator - left outside the app's OK/warning/error
+        # palette (some of these hex values coincide with it, but "the
+        # reading is 60C" isn't the same concept as "this feature is
+        # enabled/disabled", and blue-for-cold has no equivalent there).
         if temp_celsius < 20.0:
             self.center_temp_label.setStyleSheet("color: #08f; font-weight: bold; font-size: 14pt;")
         elif temp_celsius < 50.0:
@@ -560,6 +617,7 @@ class RadiometricPanel(QWidget):
         unit_map = {0: 'C', 1: 'F', 2: 'K', 3: 'RAW'}
         unit = unit_map.get(index, 'C')
         logger.info(f"[RADIOMETRIC_PANEL] Mapped to unit: {unit}")
+        self._update_scene_range_unit(unit)
         logger.info(f"[RADIOMETRIC_PANEL] Emitting temperature_unit_changed signal with: {unit}")
         self.temperature_unit_changed.emit(unit)
         logger.info("[RADIOMETRIC_PANEL] Signal emitted successfully")
@@ -738,9 +796,10 @@ class RadiometricPanel(QWidget):
         self.calib_offset_label.setText(f"Current Offset: {offset_c:+.2f}°C")
 
     def set_scene_range(self, min_c: float, max_c: float):
-        """Update the displayed scene range."""
-        self.scene_min_spin.setValue(min_c)
-        self.scene_max_spin.setValue(max_c)
+        """Update the displayed scene range (always given in Celsius)."""
+        unit = getattr(self, '_scene_range_unit', 'C')
+        self.scene_min_spin.setValue(self._celsius_to_unit(min_c, unit))
+        self.scene_max_spin.setValue(self._celsius_to_unit(max_c, unit))
 
     def is_temp_overlay_enabled(self) -> bool:
         """

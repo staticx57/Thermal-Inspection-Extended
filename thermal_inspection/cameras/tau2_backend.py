@@ -21,11 +21,17 @@ class Tau2Backend(ThermalBackend):
     """
 
     def __init__(self, device_id: int = 0, resolution: Tuple[int, int] = (640, 512),
-                 tlinear: bool = True, high_res: bool = True):
+                 tlinear: bool = True, high_res: bool = True,
+                 raw_mode: bool = False, byte_order: str = 'swap'):
         self.device_id = device_id
         self.resolution = resolution
         self.tlinear = tlinear
         self.high_res = high_res
+        # See Tau2Camera's docstring for what these select - the confirmed-
+        # working default onboard-colorized BGR passthrough (raw_mode=False)
+        # vs. a genuine raw Y16 sensor stream.
+        self.raw_mode = raw_mode
+        self.byte_order = byte_order
         self.camera: Optional[Tau2Camera] = None
         self._is_opened = False
 
@@ -51,7 +57,9 @@ class Tau2Backend(ThermalBackend):
                 device_id=self.device_id,
                 resolution=self.resolution,
                 tlinear=self.tlinear,
-                high_res=self.high_res
+                high_res=self.high_res,
+                raw_mode=self.raw_mode,
+                byte_order=self.byte_order
             )
             success = self.camera.open()
             if success:
@@ -109,6 +117,13 @@ class Tau2Backend(ThermalBackend):
     def is_radiometric(self) -> bool:
         return self.tlinear
 
+    def is_radiometric_capable(self) -> bool:
+        # app.py's spot-meter unit-symbol logic checks this exact name
+        # (matching FLIRBosonCamera's method), not is_radiometric() - without
+        # it, Tau2 spot readings always showed the "C" default regardless of
+        # the user's selected display unit.
+        return self.tlinear
+
     def get_temperature_map(self) -> Optional[np.ndarray]:
         """Returns float32 temperature map in Celsius."""
         if not self.camera or not self._is_opened:
@@ -121,3 +136,45 @@ class Tau2Backend(ThermalBackend):
     def get_fpa_temperature(self) -> Optional[float]:
         # FPA temperature on Tau2 is retrieved via Tau2Serial SDK
         return None
+
+    def get_spot_temperature(self, x: int, y: int) -> Optional[float]:
+        """
+        Get calibrated temperature (Celsius) at a pixel, from the current
+        T-Linear frame. Without this, app.py's spot-meter code finds no
+        get_spot_temperature on this backend and silently falls back to an
+        AGC estimate/raw display for a camera that already has real data.
+        """
+        temp_map = self.get_temperature_map()
+        if temp_map is None:
+            return None
+        h, w = temp_map.shape[:2]
+        if not (0 <= x < w and 0 <= y < h):
+            return None
+        return float(temp_map[y, x])
+
+    def get_roi_temperature_stats(self, roi_mask: np.ndarray) -> Optional[Dict]:
+        """
+        Get temperature statistics for a region of interest.
+
+        Args:
+            roi_mask: Boolean mask (H, W) where True = inside ROI
+
+        Returns:
+            Dict with min/max/mean/std_temp and min/max_location, or None.
+        """
+        temp_map = self.get_temperature_map()
+        if temp_map is None:
+            return None
+        roi_values = temp_map[roi_mask]
+        if roi_values.size == 0:
+            return None
+        min_idx = np.unravel_index(np.argmin(np.where(roi_mask, temp_map, np.inf)), temp_map.shape)
+        max_idx = np.unravel_index(np.argmax(np.where(roi_mask, temp_map, -np.inf)), temp_map.shape)
+        return {
+            'min_temp': float(roi_values.min()),
+            'max_temp': float(roi_values.max()),
+            'mean_temp': float(roi_values.mean()),
+            'std_temp': float(roi_values.std()),
+            'min_location': (int(min_idx[1]), int(min_idx[0])),
+            'max_location': (int(max_idx[1]), int(max_idx[0])),
+        }

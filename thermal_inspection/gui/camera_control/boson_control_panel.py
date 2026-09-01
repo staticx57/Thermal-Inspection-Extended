@@ -20,6 +20,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
+from thermal_inspection.gui.themes import set_button_state
+
 logger = logging.getLogger(__name__)
 
 
@@ -175,7 +177,7 @@ class BosonControlPanel(QWidget):
             "Adjust environmental parameters to improve radiometric accuracy."
         )
         info_label.setWordWrap(True)
-        info_label.setStyleSheet("color: #aaa; font-size: 9pt; padding-bottom: 4px;")
+        info_label.setStyleSheet("color: #888888; font-size: 9pt; padding-bottom: 4px;")
         env_group_layout.addWidget(info_label, 0, 0, 1, 3)
 
         # Emissivity (0.01 – 1.00, stored ×100 as int)
@@ -413,7 +415,11 @@ class BosonControlPanel(QWidget):
         self.connect_button = QPushButton("Connect")
         self.connect_button.setMinimumHeight(35)
         self.connect_button.setMaximumWidth(150)
-        self.connect_button.setStyleSheet("background-color: #4CAF50;")
+        # setProperty (not setStyleSheet) - see STATE_COLORS_QSS's docstring:
+        # a full setStyleSheet() override here discarded the active theme's
+        # border-radius/padding/border, flattening this one button while
+        # every other button on the panel kept its themed shape.
+        set_button_state(self.connect_button, "accent", "primary")
         self.connect_button.setToolTip("Connect to Boson camera via SDK")
         button_layout.addWidget(self.connect_button)
 
@@ -427,7 +433,7 @@ class BosonControlPanel(QWidget):
         status_layout.addLayout(button_layout)
 
         self.connection_hint = QLabel("Connect via COM port or use --enable-boson-sdk flag")
-        self.connection_hint.setStyleSheet("font-size: 10px; color: #888;")
+        self.connection_hint.setStyleSheet("font-size: 10px; color: #888888;")
         self.connection_hint.setWordWrap(True)
         self.connection_hint.setMaximumWidth(350)
         status_layout.addWidget(self.connection_hint)
@@ -455,7 +461,7 @@ class BosonControlPanel(QWidget):
             label.setFixedWidth(120)
             label.setStyleSheet("font-weight: bold;")
             value = QLabel("N/A")
-            value.setStyleSheet("color: #888;")
+            value.setStyleSheet("color: #888888;")
             value.setWordWrap(True)
             value.setMaximumWidth(200)
 
@@ -493,7 +499,7 @@ class BosonControlPanel(QWidget):
         ffc_layout.addLayout(ffc_mode_layout)
 
         self.ffc_status_label = QLabel("Status: Ready")
-        self.ffc_status_label.setStyleSheet("font-size: 10px; color: #888;")
+        self.ffc_status_label.setStyleSheet("font-size: 10px; color: #888888;")
         ffc_layout.addWidget(self.ffc_status_label)
 
         layout.addWidget(ffc_group)
@@ -534,7 +540,7 @@ class BosonControlPanel(QWidget):
         self.shutter_btn_group.setExclusive(True)
 
         self.shutter_status_label = QLabel("Position: Auto")
-        self.shutter_status_label.setStyleSheet("font-size: 10px; color: #888;")
+        self.shutter_status_label.setStyleSheet("font-size: 10px; color: #888888;")
         shutter_layout.addWidget(self.shutter_status_label)
 
         layout.addWidget(shutter_group)
@@ -555,7 +561,7 @@ class BosonControlPanel(QWidget):
         gain_layout.addLayout(combo_layout)
 
         self.current_gain_label = QLabel("Current: Auto")
-        self.current_gain_label.setStyleSheet("font-size: 10px; color: #888;")
+        self.current_gain_label.setStyleSheet("font-size: 10px; color: #888888;")
         gain_layout.addWidget(self.current_gain_label)
 
         layout.addWidget(gain_group)
@@ -580,7 +586,7 @@ class BosonControlPanel(QWidget):
         lut_layout.addLayout(combo_layout)
 
         hint = QLabel("Note: Hardware LUT applies before software processing")
-        hint.setStyleSheet("font-size: 9px; color: #888;")
+        hint.setStyleSheet("font-size: 9px; color: #888888;")
         hint.setWordWrap(True)
         lut_layout.addWidget(hint)
 
@@ -592,7 +598,7 @@ class BosonControlPanel(QWidget):
         agc_layout = QVBoxLayout(agc_group)
 
         info_label = QLabel("Works on ALL Boson cameras (radiometric and non-radiometric)")
-        info_label.setStyleSheet("font-size: 9px; color: #0a0; font-weight: bold;")
+        info_label.setStyleSheet("font-size: 9px; color: #4CAF50; font-weight: bold;")
         info_label.setWordWrap(True)
         agc_layout.addWidget(info_label)
 
@@ -735,7 +741,7 @@ class BosonControlPanel(QWidget):
         temp_layout.addWidget(self.fpa_temp_label)
 
         self.fpa_temp_unit = QLabel("Focal Plane Array Temperature")
-        self.fpa_temp_unit.setStyleSheet("font-size: 10px; color: #888;")
+        self.fpa_temp_unit.setStyleSheet("font-size: 10px; color: #888888;")
         self.fpa_temp_unit.setAlignment(Qt.AlignmentFlag.AlignCenter)
         temp_layout.addWidget(self.fpa_temp_unit)
 
@@ -890,7 +896,7 @@ class BosonControlPanel(QWidget):
         """Update SDK connection status and button states."""
         if connected:
             self.connection_status_label.setText("● Connected")
-            self.connection_status_label.setStyleSheet("color: #44ff44; font-weight: bold;")
+            self.connection_status_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
             self.connection_hint.setText("SDK features available")
             self.connect_button.setEnabled(False)
             self.disconnect_button.setEnabled(True)
@@ -941,30 +947,37 @@ class BosonControlPanel(QWidget):
         if current in ports:
             self.com_port_combo.setCurrentText(current)
 
-    def update_camera_info(self, info):
-        """Update camera information display."""
-        if hasattr(info, 'serial_number') and info.serial_number:
-            self.info_labels['serial'].setText(str(info.serial_number))
+    def update_camera_info(self, info: dict):
+        """Update camera information display.
+
+        `info` is the dict returned by CameraSDK.execute("get_camera_info")
+        (see plugins/boson/plugin.py), not the raw BosonInfo SDK object.
+        """
+        if not info:
+            return
+
+        if info.get('serial'):
+            self.info_labels['serial'].setText(str(info['serial']))
             self.info_labels['serial'].setStyleSheet("color: #e0e0e0;")
 
-        if hasattr(info, 'camera_part_number') and info.camera_part_number:
-            self.info_labels['part_number'].setText(str(info.camera_part_number))
+        if info.get('part_number'):
+            self.info_labels['part_number'].setText(str(info['part_number']))
             self.info_labels['part_number'].setStyleSheet("color: #e0e0e0;")
 
-        if hasattr(info, 'software_version') and info.software_version:
-            self.info_labels['software'].setText(str(info.software_version))
+        if info.get('firmware'):
+            self.info_labels['software'].setText(str(info['firmware']))
             self.info_labels['software'].setStyleSheet("color: #e0e0e0;")
 
-        if hasattr(info, 'lens_number') and info.lens_number is not None:
-            self.info_labels['lens'].setText(str(info.lens_number))
+        if info.get('lens_number') is not None:
+            self.info_labels['lens'].setText(str(info['lens_number']))
             self.info_labels['lens'].setStyleSheet("color: #e0e0e0;")
 
-        if hasattr(info, 'table_number') and info.table_number is not None:
-            self.info_labels['table'].setText(str(info.table_number))
+        if info.get('table_number') is not None:
+            self.info_labels['table'].setText(str(info['table_number']))
             self.info_labels['table'].setStyleSheet("color: #e0e0e0;")
 
-        if hasattr(info, 'gain_mode') and info.gain_mode:
-            self.current_gain_label.setText(f"Current: {info.gain_mode.name}")
+        if info.get('gain_mode'):
+            self.current_gain_label.setText(f"Current: {info['gain_mode']}")
             self.current_gain_label.setStyleSheet("font-size: 10px; color: #00aaff;")
 
     def update_fpa_temperature(self, temp_kelvin: float, temp_celsius: float):
@@ -974,13 +987,13 @@ class BosonControlPanel(QWidget):
 
     def set_ffc_status(self, message: str, is_error: bool = False):
         """Update FFC status message."""
-        color = "#ff4444" if is_error else "#44ff44"
+        color = "#ff4444" if is_error else "#4CAF50"
         self.ffc_status_label.setText(f"Status: {message}")
         self.ffc_status_label.setStyleSheet(f"font-size: 10px; color: {color};")
 
     def set_status(self, message: str, is_error: bool = False):
         """Update connection hint/status message."""
-        color = "#ff4444" if is_error else "#44ff44"
+        color = "#ff4444" if is_error else "#4CAF50"
         self.connection_hint.setText(message)
         self.connection_hint.setStyleSheet(f"font-size: 10px; color: {color};")
 
@@ -1039,13 +1052,13 @@ class BosonControlPanel(QWidget):
                 self.radiometric_mode_status.setText("Current Mode: T-Linear Radiometric (16-bit)")
                 self.radiometric_mode_status.setStyleSheet(
                     "font-weight: bold; padding: 8px; background-color: #004400; "
-                    "border-radius: 3px; color: #44ff44;"
+                    "border-radius: 3px; color: #4CAF50;"
                 )
             else:
                 self.radiometric_mode_status.setText("Current Mode: UVC Post-Colorized (8-bit)")
                 self.radiometric_mode_status.setStyleSheet(
                     "font-weight: bold; padding: 8px; background-color: #004400; "
-                    "border-radius: 3px; color: #44ff44;"
+                    "border-radius: 3px; color: #4CAF50;"
                 )
         else:
             self.radiometric_mode_status.setText("Mode change failed")

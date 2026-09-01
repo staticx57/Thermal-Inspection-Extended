@@ -33,13 +33,13 @@ class BosonCameraSDK(CameraSDK):
     def _get_sdk(self):
         if self._sdk is None:
             from thermal_inspection.sdk.boson_sdk_wrapper import BosonSDK
-            self._sdk = BosonSDK()
+            self._sdk = BosonSDK(com_port=self.com_port)
         return self._sdk
 
     def connect(self) -> bool:
         sdk = self._get_sdk()
         try:
-            ok = sdk.connect(self.com_port)
+            ok = sdk.open()
             self._is_connected = bool(ok)
             return self._is_connected
         except Exception as e:
@@ -50,7 +50,7 @@ class BosonCameraSDK(CameraSDK):
     def disconnect(self):
         if self._sdk:
             try:
-                self._sdk.disconnect()
+                self._sdk.close()
             except Exception:
                 pass
         self._is_connected = False
@@ -99,17 +99,24 @@ class BosonCameraSDK(CameraSDK):
                 return {"success": bool(ok)}
 
             elif command == "get_fpa_temp":
+                # get_fpa_temperature() returns (kelvin, celsius) or None.
                 temp = sdk.get_fpa_temperature()
-                return {"success": temp is not None, "celsius": temp or 0.0}
+                celsius = temp[1] if temp is not None else 0.0
+                return {"success": temp is not None, "celsius": celsius}
 
             elif command == "get_camera_info":
-                info = sdk.get_camera_info()
+                info = sdk.get_info()
                 if info:
                     return {
                         "success": True,
-                        "serial": getattr(info, "serial_number", str(info.get("serial_number", "N/A") if isinstance(info, dict) else "N/A")),
-                        "firmware": getattr(info, "software_version", "N/A"),
+                        "serial": info.serial_number,
+                        "firmware": info.software_version,
                         "model": "FLIR Boson",
+                        "part_number": info.camera_part_number,
+                        "lens_number": info.lens_number,
+                        "table_number": info.table_number,
+                        "gain_mode": info.gain_mode.name if info.gain_mode else None,
+                        "radiometric_capable": bool(info.camera_part_number and 'R' in info.camera_part_number.upper()),
                     }
                 return {"success": False, "error": "No camera info"}
 
@@ -121,7 +128,7 @@ class BosonCameraSDK(CameraSDK):
                 if "linearity" in params:
                     sdk.set_agc_linearity(params["linearity"])
                 if "dde" in params:
-                    sdk.set_agc_dde(params["dde"])
+                    sdk.set_detail_enhancement(params["dde"])
                 if "plateau" in params:
                     sdk.set_agc_plateau(params["plateau"])
                 if "dampening" in params:
@@ -135,11 +142,20 @@ class BosonCameraSDK(CameraSDK):
 
             elif command == "set_radiometric_mode":
                 enabled = params.get("enabled", True)
-                ok = sdk.set_radiometric_mode(enabled)
+                if not enabled:
+                    # The Boson SDK exposes no radiometry-disable call.
+                    return {"success": False, "error": "Boson SDK cannot disable radiometry once enabled"}
+                ok = sdk.enable_radiometry()
                 return {"success": bool(ok)}
 
             elif command == "set_environmental":
-                ok = sdk.set_environmental_compensation(params)
+                ok = True
+                if "emissivity" in params:
+                    ok = sdk.set_emissivity(params["emissivity"]) and ok
+                if "atm_temp" in params:
+                    ok = sdk.set_atmospheric_temperature(params["atm_temp"]) and ok
+                if "atm_transmission" in params:
+                    ok = sdk.set_atmospheric_transmission(params["atm_transmission"]) and ok
                 return {"success": bool(ok)}
 
             else:
@@ -172,10 +188,24 @@ class BosonPlugin(CameraPlugin):
     def camera_role(self) -> CameraRole:
         return CameraRole.THERMAL
 
+    # Other thermal camera families (Tau2, Lepton breakout boards) commonly
+    # share Boson's 640x512/320x256 sensor resolutions, and find_devices_by_
+    # resolution() has no way to tell cameras of the same resolution apart.
+    # Boson's own UVC descriptor doesn't reliably self-identify by name on
+    # every machine, but a competing thermal core that DOES self-identify
+    # (e.g. "THERMAL VISION CAMERA TAU-2") must be excluded explicitly -
+    # confirmed live: with only a Tau2 attached, this plugin claimed its
+    # video feed as "FLIR Boson (640x512)" purely from the resolution match.
+    _OTHER_THERMAL_NAME_MARKERS = ('tau', 'lepton')
+
     def detect(self) -> List[CameraPluginMatch]:
         # Reads the shared device scan; does not touch hardware itself.
         matches = []
         thermal_devices = find_devices_by_resolution(BOSON_RESOLUTIONS, tolerance=10)
+        thermal_devices = [
+            d for d in thermal_devices
+            if not any(marker in d.name.lower() for marker in self._OTHER_THERMAL_NAME_MARKERS)
+        ]
         if not thermal_devices:
             return matches
 
@@ -215,11 +245,52 @@ class BosonPlugin(CameraPlugin):
 
         return get_serial_port(self.plugin_id, DEFAULT_COM_PORT)
 
-    def create_backend(self, match: CameraPluginMatch) -> OpenCVThermalBackend:
+    def _probe_radiometric_capable(self, com_port: str) -> bool:
+        """
+        Check the -R part-number flag via a throwaway SDK connection.
+
+        Boson ships in both radiometric (-R, has T-Linear/absolute temp) and
+        non-radiometric SKUs; only the SDK can tell them apart (BosonSDK.
+        is_radiometric_capable() reads the part number). This must run and
+        fully close BEFORE create_sdk()'s persistent connection or
+        FlirpyThermalBackend's own probe — the COM port is exclusive, so
+        only one caller may hold it at a time. Same "connect, ask, close"
+        pattern FlirpyThermalBackend already uses for the same reason.
+        """
+        try:
+            from thermal_inspection.sdk.boson_sdk_wrapper import BosonSDK
+            sdk = BosonSDK(com_port=com_port)
+            if not sdk.open():
+                return False
+            try:
+                return sdk.is_radiometric_capable()
+            finally:
+                sdk.close()
+        except Exception as e:
+            logger.debug(f"Boson radiometric capability probe failed on {com_port}: {e}")
+            return False
+
+    def create_backend(self, match: CameraPluginMatch):
+        com_port = match.com_port or get_serial_port(self.plugin_id, DEFAULT_COM_PORT)
+        # Cached for get_capabilities(), which the host calls right after
+        # this for the same match/activation — avoids probing twice.
+        self._last_probed_radiometric = self._probe_radiometric_capable(com_port)
+
+        if self._last_probed_radiometric:
+            from thermal_inspection.sdk.flirpy_thermal_backend import FlirpyThermalBackend
+            logger.info(f"Boson on {com_port} is a radiometric (-R) unit — using flirpy 16-bit backend")
+            return FlirpyThermalBackend(com_port=com_port, auto_configure=True)
+
+        # Non-radiometric (or undetermined): 8-bit AGC via OpenCV.
+        # enable_sdk=False: the video backend must not open its own serial
+        # connection to the Boson. create_sdk() below opens the one serial
+        # connection for this camera (FFC/gain/palette control) - two
+        # independent BosonSDK instances on the same COM port fight over
+        # exclusive access and the second one always fails to open.
         return OpenCVThermalBackend(
             device_id=match.device_index,
-            com_port=match.com_port or get_serial_port(self.plugin_id, DEFAULT_COM_PORT),
-            enable_sdk=True
+            com_port=com_port,
+            enable_sdk=False
         )
 
     def create_sdk(self, match: CameraPluginMatch) -> BosonCameraSDK:
@@ -233,9 +304,10 @@ class BosonPlugin(CameraPlugin):
         return panel
 
     def get_capabilities(self, match: CameraPluginMatch) -> CameraCapabilities:
+        is_radiometric = getattr(self, '_last_probed_radiometric', False)
         return CameraCapabilities(
-            bit_depth=8,
-            radiometric=True,
+            bit_depth=16 if is_radiometric else 8,
+            radiometric=is_radiometric,
             resolutions=[(640, 512), (320, 256)],
             max_fps=60.0,
             has_ffc=True,

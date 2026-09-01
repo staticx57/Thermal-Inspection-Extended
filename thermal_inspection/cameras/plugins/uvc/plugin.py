@@ -163,10 +163,17 @@ class UVCPlugin(CameraPlugin):
         return matches
 
     def create_backend(self, match: CameraPluginMatch) -> RGBCameraUVC:
+        # fps is a request, not a promise - cv2.VideoCapture.set(CAP_PROP_FPS,...)
+        # just asks the driver, which reports back whatever the camera
+        # actually supports at the negotiated resolution. Hardcoding 30
+        # here artificially capped every resolution to at most 30fps even
+        # when the camera can do 60fps at a lower resolution (many 4K
+        # webcams, this one included, only hit 4K@30 but do 60fps well
+        # below that) - ask for 60 and let the camera clamp down itself.
         cam = RGBCameraUVC(
             device_id=match.device_index,
             resolution=match.resolution,
-            fps=30
+            fps=60
         )
         self._last_cam = cam
         return cam

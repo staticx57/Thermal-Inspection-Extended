@@ -83,11 +83,11 @@ class FireflyControlPanel(QGroupBox):
         layout = QVBoxLayout()
 
         self.status_label = QLabel("Not Connected")
-        self.status_label.setStyleSheet("color: #888; font-weight: bold;")
+        self.status_label.setStyleSheet("color: #888888; font-weight: bold;")
         layout.addWidget(self.status_label)
 
         self.info_label = QLabel("")
-        self.info_label.setStyleSheet("font-size: 9pt; color: #666;")
+        self.info_label.setStyleSheet("font-size: 9pt; color: #888888;")
         layout.addWidget(self.info_label)
 
         status_group.setLayout(layout)
@@ -461,7 +461,7 @@ class FireflyControlPanel(QGroupBox):
         """Update UI for camera connection status"""
         if connected and info:
             self.status_label.setText(f"✅ Connected: {info.get('model', 'Firefly')}")
-            self.status_label.setStyleSheet("color: #0a0; font-weight: bold;")
+            self.status_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
 
             info_text = f"Serial: {info.get('serial', 'Unknown')}\n"
             info_text += f"Resolution: {info.get('width', 0)}x{info.get('height', 0)} @ {info.get('fps', 0)} FPS\n"
@@ -469,7 +469,7 @@ class FireflyControlPanel(QGroupBox):
             self.info_label.setText(info_text)
         else:
             self.status_label.setText("❌ Not Connected")
-            self.status_label.setStyleSheet("color: #f00; font-weight: bold;")
+            self.status_label.setStyleSheet("color: #ff4444; font-weight: bold;")
             self.info_label.setText("")
 
     def update_camera_parameters(self, params: dict):

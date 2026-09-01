@@ -1129,7 +1129,7 @@ class SpotMeterAlertDialog(QDialog):
         # Alert Statistics (if available)
         if current_alert and current_alert.trigger_count > 0:
             stats_label = QLabel(f"📊 Triggered {current_alert.trigger_count} times")
-            stats_label.setStyleSheet("color: #888; font-size: 10px;")
+            stats_label.setStyleSheet("color: #888888; font-size: 10px;")
             layout.addWidget(stats_label)
 
         # Buttons
