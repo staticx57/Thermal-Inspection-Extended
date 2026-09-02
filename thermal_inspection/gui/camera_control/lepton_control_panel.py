@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-    QGroupBox, QCheckBox, QSlider
+    QGroupBox, QCheckBox, QSlider, QScrollArea, QFrame
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 
@@ -31,7 +31,16 @@ class LeptonControlPanel(QWidget):
         self.timer.setInterval(1000)  # 1Hz
 
     def _init_ui(self):
-        layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setSpacing(10)
         layout.setContentsMargins(10, 10, 10, 10)
 
@@ -105,6 +114,9 @@ class LeptonControlPanel(QWidget):
 
         layout.addWidget(rad_group)
         layout.addStretch()
+
+        scroll.setWidget(content)
+        outer_layout.addWidget(scroll)
 
     def _toggle_connection(self):
         if not self.connected:

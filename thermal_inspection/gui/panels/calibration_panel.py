@@ -7,7 +7,7 @@ Interactive panel for calibrating radiometric cameras against known references.
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QDoubleSpinBox, QTableWidget,
                              QTableWidgetItem, QHeaderView, QComboBox, QSpinBox,
-                             QCheckBox)
+                             QCheckBox, QScrollArea, QFrame)
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 import logging
@@ -42,7 +42,16 @@ class CalibrationPanel(QWidget):
 
     def init_ui(self):
         """Initialize the user interface."""
-        layout = QVBoxLayout()
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setSpacing(8)
         layout.setContentsMargins(8, 8, 8, 8)
 
@@ -199,7 +208,8 @@ class CalibrationPanel(QWidget):
         # Add stretch to push everything to top
         layout.addStretch()
 
-        self.setLayout(layout)
+        scroll.setWidget(content)
+        outer_layout.addWidget(scroll)
         self._connect_signals()
 
     def _connect_signals(self):

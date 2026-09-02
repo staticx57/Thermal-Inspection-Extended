@@ -40,8 +40,18 @@ class ManualThresholdWidget(QWidget):
     def _init_ui(self):
         """Initialize widget UI components."""
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(5, 5, 5, 5)
-        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(5, 5, 5, 5)
+        content_layout.setSpacing(10)
 
         # Enable/Disable toggle
         enable_group = QGroupBox("MANUAL THRESHOLD MODE")
@@ -53,7 +63,7 @@ class ManualThresholdWidget(QWidget):
         self.enable_toggle.setToolTip("Enable manual threshold-based anomaly detection")
         enable_layout.addWidget(self.enable_toggle)
 
-        main_layout.addWidget(enable_group)
+        content_layout.addWidget(enable_group)
 
         # Threshold configuration (initially hidden)
         self.config_widget = QWidget()
@@ -162,10 +172,13 @@ class ManualThresholdWidget(QWidget):
 
         config_layout.addWidget(stats_group)
 
-        main_layout.addWidget(self.config_widget)
+        content_layout.addWidget(self.config_widget)
         self.config_widget.setVisible(False)
 
-        main_layout.addStretch()
+        content_layout.addStretch()
+
+        scroll.setWidget(content)
+        main_layout.addWidget(scroll)
 
     def _connect_signals(self):
         """Connect internal signals."""

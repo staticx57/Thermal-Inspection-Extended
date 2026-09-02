@@ -5,7 +5,7 @@ Professional control panel for FLIR Firefly advanced features
 from PyQt6.QtWidgets import (
     QGroupBox, QVBoxLayout, QHBoxLayout, QLabel,
     QSlider, QPushButton, QRadioButton, QComboBox,
-    QCheckBox, QButtonGroup, QWidget
+    QCheckBox, QButtonGroup, QWidget, QScrollArea, QFrame
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 import logging
@@ -34,7 +34,16 @@ class FireflyControlPanel(QGroupBox):
         self._init_ui()
 
     def _init_ui(self):
-        layout = QVBoxLayout()
+        outer_layout = QVBoxLayout()
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
 
         # === Camera Status Section ===
         self._create_status_section(layout)
@@ -75,7 +84,9 @@ class FireflyControlPanel(QGroupBox):
         preset_group.setLayout(preset_layout)
         layout.addWidget(preset_group)
 
-        self.setLayout(layout)
+        scroll.setWidget(content)
+        outer_layout.addWidget(scroll)
+        self.setLayout(outer_layout)
 
     def _create_status_section(self, parent_layout):
         """Create camera status display"""

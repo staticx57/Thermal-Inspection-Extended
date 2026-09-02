@@ -6,7 +6,7 @@ thermal and RGB cameras.
 """
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QDoubleSpinBox, QCheckBox,
-                             QComboBox)
+                             QComboBox, QScrollArea, QFrame)
 from PyQt6.QtCore import Qt, pyqtSignal
 import logging
 
@@ -37,7 +37,16 @@ class ParallaxPanel(QWidget):
 
     def init_ui(self):
         """Initialize the user interface."""
-        layout = QVBoxLayout()
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setSpacing(8)
         layout.setContentsMargins(8, 8, 8, 8)
 
@@ -187,7 +196,8 @@ class ParallaxPanel(QWidget):
         # Add stretch to push everything to top
         layout.addStretch()
 
-        self.setLayout(layout)
+        scroll.setWidget(content)
+        outer_layout.addWidget(scroll)
 
     # ========================================================================
     # Signal Handlers (Internal)
