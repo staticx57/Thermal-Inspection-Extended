@@ -1,0 +1,12 @@
+@echo off
+cd /d "%~dp0.."
+:: Quick Launch - RGB Priority Mode (Visual Inspection)
+echo Starting Thermal Inspection Tool in RGB Priority Mode...
+echo - OpenCV backend (8-bit AGC)
+echo - Viridis palette
+echo - Visual inspection focus
+echo.
+
+python -m thermal_inspection --thermal-backend opencv --palette viridis --auto-detect-cameras
+
+pause

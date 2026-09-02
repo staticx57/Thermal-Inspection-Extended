@@ -8,9 +8,9 @@ Double-click **`launch.bat`** to access the interactive menu with preset configu
 ### Quick Launch Shortcuts
 For frequent tasks, use these one-click launchers:
 
-- **`quick-thermal.bat`** - Thermal Priority Mode (radiometric analysis)
-- **`quick-rgb.bat`** - RGB Priority Mode (visual inspection)
-- **`quick-debug.bat`** - Debug Mode (detailed logging)
+- **`scripts/quick-thermal.bat`** - Thermal Priority Mode (radiometric analysis)
+- **`scripts/quick-rgb.bat`** - RGB Priority Mode (visual inspection)
+- **`scripts/quick-debug.bat`** - Debug Mode (detailed logging)
 
 ---
 
@@ -205,7 +205,7 @@ launch.bat
 
 ### 2. Building Thermal Leak Detection
 ```bat
-quick-thermal.bat
+scripts\quick-thermal.bat
 ```
 **Result:** One-click launch optimized for thermal analysis
 
@@ -213,7 +213,7 @@ quick-thermal.bat
 
 ### 3. General Visual Inspection with Thermal Overlay
 ```bat
-quick-rgb.bat
+scripts\quick-rgb.bat
 ```
 **Result:** RGB-focused with thermal supplementary data
 
@@ -286,9 +286,9 @@ The launcher will detect direct arguments and bypass the menu.
 ## Files Created
 
 - **launch.bat** - Interactive launcher with menu
-- **quick-thermal.bat** - One-click thermal priority
-- **quick-rgb.bat** - One-click RGB priority
-- **quick-debug.bat** - One-click debug mode
+- **scripts/quick-thermal.bat** - One-click thermal priority
+- **scripts/quick-rgb.bat** - One-click RGB priority
+- **scripts/quick-debug.bat** - One-click debug mode
 - **LAUNCHER_GUIDE.md** - This documentation
 
 ---
@@ -296,7 +296,7 @@ The launcher will detect direct arguments and bypass the menu.
 ## Advanced Tips
 
 ### Creating Custom Quick-Launch Scripts
-Copy any `quick-*.bat` file and modify the arguments:
+Copy any `scripts/quick-*.bat` file and modify the arguments:
 
 ```bat
 @echo off
@@ -323,6 +323,6 @@ pause
 
 For issues or questions:
 1. Check `thermal_inspection_debug.log`
-2. Use **quick-debug.bat** for verbose output
+2. Use **scripts/quick-debug.bat** for verbose output
 3. Review this guide
 4. Check main README.md for project documentation

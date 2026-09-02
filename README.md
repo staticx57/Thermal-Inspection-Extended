@@ -379,7 +379,8 @@ GUI Settings:
 ```
 Thermal-Inspection/
 ├── README.md, CHANGELOG.md, requirements.txt
-├── launch.bat, quick-thermal.bat, quick-rgb.bat, quick-debug.bat
+├── launch.bat
+├── scripts/                         # install/repair/quick-launch scripts
 │
 ├── thermal_inspection/              # Main application package
 │   ├── app.py                       # ThermalInspectionApp coordinator

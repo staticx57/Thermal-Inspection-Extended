@@ -41,6 +41,11 @@ scratch/
 boson_sdk/*
 !boson_sdk/README.md
 
+# Legacy duplicate of the same proprietary Boson SDK, from before it was
+# consolidated into boson_sdk/ above (see boson_sdk_wrapper.py's
+# LEGACY_SDK_ROOT fallback). Same "not ours to distribute" rationale.
+3.0 IDD & SDK/
+
 # OS/IDE files
 .DS_Store
 Thumbs.db
