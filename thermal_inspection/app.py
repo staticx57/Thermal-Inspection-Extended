@@ -1434,7 +1434,8 @@ class ThermalInspectionApp:
                 _rs_backend = active_rgb.backend
 
             fusion_3d_panel = getattr(self.gui, 'fusion_3d_panel', None) if self.gui else None
-            if _rs_backend and fusion_3d_panel is not None and fusion_3d_panel.isVisible():
+            if (_rs_backend and fusion_3d_panel is not None and fusion_3d_panel.isVisible()
+                    and rgb_frame is not None and rgb_frame is not self.rgb_placeholder):
                 _now_3d = time.time()
                 if _now_3d - self._last_3d_fusion_update_time >= self._3d_fusion_update_interval_s:
                     self._last_3d_fusion_update_time = _now_3d
@@ -1443,7 +1444,8 @@ class ThermalInspectionApp:
                         if cloud is not None:
                             vertices, uv = cloud
                             self._gui_invoke(
-                                "update_fusion_3d_view", vertices, uv, colorized_thermal.copy()
+                                "update_fusion_3d_view", vertices, uv,
+                                rgb_frame.copy(), colorized_thermal.copy()
                             )
                     except Exception as _rs3d_err:
                         logger.debug(f"3D Fusion point-cloud update failed: {_rs3d_err}")

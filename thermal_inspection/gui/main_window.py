@@ -2422,10 +2422,10 @@ class InspectionAppWindow(QMainWindow):
         if hasattr(self, 'fusion_3d_panel'):
             self.fusion_3d_panel.set_hardware_available(available)
 
-    def update_fusion_3d_view(self, vertices, uv, thermal_colorized):
+    def update_fusion_3d_view(self, vertices, uv, rgb_frame, thermal_colorized):
         """Push a new point cloud to the 3D Fusion tab."""
         if hasattr(self, 'fusion_3d_panel'):
-            self.fusion_3d_panel.update_from_realsense(vertices, uv, thermal_colorized)
+            self.fusion_3d_panel.update_from_realsense(vertices, uv, rgb_frame, thermal_colorized)
 
     def update_roi_stats(self, roi_stats: dict):
         """Push per-ROI temperature statistics (roi_id -> stats dict) to the ROI Manager panel."""
