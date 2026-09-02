@@ -52,8 +52,8 @@ class LeptonCameraSDK(CameraSDK):
         if sdk and hasattr(sdk, "disconnect"):
             try:
                 sdk.disconnect()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error disconnecting Lepton SDK: {e}")
         self._is_connected = False
 
     def is_connected(self) -> bool:

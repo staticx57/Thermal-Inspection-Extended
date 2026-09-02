@@ -348,8 +348,8 @@ class Tau2Camera:
         if self.cap:
             try:
                 self.cap.release()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error releasing Tau 2 capture on device {self.device_id}: {e}")
             self.cap = None
         self._is_opened = False
         logger.info(f"Tau 2 camera on device {self.device_id} released")

@@ -58,8 +58,8 @@ class Tau2CameraSDK(CameraSDK):
         if self.serial:
             try:
                 self.serial.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error closing Tau 2 serial connection: {e}")
         self.serial = None
         self._is_connected = False
 

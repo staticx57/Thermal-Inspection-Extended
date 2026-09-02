@@ -12,6 +12,8 @@ from typing import Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
+logger = logging.getLogger(__name__)
+
 # The proprietary FLIR Boson SDK (not part of this repo — download separately
 # from https://www.flir.com/products/spinnaker-sdk/, or wherever FLIR
 # currently hosts the Boson SDK for your account) is a third-party drop-in.
@@ -80,9 +82,7 @@ if SDK_BASE and os.path.isdir(SDK_PATH):
     SDK_AVAILABLE = True
 else:
     SDK_AVAILABLE = False
-    print(f"WARNING: Boson SDK not found. Extract FLIR's Boson SDK into: {PRIMARY_SDK_ROOT}")
-
-logger = logging.getLogger(__name__)
+    logger.warning(f"Boson SDK not found. Extract FLIR's Boson SDK into: {PRIMARY_SDK_ROOT}")
 
 
 # ============================================================================

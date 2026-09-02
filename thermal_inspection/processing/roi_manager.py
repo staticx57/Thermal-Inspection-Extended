@@ -3,6 +3,7 @@ Region of Interest (ROI) Manager for Thermal Inspection
 Handles automatic ROI detection, manual ROI creation, and ROI persistence.
 """
 
+import logging
 import numpy as np
 import cv2
 from dataclasses import dataclass, field
@@ -11,6 +12,8 @@ from enum import Enum
 import json
 import time
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class ROIType(Enum):
@@ -276,7 +279,7 @@ class ROIManager:
             ROI ID
         """
         self.rois[roi.roi_id] = roi
-        print(f"DEBUG: ROIManager added ROI {roi.roi_id} (Total: {len(self.rois)})")
+        logger.debug(f"ROIManager added ROI {roi.roi_id} (Total: {len(self.rois)})")
         return roi.roi_id
 
     def create_manual_roi(self, roi_type: ROIType, points: List[Tuple[int, int]],
@@ -731,14 +734,10 @@ class ROIManager:
                 candidateArea = boxA[2] * boxA[3]
                 containment = interArea / float(candidateArea) if candidateArea > 0 else 0
 
-                if overlap > 0.01 or containment > 0.01:
-                    pass # print(f"DEBUG: Check {roi.label} vs {kept_roi.label}: IoU={overlap:.4f}, Cont={containment:.4f}")
-
                 if overlap > iou_threshold or containment > 0.70:
                     # Overlap found with a higher priority/larger ROI
                     # containment > 0.7 means 70% of the candidate box is inside the kept box
                     suppress = True
-                    # print(f"DEBUG: Suppressing {roi.label} (overlap {overlap:.4f}, containment {containment:.4f})")
                     break
 
             if suppress:
@@ -751,7 +750,7 @@ class ROIManager:
             self.delete_roi(roi_id)
 
         if len(to_delete) > 0:
-            print(f"DEBUG: NMS cleanup removed {len(to_delete)} overlapping Auto-ROIs")
+            logger.debug(f"NMS cleanup removed {len(to_delete)} overlapping Auto-ROIs")
 
     def get_selected_rois(self) -> List[ROI]:
         """Get list of selected ROIs."""
@@ -831,7 +830,6 @@ class ROIManager:
             roi.points = clamped_points
 
             roi.last_updated = time.time()
-            # print(f"DEBUG: Scaled ROI {roi.roi_id} to {roi.points} (Res: {target_resolution})")
 
     def load_rois(self, filepath: str, clear_existing: bool = True):
         """

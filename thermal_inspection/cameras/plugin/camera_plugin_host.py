@@ -169,8 +169,8 @@ class CameraPluginHost(QObject):
                 logger.error(f"Failed to open backend for plugin '{plugin.plugin_id}'")
                 try:
                     backend.release()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Error releasing backend for plugin '{plugin.plugin_id}' after failed open: {e}")
                 return False
 
             # 3. Instantiate SDK & Control Panel

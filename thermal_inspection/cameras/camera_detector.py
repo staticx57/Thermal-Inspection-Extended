@@ -549,8 +549,8 @@ class CameraDetector:
                 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                 cap.release()
                 return (width, height)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"OpenCV resolution probe failed for device {device_id}: {e}")
 
         return (0, 0)
 
@@ -583,8 +583,8 @@ class CameraDetector:
                         resolution=(width, height)
                     ))
 
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error probing /dev/video device {device_id}: {e}")
 
         return cameras
 
@@ -694,8 +694,8 @@ class CameraDetector:
                 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
                 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
                 time.sleep(0.05)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not request high resolution for device {device_id}: {e}")
 
             # Identify camera via frame analysis (classifies thermal vs RGB)
             is_thermal, resolution = CameraDetector._identify_camera_by_frames(cap, device_id)
@@ -705,8 +705,8 @@ class CameraDetector:
             try:
                 backend = cap.getBackendName()
                 name = f"Camera {device_id} ({backend})"
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not read backend name for device {device_id}: {e}")
 
             if is_thermal:
                 name = f"FLIR Boson {resolution[0]}x{resolution[1]} (Camera {device_id})"
@@ -727,8 +727,8 @@ class CameraDetector:
             if cap:
                 try:
                     cap.release()
-                except Exception:
-                    pass
+                except Exception as release_err:
+                    logger.debug(f"Error releasing capture for device {device_id} during cleanup: {release_err}")
 
         return None
 
@@ -894,8 +894,8 @@ class CameraDetector:
                 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
                 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
                 time.sleep(0.05)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not request high resolution for device {device_id}: {e}")
 
             # Identify camera via frame analysis
             is_thermal, resolution = CameraDetector._identify_camera_by_frames(cap, device_id)
@@ -920,8 +920,8 @@ class CameraDetector:
             if cap:
                 try:
                     cap.release()
-                except Exception:
-                    pass
+                except Exception as release_err:
+                    logger.debug(f"Error releasing capture for device {device_id} during cleanup: {release_err}")
             # Return name-only entry so the camera still shows up
             return CameraInfo(
                 device_id=device_id,

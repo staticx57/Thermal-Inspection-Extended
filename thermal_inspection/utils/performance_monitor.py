@@ -136,8 +136,8 @@ class PerformanceMonitor:
                         if entries:
                             self.metrics['temperature'] = entries[0].current
                             break
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not read sensor temperatures: {e}")
 
         except Exception as e:
             logger.error(f"Error updating basic metrics: {e}")
@@ -175,8 +175,8 @@ class PerformanceMonitor:
         if self.using_jtop and self.jetson:
             try:
                 self.jetson.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error closing jtop handle: {e}")
         logger.info("Performance monitor released")
 
     def __del__(self):

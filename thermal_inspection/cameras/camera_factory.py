@@ -346,8 +346,8 @@ def autodetect_camera_types() -> Tuple[Optional[int], Optional[int]]:
             if cap:
                 try:
                     cap.release()
-                except Exception:
-                    pass
+                except Exception as release_err:
+                    logger.debug(f"  Error releasing capture for camera {i} during cleanup: {release_err}")
 
     # IMPROVED HEURISTIC: Prioritize resolution-based detection
     # 1. First, look for 640x512 (FLIR Boson thermal camera)
@@ -470,8 +470,8 @@ if __name__ == "__main__":
         print("\n\nInterrupted by user")
         try:
             camera.release()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[X] Error releasing camera: {e}")
         sys.exit(0)
 
     print("\n" + "="*60)

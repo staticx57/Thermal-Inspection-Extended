@@ -51,8 +51,8 @@ class BosonCameraSDK(CameraSDK):
         if self._sdk:
             try:
                 self._sdk.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error closing Boson SDK connection: {e}")
         self._is_connected = False
 
     def is_connected(self) -> bool:

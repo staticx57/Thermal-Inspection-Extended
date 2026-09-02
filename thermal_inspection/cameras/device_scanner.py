@@ -101,8 +101,8 @@ def _list_device_names() -> List[str]:
                     import comtypes
 
                     comtypes.CoUninitialize()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(f"CoUninitialize failed: {exc}")
 
     thread = threading.Thread(target=worker, name="DShowEnumerate", daemon=True)
     thread.start()

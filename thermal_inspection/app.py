@@ -160,6 +160,15 @@ class ThermalInspectionApp:
         self._last_analysis_submit_time = 0.0
         self._analysis_submit_interval_s = 1.0 / 30.0
 
+        # Throttle for per-ROI temperature stats (ROI Manager panel).
+        # compute_statistics() does a percentile pass per ROI - profiled
+        # elsewhere as the single largest cost in the whole analysis
+        # pipeline for one region, so doing it for every active ROI (up to
+        # auto_roi_max_count) belongs at a human-perceptible cadence, not
+        # every render tick.
+        self._last_roi_stats_time = 0.0
+        self._roi_stats_interval_s = 1.0
+
         # New: Processing loop state
         self.timer = QTimer()
         # Qt's default CoarseTimer can coalesce/drift by several ms on
@@ -671,9 +680,15 @@ class ThermalInspectionApp:
             self.gui.control_panel.update_fusion_mode_button(mode)
 
     def _on_rois_changed(self, roi_data: dict):
-        """Handle ROI changes."""
-        if self.gui and hasattr(self.gui, 'roi_temp_panel'):
-            self.gui.roi_temp_panel.update_roi_data(roi_data)
+        """Handle structural ROI changes (added/removed/cleared).
+
+        `roi_data` is `{'count': N, 'rois': [...]}` from
+        `ROIController._get_roi_data()` - a list, not the roi_id -> stats
+        mapping `update_roi_data()` expects (that comes from the periodic
+        temperature-stats push in `_process_frame_loop` instead).
+        """
+        if self.gui and hasattr(self.gui, 'update_rois'):
+            self.gui.update_rois(roi_data.get('rois', []))
 
     def _on_radiometric_state_change(self, state: RadiometricState):
         """Handle radiometric state changes."""
@@ -1406,6 +1421,39 @@ class ThermalInspectionApp:
             # Enrich analysis with proc_results (motion, edges)
             analysis_results['motion_detections'] = proc_results.get('motion_detections', [])
             analysis_results['edge_clusters'] = proc_results.get('edge_clusters', [])
+
+            # 3a. Per-ROI temperature stats for the ROI Manager panel - throttled
+            # per _roi_stats_interval_s (see its definition for why).
+            if (self.gui and hasattr(self.gui, 'update_roi_stats')
+                    and self.roi_controller and self.roi_controller.rois
+                    and self.thermal_analyzer and thermal_frame is not self.thermal_placeholder):
+                _now_roi = time.time()
+                if _now_roi - self._last_roi_stats_time >= self._roi_stats_interval_s:
+                    self._last_roi_stats_time = _now_roi
+                    stats_source = thermal_16bit if thermal_16bit is not None else thermal_frame
+                    roi_stats = {}
+                    for roi in self.roi_controller.rois.values():
+                        if not roi.active:
+                            continue
+                        try:
+                            mask = roi.get_mask(stats_source.shape[:2])
+                            roi_stat = self.thermal_analyzer.compute_statistics(stats_source, roi_mask=mask)
+                        except Exception as e:
+                            logger.debug(f"ROI stats failed for {roi.roi_id}: {e}")
+                            continue
+                        if roi_stat is None:
+                            continue
+                        roi_stats[roi.roi_id] = {
+                            'roi_name': roi.label or roi.roi_id,
+                            'temp_avg': roi_stat.mean_temp,
+                            'temp_min': roi_stat.min_temp,
+                            'temp_max': roi_stat.max_temp,
+                            'temp_std': roi_stat.std_temp,
+                            'pixel_count': roi_stat.pixel_count,
+                            'unit': roi_stat.unit,
+                            'emissivity': 'global',
+                        }
+                    self.gui.update_roi_stats(roi_stats)
 
             # Apply anomaly priority if enabled
             if self.thermal_processor and self.thermal_processor.anomaly_priority_enabled:

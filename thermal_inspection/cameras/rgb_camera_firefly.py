@@ -147,8 +147,8 @@ class RGBCameraFirefly:
                 try:
                     image_result = self.cam.GetNextImage(1000)  # 1000ms timeout
                     image_result.Release()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Warm-up frame discard failed: {e}")
 
             self.is_open = True
             return True
@@ -542,8 +542,8 @@ class RGBCameraFirefly:
 
             if PySpin.IsAvailable(node_exposure_time) and PySpin.IsReadable(node_exposure_time):
                 return (node_exposure_time.GetMin(), node_exposure_time.GetMax())
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not read exposure time range: {e}")
         return (0.0, 0.0)
 
     # ========================================================================
@@ -631,8 +631,8 @@ class RGBCameraFirefly:
 
             if PySpin.IsAvailable(node_gain) and PySpin.IsReadable(node_gain):
                 return (node_gain.GetMin(), node_gain.GetMax())
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not read gain range: {e}")
         return (0.0, 0.0)
 
     # ========================================================================
@@ -906,8 +906,8 @@ class RGBCameraFirefly:
                 # Release system instance
                 self.system.ReleaseInstance()
                 self.system = None
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error releasing Spinnaker system instance: {e}")
 
         self.is_open = False
 
@@ -1074,7 +1074,7 @@ if __name__ == "__main__":
         firefly_cam.release()
         try:
             cv2.destroyAllWindows()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error destroying windows: {e}")
 
     print("\nTest complete!")

@@ -387,12 +387,13 @@ class ROITemperaturePanel(QWidget):
             temp_min = stats.get('temp_min')
             temp_max = stats.get('temp_max')
             temp_std = stats.get('temp_std')
+            unit = stats.get('unit', '°C')
 
             if temp_avg is not None:
-                lines.append(f"  Avg: {temp_avg:.2f}°C")
-                lines.append(f"  Min: {temp_min:.2f}°C @ {stats.get('min_location', 'N/A')}")
-                lines.append(f"  Max: {temp_max:.2f}°C @ {stats.get('max_location', 'N/A')}")
-                lines.append(f"  Std: {temp_std:.2f}°C")
+                lines.append(f"  Avg: {temp_avg:.2f}{unit}")
+                lines.append(f"  Min: {temp_min:.2f}{unit} @ {stats.get('min_location', 'N/A')}")
+                lines.append(f"  Max: {temp_max:.2f}{unit} @ {stats.get('max_location', 'N/A')}")
+                lines.append(f"  Std: {temp_std:.2f}{unit}")
             else:
                 lines.append("  No temperature data")
 

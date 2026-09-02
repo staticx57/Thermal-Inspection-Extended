@@ -226,8 +226,20 @@ class InspectionAppWindow(QMainWindow):
             logger.info("  [OK] Radiometric panel added at top level")
 
             from thermal_inspection.gui.panels.roi_temperature_panel import ROITemperaturePanel
+            roi_temp_tab = QWidget()
+            roi_temp_scroll = QScrollArea()
+            roi_temp_scroll.setWidgetResizable(True)
+            roi_temp_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            roi_temp_scroll.setFrameShape(QFrame.Shape.NoFrame)
+
             self.roi_temp_panel = ROITemperaturePanel()
-            self.analysis_tabs.addTab(self.roi_temp_panel, "ROI Manager")
+            roi_temp_scroll.setWidget(self.roi_temp_panel)
+
+            roi_temp_tab_layout = QVBoxLayout(roi_temp_tab)
+            roi_temp_tab_layout.setContentsMargins(0, 0, 0, 0)
+            roi_temp_tab_layout.addWidget(roi_temp_scroll)
+
+            self.analysis_tabs.addTab(roi_temp_tab, "ROI Manager")
             logger.info("  [OK] ROI Manager panel added")
 
             # Connect ROI Manager signals
@@ -260,23 +272,71 @@ class InspectionAppWindow(QMainWindow):
             logger.info("  [OK] Connected ROI Manager.export_data and clear_history")
 
             from thermal_inspection.gui.panels.environmental_compensation_panel import EnvironmentalCompensationPanel
+            env_comp_tab = QWidget()
+            env_comp_scroll = QScrollArea()
+            env_comp_scroll.setWidgetResizable(True)
+            env_comp_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            env_comp_scroll.setFrameShape(QFrame.Shape.NoFrame)
+
             self.env_comp_panel = EnvironmentalCompensationPanel()
-            self.analysis_tabs.addTab(self.env_comp_panel, "Environmental")
+            env_comp_scroll.setWidget(self.env_comp_panel)
+
+            env_comp_tab_layout = QVBoxLayout(env_comp_tab)
+            env_comp_tab_layout.setContentsMargins(0, 0, 0, 0)
+            env_comp_tab_layout.addWidget(env_comp_scroll)
+
+            self.analysis_tabs.addTab(env_comp_tab, "Environmental")
             logger.info("  [OK] Environmental compensation panel added")
 
             from thermal_inspection.gui.panels.isotherm_panel import IsothermPanel
+            isotherm_tab = QWidget()
+            isotherm_scroll = QScrollArea()
+            isotherm_scroll.setWidgetResizable(True)
+            isotherm_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            isotherm_scroll.setFrameShape(QFrame.Shape.NoFrame)
+
             self.isotherm_panel = IsothermPanel()
-            self.analysis_tabs.addTab(self.isotherm_panel, "Isotherm")
+            isotherm_scroll.setWidget(self.isotherm_panel)
+
+            isotherm_tab_layout = QVBoxLayout(isotherm_tab)
+            isotherm_tab_layout.setContentsMargins(0, 0, 0, 0)
+            isotherm_tab_layout.addWidget(isotherm_scroll)
+
+            self.analysis_tabs.addTab(isotherm_tab, "Isotherm")
             logger.info("  [OK] Isotherm panel added")
 
             from thermal_inspection.gui.panels.gradient_overlay_panel import GradientOverlayPanel
+            gradient_tab = QWidget()
+            gradient_scroll = QScrollArea()
+            gradient_scroll.setWidgetResizable(True)
+            gradient_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            gradient_scroll.setFrameShape(QFrame.Shape.NoFrame)
+
             self.gradient_panel = GradientOverlayPanel()
-            self.analysis_tabs.addTab(self.gradient_panel, "Gradient")
+            gradient_scroll.setWidget(self.gradient_panel)
+
+            gradient_tab_layout = QVBoxLayout(gradient_tab)
+            gradient_tab_layout.setContentsMargins(0, 0, 0, 0)
+            gradient_tab_layout.addWidget(gradient_scroll)
+
+            self.analysis_tabs.addTab(gradient_tab, "Gradient")
             logger.info("  [OK] Gradient overlay panel added")
 
             from thermal_inspection.gui.panels.line_profile_panel import LineProfilePanel
+            line_profile_tab = QWidget()
+            line_profile_scroll = QScrollArea()
+            line_profile_scroll.setWidgetResizable(True)
+            line_profile_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            line_profile_scroll.setFrameShape(QFrame.Shape.NoFrame)
+
             self.line_profile_panel = LineProfilePanel()
-            self.analysis_tabs.addTab(self.line_profile_panel, "Line Profile")
+            line_profile_scroll.setWidget(self.line_profile_panel)
+
+            line_profile_tab_layout = QVBoxLayout(line_profile_tab)
+            line_profile_tab_layout.setContentsMargins(0, 0, 0, 0)
+            line_profile_tab_layout.addWidget(line_profile_scroll)
+
+            self.analysis_tabs.addTab(line_profile_tab, "Line Profile")
             logger.info("  [OK] Line profile panel added")
 
             self.right_panel_tabs.addTab(self.analysis_tabs, "Analysis")
@@ -2274,6 +2334,11 @@ class InspectionAppWindow(QMainWindow):
         self.analysis_panel.update_rois(rois)
         if hasattr(self, 'roi_temp_panel'):
             self.roi_temp_panel.update_rois(rois)
+
+    def update_roi_stats(self, roi_stats: dict):
+        """Push per-ROI temperature statistics (roi_id -> stats dict) to the ROI Manager panel."""
+        if hasattr(self, 'roi_temp_panel'):
+            self.roi_temp_panel.update_roi_data(roi_stats)
 
     def update_thermal_analysis(self, stats: Optional[ThermalStatistics],
                                 hot_spots: List[HotSpot],

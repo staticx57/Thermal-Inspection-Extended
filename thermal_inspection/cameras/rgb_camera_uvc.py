@@ -202,8 +202,8 @@ class RGBCameraUVC:
                 self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
                 try:
                     self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
-                except Exception:
-                    pass  # Not all cameras support autofocus
+                except Exception as e:
+                    logger.debug(f"Autofocus not supported by this camera: {e}")
 
             # Verify actual resolution
             actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -370,8 +370,8 @@ class RGBCameraUVC:
         if self.cap is not None:
             try:
                 self.cap.release()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error releasing UVC capture: {e}")
             self.cap = None
         self.is_open = False
         self._consecutive_failures = 0
@@ -399,8 +399,8 @@ def detect_uvc_cameras() -> list:
         try:
             from pygrabber.dshow_graph import FilterGraph
             device_names = FilterGraph().get_input_devices()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"pygrabber device name lookup failed: {e}")
 
     max_devs = max(len(device_names), 6) if device_names else 6
 
