@@ -323,6 +323,7 @@ class ThermalInspectionApp:
         bus.calibration_add_point_mode_changed.connect(
             self.calibration_manager.set_calibration_add_point_mode
         )
+        bus.calibration_point_add_requested.connect(self.add_calibration_point)
         bus.calibration_point_removed.connect(self._bus_remove_calibration_point)
 
         # --- View / Fusion ---

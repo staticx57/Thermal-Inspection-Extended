@@ -167,7 +167,11 @@ class InspectionAppWindow(QMainWindow):
             # (apply_depth_relief), not a separate GL viewport. See
             # thermal_inspection/gui/panels/fusion_3d_panel.py.
             self.video_widget = VideoWidget()
-            self.video_widget.overlay.spot_meter_clicked.connect(self._on_spot_meter_clicked)
+            # NOTE: don't also connect video_widget.overlay.spot_meter_clicked
+            # here - _safe_connect("video_widget.overlay", "spot_meter_clicked", ...)
+            # below already does, and this duplicate connection meant every
+            # overlay click fired _on_spot_meter_clicked (and, when active,
+            # the broken calibration add-point routing) twice.
             left_layout.addWidget(self.video_widget, stretch=1)
             logger.info("[OK] Video widget created")
 
@@ -1982,12 +1986,15 @@ class InspectionAppWindow(QMainWindow):
                 (self.app and getattr(self.app, 'calibration_manager', None) and
                  getattr(self.app.calibration_manager, 'add_point_mode', False)):
             logger.info(f"Routing click to calibration point-add at ({x}, {y})")
+            # NOTE: this used to re-emit calibration_add_point_mode_changed
+            # (enabled=True, ref_temp=0) here instead of actually requesting
+            # a point be added at (x, y) - that signal only ever toggles the
+            # add-point-mode flag (already True) and carries no coordinates
+            # at all, so every click while "Add Point" mode was on silently
+            # did nothing. calibration_point_add_requested actually carries
+            # the clicked position through to add_calibration_point().
             if self.event_bus:
-                # Signal the backend to add a calibration point at these pixel coords.
-                # We re-use calibration_add_point_mode_changed with enabled=True and
-                # reference_temp=0 to trigger backend's point-capture flow; the backend
-                # reads the current spotmeter value at (x,y) to get the raw pixel value.
-                self.event_bus.calibration_add_point_mode_changed.emit(True, 0.0)
+                self.event_bus.calibration_point_add_requested.emit(x, y)
             elif self.app and hasattr(self.app, 'add_calibration_point'):
                 self.app.add_calibration_point(x, y)
             elif self.app and hasattr(self.app, '_on_add_calibration_point'):

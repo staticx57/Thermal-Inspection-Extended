@@ -79,6 +79,7 @@ class AppEventBus(QObject):
     # Calibration
     # =====================================================================
     calibration_add_point_mode_changed = pyqtSignal(bool, float)  # enabled, ref_temp
+    calibration_point_add_requested = pyqtSignal(int, int)        # x, y pixel coords - actually add a point here
     calibration_compute_requested = pyqtSignal(str, int)          # method, degree
     calibration_clear_requested = pyqtSignal()
     calibration_export_requested = pyqtSignal(str)                # filepath
