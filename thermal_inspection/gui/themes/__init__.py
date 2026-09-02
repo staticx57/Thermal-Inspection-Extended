@@ -161,6 +161,19 @@ QTabBar::tab:selected {
 QTabBar::tab:hover {
     background-color: #3d3d3d;
 }
+
+/* Once a stylesheet targets QTabBar::tab, Qt stops automatically
+   reserving layout space for the tab bar's scroll buttons (shown when
+   there are more tabs than fit) - without this, they render on top of
+   the last tab's label instead of after it. */
+QTabBar::scroller {
+    width: 24px;
+}
+
+QTabBar QToolButton {
+    background-color: #1a1a1a;
+    border: 1px solid #404040;
+}
 """
 
 LIGHT_THEME = """
@@ -315,6 +328,15 @@ QTabBar::tab:selected {
     color: #ffffff;
 }
 
+QTabBar::scroller {
+    width: 24px;
+}
+
+QTabBar QToolButton {
+    background-color: #f5f5f5;
+    border: 1px solid #c0c0c0;
+}
+
 QTabBar::tab:hover {
     background-color: #e0e0e0;
 }
@@ -454,6 +476,15 @@ QTabBar::tab {
 QTabBar::tab:selected {
     background-color: #268bd2;
     color: #fdf6e3;
+}
+
+QTabBar::scroller {
+    width: 24px;
+}
+
+QTabBar QToolButton {
+    background-color: #fdf6e3;
+    border: 1px solid #93a1a1;
 }
 
 QTabBar::tab:hover {
@@ -619,6 +650,15 @@ QTabBar::tab:selected {
     color: #ffffff;
 }
 
+QTabBar::scroller {
+    width: 24px;
+}
+
+QTabBar QToolButton {
+    background-color: #0f1e2e;
+    border: 1px solid #4a7c9e;
+}
+
 QTabBar::tab:hover {
     background-color: #1c4a6e;
 }
@@ -676,6 +716,13 @@ QTabBar::tab {
 QTabBar::tab:selected {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #F0F0F0);
     border-bottom-color: #FFFFFF; border-width: 2px; border-bottom-width: 0px;
+}
+QTabBar::scroller {
+    width: 24px;
+}
+QTabBar QToolButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #F0EFE8, stop:1 #D8D6C8);
+    border: 1px solid #7F9DB9;
 }
 QListWidget { background-color: #FFFFFF; color: #000000; border: 2px solid #7F9DB9; }
 QLineEdit, QTextEdit { background-color: #FFFFFF; color: #000000; border: 1px solid #7F9DB9; padding: 3px; selection-background-color: #316AC5; selection-color: #FFFFFF; }
@@ -735,6 +782,13 @@ QTabBar::tab:selected {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #F0F0F0);
     border-bottom-color: #FFFFFF; border-width: 2px; border-bottom-width: 0px;
 }
+QTabBar::scroller {
+    width: 24px;
+}
+QTabBar QToolButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ECECF0, stop:1 #C8C8D0);
+    border: 1px solid #707070;
+}
 QListWidget { background-color: #FFFFFF; color: #000000; border: 2px solid #707070; }
 QLineEdit, QTextEdit { background-color: #FFFFFF; color: #000000; border: 1px solid #707070; padding: 3px; selection-background-color: #6B6B83; selection-color: #FFFFFF; }
 QSpinBox, QDoubleSpinBox, QComboBox { background-color: #FFFFFF; color: #000000; border: 1px solid #707070; padding: 3px; }
@@ -792,6 +846,13 @@ QTabBar::tab {
 QTabBar::tab:selected {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #F8F8F0);
     border-bottom-color: #FFFFFF; border-width: 2px; border-bottom-width: 0px;
+}
+QTabBar::scroller {
+    width: 24px;
+}
+QTabBar QToolButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #F0F2EC, stop:1 #D8DAD0);
+    border: 1px solid #A5BFA0;
 }
 QListWidget { background-color: #FFFFFF; color: #000000; border: 2px solid #A5BFA0; }
 QLineEdit, QTextEdit { background-color: #FFFFFF; color: #000000; border: 1px solid #A5BFA0; padding: 3px; selection-background-color: #739E6D; selection-color: #FFFFFF; }
@@ -862,6 +923,13 @@ QTabBar::tab {
 QTabBar::tab:selected {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1F70C1, stop:1 #003399);
     color: #FFFFFF; border-bottom-color: #003399; border-width: 2px; border-bottom-width: 0px;
+}
+QTabBar::scroller {
+    width: 24px;
+}
+QTabBar QToolButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #E4E4E4, stop:1 #B8B8B8);
+    border: 1px solid #1F70C1;
 }
 QTabBar::tab:hover { background: #C3DBF5; }
 QListWidget { background-color: #FFFFFF; color: #000000; border: 2px solid #1F70C1; }
@@ -936,6 +1004,13 @@ QTabBar::tab {
 QTabBar::tab:selected {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0096D6, stop:1 #003C64);
     color: #FFFFFF; border-bottom-color: #003C64; border-width: 2px; border-bottom-width: 0px;
+}
+QTabBar::scroller {
+    width: 24px;
+}
+QTabBar QToolButton {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #EDEAE0, stop:1 #CAC3B2);
+    border: 1px solid #0096D6;
 }
 QTabBar::tab:hover { background: #C6E8FA; }
 QListWidget { background-color: #FFFFFF; color: #24272B; border: 2px solid #0096D6; }
