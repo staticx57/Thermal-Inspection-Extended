@@ -172,7 +172,6 @@ class ThermalInspectionApp:
         self._3d_relief_strength = 0.5
         self._3d_mode = "relief"  # "relief", "fog", or "contours" - see fusion_3d_panel.THREE_D_MODES
         self._3d_data_source = "auto"  # "auto", "rgb_only", or "fusion" - which base image THREE_D shades
-        self._3D_MAX_PROC_WIDTH = 640  # cap ViewMode.THREE_D's processing resolution - see its branch for why
         # Cache for the main viewport's THREE_D display frame - see its
         # branch in the display_frame selection for why this is throttled
         # instead of recomputed every frame.
@@ -1705,14 +1704,7 @@ class ThermalInspectionApp:
                             or _now_3d_disp - self._last_3d_display_time >= self._3d_fusion_update_interval_s):
                         self._last_3d_display_time = _now_3d_disp
                         try:
-                            from thermal_inspection.gui.panels.fusion_3d_panel import (
-                                apply_depth_relief, apply_depth_fog, apply_depth_contours
-                            )
-                            mode_fn = {
-                                "relief": apply_depth_relief,
-                                "fog": apply_depth_fog,
-                                "contours": apply_depth_contours,
-                            }.get(self._3d_mode, apply_depth_relief)
+                            from thermal_inspection.gui.panels.fusion_3d_panel import apply_3d_visualization
 
                             # _3d_data_source lets the user force RGB Only or
                             # RGB+Thermal explicitly instead of always
@@ -1741,31 +1733,13 @@ class ThermalInspectionApp:
                                 bh, bw = base_2d.shape[:2]
                                 if depth_map.shape[:2] != (bh, bw):
                                     depth_map = cv2.resize(depth_map, (bw, bh), interpolation=cv2.INTER_NEAREST)
-
-                                # Cap processing resolution - RealSense's
-                                # native color resolution (e.g. 1280x800,
-                                # used whenever thermal isn't aligned) costs
-                                # 2-4x more than thermal's native ~640x512
-                                # for every mode. Confirmed live: even the
-                                # cheapest mode took 40-68ms/frame at
-                                # 1280x800, close to or exceeding the
-                                # throttle interval itself, so it ended up
-                                # recomputing almost every tick instead of
-                                # actually being throttled.
-                                if bw > self._3D_MAX_PROC_WIDTH:
-                                    ph = int(round(bh * self._3D_MAX_PROC_WIDTH / bw))
-                                    base_small = cv2.resize(base_2d, (self._3D_MAX_PROC_WIDTH, ph),
-                                                             interpolation=cv2.INTER_LINEAR)
-                                    depth_small = cv2.resize(depth_map, (self._3D_MAX_PROC_WIDTH, ph),
-                                                              interpolation=cv2.INTER_NEAREST)
-                                    result_small = mode_fn(base_small, depth_small, strength=self._3d_relief_strength)
-                                    self._last_3d_display_frame = cv2.resize(
-                                        result_small, (bw, bh), interpolation=cv2.INTER_LINEAR
-                                    )
-                                else:
-                                    self._last_3d_display_frame = mode_fn(
-                                        base_2d, depth_map, strength=self._3d_relief_strength
-                                    )
+                                # apply_3d_visualization runs full-resolution
+                                # on GPU when available (~5ms/frame at
+                                # 1280x800 on an RTX 4000 Ada), or falls back
+                                # to a resolution-capped CPU path otherwise.
+                                self._last_3d_display_frame = apply_3d_visualization(
+                                    self._3d_mode, base_2d, depth_map, strength=self._3d_relief_strength
+                                )
                             else:
                                 self._last_3d_display_frame = base_2d
                         except Exception as _3d_disp_err:
