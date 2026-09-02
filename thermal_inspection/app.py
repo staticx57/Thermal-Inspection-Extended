@@ -160,6 +160,12 @@ class ThermalInspectionApp:
         self._last_analysis_submit_time = 0.0
         self._analysis_submit_interval_s = 1.0 / 30.0
 
+        # Throttle for 3D Fusion point-cloud updates - GL upload + the
+        # per-point thermal-color sampling isn't free, and the view only
+        # needs to feel live, not match the main video loop's framerate.
+        self._last_3d_fusion_update_time = 0.0
+        self._3d_fusion_update_interval_s = 1.0 / 15.0
+
         # Throttle for per-ROI temperature stats (ROI Manager panel).
         # compute_statistics() does a percentile pass per ROI - profiled
         # elsewhere as the single largest cost in the whole analysis
@@ -454,6 +460,21 @@ class ThermalInspectionApp:
             active = self.plugin_host.get_active_camera('rgb')
             if active:
                 self.camera_state.rgb_device_id = active.match.device_index
+
+                # Wire real hardware depth into parallax correction (depth
+                # method "realsense") whenever a RealSense camera becomes
+                # the active RGB source - it's the only backend with a
+                # get_depth_frame() to offer. Cleared on disconnect below,
+                # regardless of which RGB camera disconnects (harmless if
+                # it wasn't the one providing it).
+                if active.plugin.plugin_id == 'intel_realsense':
+                    backend = active.backend
+                    if self.parallax_compensator and hasattr(backend, 'get_depth_frame'):
+                        self.parallax_compensator.set_hardware_depth_source(backend.get_depth_frame)
+                        logger.info("RealSense camera active - wired as hardware depth source for parallax correction")
+                    if hasattr(backend, 'get_point_cloud'):
+                        self._gui_invoke("set_fusion_3d_hardware_available", True)
+
             self._restart_threaded_capture()
 
         self._gui_invoke("update_camera_status", self.camera_state)
@@ -478,6 +499,9 @@ class ThermalInspectionApp:
         elif role == 'rgb':
             self.camera_state.rgb_available = False
             self.camera_state.rgb_device_id = None
+            if self.parallax_compensator:
+                self.parallax_compensator.set_hardware_depth_source(None)
+            self._gui_invoke("set_fusion_3d_hardware_available", False)
             self._restart_threaded_capture()
 
         self._gui_invoke("show_camera_lost_notification", role)
@@ -1399,6 +1423,30 @@ class ThermalInspectionApp:
                 colorized_thermal = self.palette_manager.apply_composite_palette(thermal_frame, self.roi_controller.roi_manager)
             else:
                 colorized_thermal = cv2.cvtColor(thermal_frame, cv2.COLOR_GRAY2BGR) if len(thermal_frame.shape) == 2 else thermal_frame
+
+            # 3D Fusion - live point cloud from real hardware depth only
+            # (see Fusion3DPanel's docstring). Gated on the 3D Fusion tab
+            # actually being visible and a RealSense camera being the
+            # active RGB source, so this costs nothing when neither is true.
+            _rs_backend = None
+            active_rgb = self.plugin_host.get_active_camera('rgb') if self.plugin_host else None
+            if active_rgb and hasattr(active_rgb.backend, 'get_point_cloud'):
+                _rs_backend = active_rgb.backend
+
+            fusion_3d_panel = getattr(self.gui, 'fusion_3d_panel', None) if self.gui else None
+            if _rs_backend and fusion_3d_panel is not None and fusion_3d_panel.isVisible():
+                _now_3d = time.time()
+                if _now_3d - self._last_3d_fusion_update_time >= self._3d_fusion_update_interval_s:
+                    self._last_3d_fusion_update_time = _now_3d
+                    try:
+                        cloud = _rs_backend.get_point_cloud()
+                        if cloud is not None:
+                            vertices, uv = cloud
+                            self._gui_invoke(
+                                "update_fusion_3d_view", vertices, uv, colorized_thermal.copy()
+                            )
+                    except Exception as _rs3d_err:
+                        logger.debug(f"3D Fusion point-cloud update failed: {_rs3d_err}")
 
             # Detections (Motion/Edges)
             proc_results = {}
@@ -2337,18 +2385,22 @@ class ThermalInspectionApp:
             logger.warning("ParallaxCompensator not available")
 
     def set_parallax_depth_method(self, method: str):
-        """Set the depth estimation method ('simplified', 'depthanything', 'midas').
+        """Set the depth estimation method ('simplified', 'realsense', 'depthanything', 'midas').
 
         Reconstructs the DepthEstimator so model_loaded / pipeline state is
         always consistent with the requested method.
         """
         if self.parallax_compensator:
             from .processing.parallax_compensator import DepthEstimator
-            old_device = self.parallax_compensator.depth_estimator._device_requested
-            self.parallax_compensator.depth_estimator = DepthEstimator(
-                method=method,
-                device=old_device,
-            )
+            old_estimator = self.parallax_compensator.depth_estimator
+            old_device = old_estimator._device_requested
+            new_estimator = DepthEstimator(method=method, device=old_device)
+            # A fresh DepthEstimator has no hardware depth source wired in -
+            # carry over the active one (if any), or "realsense" would
+            # silently produce nothing until the RealSense camera happened
+            # to reconnect and re-wire it.
+            new_estimator._hardware_depth_source = old_estimator._hardware_depth_source
+            self.parallax_compensator.depth_estimator = new_estimator
             logger.info(f"Parallax depth method set to: {method}")
         else:
             logger.warning("ParallaxCompensator not available")

@@ -23,6 +23,7 @@ Pillow>=10.0.0              # Image processing
 # GUI Framework
 # ============================================================================
 PyQt6>=6.0.0                # Qt6 bindings for Python (modern, actively developed)
+pyqtgraph>=0.13.0            # Fast plotting widgets - temperature histogram, line profile, spot meter charts, 3D Fusion view
 
 # ============================================================================
 # System Monitoring & Performance
@@ -120,6 +121,25 @@ comtypes>=1.1.7             # DirectShow COM interface (required by pygrabber)
 #   - Large model: ~350MB (best accuracy, GPU recommended, 335M params)
 #
 # Without these dependencies, parallax compensation uses simplified geometric mode.
+
+# ============================================================================
+# Optional: Intel RealSense (Depth + Color, D400/L500 series) - NEW
+# ============================================================================
+# Uncomment to enable Intel RealSense support: real (not estimated) depth for
+# parallax correction ("Intel RealSense" depth method in the Parallax tab)
+# and the 3D Fusion tab's live point-cloud view. Works generically across
+# D415/D435/D435i/D455/D457/L515 - stream profiles aren't hardcoded to any
+# one model. T265 (tracking-only, no depth/color stream) is detected but
+# reported unsupported - nothing in this app uses pose/SLAM data.
+#
+# pyrealsense2>=2.54.0        # Intel librealsense Python bindings
+#
+# The 3D Fusion tab additionally needs PyOpenGL for pyqtgraph's GLViewWidget
+# (real-time rotatable point-cloud rendering) - without it, the 3D Fusion
+# tab shows a "PyOpenGL not installed" placeholder instead of crashing.
+#
+# PyOpenGL>=3.1.0
+# PyOpenGL_accelerate>=3.1.0  # optional, faster PyOpenGL - needs a C compiler to build
 
 # ============================================================================
 # Removed Dependencies (No Longer Needed)

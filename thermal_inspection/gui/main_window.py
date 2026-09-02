@@ -389,12 +389,21 @@ class InspectionAppWindow(QMainWindow):
             self.right_panel_tabs.addTab(self.cameras_tabs, "Cameras")
             logger.info("[OK] Cameras tab added to right panel")
 
-            # Tab 4: Fusion
-            logger.info("Creating Fusion tab...")
+            # Tab 4: 2D Fusion
+            logger.info("Creating 2D Fusion tab...")
             from thermal_inspection.gui.panels.fusion_panel import FusionPanel
             self.fusion_panel = FusionPanel()
-            self.right_panel_tabs.addTab(self.fusion_panel, "Fusion")
-            logger.info("[OK] Fusion tab added to right panel")
+            self.right_panel_tabs.addTab(self.fusion_panel, "2D Fusion")
+            logger.info("[OK] 2D Fusion tab added to right panel")
+
+            # Tab 4b: 3D Fusion - live point-cloud view, gated on real
+            # hardware depth (RealSense); see Fusion3DPanel's docstring for
+            # why this never falls back to estimated depth.
+            logger.info("Creating 3D Fusion tab...")
+            from thermal_inspection.gui.panels.fusion_3d_panel import Fusion3DPanel
+            self.fusion_3d_panel = Fusion3DPanel()
+            self.right_panel_tabs.addTab(self.fusion_3d_panel, "3D Fusion")
+            logger.info("[OK] 3D Fusion tab added to right panel")
 
             # Tab 5: Settings
             logger.info("Creating Settings tab...")
@@ -2407,6 +2416,16 @@ class InspectionAppWindow(QMainWindow):
         self.analysis_panel.update_rois(rois)
         if hasattr(self, 'roi_temp_panel'):
             self.roi_temp_panel.update_rois(rois)
+
+    def set_fusion_3d_hardware_available(self, available: bool):
+        """Switch the 3D Fusion tab between its live view and 'no hardware depth' placeholder."""
+        if hasattr(self, 'fusion_3d_panel'):
+            self.fusion_3d_panel.set_hardware_available(available)
+
+    def update_fusion_3d_view(self, vertices, uv, thermal_colorized):
+        """Push a new point cloud to the 3D Fusion tab."""
+        if hasattr(self, 'fusion_3d_panel'):
+            self.fusion_3d_panel.update_from_realsense(vertices, uv, thermal_colorized)
 
     def update_roi_stats(self, roi_stats: dict):
         """Push per-ROI temperature statistics (roi_id -> stats dict) to the ROI Manager panel."""

@@ -117,6 +117,14 @@ class DepthEstimator:
         self.enabled = False
         self.model_loaded = False
 
+        # Real hardware depth source (e.g. RealSenseCamera.get_depth_frame),
+        # wired by app.py when a depth-capable camera becomes the active RGB
+        # source - see set_hardware_depth_source(). Unlike simplified/midas/
+        # depthanything (which all derive an *estimate* from the RGB image
+        # itself), this method reads real measured depth and ignores the
+        # rgb_image argument entirely.
+        self._hardware_depth_source = None
+
         # Device selection is deferred: probing CUDA means importing torch,
         # which costs seconds (and on a broken install fails slowly) even
         # though the default 'simplified' method never touches it. The real
@@ -127,6 +135,12 @@ class DepthEstimator:
         if method == "simplified":
             self.enabled = True
             logger.info("Using simplified depth estimation (geometric heuristics)")
+        elif method == "realsense":
+            # Enabled immediately - there's no model to lazy-load; whether
+            # this actually produces depth depends on whether a RealSense
+            # camera is the active RGB source (see estimate_depth()).
+            self.enabled = True
+            logger.info("Using Intel RealSense hardware depth (real measured depth, no estimation)")
         elif method == "depthanything":
             if DEPTH_ESTIMATION_AVAILABLE and TRANSFORMERS_AVAILABLE:
                 # Device is intentionally not logged here — reading it would
@@ -199,6 +213,18 @@ class DepthEstimator:
 
         self._device_resolved = resolved
         return resolved
+
+    def set_hardware_depth_source(self, source_fn):
+        """
+        Wire a real hardware depth source for method="realsense".
+
+        Args:
+            source_fn: Callable[[], Optional[np.ndarray]] returning the
+                latest depth map in meters (float32, aligned to the RGB
+                frame), or None to clear the source (e.g. when the
+                RealSense camera is deactivated).
+        """
+        self._hardware_depth_source = source_fn
 
     def set_device(self, device: str):
         """
@@ -365,6 +391,8 @@ class DepthEstimator:
         try:
             if self.method == "simplified":
                 return self._estimate_depth_simplified(rgb_image)
+            elif self.method == "realsense":
+                return self._estimate_depth_realsense(rgb_image)
             elif self.method == "depthanything":
                 return self._estimate_depth_depthanything(rgb_image)
             elif self.method == "midas":
@@ -374,6 +402,36 @@ class DepthEstimator:
         except Exception as e:
             logger.error(f"Error estimating depth: {e}")
             return None
+
+    def _estimate_depth_realsense(self, rgb_image: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Real measured depth from an active RealSense camera - not an
+        estimate. Ignores rgb_image's pixel content entirely (unlike every
+        other method here); only its shape is used, to resize the hardware
+        depth map to match if the two aren't already the same resolution.
+
+        Returns None (falls through to "no correction this frame" in
+        apply_correction()) if no RealSense camera is wired as the active
+        RGB source - this method never falls back to an estimate, since
+        presenting an estimate as if it were the real thing is exactly what
+        this method exists to avoid.
+        """
+        if self._hardware_depth_source is None:
+            logger.warning(
+                "Depth method is 'realsense' but no RealSense camera is active - "
+                "connect one, or switch to 'simplified'/'midas'/'depthanything'"
+            )
+            return None
+
+        depth_m = self._hardware_depth_source()
+        if depth_m is None:
+            return None
+
+        h, w = rgb_image.shape[:2]
+        if depth_m.shape[:2] != (h, w):
+            depth_m = cv2.resize(depth_m, (w, h), interpolation=cv2.INTER_NEAREST)
+
+        return depth_m
 
     def _estimate_depth_simplified(self, rgb_image: np.ndarray) -> np.ndarray:
         """
@@ -545,6 +603,10 @@ class ParallaxCompensator:
         """Force the compute device ('cpu', 'cuda', or 'auto') used for depth estimation."""
         self.depth_estimator.set_device(device)
 
+    def set_hardware_depth_source(self, source_fn):
+        """Wire a real hardware depth source (e.g. a RealSense camera) for depth_method="realsense"."""
+        self.depth_estimator.set_hardware_depth_source(source_fn)
+
     def set_manual_shift(self, dx: int, dy: int):
         """
         Set a constant manual alignment shift (pixels), independent of
@@ -622,14 +684,36 @@ class ParallaxCompensator:
             return self._apply_manual_shift_only(thermal_frame)
 
         try:
-            depth_map = self.depth_estimator.estimate_depth(rgb_frame)
+            thermal_h, thermal_w = thermal_frame.shape[:2]
+
+            # Depth output gets resized down to thermal resolution a few
+            # lines below regardless of method, so estimating it at the
+            # RGB camera's native resolution is pure waste - for
+            # "simplified" specifically the result doesn't depend on pixel
+            # content at all (only rgb_image.shape), so shrinking first
+            # costs no accuracy either way. Confirmed live: with a 4K RGB
+            # camera this stage alone was costing ~50-90ms/frame (vs
+            # ~1-2ms at a normal RGB resolution) for a depth map that gets
+            # immediately downsampled to 640x512 anyway.
+            rgb_for_depth = rgb_frame
+            if rgb_frame.shape[0] > thermal_h or rgb_frame.shape[1] > thermal_w:
+                # INTER_LINEAR, not INTER_AREA: measured INTER_AREA at 7ms for
+                # a 4K->640x512 downscale vs INTER_LINEAR's 0.9ms (OpenCV's
+                # proper area-averaging is far more expensive than its
+                # SIMD/IPP-optimized linear path at large downscale ratios).
+                # The precision difference is moot here - "simplified" never
+                # reads pixel content at all, and midas/depthanything resize
+                # again internally to their own fixed model input size.
+                rgb_for_depth = cv2.resize(rgb_frame, (thermal_w, thermal_h),
+                                          interpolation=cv2.INTER_LINEAR)
+
+            depth_map = self.depth_estimator.estimate_depth(rgb_for_depth)
             if depth_map is None:
                 logger.warning("Depth estimation failed - returning uncorrected thermal frame")
                 return thermal_frame
 
             self.last_depth_map = depth_map
 
-            thermal_h, thermal_w = thermal_frame.shape[:2]
             depth_resized = cv2.resize(depth_map, (thermal_w, thermal_h),
                                       interpolation=cv2.INTER_LINEAR)
 

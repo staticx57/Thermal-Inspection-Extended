@@ -9,5 +9,6 @@ from . import lepton
 from . import firefly
 from . import uvc
 from . import gige
+from . import realsense
 
-__all__ = ['boson', 'tau2', 'lepton', 'firefly', 'uvc', 'gige']
+__all__ = ['boson', 'tau2', 'lepton', 'firefly', 'uvc', 'gige', 'realsense']

@@ -206,13 +206,17 @@ class ParallaxPanel(QWidget):
         self.depth_method_combo.addItems([
             "Simplified (Fast)",
             "MiDaS (Accurate)",
-            "DepthAnything (Best)"
+            "DepthAnything (Best)",
+            "Intel RealSense (Real Depth)",
         ])
         self.depth_method_combo.setCurrentIndex(0)
         self.depth_method_combo.setToolTip(
             "Simplified: Fast geometric heuristics (no ML)\n"
             "MiDaS: Deep learning model (moderate accuracy)\n"
-            "DepthAnything: Latest model (best accuracy, slowest)"
+            "DepthAnything: Latest model (best accuracy, slowest)\n"
+            "Intel RealSense: Real measured depth from an active RealSense "
+            "camera (most accurate - not an estimate - but requires the "
+            "RealSense camera to be connected and active as the RGB source)"
         )
         self.depth_method_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.depth_method_combo.currentIndexChanged.connect(self._on_method_changed)
@@ -314,7 +318,8 @@ class ParallaxPanel(QWidget):
         method_map = {
             0: "simplified",
             1: "midas",
-            2: "depthanything"
+            2: "depthanything",
+            3: "realsense",
         }
         method = method_map.get(index, "simplified")
         self.depth_method_changed.emit(method)
@@ -391,10 +396,10 @@ class ParallaxPanel(QWidget):
         Get selected depth estimation method.
 
         Returns:
-            "simplified", "midas", or "depthanything"
+            "simplified", "midas", "depthanything", or "realsense"
         """
         index = self.depth_method_combo.currentIndex()
-        method_map = {0: "simplified", 1: "midas", 2: "depthanything"}
+        method_map = {0: "simplified", 1: "midas", 2: "depthanything", 3: "realsense"}
         return method_map.get(index, "simplified")
 
     def is_show_depth_enabled(self) -> bool:
