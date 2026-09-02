@@ -10,6 +10,27 @@ RGB CAMERA PRIORITY:
 1. FLIR Firefly (via Spinnaker SDK) - Global shutter, best quality
 2. External USB UVC cameras
 3. Built-in laptop webcams
+
+NOTE - relationship to the camera plugin architecture (cameras/plugin/,
+cameras/plugins/*): this module is NOT part of that system and is NOT
+authoritative for which plugin activates a device. It's used only for (1)
+`app.py`'s manual "rescan cameras" action and (2) `camera_monitor.py`'s
+hot-plug watcher - both build a `CameraInfo` list for the camera registry
+(display/manual-role-assignment), not for activation. Actual camera
+activation at startup goes entirely through `CameraPluginHost.autodiscover()`,
+which asks each registered plugin's own `detect()` to classify hardware
+(e.g. `plugins/boson/plugin.py` matches on resolution via
+`device_scanner.find_devices_by_resolution()`).
+
+Both this module and each plugin's `detect()` share the same underlying OS
+device enumeration (`device_scanner.py`'s `_list_device_names()` /
+`find_devices_by_resolution()`), so there's no duplicate hardware probing -
+but the *classification* logic (this module's saturation/resolution
+heuristics vs. each plugin's own vendor-specific matching) is independently
+implemented in both places. They're not guaranteed to agree on borderline
+devices, and nothing cross-checks them - if the registry's camera list and
+what actually gets activated at startup disagree for a given device, this
+divergence is the first place to look.
 """
 import os
 os.environ["OPENCV_VIDEOIO_PRIORITY_OBSENSOR"] = "0"

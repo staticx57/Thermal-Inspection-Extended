@@ -1,5 +1,44 @@
 # Thermal Inspection Fusion Tool - Changelog
 
+## [3.6.0] - 2026-09-02 - Camera Plugin Architecture & Technical Debt Cleanup 🔌
+
+### 🎯 Overview
+Migrated camera handling to a plugin architecture - each camera type (Boson, Tau2, Lepton, Firefly, UVC, GigE) now owns its own detection, activation, and control logic behind a common `CameraPlugin` interface - alongside real-hardware correctness fixes, Boson rendering performance work, initial Tau2 integration, and a broad technical-debt cleanup pass.
+
+**Project Status**: camera plugin architecture live; Tau2 support is video-only pending CCI/serial hardware access.
+
+---
+
+### ✅ ADDED - Camera Plugin Architecture
+- New `cameras/plugin/` framework: `CameraPlugin` base class, `CameraPluginHost`, `CameraPluginRegistry` - each camera type self-registers detection (`detect()`), activation, capability reporting, and its own control panel.
+- Plugin implementations for Boson, Tau2, Lepton (thermal) and Firefly, UVC, GigE (RGB) under `cameras/plugins/`.
+- Startup camera activation now goes entirely through `CameraPluginHost.autodiscover()`.
+
+### ✅ ADDED - Tau2 Support (video-only)
+- New Tau2 camera backend (`tau2_camera.py`, `tau2_backend.py`) and control panel.
+- Raw Y16 capture confirmed working over UVC; CCI/serial (TLinear, true radiometric calibration) not yet available on this hardware - `Tau2Serial` (`sdk/tau2_serial.py`) is already implemented and ready once a serial connection exists.
+
+### ✅ FIXED - Real-Hardware Correctness & Performance
+- RGB frame race condition, Boson SDK correctness issues, and other bugs found via hardware-in-the-loop review.
+- Startup performance and overlay-alignment bugs from the plugin migration.
+- Boson colorization performance (palette percentile/`convertScaleAbs`), fusion allocation reductions, UI color consistency.
+
+### ✅ FIXED - Software Polish
+- Wired real per-ROI temperature stats into the ROI Manager panel (previously showed nothing - the stats pipeline existed but was never connected, and had a data-shape bug on top of that).
+- Fixed a layout bug where 5 analysis tabs (Isotherm, ROI Manager, Environmental, Gradient, Line Profile) rendered without a scroll area and squished their contents.
+- Replaced debug `print()` calls with proper logging so they respect the app's configured log level; added logging to ~25 previously-silent exception handlers in the camera detection/plugin layer.
+
+### 🧹 CLEANED UP - Technical Debt
+- Removed `requirements_qt.txt` (fully redundant with `requirements.txt`) and fixed a contradiction where `requirements.txt` claimed torch was removed while also unconditionally requiring it.
+- Removed dead YOLO/ultralytics config surface (`config.py`, `preset_manager.py`, `settings_manager.py`, `settings_schema.json`) left over from the ADAS→Inspection transformation - the feature was removed in v3.0.0 but its config schema was never cleaned up.
+- Deleted `ROIRadiometricAnalyzer` (`processing/roi_radiometric_analyzer.py`) - fully dead code, never instantiated anywhere in the live app.
+- Untracked ~78MB of committed YOLO model weights and a full duplicate copy of the proprietary Boson SDK (`3.0 IDD & SDK/`, superseded by `boson_sdk/`) from git; removed 13 stale merged git worktrees (~2.4GB) from a prior session.
+- Reorganized launcher scripts into `scripts/`, and fixed install/repair scripts that still referenced a pre-refactor flat file layout (`inspection_main.py`, `docs/`, `archive/` - none of which exist anymore); fixed a `launch.bat` bug where a headless-mode prompt built a `--output-dir` flag that doesn't exist in the CLI and would have crashed the app if used.
+- Documented the relationship between the legacy `camera_detector.py` heuristic classifier (used only for manual rescans and the hot-plug registry display) and the new plugin architecture's own per-plugin detection (authoritative for activation) - both share the same underlying device enumeration but classify independently, a known and now-documented source of potential drift.
+- Synced version strings across `pyproject.toml`, `thermal_inspection/__init__.py`, and the GUI window title, which had drifted out of sync (3.6.0 / 3.1.0 / "v2.0").
+
+---
+
 ## [3.5.0] - 2025-12-10 - Startup Optimization & Compatibility Fixes 🚀
 
 ### 🎯 Overview

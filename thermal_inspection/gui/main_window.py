@@ -58,7 +58,7 @@ class InspectionAppWindow(QMainWindow):
         self.event_bus = getattr(app_instance, 'event_bus', None)
 
         # Window setup
-        self.setWindowTitle("Thermal Inspection Fusion Tool v2.0")
+        self.setWindowTitle("Thermal Inspection Fusion Tool v3.6.0")
         self.setMinimumSize(1280, 720)
         self.resize(1280, 720)
 

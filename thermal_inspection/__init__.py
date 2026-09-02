@@ -3,15 +3,15 @@ Thermal Inspection Fusion Tool
 Professional thermal-RGB fusion for circuit board and residential inspection.
 
 This package provides:
-- Thermal camera integration (FLIR Boson, Lepton)
-- RGB camera support (FLIR Firefly, UVC cameras)
-- Real-time thermal-RGB fusion (7 modes)
+- Thermal camera integration (FLIR Boson, Tau2, Lepton) via a plugin architecture
+- RGB camera support (FLIR Firefly, UVC, GigE cameras)
+- Real-time thermal-RGB fusion (9 modes)
 - ROI-based analysis
 - Radiometric temperature measurement
 - Video recording and snapshot capture
 """
 
-__version__ = "3.1.0"
+__version__ = "3.6.0"
 
 import os
 os.environ["OPENCV_VIDEOIO_PRIORITY_OBSENSOR"] = "0"
