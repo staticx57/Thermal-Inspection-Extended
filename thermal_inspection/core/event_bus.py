@@ -115,6 +115,7 @@ class AppEventBus(QObject):
     laplacian_cpu_scale_changed = pyqtSignal(float)
     fusion_3d_strength_changed = pyqtSignal(float)
     fusion_3d_mode_changed = pyqtSignal(str)
+    fusion_3d_data_source_changed = pyqtSignal(str)
 
     # =====================================================================
     # ROI

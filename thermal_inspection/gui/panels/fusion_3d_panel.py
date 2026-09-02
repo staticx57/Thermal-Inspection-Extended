@@ -440,6 +440,7 @@ class Fusion3DSettingsPanel(QWidget):
 
     strength_changed = pyqtSignal(float)
     mode_changed = pyqtSignal(str)
+    data_source_changed = pyqtSignal(str)
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -470,6 +471,30 @@ class Fusion3DSettingsPanel(QWidget):
         )
         mode_layout.addWidget(self.mode_combo)
         layout.addLayout(mode_layout)
+
+        # Controls the MAIN VIEWPORT's base image directly (unlike the
+        # "Components" combo further down, which only affects the small
+        # point-cloud preview) - "Auto" is the safe default (Fusion only
+        # when thermal is actually aligned to RealSense, else RGB Only),
+        # but forcing a mode lets you compare them directly.
+        source_layout = QHBoxLayout()
+        source_layout.addWidget(QLabel("Data Source:"))
+        self.data_source_combo = QComboBox()
+        self.data_source_combo.addItem("Auto (Fusion when aligned)", "auto")
+        self.data_source_combo.addItem("RGB Only", "rgb_only")
+        self.data_source_combo.addItem("RGB + Thermal (Fusion)", "fusion")
+        self.data_source_combo.setToolTip(
+            "What the main viewport's 3D mode shades with real depth.\n"
+            "Auto: Fusion when thermal is aligned to RealSense, else RGB Only.\n"
+            "Forcing \"RGB + Thermal\" without alignment falls back to RGB "
+            "Only anyway - thermal and RGB pixels wouldn't correspond to "
+            "the same real-world points otherwise."
+        )
+        self.data_source_combo.currentIndexChanged.connect(
+            lambda i: self.data_source_changed.emit(self.data_source_combo.itemData(i))
+        )
+        source_layout.addWidget(self.data_source_combo)
+        layout.addLayout(source_layout)
 
         strength_layout = QHBoxLayout()
         strength_layout.addWidget(QLabel("Strength:"))

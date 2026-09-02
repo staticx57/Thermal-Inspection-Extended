@@ -171,6 +171,7 @@ class ThermalInspectionApp:
         self._last_3d_aligned_reported = False
         self._3d_relief_strength = 0.5
         self._3d_mode = "relief"  # "relief", "fog", or "contours" - see fusion_3d_panel.THREE_D_MODES
+        self._3d_data_source = "auto"  # "auto", "rgb_only", or "fusion" - which base image THREE_D shades
         # Cache for the main viewport's THREE_D display frame - see its
         # branch in the display_frame selection for why this is throttled
         # instead of recomputed every frame.
@@ -345,6 +346,7 @@ class ThermalInspectionApp:
         bus.laplacian_cpu_scale_changed.connect(self.set_laplacian_cpu_scale)
         bus.fusion_3d_strength_changed.connect(self.set_3d_relief_strength)
         bus.fusion_3d_mode_changed.connect(self.set_3d_mode)
+        bus.fusion_3d_data_source_changed.connect(self.set_3d_data_source)
 
         # --- ROI ---
         bus.auto_roi_requested.connect(self.auto_roi_detect)
@@ -1711,7 +1713,18 @@ class ThermalInspectionApp:
                                 "contours": apply_depth_contours,
                             }.get(self._3d_mode, apply_depth_relief)
 
-                            if _thermal_aligned_realsense and self.fusion_processor and rgb_frame is not None:
+                            # _3d_data_source lets the user force RGB Only or
+                            # RGB+Thermal explicitly instead of always
+                            # auto-deciding - but "fusion" without real
+                            # alignment still falls back to RGB Only rather
+                            # than honoring a request that would blend
+                            # spatially-unrelated thermal/RGB pixels.
+                            want_fusion = (
+                                self._3d_data_source == "fusion"
+                                or (self._3d_data_source == "auto" and _thermal_aligned_realsense)
+                            )
+                            if (want_fusion and _thermal_aligned_realsense
+                                    and self.fusion_processor and rgb_frame is not None):
                                 fusion_rgb = rgb_frame
                                 if self._fusion_color_mode == "grayscale":
                                     gray = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2GRAY)
@@ -2080,6 +2093,14 @@ class ThermalInspectionApp:
             return
         self._3d_mode = mode
         self._last_3d_display_frame = None  # force an immediate recompute in the new mode
+
+    def set_3d_data_source(self, source: str):
+        """Set which base image ViewMode.THREE_D shades - "auto", "rgb_only", or "fusion"."""
+        if source not in ("auto", "rgb_only", "fusion"):
+            logger.warning(f"Unknown 3D Fusion data source '{source}', ignoring")
+            return
+        self._3d_data_source = source
+        self._last_3d_display_frame = None  # force an immediate recompute with the new source
 
     def set_emissivity(self, val: float):
         """Set emissivity value."""
