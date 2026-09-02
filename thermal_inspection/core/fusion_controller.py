@@ -10,6 +10,8 @@ from typing import Optional, Callable, List
 from dataclasses import dataclass
 from enum import Enum, auto
 
+from thermal_inspection.processing.fusion_processor import FusionProcessor
+
 logger = logging.getLogger(__name__)
 
 # Global constant for PIP mode
@@ -72,18 +74,13 @@ class FusionController:
         controller.set_mode('alpha_blend')
     """
 
-    # Available fusion modes
-    AVAILABLE_MODES: List[str] = [
-        'alpha_blend',
-        'detail_inject',
-        'relief_fusion',
-        'edge_enhanced',
-        'thermal_overlay',
-        'side_by_side',
-        'picture_in_picture',
-        'max_intensity',
-        'feature_weighted'
-    ]
+    # Available fusion modes - sourced from FusionProcessor.AVAILABLE_FUSION_MODES
+    # rather than a separate copy. This class used to keep its own 9-mode
+    # list here, missing thermal_contours/enhanced_edge_highlight/
+    # laplacian_pyramid entirely - cycle_mode() could never reach them, and
+    # set_mode()'s own drift (see FusionProcessor.set_mode()) meant
+    # selecting them from the GUI silently no-opped too.
+    AVAILABLE_MODES: List[str] = FusionProcessor.AVAILABLE_FUSION_MODES
 
     # Color map for edge overlay
     EDGE_COLORS = {

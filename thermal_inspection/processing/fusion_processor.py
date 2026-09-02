@@ -166,19 +166,24 @@ class FusionProcessor:
 
     def set_mode(self, fusion_mode: str):
         """
-        Set fusion mode dynamically
+        Set fusion mode dynamically. Alias for set_fusion_mode() - this is
+        the method FusionController actually calls (the GUI's live path),
+        while set_fusion_mode() is used by the --auto-cycle-fusion-modes
+        testing path and the test suite. These used to be two independently
+        maintained implementations with two different mode lists; this one's
+        own `valid_modes` was missing thermal_contours, enhanced_edge_highlight,
+        and laplacian_pyramid entirely (and had a stale 'anomaly_priority'
+        entry that isn't a real mode at all) - selecting any of those three
+        from the GUI silently no-opped here, leaving whatever mode was
+        already active running, which is exactly why they all looked
+        identical. Delegating to set_fusion_mode() means there's only one
+        mode list (AVAILABLE_FUSION_MODES) for both call paths to drift
+        out of sync with, ever again.
 
         Args:
             fusion_mode: New fusion mode to use
         """
-        valid_modes = ['alpha_blend', 'detail_inject', 'relief_fusion', 'edge_enhanced', 'thermal_overlay',
-                       'side_by_side', 'picture_in_picture', 'max_intensity', 'feature_weighted', 'anomaly_priority']
-
-        if fusion_mode in valid_modes:
-            self.fusion_mode = fusion_mode
-            logger.info(f"Fusion mode changed to: {fusion_mode}")
-        else:
-            logger.warning(f"Invalid fusion mode '{fusion_mode}', keeping current mode '{self.fusion_mode}'")
+        self.set_fusion_mode(fusion_mode)
 
     def set_priority(self, priority: str):
         """

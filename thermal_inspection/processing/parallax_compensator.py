@@ -347,10 +347,18 @@ class DepthEstimator:
             Depth map (H, W) float32, values in meters, or None if failed
             Closer objects have smaller values (typical range: 0.5m-5.0m)
         """
-        if not self.enabled:
-            logger.warning("Depth estimator not enabled")
-            return None
-
+        # No `if not self.enabled: return None` gate here - for
+        # depthanything/midas, self.enabled only becomes True *after*
+        # load_model() succeeds (see __init__), and load_model() is only
+        # ever called from the method-specific handlers below. Gating on
+        # it here meant those handlers could never run at all through the
+        # normal call path - confirmed live: every call short-circuited
+        # with "Depth estimator not enabled" before ever attempting to
+        # load or infer, so depthanything/midas never did anything.
+        # ParallaxCompensator.apply_correction() already checks its own
+        # separate `enabled` flag (whether depth-based correction is
+        # turned on at all) before ever calling this method - that's the
+        # real gate; each handler below manages its own lazy-load.
         if rgb_image is None or rgb_image.size == 0:
             return None
 
@@ -677,6 +685,36 @@ class ParallaxCompensator:
         corrected = cv2.remap(thermal_frame, map_x, map_y,
                              interpolation=cv2.INTER_LINEAR,
                              borderMode=cv2.BORDER_REPLICATE)
+
+        # BORDER_REPLICATE smears the edge row/column across whatever strip
+        # shifted off-frame, rather than leaving a gap - crop that invalid
+        # strip away and rescale back to the original size instead, so the
+        # displayed frame has no duplicated/smeared content. Standard
+        # tradeoff for shift-based alignment: a small, fixed loss of field
+        # of view instead of a visible seam.
+        shift_x = flow_map[:, :, 0]
+        shift_y = flow_map[:, :, 1]
+
+        # map_x = x - shift_x goes out of [0, w) on the LEFT wherever
+        # shift_x is large positive (small x - large shift < 0), and out on
+        # the RIGHT wherever shift_x is large negative (x near w-1 + |shift|
+        # exceeds w-1) - crop by the actual max magnitude present on each
+        # side, not a blanket worst case, so a small shift doesn't cost more
+        # field of view than it has to.
+        left_crop = max(0, int(np.ceil(shift_x.max())))
+        right_crop = max(0, int(np.ceil(-shift_x.min())))
+        top_crop = max(0, int(np.ceil(shift_y.max())))
+        bottom_crop = max(0, int(np.ceil(-shift_y.min())))
+
+        if left_crop + right_crop >= w or top_crop + bottom_crop >= h:
+            # Shift exceeds the frame itself - nothing valid would remain;
+            # fall back to the uncropped (replicated-border) version rather
+            # than crash on an empty crop region.
+            return corrected
+
+        if left_crop or right_crop or top_crop or bottom_crop:
+            cropped = corrected[top_crop:h - bottom_crop, left_crop:w - right_crop]
+            corrected = cv2.resize(cropped, (w, h), interpolation=cv2.INTER_LINEAR)
 
         return corrected
 
