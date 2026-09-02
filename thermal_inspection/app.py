@@ -172,6 +172,9 @@ class ThermalInspectionApp:
         self._3d_relief_strength = 0.5
         self._3d_mode = "relief"  # "relief", "fog", or "contours" - see fusion_3d_panel.THREE_D_MODES
         self._3d_data_source = "auto"  # "auto", "rgb_only", or "fusion" - which base image THREE_D shades
+        self._3d_fog_near_m = 0.3
+        self._3d_fog_far_m = 4.0
+        self._3d_contour_interval_m = 0.5
         # Cache for the main viewport's THREE_D display frame - see its
         # branch in the display_frame selection for why this is throttled
         # instead of recomputed every frame.
@@ -347,6 +350,8 @@ class ThermalInspectionApp:
         bus.fusion_3d_strength_changed.connect(self.set_3d_relief_strength)
         bus.fusion_3d_mode_changed.connect(self.set_3d_mode)
         bus.fusion_3d_data_source_changed.connect(self.set_3d_data_source)
+        bus.fusion_3d_fog_range_changed.connect(self.set_3d_fog_range)
+        bus.fusion_3d_contour_interval_changed.connect(self.set_3d_contour_interval)
 
         # --- ROI ---
         bus.auto_roi_requested.connect(self.auto_roi_detect)
@@ -1737,8 +1742,14 @@ class ThermalInspectionApp:
                                 # on GPU when available (~5ms/frame at
                                 # 1280x800 on an RTX 4000 Ada), or falls back
                                 # to a resolution-capped CPU path otherwise.
+                                # near_m/far_m/interval_m are harmlessly
+                                # unused by whichever mode isn't "fog"/
+                                # "contours" - each function only reads the
+                                # kwargs it defines.
                                 self._last_3d_display_frame = apply_3d_visualization(
-                                    self._3d_mode, base_2d, depth_map, strength=self._3d_relief_strength
+                                    self._3d_mode, base_2d, depth_map, strength=self._3d_relief_strength,
+                                    near_m=self._3d_fog_near_m, far_m=self._3d_fog_far_m,
+                                    interval_m=self._3d_contour_interval_m,
                                 )
                             else:
                                 self._last_3d_display_frame = base_2d
@@ -2098,6 +2109,17 @@ class ThermalInspectionApp:
             return
         self._3d_data_source = source
         self._last_3d_display_frame = None  # force an immediate recompute with the new source
+
+    def set_3d_fog_range(self, near_m: float, far_m: float):
+        """Set the near/far distance range (meters) for the "fog" 3D Fusion mode."""
+        self._3d_fog_near_m = near_m
+        self._3d_fog_far_m = far_m
+        self._last_3d_display_frame = None
+
+    def set_3d_contour_interval(self, interval_m: float):
+        """Set the line spacing (meters) for the "contours" 3D Fusion mode."""
+        self._3d_contour_interval_m = interval_m
+        self._last_3d_display_frame = None
 
     def set_emissivity(self, val: float):
         """Set emissivity value."""

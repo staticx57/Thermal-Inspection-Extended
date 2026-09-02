@@ -541,6 +541,8 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("fusion_3d_panel", "strength_changed", self._on_3d_relief_strength_changed, "(3d fusion)")
         self._safe_connect("fusion_3d_panel", "mode_changed", self._on_3d_mode_changed, "(3d fusion)")
         self._safe_connect("fusion_3d_panel", "data_source_changed", self._on_3d_data_source_changed, "(3d fusion)")
+        self._safe_connect("fusion_3d_panel", "fog_range_changed", self._on_3d_fog_range_changed, "(3d fusion)")
+        self._safe_connect("fusion_3d_panel", "contour_interval_changed", self._on_3d_contour_interval_changed, "(3d fusion)")
 
         # === ANALYSIS PANEL ===
         self._safe_connect("analysis_panel", "palette_changed", self._on_global_palette_changed, "(analysis)")
@@ -1563,6 +1565,18 @@ class InspectionAppWindow(QMainWindow):
             self.event_bus.fusion_3d_data_source_changed.emit(source)
         elif self.app and hasattr(self.app, 'set_3d_data_source'):
             self.app.set_3d_data_source(source)
+
+    def _on_3d_fog_range_changed(self, near_m: float, far_m: float):
+        if self.event_bus:
+            self.event_bus.fusion_3d_fog_range_changed.emit(near_m, far_m)
+        elif self.app and hasattr(self.app, 'set_3d_fog_range'):
+            self.app.set_3d_fog_range(near_m, far_m)
+
+    def _on_3d_contour_interval_changed(self, interval_m: float):
+        if self.event_bus:
+            self.event_bus.fusion_3d_contour_interval_changed.emit(interval_m)
+        elif self.app and hasattr(self.app, 'set_3d_contour_interval'):
+            self.app.set_3d_contour_interval(interval_m)
 
     # === ANALYSIS HANDLERS ===
     def _on_global_palette_changed(self, palette_name: str):

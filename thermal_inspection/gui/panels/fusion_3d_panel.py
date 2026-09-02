@@ -83,7 +83,7 @@ THREE_D_MODE_LABELS = {
 }
 
 
-def apply_depth_relief(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5) -> np.ndarray:
+def apply_depth_relief(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5, **_unused) -> np.ndarray:
     """
     Shade a BGR image using real depth-derived surface normals - an
     emboss/bump-map effect giving edges and surfaces a subtle 3D-relief
@@ -166,7 +166,7 @@ def apply_depth_relief(image_bgr: np.ndarray, depth_m: np.ndarray, strength: flo
 
 
 def apply_depth_fog(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5,
-                     near_m: float = 0.3, far_m: float = 4.0) -> np.ndarray:
+                     near_m: float = 0.3, far_m: float = 4.0, **_unused) -> np.ndarray:
     """
     Fade the image toward neutral gray as real measured depth increases -
     near objects stay full contrast, far ones fade out, drawing the eye to
@@ -197,7 +197,7 @@ def apply_depth_fog(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float 
 
 
 def apply_depth_contours(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5,
-                          interval_m: float = 0.5) -> np.ndarray:
+                          interval_m: float = 0.5, **_unused) -> np.ndarray:
     """
     Overlay topographic-style contour lines at fixed real-depth intervals -
     communicates distance bands explicitly without altering the base
@@ -286,7 +286,7 @@ def _depth_to_normal_gpu(depth_t, torch, F):
     return nx / norm, ny / norm, nz / norm, depth_t
 
 
-def apply_depth_relief_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5) -> np.ndarray:
+def apply_depth_relief_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5, **_unused) -> np.ndarray:
     """GPU (torch/CUDA) implementation of apply_depth_relief - see its docstring for the algorithm."""
     import torch
     import torch.nn.functional as F
@@ -310,7 +310,7 @@ def apply_depth_relief_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength:
 
 
 def apply_depth_fog_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5,
-                         near_m: float = 0.3, far_m: float = 4.0) -> np.ndarray:
+                         near_m: float = 0.3, far_m: float = 4.0, **_unused) -> np.ndarray:
     """GPU (torch/CUDA) implementation of apply_depth_fog - see its docstring for the algorithm."""
     import torch
 
@@ -326,7 +326,7 @@ def apply_depth_fog_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength: fl
 
 
 def apply_depth_contours_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5,
-                              interval_m: float = 0.5) -> np.ndarray:
+                              interval_m: float = 0.5, **_unused) -> np.ndarray:
     """GPU (torch/CUDA) implementation of apply_depth_contours - see its docstring for the algorithm."""
     import torch
     import torch.nn.functional as F
@@ -372,16 +372,22 @@ CPU_MAX_PROC_WIDTH = 640
 
 
 def apply_3d_visualization(mode: str, image_bgr: np.ndarray, depth_m: np.ndarray,
-                            strength: float = 0.5) -> np.ndarray:
+                            strength: float = 0.5, **kwargs) -> np.ndarray:
     """
     Apply the selected depth visualization (see THREE_D_MODES), using GPU
     acceleration at full resolution when a CUDA GPU is available, falling
     back to a resolution-capped CPU path otherwise (see CPU_MAX_PROC_WIDTH).
+
+    kwargs are mode-specific tunables passed straight through to the
+    underlying function (both CPU and GPU variants share the same extra
+    parameter names per mode): fog takes near_m/far_m, contours takes
+    interval_m. Irrelevant kwargs for the current mode are simply unused
+    by that function's own defaults.
     """
     if _resolve_3d_gpu():
         try:
             gpu_fn = _GPU_MODE_FN.get(mode, apply_depth_relief_gpu)
-            return gpu_fn(image_bgr, depth_m, strength=strength)
+            return gpu_fn(image_bgr, depth_m, strength=strength, **kwargs)
         except Exception as e:
             logger.warning(f"3D Fusion GPU path failed, falling back to CPU: {e}")
 
@@ -391,9 +397,9 @@ def apply_3d_visualization(mode: str, image_bgr: np.ndarray, depth_m: np.ndarray
         ph = int(round(bh * CPU_MAX_PROC_WIDTH / bw))
         small_img = cv2.resize(image_bgr, (CPU_MAX_PROC_WIDTH, ph), interpolation=cv2.INTER_LINEAR)
         small_depth = cv2.resize(depth_m, (CPU_MAX_PROC_WIDTH, ph), interpolation=cv2.INTER_NEAREST)
-        result = cpu_fn(small_img, small_depth, strength=strength)
+        result = cpu_fn(small_img, small_depth, strength=strength, **kwargs)
         return cv2.resize(result, (bw, bh), interpolation=cv2.INTER_LINEAR)
-    return cpu_fn(image_bgr, depth_m, strength=strength)
+    return cpu_fn(image_bgr, depth_m, strength=strength, **kwargs)
 
 
 class Fusion3DPointCloudView(QWidget):
@@ -617,6 +623,8 @@ class Fusion3DSettingsPanel(QWidget):
     strength_changed = pyqtSignal(float)
     mode_changed = pyqtSignal(str)
     data_source_changed = pyqtSignal(str)
+    fog_range_changed = pyqtSignal(float, float)   # near_m, far_m
+    contour_interval_changed = pyqtSignal(float)   # interval_m
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -642,9 +650,7 @@ class Fusion3DSettingsPanel(QWidget):
             "Depth Fog: near stays sharp, far fades to neutral gray\n"
             "Depth Contours: topographic-style lines at fixed depth intervals"
         )
-        self.mode_combo.currentIndexChanged.connect(
-            lambda i: self.mode_changed.emit(self.mode_combo.itemData(i))
-        )
+        self.mode_combo.currentIndexChanged.connect(self._on_mode_combo_changed)
         mode_layout.addWidget(self.mode_combo)
         layout.addLayout(mode_layout)
 
@@ -684,6 +690,59 @@ class Fusion3DSettingsPanel(QWidget):
         self.strength_slider.valueChanged.connect(lambda v: self.strength_changed.emit(v / 100.0))
         strength_layout.addWidget(self.strength_slider)
         layout.addLayout(strength_layout)
+
+        # Depth Fog tunables (near/far range, meters x10 for 0.1m slider
+        # steps) - only shown when Mode is "Depth Fog".
+        self.fog_params_widget = QWidget()
+        fog_params_layout = QVBoxLayout(self.fog_params_widget)
+        fog_params_layout.setContentsMargins(0, 0, 0, 0)
+        fog_params_layout.setSpacing(4)
+
+        near_layout = QHBoxLayout()
+        near_layout.addWidget(QLabel("Near (m):"))
+        self.fog_near_slider = QSlider(Qt.Orientation.Horizontal)
+        self.fog_near_slider.setRange(1, 100)   # 0.1m - 10.0m
+        self.fog_near_slider.setValue(3)        # 0.3m default
+        self.fog_near_slider.setToolTip("Distance at which objects stay full contrast (closer = sharp)")
+        self.fog_near_value = QLabel("0.3m")
+        self.fog_near_slider.valueChanged.connect(self._on_fog_range_changed)
+        near_layout.addWidget(self.fog_near_slider)
+        near_layout.addWidget(self.fog_near_value)
+        fog_params_layout.addLayout(near_layout)
+
+        far_layout = QHBoxLayout()
+        far_layout.addWidget(QLabel("Far (m):"))
+        self.fog_far_slider = QSlider(Qt.Orientation.Horizontal)
+        self.fog_far_slider.setRange(1, 100)    # 0.1m - 10.0m
+        self.fog_far_slider.setValue(40)        # 4.0m default
+        self.fog_far_slider.setToolTip("Distance beyond which objects are fully faded")
+        self.fog_far_value = QLabel("4.0m")
+        self.fog_far_slider.valueChanged.connect(self._on_fog_range_changed)
+        far_layout.addWidget(self.fog_far_slider)
+        far_layout.addWidget(self.fog_far_value)
+        fog_params_layout.addLayout(far_layout)
+
+        layout.addWidget(self.fog_params_widget)
+
+        # Depth Contours tunable (line spacing) - only shown when Mode is
+        # "Depth Contours".
+        self.contours_params_widget = QWidget()
+        contours_params_layout = QHBoxLayout(self.contours_params_widget)
+        contours_params_layout.setContentsMargins(0, 0, 0, 0)
+        contours_params_layout.addWidget(QLabel("Line Spacing (m):"))
+        self.contour_interval_slider = QSlider(Qt.Orientation.Horizontal)
+        self.contour_interval_slider.setRange(1, 50)  # 0.1m - 5.0m
+        self.contour_interval_slider.setValue(5)      # 0.5m default
+        self.contour_interval_slider.setToolTip("Distance between contour lines")
+        self.contour_interval_value = QLabel("0.5m")
+        self.contour_interval_slider.valueChanged.connect(self._on_contour_interval_changed)
+        contours_params_layout.addWidget(self.contour_interval_slider)
+        contours_params_layout.addWidget(self.contour_interval_value)
+        layout.addWidget(self.contours_params_widget)
+
+        # default mode is "relief" - neither mode-specific tunable widget applies
+        self.fog_params_widget.hide()
+        self.contours_params_widget.hide()
 
         note = QLabel(
             "View 3D Fusion from the main viewport's View Mode button "
@@ -727,6 +786,32 @@ class Fusion3DSettingsPanel(QWidget):
         layout.addWidget(reset_btn)
 
         layout.addStretch()
+
+    def _on_mode_combo_changed(self, index: int):
+        mode = self.mode_combo.itemData(index)
+        self.fog_params_widget.setVisible(mode == "fog")
+        self.contours_params_widget.setVisible(mode == "contours")
+        self.mode_changed.emit(mode)
+
+    def _on_fog_range_changed(self, _value: int):
+        near_m = self.fog_near_slider.value() / 10.0
+        far_m = self.fog_far_slider.value() / 10.0
+        # Near must stay below far, or apply_depth_fog's np.clip(depth, near, far)
+        # would silently treat the whole range as invalid.
+        if near_m >= far_m:
+            far_m = near_m + 0.1
+            self._block_fog_signal = True
+            self.fog_far_slider.setValue(int(far_m * 10))
+            self._block_fog_signal = False
+        self.fog_near_value.setText(f"{near_m:.1f}m")
+        self.fog_far_value.setText(f"{far_m:.1f}m")
+        if not getattr(self, '_block_fog_signal', False):
+            self.fog_range_changed.emit(near_m, far_m)
+
+    def _on_contour_interval_changed(self, value: int):
+        interval_m = value / 10.0
+        self.contour_interval_value.setText(f"{interval_m:.1f}m")
+        self.contour_interval_changed.emit(interval_m)
 
     def set_status(self, hardware_available: bool, thermal_aligned: bool):
         if not hardware_available:

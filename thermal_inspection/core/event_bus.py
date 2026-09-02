@@ -116,6 +116,8 @@ class AppEventBus(QObject):
     fusion_3d_strength_changed = pyqtSignal(float)
     fusion_3d_mode_changed = pyqtSignal(str)
     fusion_3d_data_source_changed = pyqtSignal(str)
+    fusion_3d_fog_range_changed = pyqtSignal(float, float)   # near_m, far_m
+    fusion_3d_contour_interval_changed = pyqtSignal(float)   # interval_m
 
     # =====================================================================
     # ROI
