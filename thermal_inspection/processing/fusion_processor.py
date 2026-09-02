@@ -38,6 +38,24 @@ class FusionProcessor:
         'enhanced_edge_highlight', 'laplacian_pyramid',
     ]
 
+    # Human-readable labels for AVAILABLE_FUSION_MODES, for GUI display -
+    # fusion_panel.py's dropdown used to show these raw snake_case mode
+    # strings directly to the user instead of a proper name.
+    FUSION_MODE_LABELS = {
+        'alpha_blend': 'Alpha Blend',
+        'detail_inject': 'Detail Injection',
+        'relief_fusion': 'Relief Fusion',
+        'edge_enhanced': 'Edge Enhanced',
+        'thermal_overlay': 'Thermal Overlay',
+        'side_by_side': 'Side by Side',
+        'picture_in_picture': 'Picture in Picture',
+        'max_intensity': 'Max Intensity',
+        'feature_weighted': 'Feature Weighted',
+        'thermal_contours': 'Thermal Contours',
+        'enhanced_edge_highlight': 'Enhanced Edge Highlight',
+        'laplacian_pyramid': 'Laplacian Pyramid',
+    }
+
     def __init__(self, fusion_mode: str = 'alpha_blend', alpha: float = 0.5,
                  calibration_file: Optional[str] = None, fusion_priority: str = 'thermal'):
         """

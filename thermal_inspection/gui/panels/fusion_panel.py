@@ -57,8 +57,13 @@ class FusionPanel(QWidget):
         mode_layout.addWidget(QLabel("Mode:"))
         self.fusion_mode_combo = QComboBox()
         self.fusion_mode_combo.setMinimumHeight(28)
-        self.fusion_mode_combo.addItems(FusionProcessor.AVAILABLE_FUSION_MODES)
-        self.fusion_mode_combo.currentTextChanged.connect(self.fusion_mode_changed.emit)
+        # Display the human-readable label, but keep the real mode string as
+        # itemData - this dropdown used to show the raw snake_case mode
+        # strings (e.g. "enhanced_edge_highlight") directly to the user.
+        for mode in FusionProcessor.AVAILABLE_FUSION_MODES:
+            label = FusionProcessor.FUSION_MODE_LABELS.get(mode, mode)
+            self.fusion_mode_combo.addItem(label, mode)
+        self.fusion_mode_combo.currentIndexChanged.connect(self._on_fusion_mode_changed)
         mode_layout.addWidget(self.fusion_mode_combo)
         fusion_layout.addLayout(mode_layout)
 
@@ -237,14 +242,22 @@ class FusionPanel(QWidget):
         self.fusion_settings_layout.addWidget(self.detail_settings_widget)
         self.detail_settings_widget.hide()  # Initially hidden
 
-        # Connect fusion mode change to update visible settings
-        self.fusion_mode_combo.currentTextChanged.connect(self._update_fusion_settings)
 
         layout.addWidget(self.fusion_settings_group)
         layout.addStretch()
 
         scroll.setWidget(content_widget)
         main_layout.addWidget(scroll)
+
+    def _on_fusion_mode_changed(self, index: int):
+        """Handle mode combo change - look up the real mode string from
+        itemData (the combo displays a human-readable label, e.g. "Edge
+        Enhanced", not the raw "edge_enhanced" mode string itself)."""
+        mode = self.fusion_mode_combo.itemData(index)
+        if not mode:
+            return
+        self._update_fusion_settings(mode)
+        self.fusion_mode_changed.emit(mode)
 
     def _update_fusion_settings(self, mode: str):
         """Update visible settings based on fusion mode."""
