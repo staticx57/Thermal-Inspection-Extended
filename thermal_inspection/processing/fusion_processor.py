@@ -841,9 +841,11 @@ class FusionProcessor:
                 (255, 0, 0)       # Blue (coolest)
             ]
 
-            # Find min and max values
-            t_min = thermal_gray.min()
-            t_max = thermal_gray.max()
+            # Find min and max values (as Python ints, not numpy uint8
+            # scalars - (t_max - t_min) * (i + 1) below can exceed 255 and
+            # silently overflow/wrap if left in uint8 arithmetic)
+            t_min = int(thermal_gray.min())
+            t_max = int(thermal_gray.max())
 
             if t_max - t_min < 10:
                 # Not enough temperature variation
