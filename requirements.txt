@@ -77,7 +77,11 @@ comtypes>=1.1.7             # DirectShow COM interface (required by pygrabber)
 # ============================================================================
 # Uncomment to enable DepthAnything V2 depth estimation for improved parallax
 # compensation accuracy. This provides state-of-the-art monocular depth estimation
-# for better thermal-RGB alignment.
+# for better thermal-RGB alignment. torch is also used (if installed) to
+# GPU-accelerate the laplacian_pyramid fusion mode - see
+# FusionProcessor._laplacian_pyramid_gpu; without it, that mode still works,
+# falling back to CPU (optionally at reduced internal resolution - see
+# FusionProcessor.laplacian_cpu_scale).
 #
 # torch>=2.0.0              # PyTorch (CPU version, ~2GB download)
 # transformers>=4.30.0      # Hugging Face Transformers

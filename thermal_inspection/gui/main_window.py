@@ -517,6 +517,8 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("fusion_panel", "edge_color_changed", self._on_edge_color_changed, "(fusion)")
         self._safe_connect("fusion_panel", "detail_strength_changed", self._on_detail_strength_changed, "(fusion)")
         self._safe_connect("fusion_panel", "detail_quality_changed", self._on_detail_quality_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "laplacian_gpu_changed", self._on_laplacian_gpu_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "laplacian_cpu_scale_changed", self._on_laplacian_cpu_scale_changed, "(fusion)")
 
         # === ANALYSIS PANEL ===
         self._safe_connect("analysis_panel", "palette_changed", self._on_global_palette_changed, "(analysis)")
@@ -1509,6 +1511,18 @@ class InspectionAppWindow(QMainWindow):
             self.event_bus.detail_quality_changed.emit(val)
         elif self.app and hasattr(self.app, 'set_detail_quality'):
             self.app.set_detail_quality(val)
+
+    def _on_laplacian_gpu_changed(self, val: bool):
+        if self.event_bus:
+            self.event_bus.laplacian_gpu_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_laplacian_gpu'):
+            self.app.set_laplacian_gpu(val)
+
+    def _on_laplacian_cpu_scale_changed(self, val: float):
+        if self.event_bus:
+            self.event_bus.laplacian_cpu_scale_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_laplacian_cpu_scale'):
+            self.app.set_laplacian_cpu_scale(val)
 
     # === ANALYSIS HANDLERS ===
     def _on_global_palette_changed(self, palette_name: str):

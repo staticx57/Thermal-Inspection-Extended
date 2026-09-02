@@ -323,6 +323,8 @@ class ThermalInspectionApp:
         bus.edge_color_changed.connect(self.set_edge_color)
         bus.detail_strength_changed.connect(self.set_detail_strength)
         bus.detail_quality_changed.connect(self.set_detail_quality)
+        bus.laplacian_gpu_changed.connect(self.set_laplacian_gpu)
+        bus.laplacian_cpu_scale_changed.connect(self.set_laplacian_cpu_scale)
 
         # --- ROI ---
         bus.auto_roi_requested.connect(self.auto_roi_detect)
@@ -1884,6 +1886,16 @@ class ThermalInspectionApp:
             val = q_map.get(quality, 0.5)
             self.fusion_processor.detail_quality = val
 
+    def set_laplacian_gpu(self, enabled: bool):
+        """Enable/disable GPU (CUDA) acceleration for the laplacian_pyramid fusion mode."""
+        if self.fusion_processor:
+            self.fusion_processor.set_laplacian_gpu_enabled(enabled)
+
+    def set_laplacian_cpu_scale(self, scale: float):
+        """Set laplacian_pyramid's CPU-fallback internal resolution scale (no effect when GPU is active)."""
+        if self.fusion_processor:
+            self.fusion_processor.set_laplacian_cpu_scale(scale)
+
     def set_emissivity(self, val: float):
         """Set emissivity value."""
         if self.thermal_analyzer:
@@ -2264,12 +2276,13 @@ class ThermalInspectionApp:
         """
         Set the compute device ('cpu' or 'cuda') for GPU-capable processing:
         thermal_processor's VPI backend (Jetson, or Linux with VPI
-        installed - VPI has no Windows build at all) and
-        parallax_compensator's depth-estimation model (CUDA via PyTorch,
-        works on any platform with a CUDA-enabled torch install).
-        FusionProcessor has no real GPU-accelerated code path to switch
-        (see FusionProcessor.__init__'s has_cuda comment) so isn't
-        included here - there's nothing to wire yet.
+        installed - VPI has no Windows build at all), parallax_compensator's
+        depth-estimation model (CUDA via PyTorch, works on any platform
+        with a CUDA-enabled torch install), and fusion_processor's
+        laplacian_pyramid mode (also CUDA via PyTorch - see
+        FusionProcessor._laplacian_pyramid_gpu; every other fusion mode
+        still has no GPU-accelerated code path, see has_cuda's comment in
+        FusionProcessor.__init__).
 
         Settings panel combo emits "CPU"/"CUDA" (uppercase); normalize
         once here rather than relying on every downstream consumer to
@@ -2289,6 +2302,9 @@ class ThermalInspectionApp:
 
         if self.parallax_compensator:
             self.parallax_compensator.set_device(device)
+
+        if self.fusion_processor:
+            self.fusion_processor.set_device(device)
 
     def execute_camera_command(self, role: str, command: str, params: Optional[dict] = None) -> dict:
         """Execute a generic camera command via the CameraPluginHost."""

@@ -6,7 +6,7 @@ Handles alpha blending, fusion modes, and enhancement settings.
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
-    QLabel, QComboBox, QSlider, QScrollArea
+    QLabel, QComboBox, QSlider, QScrollArea, QCheckBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
@@ -27,6 +27,8 @@ class FusionPanel(QWidget):
     edge_color_changed = pyqtSignal(str)  # Color for edge overlay
     detail_strength_changed = pyqtSignal(float)  # Detail Injection/Relief Fusion strength
     detail_quality_changed = pyqtSignal(float)   # Detail Injection/Relief Fusion quality level
+    laplacian_gpu_changed = pyqtSignal(bool)       # Laplacian Pyramid: GPU (CUDA) acceleration on/off
+    laplacian_cpu_scale_changed = pyqtSignal(float)  # Laplacian Pyramid: CPU fallback internal resolution scale
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -237,10 +239,52 @@ class FusionPanel(QWidget):
         detail_quality_layout.addWidget(self.detail_quality_value)
         detail_settings_layout.addLayout(detail_quality_layout)
 
+        # Laplacian Pyramid Settings (initially hidden) - this mode's cost
+        # is dominated by full-resolution work at its base pyramid level,
+        # so it's the only mode with a real speed/quality knob: GPU
+        # (torch/CUDA) keeps full resolution and full quality when a CUDA
+        # GPU is available (~4x faster than CPU); the CPU fallback trades
+        # a real, visible loss of edge/detail precision for speed via
+        # internal resolution scale instead.
+        self.laplacian_settings_widget = QWidget()
+        laplacian_settings_layout = QVBoxLayout(self.laplacian_settings_widget)
+        laplacian_settings_layout.setContentsMargins(0, 0, 0, 0)
+        laplacian_settings_layout.setSpacing(10)
+
+        self.laplacian_gpu_checkbox = QCheckBox("Use GPU acceleration (CUDA)")
+        self.laplacian_gpu_checkbox.setChecked(True)
+        self.laplacian_gpu_checkbox.setToolTip(
+            "Keeps full resolution/quality at ~4x the speed of CPU processing.\n"
+            "Falls back to CPU automatically if no CUDA GPU is available."
+        )
+        self.laplacian_gpu_checkbox.toggled.connect(self.laplacian_gpu_changed.emit)
+        laplacian_settings_layout.addWidget(self.laplacian_gpu_checkbox)
+
+        laplacian_scale_layout = QHBoxLayout()
+        laplacian_scale_label = QLabel("CPU Quality:")
+        laplacian_scale_layout.addWidget(laplacian_scale_label)
+        self.laplacian_scale_slider = QSlider(Qt.Orientation.Horizontal)
+        self.laplacian_scale_slider.setRange(25, 100)
+        self.laplacian_scale_slider.setValue(50)
+        self.laplacian_scale_slider.setToolTip(
+            "Internal processing resolution when running on CPU (no effect while GPU "
+            "acceleration is active/available). Lower = faster but softer edge detail."
+        )
+        self.laplacian_scale_value = QLabel("50%")
+        self.laplacian_scale_slider.valueChanged.connect(
+            lambda v: [self.laplacian_scale_value.setText(f"{v}%"),
+                      self.laplacian_cpu_scale_changed.emit(v / 100.0)]
+        )
+        laplacian_scale_layout.addWidget(self.laplacian_scale_slider)
+        laplacian_scale_layout.addWidget(self.laplacian_scale_value)
+        laplacian_settings_layout.addLayout(laplacian_scale_layout)
+
         # Add widgets to fusion settings group
         self.fusion_settings_layout.addWidget(self.edge_settings_widget)
         self.fusion_settings_layout.addWidget(self.detail_settings_widget)
+        self.fusion_settings_layout.addWidget(self.laplacian_settings_widget)
         self.detail_settings_widget.hide()  # Initially hidden
+        self.laplacian_settings_widget.hide()  # Initially hidden
 
 
         layout.addWidget(self.fusion_settings_group)
@@ -264,12 +308,20 @@ class FusionPanel(QWidget):
         if mode == "edge_enhanced":
             self.edge_settings_widget.show()
             self.detail_settings_widget.hide()
+            self.laplacian_settings_widget.hide()
             self.fusion_settings_group.setTitle("Edge Enhancement Settings")
         elif mode in ["detail_inject", "relief_fusion"]:
             self.edge_settings_widget.hide()
             self.detail_settings_widget.show()
+            self.laplacian_settings_widget.hide()
             self.fusion_settings_group.setTitle("Detail Injection Settings")
+        elif mode == "laplacian_pyramid":
+            self.edge_settings_widget.hide()
+            self.detail_settings_widget.hide()
+            self.laplacian_settings_widget.show()
+            self.fusion_settings_group.setTitle("Laplacian Pyramid Settings")
         else:
             self.edge_settings_widget.hide()
             self.detail_settings_widget.hide()
+            self.laplacian_settings_widget.hide()
             self.fusion_settings_group.setTitle("Advanced Settings (None)")

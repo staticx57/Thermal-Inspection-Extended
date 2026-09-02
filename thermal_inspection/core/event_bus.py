@@ -110,6 +110,8 @@ class AppEventBus(QObject):
     edge_color_changed = pyqtSignal(str)
     detail_strength_changed = pyqtSignal(float)
     detail_quality_changed = pyqtSignal(str)
+    laplacian_gpu_changed = pyqtSignal(bool)
+    laplacian_cpu_scale_changed = pyqtSignal(float)
 
     # =====================================================================
     # ROI
