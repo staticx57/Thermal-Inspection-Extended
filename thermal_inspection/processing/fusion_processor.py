@@ -1100,6 +1100,18 @@ class FusionProcessor:
                 alpha_map[:] = 0.0
             cv2.GaussianBlur(alpha_map, (5, 5), 0, dst=alpha_map)   # smooth weight map
             np.clip(alpha_map, 0.0, 1.0, out=alpha_map)
+            # Per-level max-normalisation only pulls the single sharpest-edge
+            # pixel in each level up near 1.0 - everywhere else (most of the
+            # frame, away from that one strongest edge) gets a weight close
+            # to 0 regardless of fusion_intensity, so thermal barely shows
+            # through even at intensity=1.0. A floor guarantees every pixel
+            # gets at least BASELINE_ALPHA of thermal blended in at full
+            # intensity, while edge pixels still get proportionally more
+            # (preserves the edge-adaptive halo-avoidance this mode exists
+            # for), which is what actually lets fusion_intensity control the
+            # overall blend strength the way alpha_blend's flat alpha does.
+            BASELINE_ALPHA = 0.5
+            alpha_map = BASELINE_ALPHA + (1.0 - BASELINE_ALPHA) * alpha_map
             # Apply overall fusion intensity
             alpha_map *= self.fusion_intensity
             # Expand to 3-channel
