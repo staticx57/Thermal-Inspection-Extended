@@ -8,6 +8,13 @@ Provides full GUI controls for FLIR / Teledyne Tau 2 thermal cameras:
 - Color LUT / Palette selection
 - Advanced Radiometry T-Linear configuration
 - FPA & Housing temperature readout
+
+PENDING HARDWARE: everything below the Connection tab (FFC, gain, LUT,
+T-Linear, shutter) requires a live CCI/serial link. The currently-owned
+breakout board has no CCI wired to USB yet (see project memory), so these
+controls are UI-complete but unverified against real hardware - not a bug,
+just untested until that connection exists. Tau2Serial (sdk/tau2_serial.py)
+already implements the CCI command layer these signals dispatch to.
 """
 from __future__ import annotations
 

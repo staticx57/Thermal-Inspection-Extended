@@ -10,6 +10,12 @@ class LeptonControlPanel(QWidget):
     """
     Control panel for FLIR Lepton cameras.
     Exposes FFC, Radiometry, and AGC controls.
+
+    PENDING HARDWARE: this panel only ever talks to MockLeptonTransport -
+    LeptonTransport (sdk/lepton_sdk_wrapper.py) is an ABC with no real
+    (I2C/SPI) implementation yet, no Lepton hardware to test against. UI
+    and command dispatch are complete but unverified; not a bug, just
+    untested until a real transport exists and a Lepton is connected.
     """
 
     # Signals
