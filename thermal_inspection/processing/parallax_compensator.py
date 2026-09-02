@@ -148,12 +148,60 @@ class DepthEstimator:
                     resolved = "cuda"
                     logger.info("Auto-detected CUDA GPU for depth estimation")
                 else:
+                    # AMD/Intel GPUs on Windows have no CUDA path - DirectML
+                    # (the `torch-directml` package) is the realistic
+                    # acceleration route there, but HF's pipeline(device=...)
+                    # below only understands a CUDA device index or -1/CPU,
+                    # not a DirectML device object; using one would mean
+                    # loading the model manually and moving it with .to(),
+                    # not just passing a device string. Not implemented -
+                    # no AMD/DirectML hardware available here to verify the
+                    # pipeline actually produces correct output that way, so
+                    # this only detects and logs rather than silently doing
+                    # nothing or pretending to use it untested.
+                    try:
+                        import torch_directml
+                        if torch_directml.is_available():
+                            logger.info(
+                                "DirectML-capable device detected (torch_directml) "
+                                "but not wired for depth estimation yet - falling "
+                                "back to CPU. See DepthEstimator's set_device()."
+                            )
+                    except ImportError:
+                        pass
                     logger.info("Using CPU for depth estimation (no GPU detected)")
             except Exception as e:
                 logger.warning(f"Could not load PyTorch for device detection: {e}")
 
         self._device_resolved = resolved
         return resolved
+
+    def set_device(self, device: str):
+        """
+        Force the compute device for depth estimation instead of leaving it
+        on auto-detection.
+
+        Args:
+            device: 'cpu', 'cuda', or 'auto' (re-run auto-detection next access)
+        """
+        device = device.lower()
+        if device not in ('cpu', 'cuda', 'auto'):
+            logger.warning(f"Unknown depth-estimation device '{device}', ignoring")
+            return
+
+        self._device_requested = device
+        self._device_resolved = None if device == 'auto' else device
+
+        # A model already loaded on a different device needs to reload -
+        # cheap for 'simplified' (no model at all), unavoidable for
+        # depthanything since HF's pipeline() bakes the device in at load
+        # time rather than letting it be changed after the fact.
+        if self.model_loaded and self.method != 'simplified':
+            self.model_loaded = False
+            self.pipeline = None
+            logger.info(f"Depth estimation device changed to '{device}' - model will reload on next use")
+
+        logger.info(f"Depth estimation device set to: {device}")
 
     def load_model(self) -> bool:
         """
@@ -389,6 +437,10 @@ class ParallaxCompensator:
         self.geometry.baseline_mm = baseline_mm
         logger.info(f"Parallax baseline set to {baseline_mm}mm")
         self.last_displacement_map = None
+
+    def set_device(self, device: str):
+        """Force the compute device ('cpu', 'cuda', or 'auto') used for depth estimation."""
+        self.depth_estimator.set_device(device)
 
     def compute_disparity(self, depth_map: np.ndarray) -> np.ndarray:
         """

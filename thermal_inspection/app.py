@@ -2237,11 +2237,34 @@ class ThermalInspectionApp:
     # =========================================================================
 
     def set_device(self, device_name: str):
-        """Set the compute device (e.g. 'cuda', 'cpu') for processing."""
-        logger.info(f"Compute device set to: {device_name}")
-        self.config.device = device_name
+        """
+        Set the compute device ('cpu' or 'cuda') for GPU-capable processing:
+        thermal_processor's VPI backend (Jetson, or Linux with VPI
+        installed - VPI has no Windows build at all) and
+        parallax_compensator's depth-estimation model (CUDA via PyTorch,
+        works on any platform with a CUDA-enabled torch install).
+        FusionProcessor has no real GPU-accelerated code path to switch
+        (see FusionProcessor.__init__'s has_cuda comment) so isn't
+        included here - there's nothing to wire yet.
+
+        Settings panel combo emits "CPU"/"CUDA" (uppercase); normalize
+        once here rather than relying on every downstream consumer to
+        handle case, since thermal_processor.set_device()'s own validation
+        is case-sensitive.
+        """
+        device = device_name.strip().lower()
+        if device not in ('cpu', 'cuda'):
+            logger.warning(f"Invalid device '{device_name}' (expected 'cpu' or 'cuda')")
+            return
+
+        logger.info(f"Compute device set to: {device}")
+        self.config.device = device
+
         if self.thermal_processor:
-            self.thermal_processor.device = device_name
+            self.thermal_processor.set_device(device)
+
+        if self.parallax_compensator:
+            self.parallax_compensator.set_device(device)
 
     def execute_camera_command(self, role: str, command: str, params: Optional[dict] = None) -> dict:
         """Execute a generic camera command via the CameraPluginHost."""

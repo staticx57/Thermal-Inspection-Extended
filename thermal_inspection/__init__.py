@@ -17,6 +17,21 @@ import os
 os.environ["OPENCV_VIDEOIO_PRIORITY_OBSENSOR"] = "0"
 os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
 
+# Warm up torch's CUDA DLLs before anything below pulls in PyQt6 (`.app`
+# imports PyQt6.QtCore at module level). On Windows, importing PyQt6 first
+# corrupts the DLL search order for a CUDA-enabled torch build - torch's
+# own c10.dll then fails to load at all (WinError 1114) the first time
+# something (e.g. ParallaxCompensator's lazy depth-estimation import)
+# actually touches torch. Importing torch here, before Qt has a chance to
+# load, sidesteps it entirely - confirmed by direct testing, order-
+# dependent, no error when torch goes first. Best-effort: torch is an
+# optional dependency (only needed for ML depth estimation), so a missing
+# install is silently fine here.
+try:
+    import torch  # noqa: F401
+except ImportError:
+    pass
+
 # CLI exports
 from .cli import main, parse_arguments
 

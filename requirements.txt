@@ -83,10 +83,32 @@ comtypes>=1.1.7             # DirectShow COM interface (required by pygrabber)
 # transformers>=4.30.0      # Hugging Face Transformers
 # huggingface-hub>=0.16.0   # Model downloads and caching
 #
-# For GPU acceleration (recommended for real-time performance):
-# Install PyTorch with CUDA from https://pytorch.org/get-started/locally/
-# Example for CUDA 11.8: 
-#   pip install torch --index-url https://download.pytorch.org/whl/cu118
+# For GPU acceleration (recommended for real-time performance, NVIDIA only -
+# see the AMD/DirectML note below):
+# Install a CUDA build of PyTorch instead of the default CPU-only wheel.
+# Pick the cuXXX tag matching your driver from https://pytorch.org/get-started/locally/
+# (anything <= your driver's max CUDA version works - drivers are backward
+# compatible). Example, verified working with an RTX 4000 Ada on Windows:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu126
+#
+# IMPORTANT (Windows only): if you already have PyQt6 installed, importing
+# it BEFORE torch in the same process corrupts Windows' DLL search order
+# for a CUDA-enabled torch build - torch.cuda.is_available() silently
+# returns False, or torch itself fails to import with "WinError 1114 ...
+# c10.dll". Order-dependent; importing torch first avoids it entirely.
+# thermal_inspection/__init__.py already does an early best-effort
+# `import torch` for exactly this reason - don't remove it, and if you're
+# probing torch/CUDA from a standalone script, import torch before PyQt6
+# there too.
+#
+# AMD/Intel GPUs on Windows have no CUDA path. The realistic route is
+# DirectML (`pip install torch-directml`), which parallax_compensator.py
+# already detects (logs its presence) but does not yet route depth
+# estimation through - HuggingFace's pipeline(device=...) only accepts a
+# CUDA device index or -1/CPU, not a DirectML device object, so using one
+# means loading the model manually and moving it with .to() instead. Not
+# implemented: no AMD/DirectML hardware available to verify it actually
+# produces correct output that way.
 #
 # Model Downloads (automatic on first use):
 #   - Small model: ~100MB (good for CPU, 24.8M params)

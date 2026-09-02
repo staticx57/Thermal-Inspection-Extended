@@ -76,10 +76,19 @@ class FusionProcessor:
         # Fusion intensity: controls overlay strength (0.0 = minimal, 1.0 = maximum)
         self.fusion_intensity = float(config.get('fusion.intensity', 0.5))
 
-        # Hardware acceleration status
+        # Hardware acceleration status - detection only. No fusion mode
+        # below actually dispatches to cv2.cuda.GpuMat; every blend runs on
+        # CPU (OpenCV SIMD/IPP) regardless of this flag's value. Making this
+        # real means writing cv2.cuda.GpuMat variants of the fusion
+        # algorithms (upload/compute/download per frame) - a separate,
+        # substantial feature, not a wiring fix - and profiling whether
+        # that's even a net win at these frame sizes given the transfer
+        # overhead. cv2.cuda is also NVIDIA-only regardless; there's no
+        # equivalent OpenCV GPU path for AMD without a much larger
+        # OpenCL/UMat rewrite.
         self.has_cuda = hasattr(cv2, 'cuda') and hasattr(cv2.cuda, 'getCudaEnabledDeviceCount') and cv2.cuda.getCudaEnabledDeviceCount() > 0
         if self.has_cuda:
-            logger.info("FusionProcessor: CUDA GPU acceleration detected and enabled")
+            logger.info("FusionProcessor: CUDA GPU detected (not used - all fusion modes run on CPU)")
         else:
             logger.info("FusionProcessor: Running in CPU vectorized mode (OpenCV SIMD / IPP)")
 
