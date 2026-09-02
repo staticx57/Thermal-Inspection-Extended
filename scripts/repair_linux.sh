@@ -4,9 +4,9 @@ cd "$(dirname "$0")/.."
 # Thermal Inspection Fusion Tool - Linux Repair/Update Script
 # Brings existing installation up to date with latest requirements
 #
-# Usage:
-#   chmod +x repair_linux.sh
-#   ./repair_linux.sh
+# Usage (run from repo root):
+#   chmod +x scripts/repair_linux.sh
+#   ./scripts/repair_linux.sh
 #
 
 set -e  # Exit on error
@@ -25,9 +25,9 @@ echo -e "${BLUE}========================================${NC}"
 echo ""
 
 # Check if we're in the right directory
-if [ ! -f "inspection_main.py" ]; then
-    echo -e "${RED}✗ Error: inspection_main.py not found${NC}"
-    echo -e "${YELLOW}Please run this script from the Thermal Inspection Fusion Tool directory${NC}"
+if [ ! -f "pyproject.toml" ] || [ ! -f "thermal_inspection/app.py" ]; then
+    echo -e "${RED}✗ Error: thermal_inspection/app.py not found${NC}"
+    echo -e "${YELLOW}Please run this script from the Thermal Inspection Fusion Tool repo root${NC}"
     exit 1
 fi
 
@@ -122,13 +122,13 @@ fi
 echo ""
 echo -e "${BLUE}Checking project files...${NC}"
 required_files=(
-    "inspection_main.py"
-    "inspection_gui_qt.py"
-    "video_worker.py"
-    "developer_panel.py"
-    "alert_overlay.py"
-    "config.py"
-    "object_detector.py"
+    "thermal_inspection/app.py"
+    "thermal_inspection/cli.py"
+    "thermal_inspection/gui/main_window.py"
+    "thermal_inspection/processing/fusion_processor.py"
+    "thermal_inspection/processing/thermal_analyzer.py"
+    "thermal_inspection/processing/roi_manager.py"
+    "thermal_inspection/sdk/boson_sdk_wrapper.py"
 )
 
 for file in "${required_files[@]}"; do
@@ -157,13 +157,10 @@ fi
 
 echo ""
 echo -e "${BLUE}Latest Features (v3.x):${NC}"
-echo -e "  • Qt GUI (replaces OpenCV GUI)"
-echo -e "  • Multithreaded video processing"
-echo -e "  • Developer mode (Ctrl+D) with 9 controls"
-echo -e "  • ADAS-compliant alert overlays"
-echo -e "  • Custom model support (see CUSTOM_MODELS.md)"
-echo -e "  • Simulated thermal camera (debug mode)"
-echo -e "  • Light/Dark theme auto-switching"
+echo -e "  • PyQt6 GUI with camera plugin architecture"
+echo -e "  • 9 fusion algorithms, ROI management, radiometric analysis"
+echo -e "  • Boson/Tau2/Lepton thermal camera plugins"
 echo ""
-echo -e "${GREEN}Ready to run: python3 inspection_main.py${NC}"
+echo -e "${GREEN}Ready to run: python3 -m thermal_inspection${NC}"
+echo -e "${GREEN}Or use the quick-launch scripts in scripts/ (see LAUNCHER_GUIDE.md)${NC}"
 echo ""

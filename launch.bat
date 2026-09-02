@@ -62,9 +62,7 @@ echo   THERMAL PRIORITY MODE
 echo ================================================================================
 echo.
 echo   This mode optimizes for thermal analysis:
-echo   - Flirpy backend (16-bit radiometric)
-echo   - Thermal priority fusion
-echo   - Boson SDK enabled
+echo   - Boson SDK enabled (radiometric temperature, FFC, gain control)
 echo   - Ironbow palette
 echo.
 echo   Device Selection:
@@ -76,7 +74,7 @@ echo.
 
 set /p dev_choice="Select device option [1-4]: "
 
-set ARGS=--thermal-backend flirpy --enable-boson-sdk --palette ironbow
+set ARGS=--enable-boson-sdk --palette ironbow
 
 if "%dev_choice%"=="1" (
     set ARGS=!ARGS! --auto-detect-cameras
@@ -104,15 +102,14 @@ echo   RGB PRIORITY MODE
 echo ================================================================================
 echo.
 echo   This mode optimizes for visual inspection:
-echo   - OpenCV backend (8-bit AGC)
 echo   - RGB priority fusion
 echo   - Viridis palette
 echo.
 
-set ARGS=--thermal-backend opencv --palette viridis
+set ARGS=--palette viridis
 
-set /p disable_thermal="Disable thermal camera? [y/N]: "
-if /i "!disable_thermal!"=="y" set ARGS=!ARGS! --disable-rgb
+set /p disable_rgb="Disable RGB camera (thermal only)? [y/N]: "
+if /i "!disable_rgb!"=="y" set ARGS=!ARGS! --disable-rgb
 
 goto :run
 
@@ -143,19 +140,6 @@ if not exist "!playback_file!" (
 
 set ARGS=--mode playback --playback-file "!playback_file!"
 
-echo.
-echo Playback Options:
-echo   [1] Thermal backend: OpenCV (8-bit)
-echo   [2] Thermal backend: Flirpy (16-bit radiometric)
-echo.
-set /p backend_choice="Select backend [1-2]: "
-
-if "!backend_choice!"=="2" (
-    set ARGS=!ARGS! --thermal-backend flirpy
-) else (
-    set ARGS=!ARGS! --thermal-backend opencv
-)
-
 goto :run
 
 :headless_mode
@@ -168,10 +152,6 @@ echo   Processing mode without GUI (for automation/testing)
 echo.
 
 set ARGS=--headless --gui headless
-
-echo.
-set /p output_dir="Enter output directory for results [default: current]: "
-if not "!output_dir!"=="" set ARGS=!ARGS! --output-dir "!output_dir!"
 
 goto :run
 
@@ -205,9 +185,8 @@ echo     --rgb-device ID              RGB camera device ID
 echo     --auto-detect-cameras        Auto-detect camera devices (default)
 echo     --disable-rgb                Run without RGB camera
 echo.
-echo   THERMAL BACKEND:
-echo     --thermal-backend TYPE       opencv or flirpy (default: opencv)
-echo     --enable-boson-sdk           Enable Boson SDK for control
+echo   BOSON SDK:
+echo     --enable-boson-sdk           Enable Boson SDK for control (FFC, gain, radiometric)
 echo     --boson-com-port PORT        COM port for Boson (default: COM7)
 echo.
 echo   DISPLAY:

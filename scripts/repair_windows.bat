@@ -22,9 +22,9 @@ echo %BLUE%============================================%NC%
 echo.
 
 REM Check if we're in the right directory
-if not exist inspection_main.py (
-    echo %RED%Error: inspection_main.py not found%NC%
-    echo %YELLOW%Please run this script from the Thermal-Inspection directory%NC%
+if not exist thermal_inspection\app.py (
+    echo %RED%Error: thermal_inspection\app.py not found%NC%
+    echo %YELLOW%Please run this script from the Thermal-Inspection repo root%NC%
     pause
     exit /b 1
 )
@@ -85,12 +85,12 @@ python -c "import psutil; print('  ✓ psutil')" 2>nul || echo   ✗ psutil - FA
 
 echo.
 echo %BLUE%Checking project files...%NC%
-if exist inspection_main.py (echo   ✓ inspection_main.py) else echo   ✗ inspection_main.py - MISSING
-if exist inspection_gui_qt.py (echo   ✓ inspection_gui_qt.py) else echo   ✗ inspection_gui_qt.py - MISSING
-if exist flir_camera.py (echo   ✓ flir_camera.py) else echo   ✗ flir_camera.py - MISSING
-if exist fusion_processor.py (echo   ✓ fusion_processor.py) else echo   ✗ fusion_processor.py - MISSING
-if exist palette_manager.py (echo   ✓ palette_manager.py) else echo   ✗ palette_manager.py - MISSING
-if exist boson_sdk_wrapper.py (echo   ✓ boson_sdk_wrapper.py) else echo   ✗ boson_sdk_wrapper.py - MISSING
+if exist thermal_inspection\app.py (echo   ✓ thermal_inspection\app.py) else echo   ✗ thermal_inspection\app.py - MISSING
+if exist thermal_inspection\gui\main_window.py (echo   ✓ thermal_inspection\gui\main_window.py) else echo   ✗ thermal_inspection\gui\main_window.py - MISSING
+if exist thermal_inspection\cameras\flir_camera.py (echo   ✓ thermal_inspection\cameras\flir_camera.py) else echo   ✗ thermal_inspection\cameras\flir_camera.py - MISSING
+if exist thermal_inspection\processing\fusion_processor.py (echo   ✓ thermal_inspection\processing\fusion_processor.py) else echo   ✗ thermal_inspection\processing\fusion_processor.py - MISSING
+if exist thermal_inspection\processing\palette_manager.py (echo   ✓ thermal_inspection\processing\palette_manager.py) else echo   ✗ thermal_inspection\processing\palette_manager.py - MISSING
+if exist thermal_inspection\sdk\boson_sdk_wrapper.py (echo   ✓ thermal_inspection\sdk\boson_sdk_wrapper.py) else echo   ✗ thermal_inspection\sdk\boson_sdk_wrapper.py - MISSING
 if exist config.json (echo   ✓ config.json) else echo   ✗ config.json - MISSING
 
 echo.
@@ -109,8 +109,9 @@ echo   • Camera auto-detection
 echo   • Media recording (video + snapshots)
 echo.
 echo %GREEN%Ready to run:%NC%
-echo   python inspection_main.py
-echo   python inspection_main.py --enable-boson-sdk
+echo   python -m thermal_inspection
+echo   python -m thermal_inspection --enable-boson-sdk
+echo   Or use the quick-launch scripts in scripts\ (see LAUNCHER_GUIDE.md)
 echo.
 echo %YELLOW%Press any key to exit...%NC%
 pause >nul

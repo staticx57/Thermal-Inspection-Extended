@@ -27,4 +27,4 @@ echo "  LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
 echo "=================================="
 
 # Run the application with all arguments passed through
-python3 main.py "$@"
+python3 -m thermal_inspection "$@"

@@ -1,12 +1,12 @@
 #!/bin/bash
 cd "$(dirname "$0")/.."
-# Run thermal + RGB fusion road monitor with proper EGL configuration
+# Run the thermal + RGB fusion tool with proper EGL configuration
+# (for Jetson/headless-GPU setups where VPI needs a surfaceless EGL platform).
+# Run from repo root: ./scripts/run_vpi.sh [thermal_inspection CLI args]
 #
 # Usage:
-#   ./run_vpi.sh                  # Default with RGB fusion
-#   ./run_vpi.sh --disable-rgb    # Thermal only mode
-#   ./run_vpi.sh --scale 2.5      # Custom scaling
-#   ./run_vpi.sh --fullscreen     # Fullscreen mode
+#   ./scripts/run_vpi.sh                  # Default with RGB fusion
+#   ./scripts/run_vpi.sh --disable-rgb    # Thermal only mode
 
 export EGL_PLATFORM=surfaceless
-python3 main.py "$@"
+python3 -m thermal_inspection "$@"

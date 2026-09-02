@@ -4,13 +4,13 @@ REM Thermal Inspection Fusion Tool - Windows Installation Script
 REM For Windows 10/11 x86-64 systems
 REM
 REM This script installs:
-REM - Python dependencies (OpenCV, PyQt5, etc.)
+REM - Python dependencies (OpenCV, PyQt6, etc.)
 REM - UVC webcam support (built-in to Windows)
 REM - OPTIONAL: FLIR Firefly Spinnaker SDK (for RGB camera)
 REM
-REM Usage:
-REM   install_windows.bat                 Install base system (UVC webcams)
-REM   install_windows.bat --with-firefly  Install base + FLIR Firefly support
+REM Usage (run from repo root):
+REM   scripts\install_windows.bat                 Install base system (UVC webcams)
+REM   scripts\install_windows.bat --with-firefly  Install base + FLIR Firefly support
 REM
 
 setlocal enabledelayedexpansion
@@ -47,14 +47,12 @@ echo %PYTHON_VER% | findstr /C:"3.12" >nul && (
     echo %YELLOW%WARNING: Python 3.12 detected!%NC%
     echo %YELLOW%PySpin (FLIR Firefly support) may not be compatible.%NC%
     echo %YELLOW%Recommended: Python 3.10 for best compatibility.%NC%
-    echo %YELLOW%See: archive\implementation-docs\setup_python310_env.md%NC%
     echo.
 )
 echo %PYTHON_VER% | findstr /C:"3.13" >nul && (
     echo %YELLOW%WARNING: Python 3.13 detected!%NC%
     echo %YELLOW%PySpin (FLIR Firefly support) may not be compatible.%NC%
     echo %YELLOW%Recommended: Python 3.10 for best compatibility.%NC%
-    echo %YELLOW%See: archive\implementation-docs\setup_python310_env.md%NC%
     echo.
 )
 echo.
@@ -116,21 +114,15 @@ if "%INSTALL_FIREFLY%"=="true" (
     echo.
     echo %YELLOW%IMPORTANT: Manual Spinnaker SDK installation required%NC%
     echo.
-    echo %BLUE%RECOMMENDED: Use Python 3.10 virtual environment%NC%
-    echo   For best compatibility with PySpin, use Python 3.10:
-    echo   1. Install Python 3.10 from https://www.python.org/
-    echo   2. Run: setup_venv_py310.bat
-    echo   3. Then continue with Spinnaker SDK installation
+    echo %BLUE%RECOMMENDED: Use a Python 3.10 virtual environment%NC%
+    echo   PySpin compatibility is best on Python 3.10 - install it from
+    echo   https://www.python.org/ and create a venv before continuing.
     echo.
     echo %BLUE%Quick Guide:%NC%
     echo   1. Download SDK: https://www.flir.com/products/spinnaker-sdk/
     echo   2. Run installer: SpinnakerSDK_FULL_x.x.x_x64.exe
     echo   3. Choose "Full Installation" (includes PySpin)
     echo   4. Install PySpin wheel from SDK folder
-    echo.
-    echo %BLUE%Detailed Instructions:%NC%
-    echo   See: archive\implementation-docs\install_pyspin.md
-    echo   Run diagnostic: python diagnose_spinnaker.py
     echo.
     echo %YELLOW%Press any key when Spinnaker SDK installation is complete...%NC%
     pause >nul
@@ -168,14 +160,14 @@ python -c "import psutil; print('  ✓ psutil')" 2>nul || echo   ✗ psutil - FA
 
 echo.
 echo %BLUE%Checking project files...%NC%
-if exist inspection_main.py (echo   ✓ inspection_main.py) else echo   ✗ inspection_main.py - MISSING
-if exist inspection_gui_qt.py (echo   ✓ inspection_gui_qt.py) else echo   ✗ inspection_gui_qt.py - MISSING
-if exist flir_camera.py (echo   ✓ flir_camera.py) else echo   ✗ flir_camera.py - MISSING
-if exist fusion_processor.py (echo   ✓ fusion_processor.py) else echo   ✗ fusion_processor.py - MISSING
-if exist palette_manager.py (echo   ✓ palette_manager.py) else echo   ✗ palette_manager.py - MISSING
-if exist thermal_analyzer.py (echo   ✓ thermal_analyzer.py) else echo   ✗ thermal_analyzer.py - MISSING
-if exist roi_manager.py (echo   ✓ roi_manager.py) else echo   ✗ roi_manager.py - MISSING
-if exist boson_sdk_wrapper.py (echo   ✓ boson_sdk_wrapper.py) else echo   ✗ boson_sdk_wrapper.py - MISSING
+if exist thermal_inspection\app.py (echo   ✓ thermal_inspection\app.py) else echo   ✗ thermal_inspection\app.py - MISSING
+if exist thermal_inspection\gui\main_window.py (echo   ✓ thermal_inspection\gui\main_window.py) else echo   ✗ thermal_inspection\gui\main_window.py - MISSING
+if exist thermal_inspection\cameras\flir_camera.py (echo   ✓ thermal_inspection\cameras\flir_camera.py) else echo   ✗ thermal_inspection\cameras\flir_camera.py - MISSING
+if exist thermal_inspection\processing\fusion_processor.py (echo   ✓ thermal_inspection\processing\fusion_processor.py) else echo   ✗ thermal_inspection\processing\fusion_processor.py - MISSING
+if exist thermal_inspection\processing\palette_manager.py (echo   ✓ thermal_inspection\processing\palette_manager.py) else echo   ✗ thermal_inspection\processing\palette_manager.py - MISSING
+if exist thermal_inspection\processing\thermal_analyzer.py (echo   ✓ thermal_inspection\processing\thermal_analyzer.py) else echo   ✗ thermal_inspection\processing\thermal_analyzer.py - MISSING
+if exist thermal_inspection\processing\roi_manager.py (echo   ✓ thermal_inspection\processing\roi_manager.py) else echo   ✗ thermal_inspection\processing\roi_manager.py - MISSING
+if exist thermal_inspection\sdk\boson_sdk_wrapper.py (echo   ✓ thermal_inspection\sdk\boson_sdk_wrapper.py) else echo   ✗ thermal_inspection\sdk\boson_sdk_wrapper.py - MISSING
 if exist config.json (echo   ✓ config.json) else echo   ✗ config.json - MISSING
 
 echo.
@@ -212,17 +204,15 @@ echo.
 echo %BLUE%Next Steps:%NC%
 echo   1. Connect FLIR Boson thermal camera
 echo   2. (Optional) Connect RGB camera (webcam or FLIR Firefly)
-echo   3. Configure COM port in config.json (default: COM6)
-echo   4. Run system: python inspection_main.py
-echo   5. Enable Boson SDK: python inspection_main.py --enable-boson-sdk
+echo   3. Configure COM port with --boson-com-port (default: COM7)
+echo   4. Run system: python -m thermal_inspection
+echo   5. Enable Boson SDK: python -m thermal_inspection --enable-boson-sdk
+echo   Or use a quick-launch script in scripts\ (see LAUNCHER_GUIDE.md)
 echo.
 echo %BLUE%Documentation:%NC%
 echo   • Quick start: README.md
+echo   • Launcher guide: LAUNCHER_GUIDE.md
 echo   • Full changelog: CHANGELOG.md
-echo   • Development roadmap: TODO.md
-echo   • SDK integration: archive\sdk-docs\BOSON_SDK_STATUS.md
-echo   • Camera setup: archive\implementation-docs\FIREFLY_INTEGRATION.md
-echo   • Troubleshooting: archive\implementation-docs\DEBUGGING_GUIDELINES.md
 echo.
 echo %YELLOW%Press any key to exit...%NC%
 pause >nul

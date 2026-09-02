@@ -9,10 +9,10 @@ cd "$(dirname "$0")/.."
 # - UVC webcam support (built-in to Linux kernel)
 # - OPTIONAL: FLIR Firefly Spinnaker SDK (for global shutter cameras)
 #
-# Usage:
-#   chmod +x install_linux.sh
-#   ./install_linux.sh                 # Install base system (UVC webcams)
-#   ./install_linux.sh --with-firefly  # Install base + FLIR Firefly support
+# Usage (run from repo root):
+#   chmod +x scripts/install_linux.sh
+#   ./scripts/install_linux.sh                 # Install base system (UVC webcams)
+#   ./scripts/install_linux.sh --with-firefly  # Install base + FLIR Firefly support
 #
 
 set -e  # Exit on error
@@ -54,7 +54,7 @@ for arg in "$@"; do
             shift
             ;;
         --help)
-            echo "Usage: $0 [OPTIONS]"
+            echo "Usage: scripts/install_linux.sh [OPTIONS]"
             echo ""
             echo "Options:"
             echo "  --with-firefly    Install FLIR Firefly Spinnaker SDK (optional)"
@@ -212,9 +212,7 @@ if [ "$INSTALL_FIREFLY" = true ]; then
         echo ""
         echo -e "${BLUE}To install Spinnaker later:${NC}"
         echo -e "  1. Download SDK from https://www.flir.com/products/spinnaker-sdk/"
-        echo -e "  2. See detailed guide: ${GREEN}docs/install/install_pyspin.md${NC}"
-        echo -e "  3. Run: ./install_linux.sh --with-firefly"
-        echo -e "  4. Or run diagnostic: ${GREEN}python3 diagnose_spinnaker.py${NC}"
+        echo -e "  2. Run: ./scripts/install_linux.sh --with-firefly"
     fi
 else
     echo -e "${BLUE}[6/7] Skipping FLIR Firefly support (use --with-firefly to enable)${NC}"
@@ -285,13 +283,13 @@ fi
 echo ""
 echo -e "${BLUE}Checking project files...${NC}"
 required_files=(
-    "inspection_main.py"
-    "inspection_gui_qt.py"
-    "video_worker.py"
-    "developer_panel.py"
-    "alert_overlay.py"
-    "config.py"
-    "object_detector.py"
+    "thermal_inspection/app.py"
+    "thermal_inspection/cli.py"
+    "thermal_inspection/gui/main_window.py"
+    "thermal_inspection/processing/fusion_processor.py"
+    "thermal_inspection/processing/thermal_analyzer.py"
+    "thermal_inspection/processing/roi_manager.py"
+    "thermal_inspection/sdk/boson_sdk_wrapper.py"
 )
 
 for file in "${required_files[@]}"; do
@@ -328,30 +326,21 @@ else
 fi
 echo ""
 echo -e "${BLUE}Qt GUI Features (v3.x):${NC}"
-echo -e "  • Multithreaded architecture (VideoProcessorWorker)"
-echo -e "  • Developer mode (Ctrl+D) with 9 controls:"
-echo -e "    - Palette cycling, Detection toggle, Device switch"
-echo -e "    - Model cycling (with custom model support)"
-echo -e "    - Fusion mode/alpha, Buffer flush, Frame skip"
-echo -e "    - Simulated thermal camera (debug mode)"
-echo -e "  • ADAS-compliant alert overlays"
-echo -e "  • Light/Dark theme auto-switching"
+echo -e "  • Camera plugin architecture (Boson/Tau2/Lepton thermal, Firefly/UVC/GigE RGB)"
+echo -e "  • 9 fusion algorithms, ROI management, radiometric temperature analysis"
+echo -e "  • Isotherm highlighting, gradient overlays, media recording"
 echo ""
 echo -e "${BLUE}Next Steps:${NC}"
 echo -e "  ${BLUE}1.${NC} Connect RGB camera (UVC webcam or FLIR Firefly)"
-echo -e "  ${BLUE}2.${NC} (Optional) Add custom models to config.json"
-echo -e "  ${BLUE}3.${NC} Run system: ${GREEN}python3 inspection_main.py${NC}"
-echo -e "  ${BLUE}4.${NC} Press ${GREEN}Ctrl+D${NC} to toggle developer mode"
+echo -e "  ${BLUE}2.${NC} Run system: ${GREEN}python3 -m thermal_inspection${NC}"
+echo -e "  ${BLUE}3.${NC} Or use a quick-launch script in scripts/ (see LAUNCHER_GUIDE.md)"
 echo ""
 echo -e "${BLUE}Testing Commands:${NC}"
 echo -e "  • List cameras: ${GREEN}v4l2-ctl --list-devices${NC}"
-echo -e "  • Test camera: ${GREEN}python3 camera_factory.py${NC}"
 echo -e "  • Verify modules: ${GREEN}python3 -c 'import PyQt6; import cv2; print(\"OK\")'${NC}"
 echo ""
 echo -e "${BLUE}Documentation:${NC}"
 echo -e "  • Main guide: ${GREEN}README.md${NC}"
-echo -e "  • Cross-platform: ${GREEN}docs/CROSS_PLATFORM.md${NC}"
-echo -e "  • PySpin setup: ${GREEN}docs/install/install_pyspin.md${NC}"
-echo -e "  • Custom models: ${GREEN}docs/CUSTOM_MODELS.md${NC}"
-echo -e "  • Troubleshooting: ${GREEN}docs/DEBUGGING_GUIDELINES.md${NC}"
+echo -e "  • Launcher guide: ${GREEN}LAUNCHER_GUIDE.md${NC}"
+echo -e "  • Full changelog: ${GREEN}CHANGELOG.md${NC}"
 echo ""
