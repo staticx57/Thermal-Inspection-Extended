@@ -1338,6 +1338,22 @@ class ThermalInspectionApp:
 
             _prof_t_capture = time.time()
 
+            # 1b. Parallax correction — shift thermal to match RGB perspective
+            # Must run after frame capture but before colorization/fusion so all
+            # downstream processing sees the spatially-corrected thermal data.
+            if (self.parallax_compensator
+                    and self.parallax_compensator.is_enabled()
+                    and thermal_frame is not None
+                    and thermal_frame is not self.thermal_placeholder
+                    and rgb_frame is not None
+                    and rgb_frame is not self.rgb_placeholder):
+                try:
+                    thermal_frame = self.parallax_compensator.apply_correction(
+                        thermal_frame, rgb_frame
+                    )
+                except Exception as _px_err:
+                    logger.debug(f"Parallax correction failed: {_px_err}")
+
             # 2. Process thermal & Colorization
             # Use the snapshotted reference — safe even if reassign fires mid-tick
             thermal_16bit = None
@@ -2290,9 +2306,18 @@ class ThermalInspectionApp:
             logger.warning("ParallaxCompensator not available")
 
     def set_parallax_depth_method(self, method: str):
-        """Set the depth estimation method ('simplified', 'depthanything', 'midas')."""
+        """Set the depth estimation method ('simplified', 'depthanything', 'midas').
+
+        Reconstructs the DepthEstimator so model_loaded / pipeline state is
+        always consistent with the requested method.
+        """
         if self.parallax_compensator:
-            self.parallax_compensator.depth_estimator.method = method
+            from .processing.parallax_compensator import DepthEstimator
+            old_device = self.parallax_compensator.depth_estimator._device_requested
+            self.parallax_compensator.depth_estimator = DepthEstimator(
+                method=method,
+                device=old_device,
+            )
             logger.info(f"Parallax depth method set to: {method}")
         else:
             logger.warning("ParallaxCompensator not available")

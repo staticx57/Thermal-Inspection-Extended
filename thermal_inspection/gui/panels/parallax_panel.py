@@ -37,15 +37,30 @@ class ParallaxPanel(QWidget):
 
     def init_ui(self):
         """Initialize the user interface."""
+        from PyQt6.QtWidgets import QSizePolicy
+
+        # Outer layout — zero margins so the scroll area fills the whole panel
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(0)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
+        # Zero margins on the scroll viewport itself — eliminates the offset
+        # layer that causes hit-rects to diverge from visual positions.
+        scroll.setContentsMargins(0, 0, 0, 0)
 
         content = QWidget()
+        # Fixed vertical policy: the content grows as its children demand but
+        # never contracts below that — keeps Qt's geometry calculation stable.
+        content.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Fixed,
+        )
+
         layout = QVBoxLayout(content)
         layout.setSpacing(8)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -56,6 +71,7 @@ class ParallaxPanel(QWidget):
         status_group = QGroupBox("Parallax Compensation")
         status_layout = QVBoxLayout()
         status_layout.setSpacing(6)
+        status_layout.setContentsMargins(8, 8, 8, 8)
 
         # Status label
         self.status_label = QLabel("Status: DISABLED")
@@ -90,17 +106,20 @@ class ParallaxPanel(QWidget):
         geometry_group = QGroupBox("Camera Geometry")
         geometry_layout = QVBoxLayout()
         geometry_layout.setSpacing(6)
+        geometry_layout.setContentsMargins(8, 8, 8, 8)
 
         # Baseline distance
         baseline_layout = QHBoxLayout()
+        baseline_layout.setContentsMargins(0, 0, 0, 0)
         baseline_layout.addWidget(QLabel("Baseline:"))
         self.baseline_spin = QDoubleSpinBox()
-        self.baseline_spin.setRange(10.0, 200.0)  # 1cm to 20cm
-        self.baseline_spin.setValue(50.0)  # Default 5cm
+        self.baseline_spin.setRange(10.0, 200.0)
+        self.baseline_spin.setValue(50.0)
         self.baseline_spin.setDecimals(1)
         self.baseline_spin.setSuffix(" mm")
         self.baseline_spin.setSingleStep(5.0)
         self.baseline_spin.setToolTip("Distance between thermal and RGB camera centers")
+        self.baseline_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.baseline_spin.valueChanged.connect(self._on_baseline_changed)
         baseline_layout.addWidget(self.baseline_spin)
         geometry_layout.addLayout(baseline_layout)
@@ -120,9 +139,11 @@ class ParallaxPanel(QWidget):
         depth_group = QGroupBox("Depth Estimation")
         depth_layout = QVBoxLayout()
         depth_layout.setSpacing(6)
+        depth_layout.setContentsMargins(8, 8, 8, 8)
 
         # Method selection
         method_layout = QHBoxLayout()
+        method_layout.setContentsMargins(0, 0, 0, 0)
         method_layout.addWidget(QLabel("Method:"))
         self.depth_method_combo = QComboBox()
         self.depth_method_combo.addItems([
@@ -130,12 +151,13 @@ class ParallaxPanel(QWidget):
             "MiDaS (Accurate)",
             "DepthAnything (Best)"
         ])
-        self.depth_method_combo.setCurrentIndex(0)  # Default: Simplified
+        self.depth_method_combo.setCurrentIndex(0)
         self.depth_method_combo.setToolTip(
             "Simplified: Fast geometric heuristics (no ML)\n"
             "MiDaS: Deep learning model (moderate accuracy)\n"
             "DepthAnything: Latest model (best accuracy, slowest)"
         )
+        self.depth_method_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.depth_method_combo.currentIndexChanged.connect(self._on_method_changed)
         method_layout.addWidget(self.depth_method_combo)
         depth_layout.addLayout(method_layout)
@@ -154,6 +176,7 @@ class ParallaxPanel(QWidget):
         viz_group = QGroupBox("Visualization")
         viz_layout = QVBoxLayout()
         viz_layout.setSpacing(6)
+        viz_layout.setContentsMargins(8, 8, 8, 8)
 
         # Show depth map checkbox
         self.show_depth_checkbox = QCheckBox("Show Depth Map")
@@ -177,6 +200,7 @@ class ParallaxPanel(QWidget):
         metrics_group = QGroupBox("Performance")
         metrics_layout = QVBoxLayout()
         metrics_layout.setSpacing(4)
+        metrics_layout.setContentsMargins(8, 8, 8, 8)
 
         self.depth_time_label = QLabel("Depth estimation: --")
         self.depth_time_label.setStyleSheet("font-size: 9pt;")
@@ -193,8 +217,9 @@ class ParallaxPanel(QWidget):
         metrics_group.setLayout(metrics_layout)
         layout.addWidget(metrics_group)
 
-        # Add stretch to push everything to top
-        layout.addStretch()
+        # No addStretch() — with SizePolicy.Fixed the content widget already
+        # stops at its natural height; a stretch would expand it needlessly and
+        # re-introduce the geometry mismatch on some Qt themes.
 
         scroll.setWidget(content)
         outer_layout.addWidget(scroll)
@@ -224,9 +249,8 @@ class ParallaxPanel(QWidget):
         self.parallax_toggled.emit(enabled)
 
     def _on_baseline_changed(self, value: float):
-        """Handle baseline spinbox change."""
-        # Signal will be emitted when Apply button is clicked
-        pass
+        """Handle baseline spinbox change — emit signal live."""
+        self.baseline_changed.emit(value)
 
     def _on_method_changed(self, index: int):
         """Handle depth method change."""

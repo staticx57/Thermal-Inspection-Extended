@@ -34,7 +34,18 @@ logger = logging.getLogger(__name__)
 DEPTH_ESTIMATION_AVAILABLE = False
 TRANSFORMERS_AVAILABLE = False
 
-# Check if torch is importable (without actually importing it at module level)
+# Check if torch/transformers are importable (without actually importing them
+# at module level - both are optional, and probing for real costs seconds).
+#
+# TRANSFORMERS_AVAILABLE used to only ever get set True as a side effect of
+# load_model() actually running its own `from transformers import pipeline`
+# - but the constructor below gates depth_method="depthanything" on this
+# flag BEFORE load_model() has ever been called, so on every first
+# construction it was always False regardless of whether transformers was
+# actually installed. DepthAnything was never reachable through this class
+# at all, even with correct dependencies - confirmed live: a real GPU
+# inference test returned 0MB GPU memory used and a silent fallback to
+# "simplified", with transformers 4.57.3 actually installed.
 try:
     import importlib.util
     torch_spec = importlib.util.find_spec("torch")
@@ -45,8 +56,13 @@ try:
     else:
         logger.info("PyTorch not installed - ML depth estimation disabled")
         logger.info("Parallax correction will use simplified geometric mode")
+
+    transformers_spec = importlib.util.find_spec("transformers")
+    TRANSFORMERS_AVAILABLE = transformers_spec is not None
+    if TRANSFORMERS_AVAILABLE:
+        logger.info("transformers package detected (will load lazily if needed)")
 except Exception as e:
-    logger.info(f"Could not detect PyTorch: {e}")
+    logger.info(f"Could not detect PyTorch/transformers: {e}")
     logger.info("Parallax correction will use simplified geometric mode")
 
 
@@ -414,6 +430,7 @@ class ParallaxCompensator:
         self.geometry = camera_geometry or CameraGeometry()
         self.depth_estimator = DepthEstimator(method=depth_method)
         self.enabled = False  # CRITICAL: Disabled by default
+        self.show_depth_map = False  # Whether to return depth-map overlay instead of corrected thermal
 
         # Cache
         self.last_depth_map = None
@@ -431,6 +448,16 @@ class ParallaxCompensator:
     def is_enabled(self) -> bool:
         """Check if parallax compensation is enabled."""
         return self.enabled
+
+    def set_depth_display(self, show: bool):
+        """Enable or disable depth-map overlay mode.
+
+        When True, apply_correction() returns a colourised depth-map frame
+        instead of the corrected thermal frame so the user can inspect depth
+        estimation quality directly in the video stream.
+        """
+        self.show_depth_map = show
+        logger.info(f"Parallax depth-map overlay: {'ON' if show else 'OFF'}")
 
     def set_baseline(self, baseline_mm: float):
         """Set camera baseline distance in millimeters."""
@@ -499,6 +526,16 @@ class ParallaxCompensator:
             flow_map[:, :, 1] = 0
 
             self.last_displacement_map = flow_map
+
+            # Return depth-map colourised overlay when requested (debug/QA mode)
+            if self.show_depth_map:
+                d_norm = cv2.normalize(depth_resized, None, 0, 255, cv2.NORM_MINMAX)
+                d_u8 = d_norm.astype(np.uint8)
+                depth_colourised = cv2.applyColorMap(d_u8, cv2.COLORMAP_JET)
+                # Resize to match thermal output shape if needed
+                if depth_colourised.shape[:2] != thermal_frame.shape[:2]:
+                    depth_colourised = cv2.resize(depth_colourised, (thermal_w, thermal_h))
+                return depth_colourised
 
             corrected_thermal = self._remap_thermal(thermal_frame, flow_map)
 

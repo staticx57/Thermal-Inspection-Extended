@@ -29,7 +29,8 @@ os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
 # install is silently fine here.
 try:
     import torch  # noqa: F401
-except ImportError:
+except (ImportError, OSError):
+    # OSError covers broken DLL installations (WinError 1114 / c10.dll failure).
     pass
 
 # CLI exports
