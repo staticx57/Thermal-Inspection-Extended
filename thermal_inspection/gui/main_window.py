@@ -1006,15 +1006,66 @@ class InspectionAppWindow(QMainWindow):
         self._show_hotplug_banner(msg, warning=True)
 
     def _on_bus_panel_ready(self, role: str, panel):
-        """Dynamically add or focus a panel when provided by a plugin."""
-        if hasattr(self, 'cameras_tabs') and panel:
+        """Swap in the just-activated (SDK-wired) panel for whichever plugin
+        claimed this role, replacing its startup-time placeholder tab in
+        place instead of stacking a second, generically-titled tab.
+
+        activate_camera() calls plugin.create_control_panel() fresh on every
+        activation - a different object than the one the startup loop in
+        _init_ui already put in cameras_tabs/camera_panels for every
+        registered plugin. Previously this handler just added the new panel
+        under a new "Thermal"/"Rgb" tab and left camera_panels[plugin_id]
+        pointing at the old, never-connected one - so the plugin's own
+        named tab (e.g. "FLIR Boson") looked identical to and permanently
+        disconnected from the real, working one, and status routing that
+        reads camera_panels (_on_bus_camera_command_result,
+        _on_bus_sdk_connected, port-scan broadcast) updated the dead panel
+        instead of the one on screen. The new panel's buttons were never
+        wired to dispatch commands either, since _wire_plugin_panel() was
+        only ever called on the startup panel.
+        """
+        if not hasattr(self, 'cameras_tabs') or not panel:
+            return
+
+        for i in range(self.cameras_tabs.count()):
+            if self.cameras_tabs.widget(i) == panel:
+                self.cameras_tabs.setCurrentWidget(panel)
+                return
+
+        active = None
+        if self.app and hasattr(self.app, 'plugin_host'):
+            active = self.app.plugin_host.get_active_camera(role)
+        plugin_id = active.plugin.plugin_id if active else None
+
+        old_panel = getattr(self, 'camera_panels', {}).get(plugin_id) if plugin_id else None
+        replaced = False
+        if old_panel is not None:
             for i in range(self.cameras_tabs.count()):
-                if self.cameras_tabs.widget(i) == panel:
-                    self.cameras_tabs.setCurrentWidget(panel)
-                    return
-            title = f"{role.capitalize()}"
-            self.cameras_tabs.addTab(panel, title)
-            self.cameras_tabs.setCurrentWidget(panel)
+                if self.cameras_tabs.widget(i) == old_panel:
+                    title = self.cameras_tabs.tabText(i)
+                    self.cameras_tabs.removeTab(i)
+                    self.cameras_tabs.insertTab(i, panel, title)
+                    replaced = True
+                    break
+
+        if not replaced:
+            self.cameras_tabs.addTab(panel, f"{role.capitalize()}")
+
+        if plugin_id:
+            self.camera_panels[plugin_id] = panel
+            self._wire_plugin_panel(active.plugin, panel)
+            # Keep the convenience per-plugin attributes (used by
+            # show_camera_connected_notification's auto-focus) pointing at
+            # the live panel too, not the just-removed startup one.
+            convenience_attr = {
+                'flir_boson': 'boson_panel', 'flir_tau2': 'tau2_panel',
+                'flir_lepton': 'lepton_panel', 'flir_firefly': 'firefly_panel',
+                'generic_uvc': 'uvc_panel', 'gige_vision': 'gige_panel',
+            }.get(plugin_id)
+            if convenience_attr:
+                setattr(self, convenience_attr, panel)
+
+        self.cameras_tabs.setCurrentWidget(panel)
 
     def _on_bus_ports_scan_result(self, ports: list):
         """Update port list from scan result."""
@@ -1991,7 +2042,7 @@ class InspectionAppWindow(QMainWindow):
             self.video_widget.overlay.update_measurement_points([])
             self.video_widget.overlay.update()
         if hasattr(self.analysis_panel, 'spot_meter_panel'):
-            self.analysis_panel.spot_meter_panel.clear_all_spots()
+            self.analysis_panel.spot_meter_panel.clear()
 
     def _on_spot_export_requested(self, format_type: str):
         """Export spot temperature data."""
