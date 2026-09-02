@@ -48,7 +48,6 @@ class ROIController:
 
         # Manager instances (set externally)
         self.roi_manager = None
-        self.roi_radiometric_analyzer = None
         self.palette_manager = None
         self.thermal_analyzer = None
 
@@ -65,15 +64,6 @@ class ROIController:
             manager: ROIManager instance to delegate to
         """
         self.roi_manager = manager
-
-    def set_radiometric_analyzer(self, analyzer):
-        """
-        Set the ROI radiometric analyzer.
-
-        Args:
-            analyzer: ROIRadiometricAnalyzer instance
-        """
-        self.roi_radiometric_analyzer = analyzer
 
     def set_palette_manager(self, manager):
         """
@@ -172,10 +162,6 @@ class ROIController:
 
         self.roi_manager.clear_all_rois()
 
-        # Clear radiometric analyzer history
-        if self.roi_radiometric_analyzer:
-            self.roi_radiometric_analyzer.clear_history()
-
         self.state.roi_count = 0
         logger.info("All ROIs cleared")
 
@@ -192,10 +178,6 @@ class ROIController:
             return
 
         self.roi_manager.delete_roi(roi_id)
-
-        # Clear history for this ROI
-        if self.roi_radiometric_analyzer:
-            self.roi_radiometric_analyzer.clear_history(roi_id)
 
         # Clear any associated palette config
         if self.palette_manager:

@@ -329,8 +329,9 @@ class ROITemperaturePanel(QWidget):
         Update display with new ROI temperature data.
 
         Args:
-            roi_data: Dictionary mapping roi_id -> stats dict
-                     from ROIRadiometricAnalyzer.analyze_all_rois()
+            roi_data: Dictionary mapping roi_id -> stats dict, as built by
+                     ThermalInspectionApp's per-ROI stats push in
+                     app.py's _process_frame_loop (via ThermalAnalyzer.compute_statistics())
         """
         # Allow empty dict to clear the display
         if roi_data is None:

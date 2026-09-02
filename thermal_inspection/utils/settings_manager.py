@@ -79,9 +79,7 @@ class SettingsManager:
             "camera.thermal.width": 640,
             "camera.thermal.height": 512,
             "camera.rgb.enabled": True,
-            "detection.mode": "model",
-            "detection.yolo.model": "yolov8n.pt",
-            "detection.yolo.confidence_threshold": 0.25,
+            "detection.mode": "edge",
             "gui.theme": "dark",
             "audio.enabled": True,
             "audio.volume": 0.7,
@@ -233,10 +231,6 @@ class SettingsManager:
             thermal_height = self.get('camera.thermal.height')
             if thermal_height not in [256, 512]:
                 errors.append(f"Invalid thermal height: {thermal_height}")
-
-            confidence = self.get('detection.yolo.confidence_threshold')
-            if confidence and not (0.1 <= confidence <= 0.95):
-                errors.append(f"Invalid confidence threshold: {confidence}")
 
             volume = self.get('audio.volume')
             if volume and not (0.0 <= volume <= 1.0):

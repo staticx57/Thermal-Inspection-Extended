@@ -79,9 +79,9 @@ comtypes>=1.1.7             # DirectShow COM interface (required by pygrabber)
 # compensation accuracy. This provides state-of-the-art monocular depth estimation
 # for better thermal-RGB alignment.
 #
-torch>=2.0.0              # PyTorch (CPU version, ~2GB download)
-transformers>=4.30.0      # Hugging Face Transformers
-huggingface-hub>=0.16.0   # Model downloads and caching
+# torch>=2.0.0              # PyTorch (CPU version, ~2GB download)
+# transformers>=4.30.0      # Hugging Face Transformers
+# huggingface-hub>=0.16.0   # Model downloads and caching
 #
 # For GPU acceleration (recommended for real-time performance):
 # Install PyTorch with CUDA from https://pytorch.org/get-started/locally/
@@ -101,8 +101,11 @@ huggingface-hub>=0.16.0   # Model downloads and caching
 
 # The following were removed during ADAS → Inspection transformation:
 #   - ultralytics (YOLOv8) - object detection not needed
-#   - torch/torchvision - deep learning not needed
 #   - Audio libraries - alert sounds not needed
+#
+# torch/transformers/huggingface-hub came back as an OPTIONAL dependency in
+# v3.3.0 (see the "ML Depth Estimation" section above) - commented out by
+# default, only needed for DepthAnything V2 parallax compensation.
 #
 # See CHANGELOG.md v3.0.0 for transformation details
 

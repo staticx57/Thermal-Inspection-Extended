@@ -7,7 +7,6 @@ Contains:
 - FusionProcessor: Thermal-RGB fusion algorithms
 - PaletteManager: Color palette management
 - ROIManager: ROI creation and management
-- ROIRadiometricAnalyzer: Per-ROI radiometric temperature analysis
 """
 
 # Processing modules
@@ -52,10 +51,6 @@ from thermal_inspection.processing.roi_manager import (
     ROIManager,
 )
 
-from thermal_inspection.processing.roi_radiometric_analyzer import (
-    ROIRadiometricAnalyzer,
-)
-
 # Migrated modules from Phase 5
 from thermal_inspection.processing.radiometric_converter import TLinearConverter
 from thermal_inspection.processing.isotherm_bands import IsothermBandManager
@@ -92,7 +87,6 @@ __all__ = [
     'ROISource',
     'ROI',
     'ROIManager',
-    'ROIRadiometricAnalyzer',
     # Phase 5 modules
     'TLinearConverter',
     'IsothermBandManager',

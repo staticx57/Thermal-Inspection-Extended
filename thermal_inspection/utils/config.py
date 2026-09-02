@@ -46,22 +46,6 @@ class Config:
         'thermal_retry_interval': 3,  # seconds
         'rgb_retry_interval': 100,  # frames
 
-        # Detection Settings
-        'yolo_model': 'yolov8s.pt',
-        'confidence_threshold': 0.25,
-        'detection_mode': 'model',  # 'model' or 'edge'
-
-        # Model Selection (Enhanced)
-        'model_presets': {
-            'yolov8n': 'yolov8n.pt',  # Nano - fastest, lower accuracy
-            'yolov8s': 'yolov8s.pt',  # Small - balanced (default)
-            'yolov8m': 'yolov8m.pt',  # Medium - higher accuracy
-            'yolov8l': 'yolov8l.pt',  # Large - highest accuracy, slower
-        },
-        'thermal_model': None,  # Optional: Dedicated thermal model
-        'rgb_model': None,  # Optional: Dedicated RGB model
-        'custom_models': [],  # User-defined custom model paths
-
         # Audio Settings
         'audio_enabled': True,
         'audio_volume': 0.7,

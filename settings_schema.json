@@ -119,66 +119,9 @@
       "properties": {
         "mode": {
           "type": "string",
-          "default": "model",
-          "enum": ["edge", "model"],
-          "description": "Detection algorithm (edge detection or YOLO)"
-        },
-        "yolo": {
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "default": true,
-              "description": "Enable YOLO detection"
-            },
-            "model": {
-              "type": "string",
-              "default": "yolov8n.pt",
-              "enum": ["yolov8n.pt", "yolov8s.pt", "yolov8m.pt", "yolov8l.pt"],
-              "description": "YOLO model file"
-            },
-            "confidence_threshold": {
-              "type": "number",
-              "default": 0.25,
-              "minimum": 0.1,
-              "maximum": 0.95,
-              "description": "Detection confidence threshold"
-            },
-            "thermal_confidence_adjustment": {
-              "type": "number",
-              "default": 0.6,
-              "minimum": 0.3,
-              "maximum": 1.0,
-              "description": "Confidence multiplier for thermal camera"
-            },
-            "device": {
-              "type": "string",
-              "default": "cuda",
-              "enum": ["cuda", "cpu"],
-              "description": "Processing device (GPU or CPU)"
-            },
-            "input_size": {
-              "type": "integer",
-              "default": 416,
-              "enum": [320, 416, 640],
-              "description": "YOLO input size (pixels)"
-            },
-            "custom_model_path": {
-              "type": ["string", "null"],
-              "default": null,
-              "description": "Custom YOLO model path"
-            },
-            "rgb_model": {
-              "type": ["string", "null"],
-              "default": null,
-              "description": "RGB camera-specific YOLO model (relative path)"
-            },
-            "thermal_model": {
-              "type": ["string", "null"],
-              "default": null,
-              "description": "Thermal camera-specific YOLO model (relative path)"
-            }
-          }
+          "default": "edge",
+          "enum": ["edge"],
+          "description": "Detection algorithm"
         },
         "edge_detection": {
           "type": "object",

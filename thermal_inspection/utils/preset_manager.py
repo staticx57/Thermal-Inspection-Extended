@@ -23,8 +23,6 @@ class SettingsPreset:
     fusion_mode: str
     fusion_alpha: float
     thermal_palette: str
-    yolo_enabled: bool
-    yolo_model: str
     show_boxes: bool
     audio_enabled: bool
     frame_skip: int
@@ -58,8 +56,6 @@ class SettingsPreset:
             fusion_mode=app_state.get('fusion_mode', 'alpha_blend'),
             fusion_alpha=app_state.get('fusion_alpha', 0.5),
             thermal_palette=app_state.get('thermal_palette', 'ironbow'),
-            yolo_enabled=app_state.get('yolo_enabled', True),
-            yolo_model=app_state.get('yolo_model', 'yolov8n.pt'),
             show_boxes=app_state.get('show_boxes', True),
             audio_enabled=app_state.get('audio_enabled', True),
             frame_skip=app_state.get('frame_skip', 1),
