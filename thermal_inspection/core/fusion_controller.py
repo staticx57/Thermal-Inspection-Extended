@@ -25,6 +25,7 @@ class ViewMode(Enum):
     FUSION = auto()
     SIDE_BY_SIDE = auto()
     PICTURE_IN_PICTURE = auto()
+    THREE_D = auto()  # Live RGB+thermal+depth point cloud - real hardware depth only, see Fusion3DViewWidget
 
 
 @dataclass
@@ -248,19 +249,25 @@ class FusionController:
             "rgb only": ViewMode.RGB_ONLY,
             "fusion": ViewMode.FUSION,
             "side-by-side": ViewMode.SIDE_BY_SIDE,
-            "picture-in-picture": ViewMode.PICTURE_IN_PICTURE
+            "picture-in-picture": ViewMode.PICTURE_IN_PICTURE,
+            "3d": ViewMode.THREE_D,
         }
         view_mode = mode_map.get(mode.lower())
         if view_mode:
             self.state.view_mode = view_mode
 
-            # Map ViewMode to overlay-expected string
+            # Map ViewMode to overlay-expected string. 3D has no 2D overlay
+            # of its own (ROI/spot markers don't apply to a GL point-cloud
+            # viewport) - "thermal" is just a harmless fallback in case
+            # anything queries it while the main viewport is showing the
+            # 3D view instead of the overlay widget.
             overlay_mode_map = {
                 ViewMode.THERMAL_ONLY: "thermal",
                 ViewMode.RGB_ONLY: "rgb",
                 ViewMode.FUSION: "fusion",
                 ViewMode.SIDE_BY_SIDE: "side_by_side",
-                ViewMode.PICTURE_IN_PICTURE: "picture_in_picture"
+                ViewMode.PICTURE_IN_PICTURE: "picture_in_picture",
+                ViewMode.THREE_D: "thermal",
             }
             overlay_mode = overlay_mode_map.get(view_mode, "thermal")
 

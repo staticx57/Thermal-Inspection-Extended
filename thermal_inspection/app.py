@@ -165,6 +165,17 @@ class ThermalInspectionApp:
         # needs to feel live, not match the main video loop's framerate.
         self._last_3d_fusion_update_time = 0.0
         self._3d_fusion_update_interval_s = 1.0 / 15.0
+        # Dedup state so hardware/alignment status is only pushed to the
+        # GUI when it actually changes, not every frame.
+        self._last_3d_hw_available_reported = None  # holds the backend object once reported available
+        self._last_3d_aligned_reported = False
+        self._3d_relief_strength = 0.5
+        self._3d_mode = "relief"  # "relief", "fog", or "contours" - see fusion_3d_panel.THREE_D_MODES
+        # Cache for the main viewport's THREE_D display frame - see its
+        # branch in the display_frame selection for why this is throttled
+        # instead of recomputed every frame.
+        self._last_3d_display_frame = None
+        self._last_3d_display_time = 0.0
 
         # Throttle for per-ROI temperature stats (ROI Manager panel).
         # compute_statistics() does a percentile pass per ROI - profiled
@@ -331,6 +342,8 @@ class ThermalInspectionApp:
         bus.detail_quality_changed.connect(self.set_detail_quality)
         bus.laplacian_gpu_changed.connect(self.set_laplacian_gpu)
         bus.laplacian_cpu_scale_changed.connect(self.set_laplacian_cpu_scale)
+        bus.fusion_3d_strength_changed.connect(self.set_3d_relief_strength)
+        bus.fusion_3d_mode_changed.connect(self.set_3d_mode)
 
         # --- ROI ---
         bus.auto_roi_requested.connect(self.auto_roi_detect)
@@ -1424,17 +1437,52 @@ class ThermalInspectionApp:
             else:
                 colorized_thermal = cv2.cvtColor(thermal_frame, cv2.COLOR_GRAY2BGR) if len(thermal_frame.shape) == 2 else thermal_frame
 
-            # 3D Fusion - live point cloud from real hardware depth only
-            # (see Fusion3DPanel's docstring). Gated on the 3D Fusion tab
-            # actually being visible and a RealSense camera being the
-            # active RGB source, so this costs nothing when neither is true.
+            # 3D Fusion setup - detects RealSense hardware and whether
+            # thermal is properly aligned to it, used both by the main
+            # viewport's THREE_D mode (further below, in the display_frame
+            # selection) and by the settings tab's point-cloud preview.
+            #
+            # _thermal_aligned_realsense deliberately checks the depth
+            # METHOD is specifically "realsense", not just "any correction
+            # active": the thermal camera has no depth information of its
+            # own, so its alignment to RGB is only as trustworthy as
+            # whatever depth data parallax correction actually used to
+            # compute it. If that were "simplified"/MiDaS/DepthAnything (an
+            # estimate) while relief-shading uses RealSense's real depth,
+            # the two would be geometrically inconsistent with each other
+            # even though "some" alignment is nominally on.
             _rs_backend = None
             active_rgb = self.plugin_host.get_active_camera('rgb') if self.plugin_host else None
             if active_rgb and hasattr(active_rgb.backend, 'get_point_cloud'):
                 _rs_backend = active_rgb.backend
 
-            fusion_3d_panel = getattr(self.gui, 'fusion_3d_panel', None) if self.gui else None
-            if (_rs_backend and fusion_3d_panel is not None and fusion_3d_panel.isVisible()
+            _thermal_aligned_realsense = bool(
+                self.parallax_compensator
+                and self.parallax_compensator.has_correction()
+                and self.parallax_compensator.depth_estimator.method == "realsense"
+            )
+            if _rs_backend is not None and _rs_backend is not self._last_3d_hw_available_reported:
+                self._gui_invoke("set_fusion_3d_hardware_available", True)
+                self._last_3d_hw_available_reported = _rs_backend
+            elif _rs_backend is None and self._last_3d_hw_available_reported is not None:
+                self._gui_invoke("set_fusion_3d_hardware_available", False)
+                self._last_3d_hw_available_reported = None
+            if _thermal_aligned_realsense != self._last_3d_aligned_reported:
+                self._gui_invoke("set_fusion_3d_thermal_aligned", _thermal_aligned_realsense)
+                self._last_3d_aligned_reported = _thermal_aligned_realsense
+
+            # Point-cloud preview (3D Fusion settings tab) - independent of
+            # the main viewport's view mode, so it's checkable any time;
+            # gated on its own component-mode needs instead (its "RGB Only"
+            # mode needs no thermal alignment at all - see
+            # Fusion3DPointCloudView.needs_thermal_alignment).
+            _3d_panel = getattr(self.gui, 'fusion_3d_panel', None) if self.gui else None
+            _preview = getattr(_3d_panel, 'point_cloud_view', None) if _3d_panel else None
+            _preview_ready = bool(
+                _preview is not None and _preview.isVisible()
+                and (_thermal_aligned_realsense or not _preview.needs_thermal_alignment())
+            )
+            if (_rs_backend and _preview_ready
                     and rgb_frame is not None and rgb_frame is not self.rgb_placeholder):
                 _now_3d = time.time()
                 if _now_3d - self._last_3d_fusion_update_time >= self._3d_fusion_update_interval_s:
@@ -1627,6 +1675,69 @@ class ThermalInspectionApp:
                         display_frame = cv2.hconcat([rgb_resized, colorized_thermal])
                 else:
                     display_frame = colorized_thermal
+            elif self.view_mode == ViewMode.THREE_D:
+                # Real depth (RealSense) shades a 2D image with a relief/
+                # bump-map effect - see apply_depth_relief. With thermal
+                # aligned to RealSense (has_correction() AND depth_method
+                # == "realsense" - see _thermal_aligned_realsense above),
+                # the base image is the full RGB+thermal 2D Fusion blend.
+                # Without that (including thermal camera off entirely),
+                # this still shows a useful depth-enhanced RGB view -
+                # RealSense's own RGB+depth are natively hardware-aligned
+                # by its SDK and need no thermal alignment at all.
+                if _rs_backend is not None:
+                    # apply_depth_relief costs ~20ms at thermal resolution
+                    # and ~90ms at RealSense's native 1280x800 (the RGB-only
+                    # fallback path) even after in-place optimization -
+                    # recomputing it every single frame (as opposed to the
+                    # point-cloud preview above, which is already
+                    # throttled) directly capped the whole video loop's
+                    # framerate to near-single-digit FPS. Reuse the last
+                    # computed frame between throttled recomputes instead -
+                    # a real-depth relief effect doesn't need to update
+                    # faster than a human can perceive it changing anyway.
+                    _now_3d_disp = time.time()
+                    if (self._last_3d_display_frame is None
+                            or _now_3d_disp - self._last_3d_display_time >= self._3d_fusion_update_interval_s):
+                        self._last_3d_display_time = _now_3d_disp
+                        try:
+                            from thermal_inspection.gui.panels.fusion_3d_panel import (
+                                apply_depth_relief, apply_depth_fog, apply_depth_contours
+                            )
+                            mode_fn = {
+                                "relief": apply_depth_relief,
+                                "fog": apply_depth_fog,
+                                "contours": apply_depth_contours,
+                            }.get(self._3d_mode, apply_depth_relief)
+
+                            if _thermal_aligned_realsense and self.fusion_processor and rgb_frame is not None:
+                                fusion_rgb = rgb_frame
+                                if self._fusion_color_mode == "grayscale":
+                                    gray = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2GRAY)
+                                    fusion_rgb = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+                                base_2d = self.fusion_processor.process(colorized_thermal, fusion_rgb)
+                            elif rgb_frame is not None and rgb_frame is not self.rgb_placeholder:
+                                base_2d = rgb_frame
+                            else:
+                                base_2d = colorized_thermal
+
+                            depth_map = _rs_backend.get_depth_frame()
+                            if depth_map is not None:
+                                bh, bw = base_2d.shape[:2]
+                                if depth_map.shape[:2] != (bh, bw):
+                                    depth_map = cv2.resize(depth_map, (bw, bh), interpolation=cv2.INTER_NEAREST)
+                                self._last_3d_display_frame = mode_fn(
+                                    base_2d, depth_map, strength=self._3d_relief_strength
+                                )
+                            else:
+                                self._last_3d_display_frame = base_2d
+                        except Exception as _3d_disp_err:
+                            logger.debug(f"3D Fusion display frame failed: {_3d_disp_err}")
+                            self._last_3d_display_frame = colorized_thermal
+                    display_frame = self._last_3d_display_frame
+                else:
+                    self._last_3d_display_frame = None
+                    display_frame = colorized_thermal
             elif self.view_mode == ViewMode.PICTURE_IN_PICTURE:
                 if self.fusion_processor and rgb_frame is not None:
                     # Fix Bug #25: use fusion_processor for proper alignment before PIP
@@ -1809,9 +1920,18 @@ class ThermalInspectionApp:
                     self.palette_manager.set_global_palette(palettes[0])
 
     def cycle_view_mode(self):
-        """Cycle view mode."""
+        """
+        Cycle view mode.
+
+        THREE_D is always in the cycle, not conditionally added only when a
+        RealSense camera is connected - RealSense availability should make
+        3D usable, not force the mode switch or hide it from manual
+        toggling. Without hardware depth it just shows Fusion3DViewWidget's
+        "no hardware depth sensor" placeholder, the same way RGB_ONLY shows
+        a placeholder with no RGB camera connected.
+        """
         modes = [ViewMode.THERMAL_ONLY, ViewMode.RGB_ONLY, ViewMode.FUSION,
-                 ViewMode.SIDE_BY_SIDE, ViewMode.PICTURE_IN_PICTURE]
+                 ViewMode.SIDE_BY_SIDE, ViewMode.PICTURE_IN_PICTURE, ViewMode.THREE_D]
         try:
             idx = modes.index(self.view_mode)
             self.view_mode = modes[(idx + 1) % len(modes)]
@@ -1822,7 +1942,8 @@ class ThermalInspectionApp:
                 ViewMode.RGB_ONLY: "rgb only",
                 ViewMode.FUSION: "fusion",
                 ViewMode.SIDE_BY_SIDE: "side-by-side",
-                ViewMode.PICTURE_IN_PICTURE: "picture-in-picture"
+                ViewMode.PICTURE_IN_PICTURE: "picture-in-picture",
+                ViewMode.THREE_D: "3d",
             }
             mode_str = mode_name_map.get(self.view_mode, "thermal only")
             self.fusion_controller.set_view_mode(mode_str)
@@ -1945,6 +2066,19 @@ class ThermalInspectionApp:
         """Set laplacian_pyramid's CPU-fallback internal resolution scale (no effect when GPU is active)."""
         if self.fusion_processor:
             self.fusion_processor.set_laplacian_cpu_scale(scale)
+
+    def set_3d_relief_strength(self, strength: float):
+        """Set how strongly real RealSense depth shades ViewMode.THREE_D's output (0-1)."""
+        self._3d_relief_strength = max(0.0, min(1.0, strength))
+
+    def set_3d_mode(self, mode: str):
+        """Set which depth visualization ViewMode.THREE_D uses - see fusion_3d_panel.THREE_D_MODES."""
+        from thermal_inspection.gui.panels.fusion_3d_panel import THREE_D_MODES
+        if mode not in THREE_D_MODES:
+            logger.warning(f"Unknown 3D Fusion mode '{mode}', ignoring")
+            return
+        self._3d_mode = mode
+        self._last_3d_display_frame = None  # force an immediate recompute in the new mode
 
     def set_emissivity(self, val: float):
         """Set emissivity value."""

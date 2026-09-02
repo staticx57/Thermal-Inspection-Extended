@@ -161,7 +161,11 @@ class InspectionAppWindow(QMainWindow):
             left_layout.setContentsMargins(0, 0, 0, 0)
             left_layout.setSpacing(0)
 
-            # Video widget
+            # Video widget - ViewMode.THREE_D also displays through this
+            # same widget: its output is app.py's normal 2D Fusion blend
+            # with a real-depth relief-shading effect applied
+            # (apply_depth_relief), not a separate GL viewport. See
+            # thermal_inspection/gui/panels/fusion_3d_panel.py.
             self.video_widget = VideoWidget()
             self.video_widget.overlay.spot_meter_clicked.connect(self._on_spot_meter_clicked)
             left_layout.addWidget(self.video_widget, stretch=1)
@@ -396,14 +400,16 @@ class InspectionAppWindow(QMainWindow):
             self.right_panel_tabs.addTab(self.fusion_panel, "2D Fusion")
             logger.info("[OK] 2D Fusion tab added to right panel")
 
-            # Tab 4b: 3D Fusion - live point-cloud view, gated on real
-            # hardware depth (RealSense); see Fusion3DPanel's docstring for
-            # why this never falls back to estimated depth.
-            logger.info("Creating 3D Fusion tab...")
-            from thermal_inspection.gui.panels.fusion_3d_panel import Fusion3DPanel
-            self.fusion_3d_panel = Fusion3DPanel()
+            # Tab 4b: 3D Fusion settings - controls the main viewport's
+            # THREE_D mode (a real-depth relief-shading effect applied to
+            # the 2D Fusion image, shown through video_widget like every
+            # other mode - not a separate viewport), plus a point-cloud
+            # preview for verifying the underlying RealSense data.
+            logger.info("Creating 3D Fusion settings tab...")
+            from thermal_inspection.gui.panels.fusion_3d_panel import Fusion3DSettingsPanel
+            self.fusion_3d_panel = Fusion3DSettingsPanel()
             self.right_panel_tabs.addTab(self.fusion_3d_panel, "3D Fusion")
-            logger.info("[OK] 3D Fusion tab added to right panel")
+            logger.info("[OK] 3D Fusion settings tab added to right panel")
 
             # Tab 5: Settings
             logger.info("Creating Settings tab...")
@@ -528,6 +534,8 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("fusion_panel", "detail_quality_changed", self._on_detail_quality_changed, "(fusion)")
         self._safe_connect("fusion_panel", "laplacian_gpu_changed", self._on_laplacian_gpu_changed, "(fusion)")
         self._safe_connect("fusion_panel", "laplacian_cpu_scale_changed", self._on_laplacian_cpu_scale_changed, "(fusion)")
+        self._safe_connect("fusion_3d_panel", "strength_changed", self._on_3d_relief_strength_changed, "(3d fusion)")
+        self._safe_connect("fusion_3d_panel", "mode_changed", self._on_3d_mode_changed, "(3d fusion)")
 
         # === ANALYSIS PANEL ===
         self._safe_connect("analysis_panel", "palette_changed", self._on_global_palette_changed, "(analysis)")
@@ -1533,6 +1541,18 @@ class InspectionAppWindow(QMainWindow):
         elif self.app and hasattr(self.app, 'set_laplacian_cpu_scale'):
             self.app.set_laplacian_cpu_scale(val)
 
+    def _on_3d_relief_strength_changed(self, val: float):
+        if self.event_bus:
+            self.event_bus.fusion_3d_strength_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_3d_relief_strength'):
+            self.app.set_3d_relief_strength(val)
+
+    def _on_3d_mode_changed(self, mode: str):
+        if self.event_bus:
+            self.event_bus.fusion_3d_mode_changed.emit(mode)
+        elif self.app and hasattr(self.app, 'set_3d_mode'):
+            self.app.set_3d_mode(mode)
+
     # === ANALYSIS HANDLERS ===
     def _on_global_palette_changed(self, palette_name: str):
         try:
@@ -1723,14 +1743,18 @@ class InspectionAppWindow(QMainWindow):
             self.event_bus.view_mode_cycled.emit()
         elif self.app:
             self.app.cycle_view_mode()
-        # Sync overlay with new view mode
-        self._sync_overlay_view_mode()
+        # cycle_view_mode() above runs synchronously (updates self.app.view_mode
+        # directly, no async signal round-trip), so the new mode is already
+        # readable here - sync the button label and viewport immediately
+        # rather than only on the app's own auto-fallback switches.
+        self._sync_view_mode_button()
         logger.info("View mode cycle")
 
     def _sync_view_mode_button(self, view_mode=None):
         """
         Update the View Mode button label to reflect the current mode.
-        Called when the app auto-switches view mode (e.g. no thermal camera found).
+        Called when the app auto-switches view mode (e.g. no thermal camera
+        found) and after a manual view-mode cycle click.
         """
         try:
             from thermal_inspection.core import ViewMode
@@ -1744,10 +1768,16 @@ class InspectionAppWindow(QMainWindow):
                 ViewMode.FUSION: "Fusion",
                 ViewMode.SIDE_BY_SIDE: "Side by Side",
                 ViewMode.PICTURE_IN_PICTURE: "PiP",
+                ViewMode.THREE_D: "3D",
             }
             label = label_map.get(view_mode, str(view_mode))
-            if hasattr(self, 'control_panel') and hasattr(self.control_panel, 'view_btn'):
-                self.control_panel.view_btn.setText(f"View: {label}")
+            # NOTE: the button is named view_mode_btn, not view_btn - a
+            # prior mismatched attribute name here meant this method never
+            # actually updated the button text at all, on any view mode
+            # change, manual or automatic.
+            if hasattr(self, 'control_panel') and hasattr(self.control_panel, 'view_mode_btn'):
+                self.control_panel.view_mode_btn.setText(f"\U0001F441 {label}")
+
             self._sync_overlay_view_mode()
             logger.info(f"View mode button synced to: {label}")
         except Exception as e:
@@ -2418,14 +2448,26 @@ class InspectionAppWindow(QMainWindow):
             self.roi_temp_panel.update_rois(rois)
 
     def set_fusion_3d_hardware_available(self, available: bool):
-        """Switch the 3D Fusion tab between its live view and 'no hardware depth' placeholder."""
+        """Record whether a RealSense camera is active, for the 3D Fusion settings tab's status/preview."""
+        self._fusion_3d_hw_available = available
+        self._sync_fusion_3d_status()
+
+    def set_fusion_3d_thermal_aligned(self, aligned: bool):
+        """Record whether thermal is aligned to RealSense, for the 3D Fusion settings tab's status/preview."""
+        self._fusion_3d_aligned = aligned
+        self._sync_fusion_3d_status()
+
+    def _sync_fusion_3d_status(self):
         if hasattr(self, 'fusion_3d_panel'):
-            self.fusion_3d_panel.set_hardware_available(available)
+            self.fusion_3d_panel.set_status(
+                getattr(self, '_fusion_3d_hw_available', False),
+                getattr(self, '_fusion_3d_aligned', False),
+            )
 
     def update_fusion_3d_view(self, vertices, uv, rgb_frame, thermal_colorized):
-        """Push a new point cloud to the 3D Fusion tab."""
+        """Push a new point cloud to the 3D Fusion settings tab's preview."""
         if hasattr(self, 'fusion_3d_panel'):
-            self.fusion_3d_panel.update_from_realsense(vertices, uv, rgb_frame, thermal_colorized)
+            self.fusion_3d_panel.point_cloud_view.update_from_realsense(vertices, uv, rgb_frame, thermal_colorized)
 
     def update_roi_stats(self, roi_stats: dict):
         """Push per-ROI temperature statistics (roi_id -> stats dict) to the ROI Manager panel."""

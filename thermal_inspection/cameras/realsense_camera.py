@@ -192,13 +192,24 @@ class RGBCameraRealSense:
             return None
 
     def get_depth_intrinsics(self) -> Optional[Dict[str, float]]:
-        """Depth camera pinhole intrinsics (fx, fy, cx, cy, width, height), or None."""
-        if not self.is_open or self.pipeline is None:
+        """
+        Pinhole intrinsics (fx, fy, cx, cy, width, height) matching the
+        depth data get_depth_frame() actually returns - i.e. the ALIGNED
+        depth frame's intrinsics (the color stream's resolution/grid), not
+        the depth sensor's native resolution.
+
+        The depth and color sensors have different native resolutions on
+        most RealSense models (e.g. 848x480 depth vs 1280x800 color on a
+        D455) - querying the pipeline's raw depth stream profile here
+        instead of the last aligned frame's own intrinsics returned the
+        native depth resolution while get_depth_frame() returns data at
+        the color resolution, a real width/height mismatch confirmed on
+        real D455 hardware.
+        """
+        if self._last_depth_frame is None:
             return None
         try:
-            profile = self.pipeline.get_active_profile()
-            depth_profile = profile.get_stream(rs.stream.depth).as_video_stream_profile()
-            intr = depth_profile.get_intrinsics()
+            intr = self._last_depth_frame.profile.as_video_stream_profile().get_intrinsics()
             return {
                 'fx': intr.fx, 'fy': intr.fy,
                 'cx': intr.ppx, 'cy': intr.ppy,
