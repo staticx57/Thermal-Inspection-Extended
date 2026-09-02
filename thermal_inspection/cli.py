@@ -56,11 +56,9 @@ def parse_arguments():
                       help='Enable radiometric temperature measurement (default: False)')
 
     # Fusion settings
+    from thermal_inspection.processing.fusion_processor import FusionProcessor
     parser.add_argument('--fusion-mode', type=str, default='thermal_overlay',
-                       choices=['alpha_blend', 'detail_inject', 'relief_fusion',
-                               'edge_enhanced', 'thermal_overlay',
-                               'side_by_side', 'picture_in_picture', 'max_intensity',
-                               'feature_weighted'],
+                       choices=FusionProcessor.AVAILABLE_FUSION_MODES,
                        help='Fusion mode (default: thermal_overlay)')
     parser.add_argument('--fusion-alpha', type=float, default=0.5,
                        help='Fusion alpha for alpha_blend mode (default: 0.5)')

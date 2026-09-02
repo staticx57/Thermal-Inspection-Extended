@@ -20,6 +20,24 @@ class FusionProcessor:
     Supports multiple fusion strategies optimized for driving assistance
     """
 
+    # Single source of truth for which fusion modes exist - process()'s
+    # if/elif chain implements exactly these. cli.py's --fusion-mode
+    # choices and fusion_panel.py's GUI dropdown both import this list
+    # rather than keeping their own copy, after three independent
+    # hardcoded copies (this class's old get_available_modes()/
+    # set_fusion_mode() list, cli.py, fusion_panel.py) drifted out of
+    # sync with each other and with process() itself - two modes
+    # (detail_inject, relief_fusion) were fully implemented but
+    # unreachable via get_available_modes()/set_fusion_mode(), and three
+    # more (thermal_contours, enhanced_edge_highlight, laplacian_pyramid)
+    # were unreachable via the CLI and GUI dropdown.
+    AVAILABLE_FUSION_MODES = [
+        'alpha_blend', 'detail_inject', 'relief_fusion', 'edge_enhanced',
+        'thermal_overlay', 'side_by_side', 'picture_in_picture',
+        'max_intensity', 'feature_weighted', 'thermal_contours',
+        'enhanced_edge_highlight', 'laplacian_pyramid',
+    ]
+
     def __init__(self, fusion_mode: str = 'alpha_blend', alpha: float = 0.5,
                  calibration_file: Optional[str] = None, fusion_priority: str = 'thermal'):
         """
@@ -1074,13 +1092,7 @@ class FusionProcessor:
 
     def set_fusion_mode(self, mode: str):
         """Change fusion mode"""
-        valid_modes = [
-            'alpha_blend', 'edge_enhanced', 'thermal_overlay',
-            'side_by_side', 'picture_in_picture', 'max_intensity',
-            'feature_weighted', 'thermal_contours', 'enhanced_edge_highlight',
-            'laplacian_pyramid',
-        ]
-        if mode in valid_modes:
+        if mode in self.AVAILABLE_FUSION_MODES:
             self.fusion_mode = mode
             logger.info(f"Fusion mode changed to: {mode}")
         else:
@@ -1098,12 +1110,7 @@ class FusionProcessor:
 
     def get_available_modes(self) -> list:
         """Get list of available fusion modes"""
-        return [
-            'alpha_blend', 'edge_enhanced', 'thermal_overlay',
-            'side_by_side', 'picture_in_picture', 'max_intensity',
-            'feature_weighted', 'thermal_contours', 'enhanced_edge_highlight',
-            'laplacian_pyramid',
-        ]
+        return list(self.AVAILABLE_FUSION_MODES)
 
 
 if __name__ == "__main__":

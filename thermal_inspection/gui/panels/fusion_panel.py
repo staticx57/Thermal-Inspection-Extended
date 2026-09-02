@@ -10,6 +10,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
+from thermal_inspection.processing.fusion_processor import FusionProcessor
+
 class FusionPanel(QWidget):
     """Panel for fusion configuration settings."""
 
@@ -55,11 +57,7 @@ class FusionPanel(QWidget):
         mode_layout.addWidget(QLabel("Mode:"))
         self.fusion_mode_combo = QComboBox()
         self.fusion_mode_combo.setMinimumHeight(28)
-        self.fusion_mode_combo.addItems([
-            "alpha_blend", "detail_inject", "relief_fusion", "edge_enhanced", "thermal_overlay",
-            "side_by_side", "picture_in_picture", "max_intensity",
-            "feature_weighted"
-        ])
+        self.fusion_mode_combo.addItems(FusionProcessor.AVAILABLE_FUSION_MODES)
         self.fusion_mode_combo.currentTextChanged.connect(self.fusion_mode_changed.emit)
         mode_layout.addWidget(self.fusion_mode_combo)
         fusion_layout.addLayout(mode_layout)

@@ -10,14 +10,15 @@ silently returning garbage-shaped output, which unit tests can catch cheaply
 and a human staring at a live video feed would eventually notice, just much
 later and with less specific information.
 
-Note: process()'s own if/elif chain also handles 'detail_inject' and
-'relief_fusion' (in fusion_processor.py's implementation), but neither is
-in get_available_modes()'s return list, so neither is exercised here or
-reachable via set_fusion_mode()/the GUI dropdown/get_available_modes()
-consumers - only via directly constructing FusionProcessor(fusion_mode=...)
-or setting .fusion_mode directly. That inconsistency is a separate, existing
-finding, not something this test suite should paper over by inventing extra
-coverage for a mode nothing can actually select through the normal API.
+get_available_modes() (and set_fusion_mode()'s validation, and cli.py's
+--fusion-mode choices, and the GUI dropdown) all now read from
+FusionProcessor.AVAILABLE_FUSION_MODES - the one place process()'s
+if/elif chain's mode list needs to match. That constant used to be four
+separately hardcoded lists that had drifted out of sync with each other
+and with process() itself: two fully-working modes (detail_inject,
+relief_fusion) were unreachable via get_available_modes()/set_fusion_mode(),
+and three more (thermal_contours, enhanced_edge_highlight,
+laplacian_pyramid) were unreachable via the CLI and GUI dropdown.
 """
 import cv2
 import numpy as np
