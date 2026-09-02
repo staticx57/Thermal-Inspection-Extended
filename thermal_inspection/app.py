@@ -391,6 +391,9 @@ class ThermalInspectionApp:
             lambda m: self.set_parallax_depth_method(m) if hasattr(self, 'set_parallax_depth_method') else None
         )
         bus.depth_map_display_toggled.connect(self._bus_depth_map_display_toggled)
+        bus.parallax_shift_changed.connect(
+            lambda dx, dy: self.set_parallax_shift(dx, dy) if hasattr(self, 'set_parallax_shift') else None
+        )
 
         # --- Gradient Overlay ---
         bus.gradient_enabled_changed.connect(
@@ -1341,15 +1344,20 @@ class ThermalInspectionApp:
             # 1b. Parallax correction — shift thermal to match RGB perspective
             # Must run after frame capture but before colorization/fusion so all
             # downstream processing sees the spatially-corrected thermal data.
+            #
+            # Gated on has_correction() rather than is_enabled(): a manual
+            # alignment shift (fixed mounting offset) should apply even when
+            # depth-based correction is off, since it doesn't need RGB or
+            # depth estimation at all - just a constant translation.
             if (self.parallax_compensator
-                    and self.parallax_compensator.is_enabled()
+                    and self.parallax_compensator.has_correction()
                     and thermal_frame is not None
-                    and thermal_frame is not self.thermal_placeholder
-                    and rgb_frame is not None
-                    and rgb_frame is not self.rgb_placeholder):
+                    and thermal_frame is not self.thermal_placeholder):
                 try:
+                    safe_rgb = (rgb_frame if rgb_frame is not None
+                                and rgb_frame is not self.rgb_placeholder else None)
                     thermal_frame = self.parallax_compensator.apply_correction(
-                        thermal_frame, rgb_frame
+                        thermal_frame, safe_rgb
                     )
                 except Exception as _px_err:
                     logger.debug(f"Parallax correction failed: {_px_err}")
@@ -2302,6 +2310,13 @@ class ThermalInspectionApp:
         """Set the camera-pair baseline distance in millimetres."""
         if self.parallax_compensator:
             self.parallax_compensator.set_baseline(baseline_mm)
+        else:
+            logger.warning("ParallaxCompensator not available")
+
+    def set_parallax_shift(self, dx: int, dy: int):
+        """Set a constant manual alignment shift (pixels) for a fixed mounting offset."""
+        if self.parallax_compensator:
+            self.parallax_compensator.set_manual_shift(dx, dy)
         else:
             logger.warning("ParallaxCompensator not available")
 

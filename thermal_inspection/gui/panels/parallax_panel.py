@@ -5,7 +5,7 @@ GUI panel for configuring and controlling parallax correction between
 thermal and RGB cameras.
 """
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
-                             QLabel, QPushButton, QDoubleSpinBox, QCheckBox,
+                             QLabel, QPushButton, QDoubleSpinBox, QSpinBox, QCheckBox,
                              QComboBox, QScrollArea, QFrame)
 from PyQt6.QtCore import Qt, pyqtSignal
 import logging
@@ -30,6 +30,7 @@ class ParallaxPanel(QWidget):
     baseline_changed = pyqtSignal(float)
     depth_method_changed = pyqtSignal(str)
     show_depth_map_toggled = pyqtSignal(bool)
+    shift_changed = pyqtSignal(int, int)  # (dx, dy) pixels
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -132,6 +133,62 @@ class ParallaxPanel(QWidget):
 
         geometry_group.setLayout(geometry_layout)
         layout.addWidget(geometry_group)
+
+        # ====================================================================
+        # Manual Alignment Shift
+        # ====================================================================
+        # A fixed mounting offset between the two cameras doesn't vary with
+        # distance, so depth-based correction (which only handles the X-axis
+        # baseline disparity) can't and shouldn't try to correct for it -
+        # this is a plain constant translation, independent of and additive
+        # to whatever depth-based correction does. Works even when
+        # depth-based correction (above) is disabled.
+        shift_group = QGroupBox("Manual Alignment Shift")
+        shift_layout = QVBoxLayout()
+        shift_layout.setSpacing(6)
+        shift_layout.setContentsMargins(8, 8, 8, 8)
+
+        shift_info_label = QLabel(
+            "Fine-tune registration with a constant pixel shift - useful for\n"
+            "a fixed mounting offset that doesn't change with distance."
+        )
+        shift_info_label.setWordWrap(True)
+        shift_info_label.setStyleSheet("color: #888888; font-size: 9pt;")
+        shift_layout.addWidget(shift_info_label)
+
+        shift_x_layout = QHBoxLayout()
+        shift_x_layout.setContentsMargins(0, 0, 0, 0)
+        shift_x_layout.addWidget(QLabel("Horizontal:"))
+        self.shift_x_spin = QSpinBox()
+        self.shift_x_spin.setRange(-200, 200)
+        self.shift_x_spin.setValue(0)
+        self.shift_x_spin.setSuffix(" px")
+        self.shift_x_spin.setToolTip("Positive shifts the thermal image right")
+        self.shift_x_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.shift_x_spin.valueChanged.connect(self._on_shift_changed)
+        shift_x_layout.addWidget(self.shift_x_spin)
+        shift_layout.addLayout(shift_x_layout)
+
+        shift_y_layout = QHBoxLayout()
+        shift_y_layout.setContentsMargins(0, 0, 0, 0)
+        shift_y_layout.addWidget(QLabel("Vertical:"))
+        self.shift_y_spin = QSpinBox()
+        self.shift_y_spin.setRange(-200, 200)
+        self.shift_y_spin.setValue(0)
+        self.shift_y_spin.setSuffix(" px")
+        self.shift_y_spin.setToolTip("Positive shifts the thermal image down")
+        self.shift_y_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.shift_y_spin.valueChanged.connect(self._on_shift_changed)
+        shift_y_layout.addWidget(self.shift_y_spin)
+        shift_layout.addLayout(shift_y_layout)
+
+        self.reset_shift_btn = QPushButton("Reset Shift")
+        self.reset_shift_btn.setToolTip("Reset horizontal/vertical shift to 0")
+        self.reset_shift_btn.clicked.connect(self._on_reset_shift)
+        shift_layout.addWidget(self.reset_shift_btn)
+
+        shift_group.setLayout(shift_layout)
+        layout.addWidget(shift_group)
 
         # ====================================================================
         # Depth Estimation Configuration
@@ -267,6 +324,15 @@ class ParallaxPanel(QWidget):
         enabled = (state == Qt.CheckState.Checked.value)
         self.show_depth_map_toggled.emit(enabled)
 
+    def _on_shift_changed(self, _value: int):
+        """Handle horizontal/vertical shift spinbox change — emit combined (dx, dy)."""
+        self.shift_changed.emit(self.shift_x_spin.value(), self.shift_y_spin.value())
+
+    def _on_reset_shift(self):
+        """Reset both shift spinboxes to 0 (each valueChanged emits shift_changed)."""
+        self.shift_x_spin.setValue(0)
+        self.shift_y_spin.setValue(0)
+
     # ========================================================================
     # Public Methods - Called by main GUI
     # ========================================================================
@@ -338,6 +404,10 @@ class ParallaxPanel(QWidget):
     def is_show_displacement_enabled(self) -> bool:
         """Check if displacement visualization is enabled."""
         return self.show_displacement_checkbox.isChecked()
+
+    def get_manual_shift(self) -> tuple:
+        """Get the current (dx, dy) manual alignment shift in pixels."""
+        return (self.shift_x_spin.value(), self.shift_y_spin.value())
 
 
 # ============================================================================

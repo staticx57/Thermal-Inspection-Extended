@@ -613,6 +613,7 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("parallax_panel", "depth_method_changed", self._on_parallax_method_changed, "(parallax)")
         self._safe_connect("parallax_panel.apply_geometry_btn", "clicked", self._on_parallax_geometry_apply, "(parallax)")
         self._safe_connect("parallax_panel", "show_depth_map_toggled", self._on_show_depth_map_toggled, "(parallax depth)")
+        self._safe_connect("parallax_panel", "shift_changed", self._on_parallax_shift_changed, "(parallax shift)")
 
         # === GRADIENT OVERLAY PANEL ===
         self._safe_connect("gradient_panel", "gradient_enabled", self._on_gradient_enabled, "(gradient)")
@@ -2261,6 +2262,13 @@ class InspectionAppWindow(QMainWindow):
             pc = self.app.parallax_compensator
             if hasattr(pc, 'set_depth_display'):
                 pc.set_depth_display(show)
+
+    def _on_parallax_shift_changed(self, dx: int, dy: int):
+        """Handle manual alignment shift change (fixed mounting-offset correction)."""
+        if self.event_bus:
+            self.event_bus.parallax_shift_changed.emit(dx, dy)
+        elif self.app and hasattr(self.app, 'set_parallax_shift'):
+            self.app.set_parallax_shift(dx, dy)
 
     # ========================================================================
     # Gradient Overlay Handlers

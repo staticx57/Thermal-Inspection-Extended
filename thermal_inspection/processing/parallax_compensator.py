@@ -96,8 +96,9 @@ class DepthEstimator:
 
     Supports:
     - DepthAnything V2 (state-of-the-art, recommended)
-    - Simplified geometric estimation (fallback, fast)
-    - MiDaS (placeholder, not yet implemented)
+    - MiDaS / Intel DPT (well-established, moderate accuracy)
+    - Simplified geometric estimation (fallback, fast, not real depth -
+      a fixed top-far/bottom-near gradient, ignores image content entirely)
     """
 
     def __init__(self, method: str = "simplified", device: str = "auto", model_size: str = "small"):
@@ -139,10 +140,17 @@ class DepthEstimator:
                 self.method = "simplified"
                 self.enabled = True
         elif method == "midas":
-            logger.warning("MiDaS support not yet implemented")
-            logger.warning("Falling back to simplified method")
-            self.method = "simplified"
-            self.enabled = True
+            if DEPTH_ESTIMATION_AVAILABLE and TRANSFORMERS_AVAILABLE:
+                # Device is intentionally not logged here — reading it would
+                # import torch and undo the deferral. load_model() logs it.
+                logger.info(f"MiDaS ({model_size}) will be loaded on first use")
+                self.enabled = False  # Will be enabled when model loads
+            else:
+                logger.warning("MiDaS requested but dependencies not available")
+                logger.warning("Falling back to simplified method")
+                logger.warning("Install with: pip install torch transformers")
+                self.method = "simplified"
+                self.enabled = True
 
     @property
     def device(self) -> str:
@@ -221,13 +229,15 @@ class DepthEstimator:
 
     def load_model(self) -> bool:
         """
-        Load depth estimation model (DepthAnything V2).
+        Load depth estimation model (DepthAnything V2 or MiDaS).
 
         Model is loaded lazily on first inference call.
 
         Returns:
             True if model loaded successfully
         """
+        global TRANSFORMERS_AVAILABLE
+
         if self.method == "simplified":
             self.model_loaded = True
             self.enabled = True
@@ -246,7 +256,6 @@ class DepthEstimator:
             if self.method == "depthanything":
                 try:
                     from transformers import pipeline
-                    global TRANSFORMERS_AVAILABLE
                     TRANSFORMERS_AVAILABLE = True
                 except ImportError:
                     logger.error("Cannot load DepthAnything V2 - transformers not available")
@@ -281,9 +290,44 @@ class DepthEstimator:
                 return True
 
             elif self.method == "midas":
-                logger.warning("MiDaS model loading not yet implemented")
-                logger.warning("Use method='depthanything' for ML depth estimation")
-                return False
+                try:
+                    from transformers import pipeline
+                    TRANSFORMERS_AVAILABLE = True
+                except ImportError:
+                    logger.error("Cannot load MiDaS - transformers not available")
+                    logger.error("Install with: pip install transformers")
+                    return False
+                except Exception as e:
+                    logger.error(f"Cannot load transformers: {e}")
+                    return False
+
+                # Intel's DPT (Dense Prediction Transformer) models, the
+                # HuggingFace-hosted MiDaS family - same depth-estimation
+                # pipeline API as DepthAnything above, different weights.
+                # Verified these three exist and declare pipeline_tag
+                # "depth-estimation" before wiring them in.
+                model_map = {
+                    "small": "Intel/dpt-swinv2-tiny-256",
+                    "base": "Intel/dpt-hybrid-midas",
+                    "large": "Intel/dpt-large",
+                }
+                model_id = model_map.get(self.model_size, model_map["base"])
+                logger.info(f"Loading MiDaS: {model_id}")
+                logger.info(f"Device: {self.device}")
+                logger.info("First-time download: ~100-1300MB depending on size (cached for future use)...")
+
+                device_id = 0 if self.device == "cuda" else -1
+
+                self.pipeline = pipeline(
+                    task="depth-estimation",
+                    model=model_id,
+                    device=device_id
+                )
+
+                logger.info(f"✓ MiDaS ({model_id}) loaded successfully")
+                self.model_loaded = True
+                self.enabled = True
+                return True
 
             return False
         except Exception as e:
@@ -349,16 +393,15 @@ class DepthEstimator:
 
     def _estimate_depth_midas(self, rgb_image: np.ndarray) -> Optional[np.ndarray]:
         """
-        Estimate depth using MiDaS model (not yet implemented).
+        Estimate depth using MiDaS (Intel DPT) via HuggingFace Transformers.
 
         Args:
             rgb_image: RGB image (H, W, 3)
 
         Returns:
-            Depth map (H, W) in meters
+            Depth map (H, W) in meters, normalized to 0.5m-5.0m range
         """
-        logger.warning("MiDaS inference not yet implemented")
-        return None
+        return self._estimate_depth_hf_pipeline(rgb_image, model_label="MiDaS")
 
     def _estimate_depth_depthanything(self, rgb_image: np.ndarray) -> Optional[np.ndarray]:
         """
@@ -370,9 +413,24 @@ class DepthEstimator:
         Returns:
             Depth map (H, W) in meters, normalized to 0.5m-5.0m range
         """
+        return self._estimate_depth_hf_pipeline(rgb_image, model_label="DepthAnything V2")
+
+    def _estimate_depth_hf_pipeline(self, rgb_image: np.ndarray, model_label: str) -> Optional[np.ndarray]:
+        """
+        Shared inference path for any HuggingFace depth-estimation pipeline
+        (DepthAnything and MiDaS both use it - same pipeline API, different
+        weights, identical output post-processing).
+
+        Args:
+            rgb_image: RGB image (H, W, 3) uint8
+            model_label: Human-readable name for log messages only
+
+        Returns:
+            Depth map (H, W) in meters, normalized to 0.5m-5.0m range
+        """
         if self.pipeline is None:
             if not self.load_model():
-                logger.error("Failed to load DepthAnything V2 model")
+                logger.error(f"Failed to load {model_label} model")
                 return None
 
         try:
@@ -405,7 +463,7 @@ class DepthEstimator:
             return depth_meters
 
         except Exception as e:
-            logger.error(f"DepthAnything V2 inference failed: {e}")
+            logger.error(f"{model_label} inference failed: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -431,6 +489,16 @@ class ParallaxCompensator:
         self.depth_estimator = DepthEstimator(method=depth_method)
         self.enabled = False  # CRITICAL: Disabled by default
         self.show_depth_map = False  # Whether to return depth-map overlay instead of corrected thermal
+
+        # Manual alignment shift (pixels) - a constant, distance-independent
+        # translation on top of (or instead of, when depth-based correction
+        # is disabled) the depth-based correction. Depth-based correction
+        # only ever handles the X-axis baseline disparity that varies with
+        # distance; a fixed mechanical mounting offset between the two
+        # cameras doesn't vary with distance and isn't something depth
+        # estimation corrects for at all - this is for that.
+        self.manual_shift_x = 0
+        self.manual_shift_y = 0
 
         # Cache
         self.last_depth_map = None
@@ -469,6 +537,37 @@ class ParallaxCompensator:
         """Force the compute device ('cpu', 'cuda', or 'auto') used for depth estimation."""
         self.depth_estimator.set_device(device)
 
+    def set_manual_shift(self, dx: int, dy: int):
+        """
+        Set a constant manual alignment shift (pixels), independent of
+        depth-based correction. Use this for a fixed mechanical mounting
+        offset between the thermal and RGB cameras - something that
+        doesn't vary with distance, so depth estimation can't and
+        shouldn't try to correct for it.
+        """
+        self.manual_shift_x = int(dx)
+        self.manual_shift_y = int(dy)
+        logger.info(f"Manual alignment shift set to ({self.manual_shift_x}, {self.manual_shift_y}) px")
+
+    def get_manual_shift(self) -> Tuple[int, int]:
+        """Get the current manual alignment shift (dx, dy) in pixels."""
+        return (self.manual_shift_x, self.manual_shift_y)
+
+    def has_manual_shift(self) -> bool:
+        """Whether a non-zero manual shift is set."""
+        return self.manual_shift_x != 0 or self.manual_shift_y != 0
+
+    def has_correction(self) -> bool:
+        """
+        Whether apply_correction() would do anything at all right now -
+        either depth-based correction is enabled, or a manual shift is set
+        (or both). Callers should gate on this instead of is_enabled()
+        alone, so a manual-shift-only setup doesn't need depth-based
+        correction turned on (and doesn't pay for depth estimation) just
+        to get a fixed registration offset applied.
+        """
+        return self.enabled or self.has_manual_shift()
+
     def compute_disparity(self, depth_map: np.ndarray) -> np.ndarray:
         """
         Compute pixel disparity from depth map using camera geometry.
@@ -501,11 +600,18 @@ class ParallaxCompensator:
         Returns:
             Corrected thermal frame aligned with RGB perspective
         """
-        if not self.enabled:
+        if thermal_frame is None:
             return thermal_frame
 
-        if thermal_frame is None or rgb_frame is None:
-            return thermal_frame
+        if not self.enabled:
+            # Depth-based correction is off, but a manual shift may still be
+            # requested - apply just the constant translation. Skips depth
+            # estimation entirely (no RGB frame needed, no GPU/CPU cost for
+            # a plain mounting-offset correction).
+            return self._apply_manual_shift_only(thermal_frame)
+
+        if rgb_frame is None:
+            return self._apply_manual_shift_only(thermal_frame)
 
         try:
             depth_map = self.depth_estimator.estimate_depth(rgb_frame)
@@ -522,8 +628,8 @@ class ParallaxCompensator:
             disparity_map = self.compute_disparity(depth_resized)
 
             flow_map = np.zeros((thermal_h, thermal_w, 2), dtype=np.float32)
-            flow_map[:, :, 0] = disparity_map
-            flow_map[:, :, 1] = 0
+            flow_map[:, :, 0] = disparity_map + self.manual_shift_x
+            flow_map[:, :, 1] = self.manual_shift_y
 
             self.last_displacement_map = flow_map
 
@@ -544,6 +650,19 @@ class ParallaxCompensator:
         except Exception as e:
             logger.error(f"Error applying parallax correction: {e}")
             return thermal_frame
+
+    def _apply_manual_shift_only(self, thermal_frame: np.ndarray) -> np.ndarray:
+        """Apply just the constant manual (dx, dy) shift, no depth estimation."""
+        if not self.has_manual_shift():
+            return thermal_frame
+
+        h, w = thermal_frame.shape[:2]
+        flow_map = np.zeros((h, w, 2), dtype=np.float32)
+        flow_map[:, :, 0] = self.manual_shift_x
+        flow_map[:, :, 1] = self.manual_shift_y
+        self.last_displacement_map = flow_map
+
+        return self._remap_thermal(thermal_frame, flow_map)
 
     def _remap_thermal(self, thermal_frame: np.ndarray,
                       flow_map: np.ndarray) -> np.ndarray:
