@@ -106,19 +106,19 @@ class ThermalAnalysisPanel(QWidget):
 
         # Individual checkboxes for each detection type
         self.show_hot_spots_checkbox = QCheckBox("Show Hot Spots")
-        self.show_hot_spots_checkbox.setChecked(True)  # Enabled by default
+        self.show_hot_spots_checkbox.setChecked(False)  # Disabled by default
         self.show_hot_spots_checkbox.setToolTip("Show/hide hot spot markers on video")
         self.show_hot_spots_checkbox.setMinimumHeight(28)
         self.general_layout.addWidget(self.show_hot_spots_checkbox)
 
         self.show_cold_spots_checkbox = QCheckBox("Show Cold Spots")
-        self.show_cold_spots_checkbox.setChecked(True)  # Enabled by default
+        self.show_cold_spots_checkbox.setChecked(False)  # Disabled by default
         self.show_cold_spots_checkbox.setToolTip("Show/hide cold spot markers on video")
         self.show_cold_spots_checkbox.setMinimumHeight(28)
         self.general_layout.addWidget(self.show_cold_spots_checkbox)
 
         self.show_anomalies_checkbox = QCheckBox("Show Anomalies")
-        self.show_anomalies_checkbox.setChecked(True)  # Enabled by default
+        self.show_anomalies_checkbox.setChecked(False)  # Disabled by default
         self.show_anomalies_checkbox.setToolTip("Show/hide thermal anomaly markers on video")
         self.show_anomalies_checkbox.setMinimumHeight(28)
         self.general_layout.addWidget(self.show_anomalies_checkbox)

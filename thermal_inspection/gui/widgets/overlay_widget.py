@@ -82,10 +82,12 @@ class InspectionOverlayWidget(QWidget):
         # Temperature unit for hot/cold spot display
         self.current_temp_unit = 'C'
 
-        # Individual toggles for each detection type
-        self.show_hot_spots = True
-        self.show_cold_spots = True
-        self.show_anomalies = True
+        # Individual toggles for each detection type - disabled by default,
+        # matching the Overlay Display checkboxes' unchecked default state
+        # (thermal_analysis.py) so the two stay in sync at startup.
+        self.show_hot_spots = False
+        self.show_cold_spots = False
+        self.show_anomalies = False
 
         # Cursor temperature readout
         self.cursor_enabled = False
