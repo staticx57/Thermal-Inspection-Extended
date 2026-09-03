@@ -355,6 +355,42 @@ class FusionProcessor:
         self.edge_blur_kernel = min(15, kernel_size)
         logger.info(f"Edge blur kernel size set to: {self.edge_blur_kernel}")
 
+    @staticmethod
+    def _crop_to_aspect_ratio(frame: np.ndarray, target_w: int, target_h: int) -> np.ndarray:
+        """
+        Center-crop frame to target_w/target_h's aspect ratio, then resize
+        to that exact size - a uniform scale with no distortion, unlike a
+        plain resize straight to (target_w, target_h) which stretches
+        non-uniformly whenever the source and target aspect ratios differ
+        (e.g. a RealSense's 16:10ish color stream against a 4:3 thermal
+        sensor) - visibly "squishing" one frame into the other's shape and
+        throwing off which real-world point lines up with which in the
+        fused result, not just a cosmetic distortion.
+        """
+        src_h, src_w = frame.shape[:2]
+        if src_w == 0 or src_h == 0:
+            return cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
+
+        target_ratio = target_w / target_h
+        src_ratio = src_w / src_h
+
+        if abs(src_ratio - target_ratio) < 1e-3:
+            cropped = frame
+        elif src_ratio > target_ratio:
+            # Source is relatively wider than target - crop its width,
+            # keep full height.
+            new_w = max(1, int(round(src_h * target_ratio)))
+            x0 = (src_w - new_w) // 2
+            cropped = frame[:, x0:x0 + new_w]
+        else:
+            # Source is relatively taller than target - crop its height,
+            # keep full width.
+            new_h = max(1, int(round(src_w / target_ratio)))
+            y0 = (src_h - new_h) // 2
+            cropped = frame[y0:y0 + new_h, :]
+
+        return cv2.resize(cropped, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
+
     def align_rgb_to_thermal(self, rgb: np.ndarray, thermal_shape: Tuple[int, int]) -> np.ndarray:
         """
         Align RGB frame to thermal frame coordinate system
@@ -370,21 +406,27 @@ class FusionProcessor:
 
         try:
             if self.calibration_matrix is not None:
-                # Use calibration matrix for precise alignment
+                # Use calibration matrix for precise alignment - a real
+                # calibration derived from actual correspondence points
+                # already accounts for the true geometric relationship
+                # between the two cameras (aspect ratio included), so this
+                # path is left as a plain warp to the target canvas size.
                 rgb_aligned = cv2.warpPerspective(
                     rgb, self.calibration_matrix,
                     (target_w, target_h),
                     flags=cv2.INTER_LINEAR
                 )
             else:
-                # Simple resize as fallback
-                rgb_aligned = cv2.resize(rgb, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
+                # No calibration - crop to aspect ratio first so the
+                # fallback resize is a uniform scale, not a distorting
+                # stretch (see _crop_to_aspect_ratio).
+                rgb_aligned = self._crop_to_aspect_ratio(rgb, target_w, target_h)
 
             return rgb_aligned
 
         except Exception as e:
             logger.error(f"Error aligning RGB frame: {e}")
-            return cv2.resize(rgb, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
+            return self._crop_to_aspect_ratio(rgb, target_w, target_h)
 
     def process(self, thermal: np.ndarray, rgb: np.ndarray) -> np.ndarray:
         """
