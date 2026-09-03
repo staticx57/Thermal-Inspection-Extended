@@ -59,7 +59,11 @@ class ManualThresholdWidget(QWidget):
 
         self.enable_toggle = QPushButton("Manual Mode: OFF")
         self.enable_toggle.setCheckable(True)
-        self.enable_toggle.setMinimumHeight(35)
+        self.enable_toggle.setMinimumHeight(44)
+        enable_toggle_font = QFont()
+        enable_toggle_font.setPointSize(11)
+        enable_toggle_font.setBold(True)
+        self.enable_toggle.setFont(enable_toggle_font)
         self.enable_toggle.setToolTip("Enable manual threshold-based anomaly detection")
         enable_layout.addWidget(self.enable_toggle)
 

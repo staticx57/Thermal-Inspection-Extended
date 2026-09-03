@@ -26,6 +26,7 @@ from .core.threshold_manager import ThresholdManager
 from .core.isotherm_manager import IsothermManager
 from .core.event_bus import AppEventBus
 from .cameras.plugin import get_host
+from .processing.thermal_analyzer import ThresholdMode, ThresholdVisualization
 
 logger = logging.getLogger(__name__)
 
@@ -1742,12 +1743,10 @@ class ThermalInspectionApp:
                 and thermal_frame is not self.thermal_placeholder
             ):
                 try:
-                    from thermal_inspection.processing.thermal_analyzer import (
-                        ThresholdMode, ThresholdVisualization
-                    )
                     t_mode = ThresholdMode(ts.mode)
                     v_mode = ThresholdVisualization(ts.viz_mode)
                     source = thermal_16bit if thermal_16bit is not None else thermal_frame
+                    _thresh_t0 = time.perf_counter()
                     detection = self.thermal_analyzer.detect_threshold_anomalies(
                         source,
                         threshold_mode=t_mode,
@@ -1755,15 +1754,24 @@ class ThermalInspectionApp:
                         max_threshold=ts.max_val,
                         use_raw_values=ts.use_raw,
                     )
+                    _thresh_t1 = time.perf_counter()
                     colorized_thermal = self.thermal_analyzer.apply_threshold_visualization(
                         source, colorized_thermal, detection, v_mode
                     )
+                    _thresh_t2 = time.perf_counter()
                     # Proactive feedback via event bus
                     self.event_bus.threshold_stats_updated.emit(
                         detection.anomaly_percentage,
                         detection.anomaly_count,
                         detection.total_pixels,
                     )
+                    _thresh_t3 = time.perf_counter()
+                    if self.frame_count % 30 == 0:
+                        print(f"[PROFILE_THRESHOLD] mode={t_mode.value} viz={v_mode.value} "
+                              f"source_shape={source.shape} colorized_shape={colorized_thermal.shape} "
+                              f"detect_ms={(_thresh_t1 - _thresh_t0) * 1000:.2f} "
+                              f"viz_ms={(_thresh_t2 - _thresh_t1) * 1000:.2f} "
+                              f"emit_ms={(_thresh_t3 - _thresh_t2) * 1000:.2f}", flush=True)
                 except Exception as _thresh_err:
                     logger.debug(f"Manual threshold overlay error: {_thresh_err}")
 
