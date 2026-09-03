@@ -157,3 +157,7 @@ class RealSensePlugin(CameraPlugin):
             res = sdk.execute("get_camera_info")
             if res.get("success"):
                 panel.update_camera_info(res)
+        if panel and hasattr(panel, "update_depth_sensor_options"):
+            res = sdk.execute("get_depth_sensor_options")
+            if res.get("success"):
+                panel.update_depth_sensor_options(res.get("options", {}))
