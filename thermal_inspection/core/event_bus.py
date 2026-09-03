@@ -118,6 +118,8 @@ class AppEventBus(QObject):
     fusion_3d_data_source_changed = pyqtSignal(str)
     fusion_3d_fog_range_changed = pyqtSignal(float, float)   # near_m, far_m
     fusion_3d_contour_interval_changed = pyqtSignal(float)   # interval_m
+    fusion_3d_gradient_style_changed = pyqtSignal(str)       # "color" or "grayscale"
+    fusion_3d_fog_fade_metric_changed = pyqtSignal(str)      # "distance" or "motion"
 
     # =====================================================================
     # ROI

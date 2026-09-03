@@ -76,20 +76,105 @@ DEFAULT_CAMERA_DISTANCE = 2.0
 # AVAILABLE_FUSION_MODES/FUSION_MODE_LABELS pattern in fusion_processor.py
 # (2D Fusion's mode list), after that split into independent copies drifted
 # out of sync with each other earlier this session.
-THREE_D_MODES = ["relief", "fog", "contours"]
+THREE_D_MODES = ["relief", "fog", "contours", "anaglyph", "colorize"]
 THREE_D_MODE_LABELS = {
     "relief": "Relief Shading",
     "fog": "Depth Fog",
     "contours": "Depth Contours",
+    "anaglyph": "Anaglyph Stereo (red/cyan)",
+    "colorize": "Depth Colorize",
+}
+
+# Max per-pixel horizontal disparity (px) anaglyph applies at strength=1.0
+# and MIN_VALID_DEPTH_M (the closest a pixel can be) - a stylized value,
+# not calibrated to any real eye separation or baseline (there's no
+# second real viewpoint here, just one depth-augmented image), tuned to
+# give a clearly visible stereo pop without becoming an unreadable ghosted
+# double-image at typical inspection distances/strengths.
+ANAGLYPH_MAX_SHIFT_PX = 20.0
+
+# Depth-gradient color styles shared by fog/relief/contours/colorize - a
+# separate axis from THREE_D_MODES (which mode) and applies to whichever
+# mode uses a depth gradient at all (anaglyph doesn't). "color" (TURBO
+# rainbow) is the most perceptually distinguishable option, but thermal
+# already has its OWN color palette encoding temperature - stacking a
+# second, unrelated color meaning (hue = distance) on top of that can
+# read as confusing double-encoding. "grayscale" (black=near/white=far,
+# no hue at all) avoids that clash entirely when fusing with a colorized
+# thermal palette; "color" is better when the base image is otherwise
+# fairly neutral (e.g. RGB Only, or a grayscale thermal palette).
+GRADIENT_STYLES = ["color", "grayscale"]
+GRADIENT_STYLE_LABELS = {
+    "color": "Color (Turbo)",
+    "grayscale": "Grayscale",
 }
 
 
-def apply_depth_relief(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5, **_unused) -> np.ndarray:
+def _gradient_colorize_cpu(normalized_01: np.ndarray, gradient_style: str = "color") -> np.ndarray:
+    """
+    Map a [0,1]-normalized depth-derived array to a float32 BGR image
+    (H, W, 3) per gradient_style - shared by fog/relief/contours/colorize
+    so all four depth gradients stay visually consistent and controlled
+    by the same one setting.
+    """
+    if gradient_style == "grayscale":
+        gray_u8 = np.clip(normalized_01 * 255.0, 0, 255).astype(np.uint8)
+        return cv2.cvtColor(gray_u8, cv2.COLOR_GRAY2BGR).astype(np.float32)
+    depth_u8 = np.clip(normalized_01 * 255.0, 0, 255).astype(np.uint8)
+    return cv2.applyColorMap(depth_u8, cv2.COLORMAP_TURBO).astype(np.float32)
+
+
+# Depth Fog's fade metric - "distance" (default, real measured depth) or
+# "motion" (frame-to-frame change - fades STATIC regions, keeps actively
+# CHANGING ones sharp, e.g. highlighting a moving belt/fan/vibration
+# against a static background). Motion needs no depth data at all, so
+# unlike every other 3D Fusion mode it works even without RealSense - but
+# stays gated the same way as the rest of 3D Fusion for consistency
+# (it's a per-mode metric choice, not a reason to change the whole
+# feature's hardware gating).
+FOG_FADE_METRICS = ["distance", "motion"]
+FOG_FADE_METRIC_LABELS = {
+    "distance": "Distance",
+    "motion": "Motion",
+}
+
+# Frame-to-frame grayscale difference (0-255 scale) that counts as "fully
+# in motion" for the motion fade metric - tuned so typical real movement
+# (not just sensor/compression noise) reaches full scale without a single
+# noisy pixel maxing it out.
+_FOG_MOTION_DIFF_SCALE = 40.0
+
+# Previous-frame cache for the motion fade metric, keyed by frame shape -
+# module-level like this file's other per-process caches (_turbo_lut_gpu
+# etc.), since apply_depth_fog itself is otherwise a stateless pure
+# function of its arguments.
+_fog_motion_prev_gray: dict = {}
+
+
+def _compute_motion_normalized_cpu(image_bgr: np.ndarray) -> np.ndarray:
+    """Per-pixel motion magnitude in [0, 1] from frame-to-frame grayscale difference - see FOG_FADE_METRICS."""
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    key = gray.shape
+    prev = _fog_motion_prev_gray.get(key)
+    _fog_motion_prev_gray[key] = gray
+    if prev is None:
+        return np.zeros(gray.shape, dtype=np.float32)
+    return np.clip(np.abs(gray - prev) / _FOG_MOTION_DIFF_SCALE, 0.0, 1.0)
+
+
+def apply_depth_relief(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5,
+                        gradient_style: str = "color", **_unused) -> np.ndarray:
     """
     Shade a BGR image using real depth-derived surface normals - an
     emboss/bump-map effect giving edges and surfaces a subtle 3D-relief
     look driven by real measured geometry, not RGB edge structure (compare
     FusionProcessor._relief_fusion, which embosses RGB gradients instead).
+
+    Local slope shading alone only reveals RELATIVE depth (two equally-
+    sloped surfaces at very different absolute distances shade
+    identically) - blends in a modest ABSOLUTE-depth gradient tint on top
+    (see GRADIENT_STYLES/gradient_style) so distance itself, not just
+    local surface angle, comes through visually.
 
     Args:
         image_bgr: base image to shade (H, W, 3) uint8 - typically the 2D
@@ -98,6 +183,9 @@ def apply_depth_relief(image_bgr: np.ndarray, depth_m: np.ndarray, strength: flo
         depth_m: depth map in meters (H, W) float32, same resolution as
             image_bgr (resize first if not - see caller)
         strength: 0 = no effect (image unchanged), 1 = strong relief
+        gradient_style: "color" (TURBO rainbow) or "grayscale" (no hue,
+            avoids clashing with a colorized thermal palette already in
+            the base image) - see GRADIENT_STYLES
 
     Returns:
         Shaded BGR uint8 image, same shape as image_bgr
@@ -110,6 +198,14 @@ def apply_depth_relief(image_bgr: np.ndarray, depth_m: np.ndarray, strength: flo
     # none of these intermediates are read again after the step that
     # produces the next one.
     depth = np.clip(depth_m, MIN_VALID_DEPTH_M, MAX_VALID_DEPTH_M)
+    # Snapshot before blur for the absolute-depth tint below - using the
+    # blurred value there instead measurably diverged between the CPU
+    # (cv2.GaussianBlur) and GPU (hand-rolled separable kernel) paths:
+    # numerically close but not identical, and TURBO's colormap isn't
+    # perceptually linear, so even a tiny blur difference could land on a
+    # very different color index. The plain clamp is numerically identical
+    # either way (np.clip vs torch.clamp).
+    depth_for_tint = depth.copy()
     # Real depth sensors are noisier per-pixel than RGB - smooth before
     # differentiating so gradient noise doesn't dominate the shading.
     cv2.GaussianBlur(depth, (5, 5), 1.0, dst=depth)
@@ -163,52 +259,95 @@ def apply_depth_relief(image_bgr: np.ndarray, depth_m: np.ndarray, strength: flo
     result = image_bgr.astype(np.float32)
     result *= factor_3ch
     np.clip(result, 0, 255, out=result)
+
+    # Absolute-depth gradient tint, scaled down (0.35x of strength) so it
+    # reads as a color cast alongside the shading rather than overwhelming
+    # it - uses depth_for_tint (pre-blur) - see its definition above.
+    depth_for_tint -= MIN_VALID_DEPTH_M
+    depth_for_tint /= (MAX_VALID_DEPTH_M - MIN_VALID_DEPTH_M)
+    tint = _gradient_colorize_cpu(depth_for_tint, gradient_style)
+    tint_amount = strength * 0.35
+    result *= (1.0 - tint_amount)
+    result += tint * tint_amount
+    np.clip(result, 0, 255, out=result)
     return result.astype(np.uint8)
 
 
 def apply_depth_fog(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5,
-                     near_m: float = 0.3, far_m: float = 4.0, **_unused) -> np.ndarray:
+                     near_m: float = 0.3, far_m: float = 4.0,
+                     gradient_style: str = "color", fade_metric: str = "distance", **_unused) -> np.ndarray:
     """
-    Fade the image toward neutral gray as real measured depth increases -
-    near objects stay full contrast, far ones fade out, drawing the eye to
+    Fade the image toward a depth gradient as real measured depth (or, with
+    fade_metric="motion", frame-to-frame change) increases - the default
+    fades far objects and keeps near ones sharp, drawing the eye to
     close-range detail using real distance rather than RGB/thermal
-    contrast alone.
+    contrast alone; "motion" instead fades STATIC regions and keeps
+    actively CHANGING ones sharp (e.g. highlighting a moving belt/fan/
+    vibration against a static background) - a genuinely different signal
+    from depth, and one that needs no depth data at all.
 
     Args:
         image_bgr: base image to fade (H, W, 3) uint8
-        depth_m: depth map in meters (H, W) float32, same resolution
-        strength: 0 = no effect, 1 = far objects fade to fully neutral gray
-        near_m/far_m: depth range the fade spans (meters) - closer than
-            near_m stays full contrast, farther than far_m is fully faded
+        depth_m: depth map in meters (H, W) float32, same resolution -
+            unused when fade_metric="motion"
+        strength: 0 = no effect, 1 = fully faded at the far/static end
+        near_m/far_m: depth range the fade spans (meters), fade_metric=
+            "distance" only - closer than near_m stays full contrast,
+            farther than far_m is fully faded
+        gradient_style: "color" (TURBO rainbow) or "grayscale" - see
+            GRADIENT_STYLES
+        fade_metric: "distance" (default, real depth) or "motion" (frame-
+            to-frame grayscale difference) - see FOG_FADE_METRICS
 
     Returns:
         Faded BGR uint8 image, same shape as image_bgr
     """
-    depth = np.clip(depth_m, near_m, far_m)
-    depth -= near_m
-    depth /= max(far_m - near_m, 1e-6)
-    depth *= max(0.0, min(1.0, strength))  # fade amount per pixel, 0-1
+    if fade_metric == "motion":
+        # 0 = actively changing (stays sharp), 1 = static (fades) - the
+        # inverse of the motion signal itself, so the fade math below
+        # (unchanged from the distance case) applies identically.
+        fade_pos = 1.0 - _compute_motion_normalized_cpu(image_bgr)
+    else:
+        fade_pos = np.clip(depth_m, near_m, far_m)
+        fade_pos -= near_m
+        fade_pos /= max(far_m - near_m, 1e-6)  # 0=near, 1=far
 
-    fade_3ch = depth[:, :, np.newaxis]
+    # Fade toward a depth-gradient color (near/far, or static/moving)
+    # instead of flat neutral gray - a uniform gray fade is easy to miss
+    # on a scene with fairly modest variation (a flat fade amount, not a
+    # color change); this gives a real gradient to fade INTO, not just
+    # fade TOWARD greyness. gradient_style="grayscale" still varies (dark
+    # to light) rather than collapsing to one flat gray.
+    target_color = _gradient_colorize_cpu(fade_pos, gradient_style)
+
+    fade_3ch = (fade_pos * max(0.0, min(1.0, strength)))[:, :, np.newaxis]
     result = image_bgr.astype(np.float32)
     result *= (1.0 - fade_3ch)
-    result += 128.0 * fade_3ch  # blend toward neutral mid-gray
+    result += target_color * fade_3ch
     np.clip(result, 0, 255, out=result)
     return result.astype(np.uint8)
 
 
 def apply_depth_contours(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5,
-                          interval_m: float = 0.5, **_unused) -> np.ndarray:
+                          interval_m: float = 0.5, gradient_style: str = "color", **_unused) -> np.ndarray:
     """
     Overlay topographic-style contour lines at fixed real-depth intervals -
     communicates distance bands explicitly without altering the base
     image's overall brightness/color the way relief/fog do.
+
+    Each line is colored by ITS OWN depth along the gradient (see
+    GRADIENT_STYLES) instead of a single fixed color for every line - like
+    a topographic map tinting contour lines by elevation, so near and far
+    bands are visually distinguishable from EACH OTHER, not just from the
+    base image.
 
     Args:
         image_bgr: base image to draw on (H, W, 3) uint8
         depth_m: depth map in meters (H, W) float32, same resolution
         strength: 0 = no lines, 1 = fully opaque contour lines
         interval_m: spacing between contour lines, in meters
+        gradient_style: "color" (TURBO rainbow) or "grayscale" - see
+            GRADIENT_STYLES
 
     Returns:
         BGR uint8 image with contour lines overlaid, same shape as image_bgr
@@ -222,12 +361,108 @@ def apply_depth_contours(image_bgr: np.ndarray, depth_m: np.ndarray, strength: f
 
     strength = max(0.0, min(1.0, strength))
     result = image_bgr.copy()
-    contour_color = np.array([255, 255, 0], dtype=np.float32)  # cyan (BGR)
+    depth_normalized = (depth - MIN_VALID_DEPTH_M) / (MAX_VALID_DEPTH_M - MIN_VALID_DEPTH_M)
+    line_colors = _gradient_colorize_cpu(depth_normalized, gradient_style)
     blended = result[edges].astype(np.float32)
     blended *= (1.0 - strength)
-    blended += contour_color * strength
+    blended += line_colors[edges] * strength
     result[edges] = np.clip(blended, 0, 255).astype(np.uint8)
     return result
+
+
+def apply_depth_anaglyph(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5, **_unused) -> np.ndarray:
+    """
+    Synthesize a red/cyan anaglyph stereo pair from a single image + real
+    depth, viewable with red-cyan 3D glasses for genuine binocular depth
+    perception - unlike relief/fog/contours (all still flat 2D shading/
+    tinting of a single image with no left/right viewpoint difference),
+    this is the one mode that actually reconstructs two distinct
+    viewpoints and encodes them for stereoscopic viewing.
+
+    Not a real stereo camera pair - there's only one image and one depth
+    map, so "left eye"/"right eye" here are both synthesized from the same
+    source by shifting each pixel horizontally by an amount inversely
+    proportional to its own depth (closer = more shift, matching how real
+    parallax between two eyes/cameras varies with distance) and resampling
+    - the same underlying idea as this project's real parallax correction,
+    but applied twice in opposite directions purely for a visual stereo
+    effect rather than to align two real sensors. Areas that shift off-
+    frame get BORDER_REPLICATE-smeared rather than cropped/blanked (as
+    parallax correction does) since a small amount of edge stretching is
+    far less objectionable here than losing frame content at the edges of
+    a deliberately exaggerated stereo effect.
+
+    Uses a "half-color" anaglyph encoding (red channel = left eye's
+    grayscale luma, green+blue = right eye's own color channels) rather
+    than full-color or full-grayscale - preserves most of the fused image's
+    color/thermal-palette information (important for an inspection tool
+    where color often encodes temperature) while reducing the retinal
+    rivalry/ghosting a full-color anaglyph would show at shifted edges.
+
+    Args:
+        image_bgr: base image to convert (H, W, 3) uint8
+        depth_m: depth map in meters (H, W) float32, same resolution
+        strength: 0 = no stereo separation (flat, both eyes identical),
+            1 = maximum separation (see ANAGLYPH_MAX_SHIFT_PX)
+
+    Returns:
+        Red/cyan anaglyph BGR uint8 image, same shape as image_bgr
+    """
+    h, w = image_bgr.shape[:2]
+    depth = np.clip(depth_m, MIN_VALID_DEPTH_M, MAX_VALID_DEPTH_M)
+
+    # closeness: 1.0 at the nearest valid depth, 0.0 at the farthest -
+    # nearer pixels get pushed apart more, same intuition as real stereo
+    # parallax (closer objects show more disparity between two viewpoints
+    # than distant ones).
+    closeness = 1.0 - (depth - MIN_VALID_DEPTH_M) / (MAX_VALID_DEPTH_M - MIN_VALID_DEPTH_M)
+    strength = max(0.0, min(1.0, strength))
+    half_disparity = (closeness * strength * ANAGLYPH_MAX_SHIFT_PX) / 2.0
+
+    x_coords, y_coords = np.meshgrid(np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32))
+    left_eye = cv2.remap(image_bgr, x_coords - half_disparity, y_coords,
+                        interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+    right_eye = cv2.remap(image_bgr, x_coords + half_disparity, y_coords,
+                         interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+
+    left_gray = cv2.cvtColor(left_eye, cv2.COLOR_BGR2GRAY)
+
+    result = np.empty_like(image_bgr)
+    result[:, :, 2] = left_gray          # R <- left eye (grayscale)
+    result[:, :, 1] = right_eye[:, :, 1]  # G <- right eye (color)
+    result[:, :, 0] = right_eye[:, :, 0]  # B <- right eye (color)
+    return result
+
+
+def apply_depth_colorize(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5,
+                          gradient_style: str = "color", **_unused) -> np.ndarray:
+    """
+    Blend a depth gradient over the base image (see GRADIENT_STYLES) -
+    distance encoded as hue (style="color") rather than the subtle
+    brightness fade Depth Fog uses. Hue differences are far more
+    perceptually distinguishable than small brightness changes, so this
+    stays visibly informative even on a scene with fairly modest depth
+    variation (e.g. inspecting a mostly-flat panel from a few feet away),
+    where Fog's near-uniform fade can look like almost nothing happened.
+
+    Args:
+        image_bgr: base image to tint (H, W, 3) uint8
+        depth_m: depth map in meters (H, W) float32, same resolution
+        strength: 0 = base image untouched, 1 = fully replaced by the
+            colorized depth map (no base image detail left)
+        gradient_style: "color" (TURBO rainbow) or "grayscale" - see
+            GRADIENT_STYLES
+
+    Returns:
+        Depth-tinted BGR uint8 image, same shape as image_bgr
+    """
+    depth = np.clip(depth_m, MIN_VALID_DEPTH_M, MAX_VALID_DEPTH_M)
+    normalized = (depth - MIN_VALID_DEPTH_M) / (MAX_VALID_DEPTH_M - MIN_VALID_DEPTH_M)
+    depth_colored = _gradient_colorize_cpu(normalized, gradient_style)
+
+    strength = max(0.0, min(1.0, strength))
+    result = image_bgr.astype(np.float32) * (1.0 - strength) + depth_colored * strength
+    return np.clip(result, 0, 255).astype(np.uint8)
 
 
 def _resolve_3d_gpu() -> bool:
@@ -253,7 +488,14 @@ def _resolve_3d_gpu() -> bool:
         if not torch.cuda.is_available():
             return False
         device = "cuda"
-        gk = torch.tensor([1., 4., 6., 4., 1.], device=device) / 16.0
+        # cv2.getGaussianKernel's own coefficients for ksize=5, sigma=1.0 -
+        # matches apply_depth_relief's cv2.GaussianBlur(depth, (5,5), 1.0)
+        # exactly, rather than the binomial [1,4,6,4,1]/16 approximation
+        # (close but not identical - measurably diverges once a real
+        # Sobel derivative is taken on top, confirmed via a live CPU/GPU
+        # comparison on high-frequency depth data).
+        gk_np = cv2.getGaussianKernel(5, 1.0).flatten()
+        gk = torch.from_numpy(gk_np.astype(np.float32)).to(device)
         kx = gk.view(1, 1, 1, 5)
         ky = gk.view(1, 1, 5, 1)
         sobel_x = torch.tensor(
@@ -273,27 +515,62 @@ def _resolve_3d_gpu() -> bool:
 
 
 def _depth_to_normal_gpu(depth_t, torch, F):
-    """Shared depth->surface-normal computation for the GPU relief/fog paths."""
+    """Shared depth->surface-normal computation for the GPU relief path."""
     sobel_x, sobel_y, kx, ky = _torch_kernels
     depth_t = torch.clamp(depth_t, MIN_VALID_DEPTH_M, MAX_VALID_DEPTH_M)
-    depth_t = F.conv2d(depth_t, kx, padding=(0, 2))
-    depth_t = F.conv2d(depth_t, ky, padding=(2, 0))
 
-    gx = F.conv2d(depth_t, sobel_x, padding=1)
-    gy = F.conv2d(depth_t, sobel_y, padding=1)
+    # F.conv2d's own `padding=` argument always zero-pads - for a uniform
+    # (or near-uniform) depth region near the frame edge, that fabricates
+    # a fake depth "cliff" at the border (edge pixels see manufactured
+    # zero-depth neighbors outside the frame), producing bogus non-zero
+    # gradients exactly where the real depth has none. cv2.GaussianBlur/
+    # cv2.Sobel's default border handling extends the real edge value
+    # instead - explicit replicate padding here matches that. Confirmed
+    # via a live CPU/GPU comparison on uniform (zero-gradient) depth:
+    # 100% of a real ~130-level discrepancy was concentrated in the
+    # bordering ~5px (the combined blur+sobel kernel reach), zero diff
+    # in the interior.
+    depth_t = F.pad(depth_t, (2, 2, 0, 0), mode='replicate')
+    depth_t = F.conv2d(depth_t, kx, padding=0)
+    depth_t = F.pad(depth_t, (0, 0, 2, 2), mode='replicate')
+    depth_t = F.conv2d(depth_t, ky, padding=0)
+
+    depth_padded = F.pad(depth_t, (1, 1, 1, 1), mode='replicate')
+    gx = F.conv2d(depth_padded, sobel_x, padding=0)
+    gy = F.conv2d(depth_padded, sobel_y, padding=0)
     nx, ny = -gx, -gy
     nz = torch.full_like(depth_t, 0.05)
     norm = torch.sqrt(nx * nx + ny * ny + nz * nz) + 1e-6
     return nx / norm, ny / norm, nz / norm, depth_t
 
 
-def apply_depth_relief_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5, **_unused) -> np.ndarray:
+def _gradient_colorize_gpu(normalized_01_t, gradient_style: str, device):
+    """GPU equivalent of _gradient_colorize_cpu. normalized_01_t: (1,1,H,W) tensor in [0,1]. Returns (1,3,H,W) BGR float tensor."""
+    import torch
+    if gradient_style == "grayscale":
+        gray_255 = torch.clamp(normalized_01_t * 255.0, 0, 255)
+        return gray_255.expand(-1, 3, -1, -1)
+    idx = torch.clamp((normalized_01_t * 255.0).long(), 0, 255).squeeze(1)  # (1, H, W)
+    lut = _get_turbo_lut_gpu(device)  # (256, 3) BGR
+    colored = lut[idx]  # (1, H, W, 3), gather via fancy indexing
+    return colored.permute(0, 3, 1, 2)  # (1, 3, H, W)
+
+
+def apply_depth_relief_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5,
+                            gradient_style: str = "color", **_unused) -> np.ndarray:
     """GPU (torch/CUDA) implementation of apply_depth_relief - see its docstring for the algorithm."""
     import torch
     import torch.nn.functional as F
 
     img_t = torch.from_numpy(image_bgr).to(_torch_device, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
     depth_t = torch.from_numpy(depth_m).to(_torch_device, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+    # Snapshot before _depth_to_normal_gpu's internal blur, for the tint
+    # below - see the CPU version's identical depth_for_tint comment for
+    # why (the blurred value measurably diverges between CPU's
+    # cv2.GaussianBlur and this hand-rolled kernel, and TURBO's colormap
+    # isn't perceptually linear enough to absorb that safely). Plain
+    # clamp is numerically identical to the CPU path's np.clip.
+    depth_for_tint = torch.clamp(depth_t, MIN_VALID_DEPTH_M, MAX_VALID_DEPTH_M)
     nx, ny, nz, _ = _depth_to_normal_gpu(depth_t, torch, F)
 
     lx, ly, lz = -0.5, -0.5, 0.7
@@ -307,27 +584,48 @@ def apply_depth_relief_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength:
 
     result = img_t * factor
     result = torch.clamp(result, 0, 255)
+
+    # Absolute-depth gradient tint on top of the shading - see the CPU
+    # version's docstring for why (relief's slope-based shading alone
+    # only reveals RELATIVE depth).
+    normalized = (depth_for_tint - MIN_VALID_DEPTH_M) / (MAX_VALID_DEPTH_M - MIN_VALID_DEPTH_M)
+    tint = _gradient_colorize_gpu(normalized, gradient_style, _torch_device)
+    tint_amount = strength * 0.35
+    result = result * (1.0 - tint_amount) + tint * tint_amount
+    result = torch.clamp(result, 0, 255)
     return result.squeeze(0).permute(1, 2, 0).contiguous().to(torch.uint8).cpu().numpy()
 
 
 def apply_depth_fog_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5,
-                         near_m: float = 0.3, far_m: float = 4.0, **_unused) -> np.ndarray:
+                         near_m: float = 0.3, far_m: float = 4.0,
+                         gradient_style: str = "color", fade_metric: str = "distance", **_unused) -> np.ndarray:
     """GPU (torch/CUDA) implementation of apply_depth_fog - see its docstring for the algorithm."""
     import torch
 
     img_t = torch.from_numpy(image_bgr).to(_torch_device, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
-    depth_t = torch.from_numpy(depth_m).to(_torch_device, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
-    depth_t = torch.clamp(depth_t, near_m, far_m)
-    fade = (depth_t - near_m) / max(far_m - near_m, 1e-6)
-    fade = fade * max(0.0, min(1.0, strength))
 
-    result = img_t * (1.0 - fade) + 128.0 * fade
+    if fade_metric == "motion":
+        # Motion itself is computed on CPU (a single grayscale abs-diff -
+        # not worth a separate GPU frame cache) then moved to GPU for the
+        # blend below, same as the depth-map input already crosses that
+        # boundary for every mode here.
+        fade_pos_np = 1.0 - _compute_motion_normalized_cpu(image_bgr)
+        fade_pos = torch.from_numpy(fade_pos_np).to(_torch_device, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+    else:
+        depth_t = torch.from_numpy(depth_m).to(_torch_device, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+        depth_t = torch.clamp(depth_t, near_m, far_m)
+        fade_pos = (depth_t - near_m) / max(far_m - near_m, 1e-6)
+
+    target_color = _gradient_colorize_gpu(fade_pos, gradient_style, _torch_device)
+    fade = fade_pos * max(0.0, min(1.0, strength))
+
+    result = img_t * (1.0 - fade) + target_color * fade
     result = torch.clamp(result, 0, 255)
     return result.squeeze(0).permute(1, 2, 0).contiguous().to(torch.uint8).cpu().numpy()
 
 
 def apply_depth_contours_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5,
-                              interval_m: float = 0.5, **_unused) -> np.ndarray:
+                              interval_m: float = 0.5, gradient_style: str = "color", **_unused) -> np.ndarray:
     """GPU (torch/CUDA) implementation of apply_depth_contours - see its docstring for the algorithm."""
     import torch
     import torch.nn.functional as F
@@ -347,22 +645,103 @@ def apply_depth_contours_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strengt
 
     strength = max(0.0, min(1.0, strength))
     alpha = edge_mask * strength
-    contour_color = torch.tensor([0., 255., 255.], device=_torch_device).view(1, 3, 1, 1)  # cyan (BGR)
+    normalized = (depth_t - MIN_VALID_DEPTH_M) / (MAX_VALID_DEPTH_M - MIN_VALID_DEPTH_M)
+    line_colors = _gradient_colorize_gpu(normalized, gradient_style, _torch_device)
 
-    result = img_t * (1.0 - alpha) + contour_color * alpha
+    result = img_t * (1.0 - alpha) + line_colors * alpha
     result = torch.clamp(result, 0, 255)
     return result.squeeze(0).permute(1, 2, 0).contiguous().to(torch.uint8).cpu().numpy()
+
+
+def apply_depth_anaglyph_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5, **_unused) -> np.ndarray:
+    """GPU (torch/CUDA) implementation of apply_depth_anaglyph - see its docstring for the algorithm."""
+    import torch
+    import torch.nn.functional as F
+
+    h, w = image_bgr.shape[:2]
+    img_t = torch.from_numpy(image_bgr).to(_torch_device, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
+    depth_t = torch.from_numpy(depth_m).to(_torch_device, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+    depth_t = torch.clamp(depth_t, MIN_VALID_DEPTH_M, MAX_VALID_DEPTH_M)
+
+    closeness = 1.0 - (depth_t - MIN_VALID_DEPTH_M) / (MAX_VALID_DEPTH_M - MIN_VALID_DEPTH_M)
+    strength = max(0.0, min(1.0, strength))
+    half_disparity = (closeness * strength * ANAGLYPH_MAX_SHIFT_PX) / 2.0  # (1,1,H,W)
+
+    ys, xs = torch.meshgrid(
+        torch.arange(h, device=_torch_device, dtype=torch.float32),
+        torch.arange(w, device=_torch_device, dtype=torch.float32),
+        indexing='ij'
+    )
+    xs = xs.unsqueeze(0).unsqueeze(0)
+    ys = ys.unsqueeze(0).unsqueeze(0)
+
+    def sample(map_x):
+        grid_x = (map_x / max(w - 1, 1)) * 2 - 1
+        grid_y = (ys / max(h - 1, 1)) * 2 - 1
+        grid = torch.stack([grid_x.squeeze(1), grid_y.squeeze(1)], dim=-1)
+        return F.grid_sample(img_t, grid, mode='bilinear', padding_mode='border', align_corners=True)
+
+    left_eye = sample(xs - half_disparity)
+    right_eye = sample(xs + half_disparity)
+
+    # Standard BGR2GRAY luma weights (matches cv2.cvtColor's convention).
+    left_gray = 0.114 * left_eye[:, 0:1] + 0.587 * left_eye[:, 1:2] + 0.299 * left_eye[:, 2:3]
+
+    result = torch.cat([right_eye[:, 0:1], right_eye[:, 1:2], left_gray], dim=1)  # B, G, R
+    result = torch.clamp(result, 0, 255)
+    return result.squeeze(0).permute(1, 2, 0).contiguous().to(torch.uint8).cpu().numpy()
+
+
+_turbo_lut_gpu = None  # cached (256, 3) torch tensor - built once per process
+
+
+def _get_turbo_lut_gpu(device):
+    """Build (once) and cache OpenCV's TURBO colormap as a (256, 3) BGR lookup table on the GPU."""
+    global _turbo_lut_gpu
+    if _turbo_lut_gpu is None:
+        import torch
+        gradient = np.arange(256, dtype=np.uint8).reshape(256, 1)
+        colored = cv2.applyColorMap(gradient, cv2.COLORMAP_TURBO).reshape(256, 3)  # BGR
+        _turbo_lut_gpu = torch.from_numpy(colored.astype(np.float32)).to(device)
+    return _turbo_lut_gpu
+
+
+def apply_depth_colorize_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5,
+                              gradient_style: str = "color", **_unused) -> np.ndarray:
+    """GPU (torch/CUDA) implementation of apply_depth_colorize - see its docstring for the algorithm."""
+    import torch
+
+    depth_t = torch.from_numpy(depth_m).to(_torch_device, dtype=torch.float32)
+    depth_t = torch.clamp(depth_t, MIN_VALID_DEPTH_M, MAX_VALID_DEPTH_M)
+    normalized = (depth_t - MIN_VALID_DEPTH_M) / (MAX_VALID_DEPTH_M - MIN_VALID_DEPTH_M)
+
+    if gradient_style == "grayscale":
+        depth_colored = torch.clamp(normalized * 255.0, 0, 255).unsqueeze(-1).expand(-1, -1, 3)
+    else:
+        idx = torch.clamp((normalized * 255.0).long(), 0, 255)
+        lut = _get_turbo_lut_gpu(_torch_device)
+        depth_colored = lut[idx]  # (H, W, 3) BGR, gather via fancy indexing
+
+    img_t = torch.from_numpy(image_bgr).to(_torch_device, dtype=torch.float32)
+    strength = max(0.0, min(1.0, strength))
+    result = img_t * (1.0 - strength) + depth_colored * strength
+    result = torch.clamp(result, 0, 255)
+    return result.to(torch.uint8).cpu().numpy()
 
 
 _CPU_MODE_FN = {
     "relief": apply_depth_relief,
     "fog": apply_depth_fog,
     "contours": apply_depth_contours,
+    "anaglyph": apply_depth_anaglyph,
+    "colorize": apply_depth_colorize,
 }
 _GPU_MODE_FN = {
     "relief": apply_depth_relief_gpu,
     "fog": apply_depth_fog_gpu,
     "contours": apply_depth_contours_gpu,
+    "anaglyph": apply_depth_anaglyph_gpu,
+    "colorize": apply_depth_colorize_gpu,
 }
 
 # CPU fallback processing width cap - confirmed live that even the
@@ -650,6 +1029,8 @@ class Fusion3DSettingsPanel(QWidget):
     data_source_changed = pyqtSignal(str)
     fog_range_changed = pyqtSignal(float, float)   # near_m, far_m
     contour_interval_changed = pyqtSignal(float)   # interval_m
+    gradient_style_changed = pyqtSignal(str)       # see GRADIENT_STYLES
+    fog_fade_metric_changed = pyqtSignal(str)       # see FOG_FADE_METRICS
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -716,12 +1097,53 @@ class Fusion3DSettingsPanel(QWidget):
         strength_layout.addWidget(self.strength_slider)
         layout.addLayout(strength_layout)
 
+        # Applies to every mode except Anaglyph (which has no depth
+        # gradient - it's a stereo shift). "Color" (TURBO rainbow) is the
+        # most perceptually distinguishable, but thermal already has its
+        # OWN color palette encoding temperature - "Grayscale" avoids that
+        # clash when fusing with a colorized thermal palette.
+        self.gradient_style_row = QWidget()
+        gradient_style_layout = QHBoxLayout(self.gradient_style_row)
+        gradient_style_layout.setContentsMargins(0, 0, 0, 0)
+        gradient_style_layout.addWidget(QLabel("Gradient Style:"))
+        self.gradient_style_combo = QComboBox()
+        for style in GRADIENT_STYLES:
+            self.gradient_style_combo.addItem(GRADIENT_STYLE_LABELS.get(style, style), style)
+        self.gradient_style_combo.setToolTip(
+            "Color (Turbo): most visually distinguishable, but adds its own "
+            "color meaning (hue = distance) on top of whatever the base "
+            "image already shows.\n"
+            "Grayscale: no hue at all - avoids clashing with a colorized "
+            "thermal palette already in the base image."
+        )
+        self.gradient_style_combo.currentIndexChanged.connect(
+            lambda i: self.gradient_style_changed.emit(self.gradient_style_combo.itemData(i))
+        )
+        gradient_style_layout.addWidget(self.gradient_style_combo)
+        layout.addWidget(self.gradient_style_row)
+
         # Depth Fog tunables (near/far range, meters x10 for 0.1m slider
         # steps) - only shown when Mode is "Depth Fog".
         self.fog_params_widget = QWidget()
         fog_params_layout = QVBoxLayout(self.fog_params_widget)
         fog_params_layout.setContentsMargins(0, 0, 0, 0)
         fog_params_layout.setSpacing(4)
+
+        fade_metric_layout = QHBoxLayout()
+        fade_metric_layout.addWidget(QLabel("Fade By:"))
+        self.fog_fade_metric_combo = QComboBox()
+        for metric in FOG_FADE_METRICS:
+            self.fog_fade_metric_combo.addItem(FOG_FADE_METRIC_LABELS.get(metric, metric), metric)
+        self.fog_fade_metric_combo.setToolTip(
+            "Distance: fades far objects, keeps near ones sharp (needs "
+            "real depth).\n"
+            "Motion: fades STATIC regions, keeps actively CHANGING ones "
+            "sharp - e.g. highlighting a moving belt/fan/vibration against "
+            "a static background. Needs no depth data."
+        )
+        self.fog_fade_metric_combo.currentIndexChanged.connect(self._on_fog_fade_metric_changed)
+        fade_metric_layout.addWidget(self.fog_fade_metric_combo)
+        fog_params_layout.addLayout(fade_metric_layout)
 
         near_layout = QHBoxLayout()
         near_layout.addWidget(QLabel("Near (m):"))
@@ -816,7 +1238,18 @@ class Fusion3DSettingsPanel(QWidget):
         mode = self.mode_combo.itemData(index)
         self.fog_params_widget.setVisible(mode == "fog")
         self.contours_params_widget.setVisible(mode == "contours")
+        # Anaglyph is a stereo shift, not a depth gradient - Gradient
+        # Style doesn't apply to it at all.
+        self.gradient_style_row.setVisible(mode != "anaglyph")
         self.mode_changed.emit(mode)
+
+    def _on_fog_fade_metric_changed(self, index: int):
+        metric = self.fog_fade_metric_combo.itemData(index)
+        # Near/Far only mean anything for the "distance" metric.
+        is_distance = (metric == "distance")
+        self.fog_near_slider.setEnabled(is_distance)
+        self.fog_far_slider.setEnabled(is_distance)
+        self.fog_fade_metric_changed.emit(metric)
 
     def _on_fog_range_changed(self, _value: int):
         near_m = self.fog_near_slider.value() / 10.0

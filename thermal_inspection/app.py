@@ -175,6 +175,8 @@ class ThermalInspectionApp:
         self._3d_fog_near_m = 0.3
         self._3d_fog_far_m = 4.0
         self._3d_contour_interval_m = 0.5
+        self._3d_gradient_style = "color"  # "color" or "grayscale" - see fusion_3d_panel.GRADIENT_STYLES
+        self._3d_fog_fade_metric = "distance"  # "distance" or "motion" - see fusion_3d_panel.FOG_FADE_METRICS
 
         # Throttle for pushing parallax perf metrics to the GUI - a display
         # metric, not something that needs updating every single frame.
@@ -360,6 +362,8 @@ class ThermalInspectionApp:
         bus.fusion_3d_data_source_changed.connect(self.set_3d_data_source)
         bus.fusion_3d_fog_range_changed.connect(self.set_3d_fog_range)
         bus.fusion_3d_contour_interval_changed.connect(self.set_3d_contour_interval)
+        bus.fusion_3d_gradient_style_changed.connect(self.set_3d_gradient_style)
+        bus.fusion_3d_fog_fade_metric_changed.connect(self.set_3d_fog_fade_metric)
 
         # --- ROI ---
         bus.auto_roi_requested.connect(self.auto_roi_detect)
@@ -1843,6 +1847,8 @@ class ThermalInspectionApp:
                                     self._3d_mode, base_2d, depth_map, strength=self._3d_relief_strength,
                                     near_m=self._3d_fog_near_m, far_m=self._3d_fog_far_m,
                                     interval_m=self._3d_contour_interval_m,
+                                    gradient_style=self._3d_gradient_style,
+                                    fade_metric=self._3d_fog_fade_metric,
                                 )
                             else:
                                 self._last_3d_display_frame = base_2d
@@ -2265,6 +2271,24 @@ class ThermalInspectionApp:
     def set_3d_contour_interval(self, interval_m: float):
         """Set the line spacing (meters) for the "contours" 3D Fusion mode."""
         self._3d_contour_interval_m = interval_m
+        self._last_3d_display_frame = None
+
+    def set_3d_gradient_style(self, style: str):
+        """Set the depth gradient color style (relief/fog/contours/colorize) - see fusion_3d_panel.GRADIENT_STYLES."""
+        from thermal_inspection.gui.panels.fusion_3d_panel import GRADIENT_STYLES
+        if style not in GRADIENT_STYLES:
+            logger.warning(f"Unknown 3D Fusion gradient style '{style}', ignoring")
+            return
+        self._3d_gradient_style = style
+        self._last_3d_display_frame = None
+
+    def set_3d_fog_fade_metric(self, metric: str):
+        """Set what "fog" fades by - "distance" (real depth) or "motion" - see fusion_3d_panel.FOG_FADE_METRICS."""
+        from thermal_inspection.gui.panels.fusion_3d_panel import FOG_FADE_METRICS
+        if metric not in FOG_FADE_METRICS:
+            logger.warning(f"Unknown 3D Fusion fog fade metric '{metric}', ignoring")
+            return
+        self._3d_fog_fade_metric = metric
         self._last_3d_display_frame = None
 
     def set_emissivity(self, val: float):

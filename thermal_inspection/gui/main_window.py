@@ -543,6 +543,8 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("fusion_3d_panel", "data_source_changed", self._on_3d_data_source_changed, "(3d fusion)")
         self._safe_connect("fusion_3d_panel", "fog_range_changed", self._on_3d_fog_range_changed, "(3d fusion)")
         self._safe_connect("fusion_3d_panel", "contour_interval_changed", self._on_3d_contour_interval_changed, "(3d fusion)")
+        self._safe_connect("fusion_3d_panel", "gradient_style_changed", self._on_3d_gradient_style_changed, "(3d fusion)")
+        self._safe_connect("fusion_3d_panel", "fog_fade_metric_changed", self._on_3d_fog_fade_metric_changed, "(3d fusion)")
 
         # === ANALYSIS PANEL ===
         self._safe_connect("analysis_panel", "palette_changed", self._on_global_palette_changed, "(analysis)")
@@ -1593,6 +1595,18 @@ class InspectionAppWindow(QMainWindow):
             self.event_bus.fusion_3d_contour_interval_changed.emit(interval_m)
         elif self.app and hasattr(self.app, 'set_3d_contour_interval'):
             self.app.set_3d_contour_interval(interval_m)
+
+    def _on_3d_gradient_style_changed(self, style: str):
+        if self.event_bus:
+            self.event_bus.fusion_3d_gradient_style_changed.emit(style)
+        elif self.app and hasattr(self.app, 'set_3d_gradient_style'):
+            self.app.set_3d_gradient_style(style)
+
+    def _on_3d_fog_fade_metric_changed(self, metric: str):
+        if self.event_bus:
+            self.event_bus.fusion_3d_fog_fade_metric_changed.emit(metric)
+        elif self.app and hasattr(self.app, 'set_3d_fog_fade_metric'):
+            self.app.set_3d_fog_fade_metric(metric)
 
     # === ANALYSIS HANDLERS ===
     def _on_global_palette_changed(self, palette_name: str):
