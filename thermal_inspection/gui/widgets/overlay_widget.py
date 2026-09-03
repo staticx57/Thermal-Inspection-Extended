@@ -8,7 +8,7 @@ import time
 from typing import List, Optional
 
 from PyQt6.QtWidgets import QWidget, QMenu
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QRect
 from PyQt6.QtGui import QPainter, QPen, QColor, QPolygon
 
 from thermal_inspection.processing.roi_manager import ROI, ROIType
@@ -395,18 +395,38 @@ class InspectionOverlayWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
+        # Every draw_label() call below places its label at a fixed offset
+        # from its own marker with no awareness of what else is nearby -
+        # closely-spaced spot meters, or the cursor crosshair's own
+        # readout (drawn last/topmost, right where the mouse is hovering -
+        # exactly where a user would put it to compare against a nearby
+        # spot), could render directly on top of another label's opaque
+        # background, making that reading illegible. Track this paint
+        # pass's already-placed label rects and nudge a colliding one
+        # downward until it clears, instead of overlapping.
+        _drawn_label_rects = []
+
         def draw_label(x, y, text, color):
             font_metrics = painter.fontMetrics()
             rect = font_metrics.boundingRect(text)
             rect.adjust(-2, -2, 2, 2)
             rect.moveTo(x, y - rect.height() + 2)
 
+            attempts = 0
+            while attempts < 12 and any(rect.intersects(r) for r in _drawn_label_rects):
+                rect.translate(0, rect.height() + 2)
+                attempts += 1
+            _drawn_label_rects.append(QRect(rect))
+
             painter.setBrush(QColor(0, 0, 0, 160))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRect(rect)
 
             painter.setPen(QPen(color, 1))
-            painter.drawText(x, y, text)
+            # Text baseline tracks the same -2/+2 padding rect was built
+            # with above, so it moves along with any collision-avoidance
+            # nudge instead of staying at the original (un-nudged) y.
+            painter.drawText(rect.x() + 2, rect.y() + rect.height() - 2, text)
 
         # Draw grid overlay
         if self.grid_enabled and self._should_draw_thermal_overlays():
