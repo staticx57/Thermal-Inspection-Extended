@@ -39,11 +39,20 @@ class ThresholdManager(QObject):
     # Emitted whenever any threshold parameter changes
     state_changed = pyqtSignal()
 
-    # Valid mode/viz values (mirrors ThresholdMode / ThresholdVisualization enums)
+    # Valid mode/viz values (mirrors ThresholdMode / ThresholdVisualization enums
+    # in processing/thermal_analyzer.py - these names must match exactly, since
+    # app.py builds a ThresholdVisualization(ts.viz_mode) straight from this
+    # string). "highlight_anomaly"/"heatmap_overlay" here previously didn't
+    # match the enum's "color_non_anomaly"/"gradient_overlay" - or what
+    # ManualThresholdWidget._on_viz_mode_changed actually emits - so
+    # set_viz_mode() silently rejected both, leaving "Highlight Anomalies"
+    # and "Gradient Overlay" permanently no-ops - confirmed live ("the
+    # detection modes highlight anomalies and gradient overlay do not
+    # work").
     VALID_MODES = frozenset({"above", "below", "between", "outside"})
     VALID_VIZ = frozenset({
-        "highlight_anomaly", "grayscale_non_anomaly",
-        "binary_mask", "heatmap_overlay",
+        "grayscale_non_anomaly", "color_non_anomaly",
+        "binary_mask", "gradient_overlay",
     })
 
     def __init__(self, parent: Optional[QObject] = None):
