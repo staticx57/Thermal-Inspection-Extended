@@ -442,6 +442,9 @@ class ThermalInspectionApp:
         bus.parallax_correction_target_changed.connect(
             lambda t: self.set_parallax_correction_target(t) if hasattr(self, 'set_parallax_correction_target') else None
         )
+        bus.parallax_rgb_target_max_width_changed.connect(
+            lambda w: self.set_parallax_rgb_target_max_width(w) if hasattr(self, 'set_parallax_rgb_target_max_width') else None
+        )
 
         # --- Gradient Overlay ---
         bus.gradient_enabled_changed.connect(
@@ -2708,6 +2711,13 @@ class ThermalInspectionApp:
         """Set which frame ("thermal" or "rgb") apply_correction() warps/crops."""
         if self.parallax_compensator:
             self.parallax_compensator.set_correction_target(target)
+        else:
+            logger.warning("ParallaxCompensator not available")
+
+    def set_parallax_rgb_target_max_width(self, width):
+        """Cap correction_target=="rgb"'s working resolution (None/0 = uncapped, full native)."""
+        if self.parallax_compensator:
+            self.parallax_compensator.set_rgb_target_max_width(width)
         else:
             logger.warning("ParallaxCompensator not available")
 

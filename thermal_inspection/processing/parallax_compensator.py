@@ -633,6 +633,26 @@ class ParallaxCompensator:
         # the one value to flip to -1.0/+1.0.
         self._rgb_target_sign = -1.0
 
+        # Cap on the working width used for correction_target=="rgb"'s
+        # remap (None disables the cap entirely - full native resolution).
+        # Warping at full native RGB resolution is the whole point of
+        # correction_target=="rgb" (preserving detail thermal can't
+        # spare), but that cost scales with RGB's resolution, and GPU
+        # remap wasn't a win here either (see _remap_thermal's docstring -
+        # the same per-call launch-overhead problem that made it lose for
+        # thermal's small frames is about interleaving with other CPU work
+        # each frame, not raw pixel count, so it likely still applies at
+        # RGB's larger size). Confirmed live: even a "modest" 720p RGB
+        # source was more than this machine's CPU could comfortably remap
+        # every frame - defaulting to "no cap" would hit the same wall
+        # immediately for most real hardware, so this defaults to a real
+        # cap (640px) rather than best-case. This is a real, explicit
+        # quality-for-speed tradeoff (the whole corrected frame gets
+        # resized down and back up, not just a cropped edge, unlike the
+        # crop-vs-stretch fix) - a dial for hardware that can't afford
+        # full-resolution warping every frame, not a hidden regression.
+        self.rgb_target_max_width: Optional[int] = 640
+
         # Static crop-in zoom factor correcting a genuine FOV mismatch
         # between the thermal and RGB sensors (from their focal lengths and
         # sensor widths - a fixed optical property, not something that
@@ -773,6 +793,23 @@ class ParallaxCompensator:
         """Whether a non-zero manual shift or FOV crop-zoom is set."""
         return (self.manual_shift_x != 0 or self.manual_shift_y != 0
                 or abs(self.fov_zoom_factor - 1.0) > 1e-3)
+
+    def set_rgb_target_max_width(self, width: Optional[int]):
+        """
+        Cap correction_target=="rgb"'s working resolution to at most this
+        width (proportional height), or None/0 to remove the cap and warp
+        at RGB's full native resolution. See this setting's __init__
+        comment for the quality-vs-speed tradeoff.
+        """
+        self.rgb_target_max_width = int(width) if width else None
+        logger.info(
+            f"Parallax RGB-target max width set to "
+            f"{'unlimited (full native resolution)' if self.rgb_target_max_width is None else f'{self.rgb_target_max_width}px'}"
+        )
+
+    def get_rgb_target_max_width(self) -> Optional[int]:
+        """Get the current correction_target=="rgb" working-resolution cap (None = unlimited)."""
+        return self.rgb_target_max_width
 
     def set_fov_zoom_factor(self, factor: float):
         """
@@ -1093,13 +1130,14 @@ class ParallaxCompensator:
         leaving thermal completely untouched. See apply_correction() and
         set_correction_target()'s docstrings for why.
 
-        Runs the remap at RGB's own native resolution (not downscaled to
-        thermal's), so the abundant RGB pixels genuinely absorb the
-        crop/warp loss instead of it costing anything at thermal's
-        (much smaller) scale - the tradeoff is that this remap step
-        itself costs more CPU per frame than warping the smaller thermal
-        frame did, proportional to RGB's resolution (e.g. a 4K RGB source
-        costs substantially more here than a 640x512 one).
+        Runs the remap at RGB's own native resolution by default (not
+        downscaled to thermal's), so the abundant RGB pixels genuinely
+        absorb the crop/warp loss instead of it costing anything at
+        thermal's (much smaller) scale - the tradeoff is that this remap
+        step itself costs more CPU per frame than warping the smaller
+        thermal frame did, proportional to RGB's resolution. See
+        rgb_target_max_width for the dial that caps this when full native
+        resolution is more than the hardware can sustain.
         """
         if not self.enabled:
             return thermal_frame, self._apply_manual_shift_only_rgb(rgb_frame)
@@ -1110,6 +1148,8 @@ class ParallaxCompensator:
         try:
             thermal_h, thermal_w = thermal_frame.shape[:2]
             rgb_h, rgb_w = rgb_frame.shape[:2]
+            work_w, work_h = self._resolve_rgb_work_size(rgb_w, rgb_h)
+            capped = (work_w, work_h) != (rgb_w, rgb_h)
 
             # Depth estimation still runs at thermal's (small) resolution
             # regardless of correction_target - it's an analysis step, not
@@ -1135,35 +1175,53 @@ class ParallaxCompensator:
             self.last_depth_map = depth_map
 
             _t_corr_start = time.perf_counter()
-            # Resize the depth map up to RGB's own native resolution (not
-            # thermal's) - the disparity/flow map, and the remap it drives,
-            # need to be at the same resolution as the frame being warped.
-            depth_resized = cv2.resize(depth_map, (rgb_w, rgb_h),
+            # Resize the depth map up to the WORKING resolution (RGB's own
+            # native size, or rgb_target_max_width's cap) - the
+            # disparity/flow map, and the remap it drives, need to be at
+            # the same resolution as the frame actually being warped.
+            depth_resized = cv2.resize(depth_map, (work_w, work_h),
                                       interpolation=cv2.INTER_LINEAR)
 
+            # compute_disparity_rgb still uses rgb_w (the REAL native
+            # width) for the focal-length-in-pixels conversion - that's a
+            # property of the actual sensor, not whatever resolution we're
+            # processing at - then scale the result down to the working
+            # resolution's own pixel grid below, same reasoning as
+            # _apply_manual_shift_only_rgb's scale factor.
             disparity_map = self.compute_disparity_rgb(depth_resized, rgb_w)
+            scale = work_w / rgb_w
 
             # Opposite sign convention from the thermal-target path - see
             # set_correction_target()'s docstring and _rgb_target_sign's
             # definition in __init__: aligning RGB to thermal's (now
             # unmoved) raw position is the inverse of aligning thermal to
             # RGB's raw position, derived from the same physical baseline
-            # geometry. Manual shift is in RGB's own pixel space here, not
-            # thermal's - a value tuned for correction_target=="thermal"
-            # is not meaningful after switching (see set_correction_target).
+            # geometry. Manual shift is in RGB's own native pixel space
+            # here, not thermal's - a value tuned for
+            # correction_target=="thermal" is not meaningful after
+            # switching (see set_correction_target).
             sign = self._rgb_target_sign
-            flow_map = np.zeros((rgb_h, rgb_w, 2), dtype=np.float32)
-            flow_map[:, :, 0] = sign * (disparity_map + self.manual_shift_x)
-            flow_map[:, :, 1] = sign * self.manual_shift_y
+            # disparity_map and manual_shift_x are both in native-pixel
+            # units (see above / rgb_target_max_width) - scale their SUM
+            # down to the working resolution's own pixel grid together.
+            flow_map = np.zeros((work_h, work_w, 2), dtype=np.float32)
+            flow_map[:, :, 0] = sign * scale * (disparity_map + self.manual_shift_x)
+            flow_map[:, :, 1] = sign * scale * self.manual_shift_y
 
             self.last_displacement_map = flow_map
 
             if self.show_depth_map:
-                depth_colourised = self._colourise_depth_debug(depth_resized, rgb_w, rgb_h)
+                depth_colourised = self._colourise_depth_debug(depth_resized, work_w, work_h)
+                if capped:
+                    depth_colourised = cv2.resize(depth_colourised, (rgb_w, rgb_h))
                 self.last_correction_time_ms = (time.perf_counter() - _t_corr_start) * 1000.0
                 return thermal_frame, depth_colourised
 
-            corrected_rgb = self._remap_thermal(rgb_frame, flow_map)
+            work_frame = (cv2.resize(rgb_frame, (work_w, work_h), interpolation=cv2.INTER_LINEAR)
+                        if capped else rgb_frame)
+            corrected_rgb = self._remap_thermal(work_frame, flow_map)
+            if capped:
+                corrected_rgb = cv2.resize(corrected_rgb, (rgb_w, rgb_h), interpolation=cv2.INTER_LINEAR)
             self.last_correction_time_ms = (time.perf_counter() - _t_corr_start) * 1000.0
 
             if self.show_displacement:
@@ -1214,19 +1272,45 @@ class ParallaxCompensator:
             corrected = self._draw_displacement_vectors(corrected, flow_map)
         return corrected
 
+    def _resolve_rgb_work_size(self, rgb_w: int, rgb_h: int) -> Tuple[int, int]:
+        """
+        Resolve the working resolution correction_target=="rgb" actually
+        processes at, applying rgb_target_max_width if it's set and
+        smaller than the frame's real size. Returns (rgb_w, rgb_h)
+        unchanged when no cap applies.
+        """
+        cap = self.rgb_target_max_width
+        if cap and rgb_w > cap:
+            work_w = cap
+            work_h = max(1, int(round(rgb_h * cap / rgb_w)))
+            return work_w, work_h
+        return rgb_w, rgb_h
+
     def _apply_manual_shift_only_rgb(self, rgb_frame: Optional[np.ndarray]) -> Optional[np.ndarray]:
         """RGB-target equivalent of _apply_manual_shift_only - see _apply_correction_rgb_target."""
         if rgb_frame is None or not self.has_manual_shift():
             return rgb_frame
 
         h, w = rgb_frame.shape[:2]
+        work_w, work_h = self._resolve_rgb_work_size(w, h)
+        capped = (work_w, work_h) != (w, h)
+        work_frame = (cv2.resize(rgb_frame, (work_w, work_h), interpolation=cv2.INTER_LINEAR)
+                    if capped else rgb_frame)
+
+        # manual_shift_x/y are in RGB's real native pixel space - scale
+        # down to the working resolution's own pixel grid so the shift
+        # represents the same physical/angular offset there (see
+        # rgb_target_max_width's __init__ comment).
+        scale = work_w / w
         sign = self._rgb_target_sign
-        flow_map = np.zeros((h, w, 2), dtype=np.float32)
-        flow_map[:, :, 0] = sign * self.manual_shift_x
-        flow_map[:, :, 1] = sign * self.manual_shift_y
+        flow_map = np.zeros((work_h, work_w, 2), dtype=np.float32)
+        flow_map[:, :, 0] = sign * self.manual_shift_x * scale
+        flow_map[:, :, 1] = sign * self.manual_shift_y * scale
         self.last_displacement_map = flow_map
 
-        corrected = self._remap_thermal(rgb_frame, flow_map)
+        corrected = self._remap_thermal(work_frame, flow_map)
+        if capped:
+            corrected = cv2.resize(corrected, (w, h), interpolation=cv2.INTER_LINEAR)
         if self.show_displacement:
             corrected = self._draw_displacement_vectors(corrected, flow_map)
         return corrected

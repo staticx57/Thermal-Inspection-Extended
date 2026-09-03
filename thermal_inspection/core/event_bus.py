@@ -167,6 +167,7 @@ class AppEventBus(QObject):
     parallax_geometry_optics_changed = pyqtSignal(dict)  # thermal/rgb focal_length_mm + sensor_width_mm
     parallax_zoom_changed = pyqtSignal(float)  # manual crop-in zoom factor
     parallax_correction_target_changed = pyqtSignal(str)  # "thermal" or "rgb"
+    parallax_rgb_target_max_width_changed = pyqtSignal(object)  # int px, or None for uncapped
 
     # =====================================================================
     # Analyzer / Processor Settings

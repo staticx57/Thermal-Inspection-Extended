@@ -36,6 +36,7 @@ class ParallaxPanel(QWidget):
     zoom_changed = pyqtSignal(float)  # crop-in zoom factor, 1.0 = none
     geometry_optics_changed = pyqtSignal(dict)  # thermal/rgb focal_length_mm + sensor_width_mm
     correction_target_changed = pyqtSignal(str)  # "thermal" or "rgb"
+    rgb_target_max_width_changed = pyqtSignal(object)  # int px, or None for uncapped
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -150,6 +151,38 @@ class ParallaxPanel(QWidget):
         self.correction_target_combo.currentIndexChanged.connect(self._on_correction_target_changed)
         target_row.addWidget(self.correction_target_combo)
         target_layout.addLayout(target_row)
+
+        # RGB target's working resolution - warping at full native RGB
+        # resolution is the whole point of this mode, but that cost scales
+        # with RGB's resolution, and even a "modest" 720p RGB source can
+        # be more than modest hardware can sustain every frame. Defaults
+        # to a real cap (640px), not best-case, for exactly that reason.
+        cap_row = QHBoxLayout()
+        cap_row.setContentsMargins(0, 0, 0, 0)
+        cap_row.addWidget(QLabel("RGB Working Width:"))
+        self.rgb_target_cap_spin = QSpinBox()
+        self.rgb_target_cap_spin.setRange(160, 3840)
+        self.rgb_target_cap_spin.setValue(640)
+        self.rgb_target_cap_spin.setSingleStep(80)
+        self.rgb_target_cap_spin.setSuffix(" px")
+        self.rgb_target_cap_spin.setToolTip(
+            "Only applies when Correct=RGB. Caps how large a resolution the RGB "
+            "warp actually processes at (result is resized back to native "
+            "resolution) - lower this if RGB-target correction is too slow for "
+            "your hardware, at the cost of some fine detail/precision."
+        )
+        self.rgb_target_cap_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.rgb_target_cap_spin.valueChanged.connect(self._on_rgb_target_cap_changed)
+        cap_row.addWidget(self.rgb_target_cap_spin)
+        target_layout.addLayout(cap_row)
+
+        self.rgb_target_no_cap_checkbox = QCheckBox("No cap (full native resolution)")
+        self.rgb_target_no_cap_checkbox.setToolTip(
+            "Warp at RGB's full native resolution, uncapped - best quality, but "
+            "the most CPU-expensive option."
+        )
+        self.rgb_target_no_cap_checkbox.toggled.connect(self._on_rgb_target_no_cap_toggled)
+        target_layout.addWidget(self.rgb_target_no_cap_checkbox)
 
         target_group.setLayout(target_layout)
         layout.addWidget(target_group)
@@ -547,6 +580,16 @@ class ParallaxPanel(QWidget):
         """Handle Correction Target combo change — emit signal live."""
         target = "rgb" if index == 1 else "thermal"
         self.correction_target_changed.emit(target)
+
+    def _on_rgb_target_cap_changed(self, value: int):
+        """Handle RGB Working Width spinbox change — ignored while "No cap" is checked."""
+        if not self.rgb_target_no_cap_checkbox.isChecked():
+            self.rgb_target_max_width_changed.emit(value)
+
+    def _on_rgb_target_no_cap_toggled(self, checked: bool):
+        """Handle "No cap" checkbox toggle — emit signal live."""
+        self.rgb_target_cap_spin.setEnabled(not checked)
+        self.rgb_target_max_width_changed.emit(None if checked else self.rgb_target_cap_spin.value())
 
     def _on_auto_align_clicked(self):
         """Request a one-time auto-alignment calculation."""

@@ -644,6 +644,7 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("parallax_panel", "auto_alignment_requested", self._on_parallax_auto_alignment_requested, "(parallax auto-align)")
         self._safe_connect("parallax_panel", "zoom_changed", self._on_parallax_zoom_changed, "(parallax zoom)")
         self._safe_connect("parallax_panel", "correction_target_changed", self._on_parallax_correction_target_changed, "(parallax target)")
+        self._safe_connect("parallax_panel", "rgb_target_max_width_changed", self._on_parallax_rgb_target_max_width_changed, "(parallax rgb cap)")
 
         # === GRADIENT OVERLAY PANEL ===
         self._safe_connect("gradient_panel", "gradient_enabled", self._on_gradient_enabled, "(gradient)")
@@ -2373,6 +2374,13 @@ class InspectionAppWindow(QMainWindow):
             self.event_bus.parallax_correction_target_changed.emit(target)
         elif self.app and hasattr(self.app, 'set_parallax_correction_target'):
             self.app.set_parallax_correction_target(target)
+
+    def _on_parallax_rgb_target_max_width_changed(self, width):
+        """Handle RGB Working Width spinbox / No-cap checkbox change."""
+        if self.event_bus:
+            self.event_bus.parallax_rgb_target_max_width_changed.emit(width)
+        elif self.app and hasattr(self.app, 'set_parallax_rgb_target_max_width'):
+            self.app.set_parallax_rgb_target_max_width(width)
 
     def _on_show_depth_map_toggled(self, show: bool):
         """Show/hide depth map overlay on the video stream."""
