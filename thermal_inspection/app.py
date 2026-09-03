@@ -1921,7 +1921,9 @@ class ThermalInspectionApp:
                             or _now_3d_disp - self._last_3d_display_time >= self._3d_fusion_update_interval_s):
                         self._last_3d_display_time = _now_3d_disp
                         try:
-                            from thermal_inspection.gui.panels.fusion_3d_panel import apply_3d_visualization
+                            from thermal_inspection.gui.panels.fusion_3d_panel import (
+                                apply_3d_visualization, apply_3d_visualization_fused,
+                            )
 
                             # _3d_data_source lets the user force RGB Only or
                             # RGB+Thermal explicitly instead of always
@@ -1933,40 +1935,66 @@ class ThermalInspectionApp:
                                 self._3d_data_source == "fusion"
                                 or (self._3d_data_source == "auto" and _thermal_aligned_realsense)
                             )
+                            depth_map = _rs_backend.get_depth_frame()
+
                             if (want_fusion and _thermal_aligned_realsense
-                                    and self.fusion_processor and rgb_frame is not None):
+                                    and self.fusion_processor and rgb_frame is not None
+                                    and depth_map is not None):
                                 fusion_rgb = rgb_frame
                                 if self._fusion_color_mode == "grayscale":
                                     gray = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2GRAY)
                                     fusion_rgb = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-                                base_2d = self.fusion_processor.process(colorized_thermal, fusion_rgb)
-                            elif rgb_frame is not None and rgb_frame is not self.rgb_placeholder:
-                                base_2d = rgb_frame
-                            else:
-                                base_2d = colorized_thermal
-
-                            depth_map = _rs_backend.get_depth_frame()
-                            if depth_map is not None:
-                                bh, bw = base_2d.shape[:2]
+                                bh, bw = colorized_thermal.shape[:2]
                                 if depth_map.shape[:2] != (bh, bw):
                                     depth_map = cv2.resize(depth_map, (bw, bh), interpolation=cv2.INTER_NEAREST)
-                                # apply_3d_visualization runs full-resolution
-                                # on GPU when available (~5ms/frame at
-                                # 1280x800 on an RTX 4000 Ada), or falls back
-                                # to a resolution-capped CPU path otherwise.
-                                # near_m/far_m/interval_m are harmlessly
-                                # unused by whichever mode isn't "fog"/
-                                # "contours" - each function only reads the
-                                # kwargs it defines.
-                                self._last_3d_display_frame = apply_3d_visualization(
-                                    self._3d_mode, base_2d, depth_map, strength=self._3d_relief_strength,
+                                # Chains the 2D fusion blend straight into
+                                # the depth-shading pass on the GPU without
+                                # downloading the intermediate result to
+                                # numpy and re-uploading it - see
+                                # apply_3d_visualization_fused's docstring.
+                                # Falls back internally to the equivalent
+                                # two-call sequence below when either GPU
+                                # path isn't available.
+                                self._last_3d_display_frame = apply_3d_visualization_fused(
+                                    self._3d_mode, colorized_thermal, fusion_rgb, depth_map,
+                                    self.fusion_processor, strength=self._3d_relief_strength,
                                     near_m=self._3d_fog_near_m, far_m=self._3d_fog_far_m,
                                     interval_m=self._3d_contour_interval_m,
                                     gradient_style=self._3d_gradient_style,
                                     fade_metric=self._3d_fog_fade_metric,
                                 )
                             else:
-                                self._last_3d_display_frame = base_2d
+                                if want_fusion and _thermal_aligned_realsense and self.fusion_processor and rgb_frame is not None:
+                                    fusion_rgb = rgb_frame
+                                    if self._fusion_color_mode == "grayscale":
+                                        gray = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2GRAY)
+                                        fusion_rgb = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+                                    base_2d = self.fusion_processor.process(colorized_thermal, fusion_rgb)
+                                elif rgb_frame is not None and rgb_frame is not self.rgb_placeholder:
+                                    base_2d = rgb_frame
+                                else:
+                                    base_2d = colorized_thermal
+
+                                if depth_map is not None:
+                                    bh, bw = base_2d.shape[:2]
+                                    if depth_map.shape[:2] != (bh, bw):
+                                        depth_map = cv2.resize(depth_map, (bw, bh), interpolation=cv2.INTER_NEAREST)
+                                    # apply_3d_visualization runs full-resolution
+                                    # on GPU when available, or falls back to a
+                                    # resolution-capped CPU path otherwise.
+                                    # near_m/far_m/interval_m are harmlessly
+                                    # unused by whichever mode isn't "fog"/
+                                    # "contours" - each function only reads the
+                                    # kwargs it defines.
+                                    self._last_3d_display_frame = apply_3d_visualization(
+                                        self._3d_mode, base_2d, depth_map, strength=self._3d_relief_strength,
+                                        near_m=self._3d_fog_near_m, far_m=self._3d_fog_far_m,
+                                        interval_m=self._3d_contour_interval_m,
+                                        gradient_style=self._3d_gradient_style,
+                                        fade_metric=self._3d_fog_fade_metric,
+                                    )
+                                else:
+                                    self._last_3d_display_frame = base_2d
                         except Exception as _3d_disp_err:
                             logger.debug(f"3D Fusion display frame failed: {_3d_disp_err}")
                             self._last_3d_display_frame = colorized_thermal

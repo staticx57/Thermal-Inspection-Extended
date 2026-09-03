@@ -1004,14 +1004,35 @@ class FusionProcessor:
         same scene.
         """
         import torch
-        import torch.nn.functional as F
 
         device = self._fw_torch_device
-        kernel = self._fw_sobel_kernel
 
         def to_tensor(img):
             t = torch.from_numpy(img).to(device, dtype=torch.float32)
             return t.permute(2, 0, 1).unsqueeze(0)  # (1, 3, H, W), BGR
+
+        thermal_t = to_tensor(thermal)
+        rgb_t = to_tensor(rgb)
+        result_t = self._feature_weighted_gpu_tensor(thermal_t, rgb_t)
+        return result_t.squeeze(0).permute(1, 2, 0).contiguous().to(torch.uint8).cpu().numpy()
+
+    def _feature_weighted_gpu_tensor(self, thermal_t, rgb_t):
+        """
+        All-tensor core of _feature_weighted_gpu - takes and returns
+        (1,3,H,W) float32 GPU tensors (BGR, 0-255 range), no upload/
+        download. Exists so a caller chaining straight into another
+        GPU stage (see app.py's THREE_D dispatch, which used to call
+        this via the CPU-facing wrapper, download to numpy, then
+        immediately re-upload that same array into apply_3d_visualization)
+        can stay GPU-resident instead of paying two full round trips for
+        one logical operation - measured transfer cost (upload+download)
+        as ~11x the actual compute cost on this hardware at 1280x800, so
+        that second round trip was pure waste, not algorithmic work.
+        """
+        import torch
+        import torch.nn.functional as F
+
+        kernel = self._fw_sobel_kernel
 
         def to_gray(t):
             # Standard BGR2GRAY luma weights, matches cv2.cvtColor's convention.
@@ -1020,9 +1041,6 @@ class FusionProcessor:
         def sobel_dxdy(gray):
             padded = F.pad(gray, (1, 1, 1, 1), mode='reflect')
             return F.conv2d(padded, kernel)
-
-        thermal_t = to_tensor(thermal)
-        rgb_t = to_tensor(rgb)
 
         thermal_strength = sobel_dxdy(to_gray(thermal_t)).abs()
         rgb_strength = sobel_dxdy(to_gray(rgb_t)).abs()
@@ -1044,8 +1062,7 @@ class FusionProcessor:
 
         diff = thermal_t - rgb_t                     # (1, 3, H, W)
         result = rgb_t + thermal_weight * diff        # broadcast (1,1,H,W) against (1,3,H,W)
-        result = torch.clamp(result, 0, 255)
-        return result.squeeze(0).permute(1, 2, 0).contiguous().to(torch.uint8).cpu().numpy()
+        return torch.clamp(result, 0, 255)
 
     def _feature_weighted_cpu(self, thermal: np.ndarray, rgb: np.ndarray) -> np.ndarray:
         """

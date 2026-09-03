@@ -567,14 +567,18 @@ def _gradient_colorize_gpu(normalized_01_t, gradient_style: str, device):
     return colored.permute(0, 3, 1, 2)  # (1, 3, H, W)
 
 
-def apply_depth_relief_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5,
-                            gradient_style: str = "color", **_unused) -> np.ndarray:
-    """GPU (torch/CUDA) implementation of apply_depth_relief - see its docstring for the algorithm."""
+def _apply_depth_relief_gpu_tensor(img_t, depth_t, strength: float = 0.5,
+                                    gradient_style: str = "color"):
+    """
+    All-tensor core of apply_depth_relief_gpu - takes img_t (1,3,H,W) and
+    depth_t (1,1,H,W) float32 GPU tensors, returns a (1,3,H,W) float32
+    GPU tensor (0-255 range BGR), no upload/download. See
+    apply_depth_relief_gpu's docstring for the algorithm; see
+    apply_3d_visualization_fused for why this split exists.
+    """
     import torch
     import torch.nn.functional as F
 
-    img_t = torch.from_numpy(image_bgr).to(_torch_device, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
-    depth_t = torch.from_numpy(depth_m).to(_torch_device, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
     # Snapshot before _depth_to_normal_gpu's internal blur, for the tint
     # below - see the CPU version's identical depth_for_tint comment for
     # why (the blurred value measurably diverges between CPU's
@@ -603,7 +607,17 @@ def apply_depth_relief_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength:
     tint = _gradient_colorize_gpu(normalized, gradient_style, _torch_device)
     tint_amount = strength * 0.35
     result = result * (1.0 - tint_amount) + tint * tint_amount
-    result = torch.clamp(result, 0, 255)
+    return torch.clamp(result, 0, 255)
+
+
+def apply_depth_relief_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5,
+                            gradient_style: str = "color", **_unused) -> np.ndarray:
+    """GPU (torch/CUDA) implementation of apply_depth_relief - see its docstring for the algorithm."""
+    import torch
+
+    img_t = torch.from_numpy(image_bgr).to(_torch_device, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
+    depth_t = torch.from_numpy(depth_m).to(_torch_device, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+    result = _apply_depth_relief_gpu_tensor(img_t, depth_t, strength, gradient_style)
     return result.squeeze(0).permute(1, 2, 0).contiguous().to(torch.uint8).cpu().numpy()
 
 
@@ -809,6 +823,103 @@ def apply_3d_visualization(mode: str, image_bgr: np.ndarray, depth_m: np.ndarray
     print(f"[PROFILE_3D_VIZ] path=CPU(full) mode={mode} shape={image_bgr.shape} "
           f"ms={(time.perf_counter() - _t0) * 1000:.2f}", flush=True)
     return result
+
+
+# mode -> tensor-core GPU function, for apply_3d_visualization_fused. Only
+# "relief" is refactored into a tensor-in/tensor-out core so far (the mode
+# exercised this session) - fog/contours/colorize/anaglyph could get the
+# same treatment later the same way, but until they are,
+# apply_3d_visualization_fused falls back to the existing two-round-trip
+# path for them, same as it does when either GPU isn't ready at all.
+_GPU_MODE_FN_TENSOR = {
+    "relief": _apply_depth_relief_gpu_tensor,
+}
+
+
+def apply_3d_visualization_fused(mode: str, thermal_colorized: np.ndarray, rgb_frame: np.ndarray,
+                                  depth_m: np.ndarray, fusion_processor, strength: float = 0.5,
+                                  **kwargs) -> np.ndarray:
+    """
+    Chains FusionProcessor's feature_weighted GPU blend directly into this
+    module's depth-shading GPU pass without downloading the intermediate
+    result to numpy and re-uploading it - the two-step alternative
+    (fusion_processor.process(...) then apply_3d_visualization(...)) pays
+    a full CPU<->GPU round trip for data that never needed to leave the
+    GPU. Measured on this hardware: transfer (upload+download) costs
+    ~11x the actual compute for these frame sizes, so eliminating one
+    round trip is the real win, not a compute optimization.
+
+    Falls back to the existing two-call path (still correct, just not
+    fused) whenever either GPU path isn't ready, or mode isn't one of
+    the tensor-core-refactored modes in _GPU_MODE_FN_TENSOR - this
+    mirrors every other GPU path in this codebase: a pure bonus when
+    available, never a requirement (see _GPU_MODE_FN_TENSOR's comment
+    and the min-spec reasoning in fusion_processor.py's feature_weighted
+    GPU state).
+
+    Args:
+        mode: one of THREE_D_MODES
+        thermal_colorized: (H, W, 3) uint8 BGR - the palette-applied
+            thermal frame (FusionProcessor's own "thermal" input)
+        rgb_frame: (H, W, 3) uint8 BGR, aligned to thermal_colorized
+        depth_m: (H, W) float32 depth map in meters, same resolution
+        fusion_processor: the FusionProcessor instance whose
+            fusion_priority/fusion_intensity drive the blend
+        strength/kwargs: passed through to the depth-shading stage,
+            same as apply_3d_visualization
+
+    Returns:
+        (H, W, 3) uint8 BGR - identical in shape/dtype to chaining
+        fusion_processor.process() into apply_3d_visualization()
+        directly, though not bit-identical: skipping the intermediate
+        uint8 quantization step means the shading stage sees the blend's
+        true float32 output instead of an already-8-bit-rounded copy of
+        it - a strictly more precise input, not a different algorithm.
+    """
+    tensor_fn = _GPU_MODE_FN_TENSOR.get(mode)
+    if (tensor_fn is not None
+            and fusion_processor._resolve_feature_weighted_gpu()
+            and _resolve_3d_gpu()):
+        try:
+            import torch
+            _t0 = time.perf_counter()
+            device = fusion_processor._fw_torch_device
+
+            # process() normally does this resize (RealSense's RGB and
+            # thermal are very likely different native resolutions, e.g.
+            # 1280x800 vs a Boson's 640x512) before ever reaching
+            # _feature_weighted_gpu - calling the tensor core directly
+            # bypasses process() entirely, so it has to happen here
+            # instead. CPU-side (cv2.warpPerspective/resize), same as it
+            # always was in the two-step path - only the two GPU stages
+            # are being fused, not this.
+            rgb_aligned = fusion_processor.align_rgb_to_thermal(
+                rgb_frame, thermal_colorized.shape[:2]
+            )
+
+            def to_tensor_chw(img):
+                t = torch.from_numpy(img).to(device, dtype=torch.float32)
+                return t.permute(2, 0, 1).unsqueeze(0)
+
+            thermal_t = to_tensor_chw(thermal_colorized)
+            rgb_t = to_tensor_chw(rgb_aligned)
+            depth_t = torch.from_numpy(depth_m).to(device, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+
+            base_2d_t = fusion_processor._feature_weighted_gpu_tensor(thermal_t, rgb_t)
+            result_t = tensor_fn(base_2d_t, depth_t, strength, **kwargs)
+            result = result_t.squeeze(0).permute(1, 2, 0).contiguous().to(torch.uint8).cpu().numpy()
+
+            # Not throttled by frame count (this function itself is only
+            # called at the caller's own throttled 3D-viz update rate,
+            # same as apply_3d_visualization's own print above).
+            print(f"[PROFILE_3D_VIZ_FUSED] mode={mode} shape={thermal_colorized.shape} "
+                  f"ms={(time.perf_counter() - _t0) * 1000:.2f}", flush=True)
+            return result
+        except Exception as e:
+            logger.warning(f"3D Fusion fused GPU path failed, falling back to two-step: {e}")
+
+    fusion_rgb = fusion_processor.process(thermal_colorized, rgb_frame)
+    return apply_3d_visualization(mode, fusion_rgb, depth_m, strength=strength, **kwargs)
 
 
 class Fusion3DPointCloudView(QWidget):
