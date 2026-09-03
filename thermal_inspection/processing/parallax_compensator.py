@@ -229,10 +229,14 @@ class DepthEstimator:
         Wire a real hardware depth source for method="realsense".
 
         Args:
-            source_fn: Callable[[], Optional[np.ndarray]] returning the
-                latest depth map in meters (float32, aligned to the RGB
-                frame), or None to clear the source (e.g. when the
-                RealSense camera is deactivated).
+            source_fn: Callable[[Optional[Tuple[int, int]]], Optional[np.ndarray]]
+                returning the latest depth map in meters (float32, aligned
+                to the RGB frame), or None to clear the source (e.g. when
+                the RealSense camera is deactivated). Takes an optional
+                (width, height) to resize to - passed through so the
+                resize can happen on the source's own cheaper raw data
+                before an expensive per-pixel conversion, not after (see
+                RGBCameraRealSense.get_depth_frame).
         """
         self._hardware_depth_source = source_fn
 
@@ -433,11 +437,18 @@ class DepthEstimator:
             )
             return None
 
-        depth_m = self._hardware_depth_source()
+        h, w = rgb_image.shape[:2]
+        # Request the source pre-resized to (w, h) - lets it resize its own
+        # cheap raw data BEFORE an expensive per-pixel conversion (see
+        # RGBCameraRealSense.get_depth_frame) rather than after, same class
+        # of fix as the 4K-RGB depth-estimation cost already fixed for the
+        # simplified/midas/depthanything methods. Still checked/resized
+        # here too as a cheap no-op safety net in case the source ignores
+        # resize_to or wasn't updated to support it.
+        depth_m = self._hardware_depth_source((w, h))
         if depth_m is None:
             return None
 
-        h, w = rgb_image.shape[:2]
         if depth_m.shape[:2] != (h, w):
             depth_m = cv2.resize(depth_m, (w, h), interpolation=cv2.INTER_NEAREST)
 
@@ -1032,8 +1043,16 @@ class ParallaxCompensator:
             depth_map = self.depth_estimator.estimate_depth(rgb_for_depth)
             self.last_depth_time_ms = (time.perf_counter() - _t_depth_start) * 1000.0
             if depth_map is None:
-                logger.warning("Depth estimation failed - returning uncorrected thermal frame")
-                return thermal_frame, rgb_frame
+                # Depth-based correction can't run this frame (e.g.
+                # depth_method="realsense" but no RealSense hardware is
+                # actually providing frames right now), but a manual
+                # shift/FOV crop-zoom may still be configured - dropping
+                # to a bare, completely uncorrected pass-through silently
+                # discarded those too, every single frame depth failed,
+                # not just the depth-based component. Fall back to
+                # whatever static correction is available instead.
+                logger.warning("Depth estimation failed - falling back to manual shift/crop only")
+                return self._apply_manual_shift_only(thermal_frame), rgb_frame
 
             self.last_depth_map = depth_map
 
@@ -1106,8 +1125,12 @@ class ParallaxCompensator:
             depth_map = self.depth_estimator.estimate_depth(rgb_for_depth)
             self.last_depth_time_ms = (time.perf_counter() - _t_depth_start) * 1000.0
             if depth_map is None:
-                logger.warning("Depth estimation failed - returning uncorrected RGB frame")
-                return thermal_frame, rgb_frame
+                # See _apply_correction_thermal_target's identical fallback
+                # reasoning - don't drop a configured manual shift/FOV
+                # crop-zoom just because depth-based correction couldn't
+                # run this frame.
+                logger.warning("Depth estimation failed - falling back to manual shift/crop only")
+                return thermal_frame, self._apply_manual_shift_only_rgb(rgb_frame)
 
             self.last_depth_map = depth_map
 

@@ -21,6 +21,7 @@ import logging
 import time
 from typing import Optional, Tuple, Dict, Any
 
+import cv2
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -159,16 +160,31 @@ class RGBCameraRealSense:
             logger.error(f"Error reading RealSense frame: {e}")
             return False, None
 
-    def get_depth_frame(self) -> Optional[np.ndarray]:
+    def get_depth_frame(self, resize_to: Optional[Tuple[int, int]] = None) -> Optional[np.ndarray]:
         """
         Real metric depth map (meters, float32, H x W) aligned to the color
         frame from the most recent read(). None if no frame has been read
         yet or the last frame had no valid depth data.
+
+        Args:
+            resize_to: Optional (width, height) to resize down to. When the
+                caller only needs a smaller working resolution (e.g. the
+                parallax compensator resizes this down to thermal's
+                resolution immediately afterward anyway), pass it here so
+                the resize happens on the small raw uint16 array BEFORE
+                the float32 conversion+scale multiply, not after - doing
+                the conversion at full native depth-sensor resolution
+                (e.g. 1280x800) only to immediately discard most of it in
+                a downstream resize was costing real time per frame for no
+                benefit, the same class of waste fixed earlier for the
+                MiDaS/DepthAnything/simplified depth paths.
         """
         if self._last_depth_frame is None:
             return None
         try:
             raw = np.asanyarray(self._last_depth_frame.get_data())  # uint16, raw device units
+            if resize_to is not None and resize_to != (raw.shape[1], raw.shape[0]):
+                raw = cv2.resize(raw, resize_to, interpolation=cv2.INTER_NEAREST)
             return raw.astype(np.float32) * self.depth_scale
         except Exception as e:
             logger.error(f"Error reading RealSense depth frame: {e}")

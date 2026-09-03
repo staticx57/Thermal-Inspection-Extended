@@ -1493,15 +1493,31 @@ class ThermalInspectionApp:
             # viewport's THREE_D mode (further below, in the display_frame
             # selection) and by the settings tab's point-cloud preview.
             #
-            # _thermal_aligned_realsense deliberately checks the depth
-            # METHOD is specifically "realsense", not just "any correction
-            # active": the thermal camera has no depth information of its
-            # own, so its alignment to RGB is only as trustworthy as
-            # whatever depth data parallax correction actually used to
-            # compute it. If that were "simplified"/MiDaS/DepthAnything (an
-            # estimate) while relief-shading uses RealSense's real depth,
-            # the two would be geometrically inconsistent with each other
-            # even though "some" alignment is nominally on.
+            # _thermal_aligned_realsense requires the depth METHOD be
+            # specifically "realsense" ONLY when depth-based (per-pixel)
+            # correction is actually driving the shift: the thermal camera
+            # has no depth information of its own, so a per-pixel shift's
+            # alignment is only as trustworthy as whatever depth data it
+            # was computed from - if that were "simplified"/MiDaS/
+            # DepthAnything (an estimate) while relief-shading uses
+            # RealSense's real depth, the two would be geometrically
+            # inconsistent with each other even though "some" alignment is
+            # nominally on.
+            #
+            # A manual-shift-only correction (parallax_compensator.enabled
+            # is False, just a configured dx/dy/zoom) doesn't derive its
+            # offset from ANY depth estimate at all - it's a constant
+            # translation, entirely independent of whichever depth_method
+            # string happens to be selected in the dropdown - so it's
+            # equally valid regardless of that setting. Previously this
+            # required method=="realsense" even in that case, forcing
+            # users who only wanted a simple manual offset/crop (no
+            # per-pixel depth-based correction at all) to also select
+            # "realsense" just to unlock 3D Fusion - which then risked
+            # depth estimation failing (e.g. no RealSense hardware
+            # actually providing frames) and silently dropping the manual
+            # correction too (see apply_correction()'s depth-estimation-
+            # failed fallback).
             _rs_backend = None
             active_rgb = self.plugin_host.get_active_camera('rgb') if self.plugin_host else None
             if active_rgb and hasattr(active_rgb.backend, 'get_point_cloud'):
@@ -1510,7 +1526,10 @@ class ThermalInspectionApp:
             _thermal_aligned_realsense = bool(
                 self.parallax_compensator
                 and self.parallax_compensator.has_correction()
-                and self.parallax_compensator.depth_estimator.method == "realsense"
+                and (
+                    not self.parallax_compensator.enabled
+                    or self.parallax_compensator.depth_estimator.method == "realsense"
+                )
             )
             if _rs_backend is not None and _rs_backend is not self._last_3d_hw_available_reported:
                 self._gui_invoke("set_fusion_3d_hardware_available", True)
