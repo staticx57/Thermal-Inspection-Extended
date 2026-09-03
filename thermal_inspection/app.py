@@ -2307,14 +2307,20 @@ class ThermalInspectionApp:
 
     def update_calibration_gui(self):
         """Push the current calibration statistics to the GUI calibration panel."""
-        if not self.gui:
+        if not self.gui or not hasattr(self.gui, 'calibration_panel'):
             return
+        panel = self.gui.calibration_panel
+        calibrator = self.calibration_manager.radiometric_calibrator
+        points = calibrator.calibration_points if calibrator else []
         stats = self.calibration_manager.get_calibration_stats()
-        if not stats:
-            return
-        if hasattr(self.gui, 'calibration_panel') and hasattr(self.gui.calibration_panel, 'update_stats'):
-            self.gui.calibration_panel.update_stats(stats)
-        logger.debug(f"Calibration GUI updated: {stats.get('num_points', 0)} points")
+        panel.update_calibration_points(points)
+        panel.set_calibration_status(bool(stats.get('is_calibrated')), stats)
+        # Manager auto-exits add-point mode after one click ("only one point
+        # per activation") - resync the checkable button so it doesn't keep
+        # showing "Active" once the backend has already turned the mode off.
+        if not self.calibration_manager.calibration_add_point_mode:
+            panel.disable_add_point_mode()
+        logger.debug(f"Calibration GUI updated: {stats.get('point_count', 0)} points")
 
     # --- Isotherm backward-compat delegations (prefer event bus) ---
     def set_isotherm_enabled(self, enabled: bool):

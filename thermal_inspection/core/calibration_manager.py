@@ -123,7 +123,8 @@ class CalibrationManager:
         self.radiometric_calibrator.add_calibration_point(
             reference_temp=self.calibration_reference_temp,
             measured_temp=measured_temp,
-            raw_value=raw_val,
+            x=x,
+            y=y,
         )
         logger.info(
             f"Calibration point added: ref={self.calibration_reference_temp:.1f}°C, "
