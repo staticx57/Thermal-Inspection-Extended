@@ -1701,7 +1701,7 @@ class ThermalInspectionApp:
                     self._last_roi_stats_time = _now_roi
                     stats_source = thermal_16bit if thermal_16bit is not None else thermal_frame
                     roi_stats = {}
-                    for roi in self.roi_controller.rois.values():
+                    for roi in self.roi_controller.rois:
                         if not roi.active:
                             continue
                         try:
@@ -2014,7 +2014,7 @@ class ThermalInspectionApp:
 
             # Non-blocking enqueue for background video recording
             if self.media_manager and self.media_manager.recording_enabled:
-                rois_snap = list(self.roi_controller.rois.values()) if self.roi_controller and hasattr(self.roi_controller, 'rois') else []
+                rois_snap = list(self.roi_controller.rois) if self.roi_controller and hasattr(self.roi_controller, 'rois') else []
                 stats_snap = analysis_results.get('stats')
                 self.media_manager.enqueue_frame(
                     display_frame,

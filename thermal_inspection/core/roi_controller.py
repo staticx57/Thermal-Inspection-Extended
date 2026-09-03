@@ -257,6 +257,19 @@ class ROIController:
             return self.roi_manager.get_all_rois()
         return []
 
+    def get_roi(self, roi_id: str) -> Optional[Any]:
+        """Get a specific ROI by ID from manager.
+
+        Args:
+            roi_id: ID of ROI to retrieve
+
+        Returns:
+            The ROI object, or None if not found or no manager set.
+        """
+        if self.roi_manager and hasattr(self.roi_manager, 'get_roi'):
+            return self.roi_manager.get_roi(roi_id)
+        return None
+
     @property
     def rois(self) -> List:
         """Shortcut for getting all ROIs."""
