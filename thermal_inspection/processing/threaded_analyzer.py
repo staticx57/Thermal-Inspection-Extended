@@ -43,6 +43,14 @@ class ThreadedAnalyzer:
         self.thread: Optional[threading.Thread] = None
         self.analysis_count = 0
         self.error_count = 0
+        # Last completed analyze() call's wall time - feeds the Anomaly
+        # panel's "Performance" section (update_performance()), previously
+        # built but never actually populated by anything. A plain float
+        # read/write is fine without a lock here: the GIL makes it atomic,
+        # and a UI display value tolerates reading a slightly-stale number
+        # more happily than it tolerates lock overhead in the hot analysis
+        # loop.
+        self.last_analysis_time_ms = 0.0
 
     def start(self):
         if self.running:
@@ -86,7 +94,9 @@ class ThreadedAnalyzer:
                 continue
 
             try:
+                _t_start = time.perf_counter()
                 results = self.thermal_analyzer.analyze(frame)
+                self.last_analysis_time_ms = (time.perf_counter() - _t_start) * 1000.0
                 with self._results_lock:
                     self._results = results
                 self.analysis_count += 1

@@ -180,6 +180,9 @@ class ThermalInspectionApp:
         # metric, not something that needs updating every single frame.
         self._last_parallax_perf_update_time = 0.0
         self._parallax_perf_update_interval_s = 0.5
+        # Same, for the Anomaly panel's Performance section.
+        self._last_anomaly_perf_update_time = 0.0
+        self._anomaly_perf_update_interval_s = 0.5
         # Cache for the main viewport's THREE_D display frame - see its
         # branch in the display_frame selection for why this is throttled
         # instead of recomputed every frame.
@@ -1583,6 +1586,20 @@ class ThermalInspectionApp:
             # Enrich analysis with proc_results (motion, edges)
             analysis_results['motion_detections'] = proc_results.get('motion_detections', [])
             analysis_results['edge_clusters'] = proc_results.get('edge_clusters', [])
+
+            # Anomaly panel's "Performance" section - built with a working
+            # update method but nothing ever called it, same as parallax's
+            # equivalent was before this session. Throttled: a display
+            # metric, not something that needs updating every single frame.
+            if self.thermal_analyzer:
+                _now_anom_perf = time.time()
+                if _now_anom_perf - self._last_anomaly_perf_update_time >= self._anomaly_perf_update_interval_s:
+                    self._last_anomaly_perf_update_time = _now_anom_perf
+                    self._gui_invoke(
+                        "_update_anomaly_performance",
+                        self.threaded_analyzer.last_analysis_time_ms,
+                        self._analysis_submit_interval_s * 1000.0,
+                    )
 
             # 3a. Per-ROI temperature stats for the ROI Manager panel - throttled
             # per _roi_stats_interval_s (see its definition for why).

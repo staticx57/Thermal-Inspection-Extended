@@ -250,6 +250,22 @@ class ManualThresholdWidget(QWidget):
         self.anomaly_percentage_label.setText(f"Anomalies: {anomaly_percentage:.2f}%")
         self.anomaly_count_label.setText(f"{anomaly_count:,} / {total_pixels:,} pixels")
 
+    def set_raw_mode_available(self, available: bool):
+        """
+        Enable/disable "Advanced (Raw)" mode based on whether the active
+        thermal source is actually producing 16-bit radiometric frames.
+        Raw-value thresholds (e.g. 8000) are compared directly against
+        whatever frame reaches detect_threshold_anomalies() - against an
+        8-bit AGC-processed frame (0-255, from a non-radiometric camera or
+        8-bit estimation mode) they can never match, silently making
+        detection permanently a no-op rather than erroring. Percentage
+        mode is unaffected - it derives its actual thresholds from
+        whatever min/max the current frame contains, at any bit depth.
+        """
+        self.advanced_radio.setEnabled(available)
+        if not available and self.advanced_radio.isChecked():
+            self.percent_radio.click()
+
 
 class AnomalyWidget(QWidget):
     """Anomaly priority control panel widget."""

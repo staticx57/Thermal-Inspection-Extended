@@ -741,6 +741,9 @@ class InspectionAppWindow(QMainWindow):
         bus.calibration_gui_update_requested.connect(self._on_bus_calibration_gui_update)
         bus.parallax_auto_alignment_result.connect(self._on_bus_parallax_auto_alignment_result)
 
+        # --- Manual Threshold Anomaly Detection ---
+        bus.threshold_stats_updated.connect(self._on_bus_threshold_stats_updated)
+
         # --- Recording ---
         bus.recording_state_changed.connect(self._on_bus_recording_state_changed)
 
@@ -979,6 +982,7 @@ class InspectionAppWindow(QMainWindow):
             # actively misleading, not just redundant.
             is_rad = bool((info or {}).get('radiometric_capable', True))
             self.radiometric_panel.set_8bit_estimation_available(not is_rad)
+            self.update_radiometric_panel_availability(is_rad)
 
     def _on_bus_sdk_disconnected(self, role: str):
         """React to camera SDK disconnection."""
@@ -992,6 +996,7 @@ class InspectionAppWindow(QMainWindow):
 
         if role == 'thermal' and hasattr(self, 'radiometric_panel'):
             self.radiometric_panel.set_8bit_estimation_available(False)
+            self.update_radiometric_panel_availability(False)
 
     def _on_bus_camera_connected(self, role: str, capabilities: dict):
         """React to camera hardware hotplug connection and focus active panel."""
@@ -1141,6 +1146,11 @@ class InspectionAppWindow(QMainWindow):
         """Refresh calibration GUI after backend state change."""
         if self.app and hasattr(self.app, 'update_calibration_gui'):
             self.app.update_calibration_gui()
+
+    def _on_bus_threshold_stats_updated(self, anomaly_percentage: float, anomaly_count: int, total_pixels: int):
+        """Push manual-threshold detection stats to the panel's Detection Statistics display."""
+        if hasattr(self, 'manual_threshold_widget'):
+            self.manual_threshold_widget.update_statistics(anomaly_percentage, anomaly_count, total_pixels)
 
     # --- Recording feedback handlers ---
 
@@ -2549,6 +2559,22 @@ class InspectionAppWindow(QMainWindow):
         if hasattr(self, 'parallax_panel'):
             self.parallax_panel.set_performance_metrics(depth_time_ms, correction_time_ms)
 
+    def _update_anomaly_performance(self, analysis_time_ms: float, submit_interval_ms: float):
+        """
+        Push the background analyzer's real timing to the Anomaly panel's
+        Performance section (built but never populated before this).
+        "Overhead" here means the analyzer's own processing time as a
+        percentage of its throttled submission interval - over 100% means
+        it can't keep up with the rate frames are being submitted at, not
+        that it's competing with the render thread (it runs on its own
+        background thread specifically so it doesn't block that).
+        """
+        if not hasattr(self, 'anomaly_widget'):
+            return
+        fps = 1000.0 / analysis_time_ms if analysis_time_ms > 0 else 0.0
+        overhead_pct = (analysis_time_ms / submit_interval_ms) * 100.0 if submit_interval_ms > 0 else 0.0
+        self.anomaly_widget.update_performance(fps, analysis_time_ms, overhead_pct)
+
     def update_thermal_analysis(self, stats: Optional[ThermalStatistics],
                                 hot_spots: List[HotSpot],
                                 cold_spots: List[ColdSpot],
@@ -2595,6 +2621,8 @@ class InspectionAppWindow(QMainWindow):
             self.isotherm_panel.setEnabled(is_radiometric)
         if hasattr(self, 'env_comp_panel'):
             self.env_comp_panel.setEnabled(is_radiometric)
+        if hasattr(self, 'manual_threshold_widget'):
+            self.manual_threshold_widget.set_raw_mode_available(is_radiometric)
 
     # ========================================================================
     # Camera Status / Hot-Plug Notifications
