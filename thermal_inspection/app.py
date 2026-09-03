@@ -1470,16 +1470,33 @@ class ThermalInspectionApp:
             # whenever it's visible and its own mode requires it - otherwise
             # it would silently show unaligned thermal+depth while claiming
             # (via _thermal_aligned_realsense) to be aligned.
+            #
+            # Critically, this must NOT feed into the SAME
+            # thermal_frame/rgb_frame the main viewport uses below - doing
+            # so previously meant simply having the 3D Fusion settings tab
+            # open forced every OTHER view mode (Thermal Only included) to
+            # show the corrected/cropped feed too, exactly the standalone-
+            # mode contamination bug fixed earlier, just reintroduced
+            # through a second path - confirmed live twice now ("when the
+            # 3d fusion tab is open but the view is thermal, the view is
+            # overridden and is a fusion mode even though it is set to
+            # thermal only" / "if I switch to tab anything other than 3d
+            # fusion it works as it should"). The preview's own need is
+            # tracked separately (_corrected_thermal_for_preview/
+            # _corrected_rgb_for_preview) and only reaches its own update
+            # call further below, never the main viewport's display_frame.
             _3d_panel = getattr(self.gui, 'fusion_3d_panel', None) if self.gui else None
             _preview = getattr(_3d_panel, 'point_cloud_view', None) if _3d_panel else None
             _preview_needs_alignment = bool(
                 _preview is not None and _preview.isVisible()
                 and _preview.needs_thermal_alignment()
             )
-            _view_mode_needs_thermal_rgb_alignment = _preview_needs_alignment or self.view_mode in (
+            _main_view_needs_thermal_rgb_alignment = self.view_mode in (
                 ViewMode.FUSION, ViewMode.THREE_D,
             )
-            if (_view_mode_needs_thermal_rgb_alignment
+            _corrected_thermal_for_preview = None
+            _corrected_rgb_for_preview = None
+            if ((_main_view_needs_thermal_rgb_alignment or _preview_needs_alignment)
                     and self.parallax_compensator
                     and self.parallax_compensator.has_correction()
                     and thermal_frame is not None
@@ -1490,13 +1507,16 @@ class ThermalInspectionApp:
                     corrected_thermal, corrected_rgb = self.parallax_compensator.apply_correction(
                         thermal_frame, safe_rgb
                     )
-                    thermal_frame = corrected_thermal
-                    # Only overwrite rgb_frame when a real corrected frame
-                    # came back - safe_rgb was None (no real RGB available)
-                    # returns None here too, and reassigning that would
-                    # clobber a legitimate placeholder frame downstream.
-                    if corrected_rgb is not None:
-                        rgb_frame = corrected_rgb
+                    _corrected_thermal_for_preview = corrected_thermal
+                    _corrected_rgb_for_preview = corrected_rgb if corrected_rgb is not None else safe_rgb
+                    if _main_view_needs_thermal_rgb_alignment:
+                        thermal_frame = corrected_thermal
+                        # Only overwrite rgb_frame when a real corrected frame
+                        # came back - safe_rgb was None (no real RGB available)
+                        # returns None here too, and reassigning that would
+                        # clobber a legitimate placeholder frame downstream.
+                        if corrected_rgb is not None:
+                            rgb_frame = corrected_rgb
                     # Parallax panel's "Performance" section - built with a
                     # working update method but nothing ever called it.
                     # Throttled: this is a display metric, not something
@@ -1634,9 +1654,27 @@ class ThermalInspectionApp:
                         cloud = _rs_backend.get_point_cloud()
                         if cloud is not None:
                             vertices, uv = cloud
+                            # Use the separately-tracked corrected frames
+                            # when the main viewport didn't already apply
+                            # them (a standalone mode) - colorized_thermal/
+                            # rgb_frame are the raw feed in that case, and
+                            # the preview specifically needs alignment
+                            # regardless of what the main viewport shows.
+                            if _corrected_thermal_for_preview is not None and not _main_view_needs_thermal_rgb_alignment:
+                                _preview_rgb = (_corrected_rgb_for_preview
+                                                if _corrected_rgb_for_preview is not None else rgb_frame)
+                                if self.palette_manager and _corrected_thermal_for_preview.dtype != np.uint8:
+                                    _preview_colorized = self.palette_manager.apply_composite_palette(
+                                        _corrected_thermal_for_preview, self.roi_controller.roi_manager
+                                    )
+                                else:
+                                    _preview_colorized = _corrected_thermal_for_preview
+                            else:
+                                _preview_rgb = rgb_frame
+                                _preview_colorized = colorized_thermal
                             self._gui_invoke(
                                 "update_fusion_3d_view", vertices, uv,
-                                rgb_frame.copy(), colorized_thermal.copy()
+                                _preview_rgb.copy(), _preview_colorized.copy()
                             )
                     except Exception as _rs3d_err:
                         logger.debug(f"3D Fusion point-cloud update failed: {_rs3d_err}")
