@@ -980,11 +980,25 @@ class ParallaxCompensator:
         Returns:
             Disparity map in pixels (H, W)
         """
+        # Real depth sources (e.g. RealSense) commonly use 0 = "no valid
+        # reading" (occlusion, reflective surface, out of range) -
+        # dividing by that produces inf, which crashes deep inside the
+        # crop-blanking logic (int(ceil(inf)) raises OverflowError),
+        # caught by apply_correction()'s broad exception handler and
+        # discarding the ENTIRE correction for that frame - manual shift
+        # and FOV crop-zoom included, not just the depth-based component.
+        # "simplified"'s synthetic depth is always > 0 so it never hits
+        # this; any real (variable) depth source can. Treat invalid/
+        # non-positive depth as "far away" (~5m, the far end of the
+        # realistic working range) - negligible disparity there rather
+        # than a runaway/undefined shift.
+        safe_depth = np.where(depth_map > 0.05, depth_map, 5.0)
+
         thermal_focal_px = (self.geometry.thermal_focal_length_mm /
                            self.geometry.thermal_sensor_width_mm *
                            self.geometry.thermal_resolution[0])
 
-        disparity_px = (self.geometry.baseline_mm * thermal_focal_px) / (depth_map * 1000.0)
+        disparity_px = (self.geometry.baseline_mm * thermal_focal_px) / (safe_depth * 1000.0)
 
         return disparity_px.astype(np.float32)
 
@@ -1006,11 +1020,16 @@ class ParallaxCompensator:
         Returns:
             Disparity map in pixels (H, W), in RGB's pixel space
         """
+        # See compute_disparity()'s identical guard - real depth sources'
+        # 0="no valid reading" pixels would otherwise divide to inf and
+        # crash the crop-blanking logic, discarding the entire correction.
+        safe_depth = np.where(depth_map > 0.05, depth_map, 5.0)
+
         rgb_focal_px = (self.geometry.rgb_focal_length_mm /
                        self.geometry.rgb_sensor_width_mm *
                        rgb_width_px)
 
-        disparity_px = (self.geometry.baseline_mm * rgb_focal_px) / (depth_map * 1000.0)
+        disparity_px = (self.geometry.baseline_mm * rgb_focal_px) / (safe_depth * 1000.0)
 
         return disparity_px.astype(np.float32)
 
