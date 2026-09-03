@@ -47,6 +47,7 @@ _torch_kernels = None  # (sobel_x, sobel_y, gauss_kx, gauss_ky) tensors, built o
 
 try:
     import pyqtgraph.opengl as gl
+    from pyqtgraph import Vector
     GL_AVAILABLE = True
 except ImportError:
     GL_AVAILABLE = False
@@ -537,10 +538,23 @@ class Fusion3DPointCloudView(QWidget):
 
         if not self._camera_auto_framed:
             # Frame the camera around the actual data instead of a blind
-            # fixed guess - a scene's real depth range varies a lot.
-            median_depth = float(np.median(vertices[:, 2]))
+            # fixed guess - a scene's real depth range varies a lot. This
+            # previously only set `distance`, leaving the orbit pivot
+            # (`pos`/opts['center']) at pyqtgraph's default of the world
+            # origin - RealSense point clouds are camera-space (X right,
+            # Y down, Z forward from the sensor, roughly 0.3-5m out), not
+            # centered anywhere near (0,0,0), so the camera was orbiting
+            # around a point nowhere near the actual cloud: at the default
+            # elevation/azimuth this put much of the visible geometry off
+            # to one side or entirely out of frame regardless of distance,
+            # which is what "wrong angle and wrong zoom" on startup was.
+            centroid = np.median(vertices, axis=0)
+            median_depth = float(centroid[2])
             if median_depth > 0:
-                self._gl_view.setCameraPosition(distance=median_depth * 2.0)
+                self._gl_view.setCameraPosition(
+                    pos=Vector(float(centroid[0]), float(centroid[1]), float(centroid[2])),
+                    distance=median_depth * 1.5,
+                )
             self._camera_auto_framed = True
 
         self._scatter.setData(pos=vertices, color=colors, size=2.0, pxMode=True)
