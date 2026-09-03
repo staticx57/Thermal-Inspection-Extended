@@ -149,6 +149,15 @@ class ThresholdDetectionResult:
     min_threshold: float
     max_threshold: Optional[float] = None
     timestamp: float = field(default_factory=time.time)
+    # Populated only in percentage mode (use_raw_values=False), where
+    # detect_threshold_anomalies computes them anyway to convert the
+    # percentage to an absolute threshold - GRADIENT_OVERLAY's severity
+    # calculation (apply_threshold_visualization) needs this same
+    # frame-wide min/max and reuses these instead of a second full-frame
+    # reduction when available. None in raw-value mode, where nothing
+    # upstream needed them yet.
+    frame_min: Optional[float] = None
+    frame_max: Optional[float] = None
 
 
 class ThermalAnalyzer:
@@ -1291,9 +1300,11 @@ class ThermalAnalyzer:
             )
 
         # Convert percentage to actual values if needed
+        frame_min: Optional[float] = None
+        frame_max: Optional[float] = None
         if not use_raw_values:
-            frame_min = np.min(thermal_frame)
-            frame_max = np.max(thermal_frame)
+            frame_min = float(np.min(thermal_frame))
+            frame_max = float(np.max(thermal_frame))
             frame_range = frame_max - frame_min
 
             # Convert percentage (0-100) to actual value
@@ -1333,7 +1344,9 @@ class ThermalAnalyzer:
             total_pixels=total_pixels,
             threshold_mode=threshold_mode,
             min_threshold=min_threshold,
-            max_threshold=max_threshold
+            max_threshold=max_threshold,
+            frame_min=frame_min,
+            frame_max=frame_max,
         )
 
     @staticmethod
@@ -1499,9 +1512,19 @@ class ThermalAnalyzer:
                 threshold_mode = detection_result.threshold_mode
                 min_t = detection_result.min_threshold
                 max_t = detection_result.max_threshold
+                # Percentage-mode detection already computed these to
+                # convert its percentage threshold to an absolute value -
+                # reuse rather than pay for a second full-frame min/max
+                # reduction. Only raw-value mode needs to compute it here
+                # (detect_threshold_anomalies has no reason to otherwise).
+                frame_min = detection_result.frame_min
+                frame_max = detection_result.frame_max
+                if frame_min is None or frame_max is None:
+                    frame_min = float(thermal_frame.min())
+                    frame_max = float(thermal_frame.max())
                 severity = self._gradient_severity(
                     sub_thermal, threshold_mode, min_t, max_t,
-                    float(thermal_frame.min()), float(thermal_frame.max()),
+                    frame_min, frame_max,
                 )
                 mask_binary = (sub_mask > 0).astype(np.float32)
                 alpha = severity * mask_binary * _GRADIENT_MAX_ALPHA  # float32, (h,w)
