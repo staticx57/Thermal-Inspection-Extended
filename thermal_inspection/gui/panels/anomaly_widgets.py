@@ -446,7 +446,12 @@ class AnomalyWidget(QWidget):
 
         self.detection_expand_btn = QPushButton("Expand Settings")
         self.detection_expand_btn.setCheckable(True)
-        self.detection_expand_btn.setMaximumHeight(28)
+        # A MaximumHeight cap (28px) forced this button to shrink below its
+        # natural size regardless of theme padding, squishing it visually -
+        # every other button in this panel (enable_toggle, main_toggle) uses
+        # setMinimumHeight instead, letting the button size itself
+        # comfortably while still guaranteeing a minimum click target.
+        self.detection_expand_btn.setMinimumHeight(30)
         detection_layout.addWidget(self.detection_expand_btn)
 
         self.detection_content = QWidget()
