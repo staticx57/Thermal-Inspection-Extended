@@ -1529,6 +1529,13 @@ class ThermalInspectionApp:
                             self.parallax_compensator.last_depth_time_ms,
                             self.parallax_compensator.last_correction_time_ms,
                         )
+                    if self.frame_count % 30 == 0:
+                        print(f"[PROFILE_PARALLAX] target={self.parallax_compensator.get_correction_target()} "
+                              f"method={self.parallax_compensator.depth_estimator.method} "
+                              f"enabled={self.parallax_compensator.enabled} "
+                              f"thermal_shape={thermal_frame.shape} "
+                              f"depth_ms={self.parallax_compensator.last_depth_time_ms:.2f} "
+                              f"correction_ms={self.parallax_compensator.last_correction_time_ms:.2f}", flush=True)
                 except Exception as _px_err:
                     logger.debug(f"Parallax correction failed: {_px_err}")
 
