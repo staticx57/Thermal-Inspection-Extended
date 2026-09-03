@@ -614,7 +614,7 @@ class InspectionAppWindow(QMainWindow):
         # (Camera panel signals are dynamically wired via _wire_plugin_panel during initialization)
 
         # === CALIBRATION PANEL ===
-        self._safe_connect("calibration_panel", "add_calibration_point_clicked", self._on_calibration_add_point_mode, "(calibration)")
+        self._safe_connect("calibration_panel", "add_point_mode_changed", self._on_calibration_add_point_mode, "(calibration)")
         self._safe_connect("calibration_panel", "compute_calibration_clicked", self._on_compute_calibration, "(calibration)")
         self._safe_connect("calibration_panel", "apply_calibration_toggled", self._on_apply_calibration_toggled, "(calibration)")
         self._safe_connect("calibration_panel", "clear_calibration_clicked", self._on_clear_calibration, "(calibration)")
@@ -2238,11 +2238,18 @@ class InspectionAppWindow(QMainWindow):
     # (Camera-specific control events are handled by _wire_plugin_panel and generic command dispatch)
 
     # === CALIBRATION HANDLERS ===
-    def _on_calibration_add_point_mode(self, reference_temp: float):
+    def _on_calibration_add_point_mode(self, enabled: bool, reference_temp: float):
+        # Tell the video overlay to route clicks here regardless of Spot
+        # Meter mode - the overlay's click-to-frame-coordinate mapping only
+        # ever ran when spot_meter_mode was on, so without this a click
+        # while only "Add Point" was checked emitted no signal at all.
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.set_calibration_add_point_mode(enabled)
+
         if self.event_bus:
-            self.event_bus.calibration_add_point_mode_changed.emit(True, reference_temp)
+            self.event_bus.calibration_add_point_mode_changed.emit(enabled, reference_temp)
         elif self.app and hasattr(self.app, 'set_calibration_add_point_mode'):
-            self.app.set_calibration_add_point_mode(True, reference_temp)
+            self.app.set_calibration_add_point_mode(enabled, reference_temp)
 
     def _on_compute_calibration(self, method: str, degree: int):
         if self.event_bus:

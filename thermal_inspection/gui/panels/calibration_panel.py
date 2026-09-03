@@ -28,7 +28,7 @@ class CalibrationPanel(QWidget):
     """
 
     # Signals
-    add_calibration_point_clicked = pyqtSignal(float)  # reference_temp
+    add_point_mode_changed = pyqtSignal(bool, float)  # enabled, reference_temp
     compute_calibration_clicked = pyqtSignal(str, int)  # method, degree
     apply_calibration_toggled = pyqtSignal(bool)  # enabled
     clear_calibration_clicked = pyqtSignal()
@@ -230,10 +230,13 @@ class CalibrationPanel(QWidget):
         # duplicated that and discarded the theme's border-radius/padding.
         if checked:
             self.add_point_btn.setText("🎯 Click Thermal View (Active)")
-            # Emit signal with current reference temperature
-            self.add_calibration_point_clicked.emit(self.ref_temp_spin.value())
         else:
             self.add_point_btn.setText("📍 Click Thermal View to Add Point")
+        # Emitted on both directions (not just enabling) so the backend and
+        # the video overlay's click routing (set_calibration_add_point_mode)
+        # actually turn off when the user manually unchecks this button -
+        # previously only the ON transition emitted anything at all.
+        self.add_point_mode_changed.emit(checked, self.ref_temp_spin.value())
 
     def _on_compute_calibration(self):
         """Handle compute calibration button click."""

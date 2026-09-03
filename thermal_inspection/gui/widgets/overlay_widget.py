@@ -50,6 +50,14 @@ class InspectionOverlayWidget(QWidget):
         # Measurement points
         self.measurement_points: List = []
         self.spot_meter_mode = False
+        # Independent of spot_meter_mode - calibration's "Add Point" mode
+        # needs the exact same click-to-frame-coordinate mapping (side by
+        # side/PIP aware) that spot metering already does, but a user
+        # adding a calibration point has no reason to also have Spot Meter
+        # mode turned on. Without this, clicking the video while only
+        # "Add Point" was checked emitted no click signal at all - the
+        # gate below only ever checked spot_meter_mode.
+        self.calibration_add_point_mode = False
 
         # ROI drawing state
         self.drawing_mode = False
@@ -259,6 +267,10 @@ class InspectionOverlayWidget(QWidget):
         self.spot_meter_mode = enabled
         if emit_signal:
             self.spot_meter_mode_changed.emit(enabled)
+
+    def set_calibration_add_point_mode(self, enabled: bool):
+        """Enable or disable calibration add-point click routing."""
+        self.calibration_add_point_mode = enabled
         if enabled:
             self.setCursor(Qt.CursorShape.CrossCursor)
         else:
@@ -659,8 +671,11 @@ class InspectionOverlayWidget(QWidget):
         click_x, click_y = click_wx, click_wy
         valid_click = True
 
-        # Handle spot meter mode
-        if self.spot_meter_mode:
+        # Handle spot meter mode - also used for calibration's "Add Point"
+        # mode, which needs the exact same click-to-frame-coordinate
+        # mapping (side-by-side/PIP aware) but has no reason to require
+        # Spot Meter mode to also be turned on.
+        if self.spot_meter_mode or self.calibration_add_point_mode:
             if self.current_view_mode == 'side_by_side':
                 # Mirrors _transform_thermal_coords(): FusionProcessor._side_by_side()
                 # hstacks the two panels at their own native widths (only height is
