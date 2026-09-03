@@ -1640,6 +1640,15 @@ class ThermalInspectionApp:
             if _thermal_aligned_realsense != self._last_3d_aligned_reported:
                 self._gui_invoke("set_fusion_3d_thermal_aligned", _thermal_aligned_realsense)
                 self._last_3d_aligned_reported = _thermal_aligned_realsense
+            if self.frame_count % 30 == 0:
+                print(f"[PROFILE_3D_ALIGN] aligned={_thermal_aligned_realsense} "
+                      f"rs_backend={_rs_backend is not None} "
+                      f"px_compensator={self.parallax_compensator is not None} "
+                      f"has_correction={self.parallax_compensator.has_correction() if self.parallax_compensator else None} "
+                      f"px_enabled={self.parallax_compensator.enabled if self.parallax_compensator else None} "
+                      f"method={self.parallax_compensator.depth_estimator.method if self.parallax_compensator else None} "
+                      f"target={self.parallax_compensator.get_correction_target() if self.parallax_compensator else None}",
+                      flush=True)
 
             # Point-cloud preview (3D Fusion settings tab) - independent of
             # the main viewport's view mode, so it's checkable any time;

@@ -568,7 +568,7 @@ def _gradient_colorize_gpu(normalized_01_t, gradient_style: str, device):
 
 
 def _apply_depth_relief_gpu_tensor(img_t, depth_t, strength: float = 0.5,
-                                    gradient_style: str = "color"):
+                                    gradient_style: str = "color", **_unused):
     """
     All-tensor core of apply_depth_relief_gpu - takes img_t (1,3,H,W) and
     depth_t (1,1,H,W) float32 GPU tensors, returns a (1,3,H,W) float32
