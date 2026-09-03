@@ -45,6 +45,16 @@ _TORCH_SPEC_AVAILABLE = importlib.util.find_spec("torch") is not None
 _torch_gpu_ready = False
 _torch_device = None
 _torch_kernels = None  # (sobel_x, sobel_y, gauss_kx, gauss_ky) tensors, built once per process
+# Diagnostic only - counts apply_3d_visualization's GPU-path calls so
+# torch.cuda memory stats print periodically instead of every call. See
+# their use in apply_3d_visualization: investigating "fps eventually
+# sinks" over a long session - if gpu_reserved_mb climbs without bound
+# over time while gpu_allocated_mb stays flat, that's the caching
+# allocator fragmenting from repeatedly seeing different tensor shapes
+# (512x640 vs 800x1280 vs whatever feature_weighted_gpu uses), not a
+# real leak - the fix would be a periodic torch.cuda.empty_cache() or
+# pinning to consistent shapes, not chasing a reference-counting bug.
+_apply_3d_viz_call_count = 0
 
 try:
     import pyqtgraph.opengl as gl
@@ -770,8 +780,16 @@ def apply_3d_visualization(mode: str, image_bgr: np.ndarray, depth_m: np.ndarray
         try:
             gpu_fn = _GPU_MODE_FN.get(mode, apply_depth_relief_gpu)
             result = gpu_fn(image_bgr, depth_m, strength=strength, **kwargs)
+            global _apply_3d_viz_call_count
+            _apply_3d_viz_call_count += 1
+            mem_str = ""
+            if _apply_3d_viz_call_count % 50 == 0:
+                import torch
+                allocated = torch.cuda.memory_allocated() / 1e6
+                reserved = torch.cuda.memory_reserved() / 1e6
+                mem_str = f" gpu_allocated_mb={allocated:.1f} gpu_reserved_mb={reserved:.1f}"
             print(f"[PROFILE_3D_VIZ] path=GPU mode={mode} shape={image_bgr.shape} "
-                  f"ms={(time.perf_counter() - _t0) * 1000:.2f}", flush=True)
+                  f"ms={(time.perf_counter() - _t0) * 1000:.2f}{mem_str}", flush=True)
             return result
         except Exception as e:
             logger.warning(f"3D Fusion GPU path failed, falling back to CPU: {e}")
@@ -992,9 +1010,19 @@ class Fusion3DPointCloudView(QWidget):
 
         n = vertices.shape[0]
         if n > MAX_PREVIEW_POINTS:
-            stride = n // MAX_PREVIEW_POINTS
-            vertices = vertices[::stride]
-            uv = uv[::stride]
+            # A fixed index count (not a stride-based [::stride], whose
+            # result length is ceil(n/stride) - drifting by one or more
+            # points on almost every frame as the actual valid-point count
+            # n fluctuates slightly with scene noise) keeps the array size
+            # passed to GLScatterPlotItem.setData() constant across
+            # frames. Its upload_vbo() only reuses the existing GPU
+            # buffer via a cheap write() when the byte size matches
+            # exactly - any size drift forces a full allocate() instead,
+            # so the previous approach was reallocating the GPU vertex
+            # buffer on nearly every update instead of ever reusing it.
+            idx = np.linspace(0, n - 1, MAX_PREVIEW_POINTS).astype(np.int64)
+            vertices = vertices[idx]
+            uv = uv[idx]
 
         if self.color_mode == "rgb_only":
             rh, rw = rgb_frame.shape[:2]
