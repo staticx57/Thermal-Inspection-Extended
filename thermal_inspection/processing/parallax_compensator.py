@@ -756,6 +756,17 @@ class ParallaxCompensator:
         for one target is not meaningful for the other (different
         resolution, different focal length in pixels). Re-tune (or
         re-run Auto-Calculate Alignment) after switching.
+
+        fov_zoom_factor is handled differently - compute_fov_crop_factor()
+        returns exactly reciprocal values for the two targets (tan(thermal)/
+        tan(rgb) vs tan(rgb)/tan(thermal), the same optical ratio measured
+        from the other camera's side), so unlike manual_shift this CAN be
+        auto-corrected rather than just warned about: a zoom factor left
+        unadjusted after a switch applied the wrong-direction crop/shrink
+        to whichever frame is now being warped - confirmed live ("switching
+        parallax correction mode to rgb the frame is cut in half", i.e. a
+        stale shrink-and-pad factor meant for the old target's convention
+        applied to the new one).
         """
         target = target.lower()
         if target not in ("thermal", "rgb"):
@@ -767,6 +778,13 @@ class ParallaxCompensator:
                 f"({self.manual_shift_x}, {self.manual_shift_y})px was tuned for the "
                 f"other target's pixel space and likely needs re-tuning"
             )
+            if abs(self.fov_zoom_factor - 1.0) > 1e-3:
+                old_factor = self.fov_zoom_factor
+                self.fov_zoom_factor = 1.0 / self.fov_zoom_factor
+                logger.info(
+                    f"Parallax FOV crop-zoom factor auto-inverted for the new target: "
+                    f"{old_factor:.4f} -> {self.fov_zoom_factor:.4f}"
+                )
         self.correction_target = target
 
     def get_correction_target(self) -> str:
