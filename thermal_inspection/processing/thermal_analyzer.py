@@ -1395,21 +1395,24 @@ class ThermalAnalyzer:
             # limit - the float64 upcast from mixing uint8 and float32
             # and the wasted np.ones_like(colorized_frame) allocation
             # this replaced were real but comparatively minor next to
-            # that. The overlay color is pure red (BGR 0,0,255), so its
-            # contribution to B/G is always zero - split into per-channel
-            # (H,W)*(H,W) multiplies (no broadcast) and only touch R for
-            # the overlay term. Verified bit-identical to the original
-            # broadcast formulation; ~2.9x faster (18.8ms -> 6.5ms in
-            # isolated benchmarking).
+            # that. A first fix split into per-channel cv2.split/merge
+            # multiplies (no broadcast) - correct, but cv2.split/merge
+            # themselves turned out to cost ~5.6ms of that (copying to 3
+            # separate contiguous arrays and back), against ~0.07ms for
+            # the actual multiply. Operating on strided views into the
+            # interleaved array directly - no split/merge at all - is
+            # bit-identical and cut isolated timing from ~10ms to ~4.4ms
+            # (confirmed live: still noticeably faster). The overlay
+            # color is pure red (BGR 0,0,255), so its contribution to
+            # B/G is always zero - only the R view needs the alpha term.
             alpha = (1.0 - dist_from_anomaly) * 0.5  # float32, (H,W), in [0, 0.5]
             weight = 1.0 - alpha
             frame_f32 = colorized_frame.astype(np.float32)
-            b, g, r = cv2.split(frame_f32)
-            b *= weight
-            g *= weight
-            r *= weight
-            r += 255.0 * alpha
-            output = cv2.merge([b, g, r]).astype(np.uint8)
+            frame_f32[..., 0] *= weight
+            frame_f32[..., 1] *= weight
+            frame_f32[..., 2] *= weight
+            frame_f32[..., 2] += 255.0 * alpha
+            output = frame_f32.astype(np.uint8)
 
         return output
 
