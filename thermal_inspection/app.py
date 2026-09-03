@@ -1427,7 +1427,42 @@ class ThermalInspectionApp:
             # alignment shift (fixed mounting offset) should apply even when
             # depth-based correction is off, since it doesn't need RGB or
             # depth estimation at all - just a constant translation.
-            if (self.parallax_compensator
+            #
+            # Also gated on the view mode actually needing thermal/RGB
+            # alignment. Parallax correction exists solely to line up
+            # thermal and RGB for a COMBINED view - it crops, shifts, and/or
+            # zooms one or both frames relative to their native capture.
+            # Thermal Only and RGB Only show a single camera's feed with
+            # nothing to align it to, so applying the correction there only
+            # degrades the image (crops the FOV, blacks out padded borders)
+            # for no benefit - confirmed live ("thermal only mode... should
+            # not be affected but it is" / "with it enabled it is always a
+            # broken fused mode regardless" - every standalone view was
+            # being warped as if it were a combined one). It also silently
+            # replaced thermal_16bit - the frame every radiometric read
+            # (spot meter, isotherm, calibration, anomaly detection) comes
+            # from - with geometrically-corrected/interpolated data instead
+            # of the sensor's true per-pixel values, whenever a standalone
+            # view was active.
+            #
+            # The 3D Fusion settings tab's point-cloud preview is checkable
+            # independent of the main viewport's view mode (see its use
+            # further below), so it also counts as needing alignment
+            # whenever it's visible and its own mode requires it - otherwise
+            # it would silently show unaligned thermal+depth while claiming
+            # (via _thermal_aligned_realsense) to be aligned.
+            _3d_panel = getattr(self.gui, 'fusion_3d_panel', None) if self.gui else None
+            _preview = getattr(_3d_panel, 'point_cloud_view', None) if _3d_panel else None
+            _preview_needs_alignment = bool(
+                _preview is not None and _preview.isVisible()
+                and _preview.needs_thermal_alignment()
+            )
+            _view_mode_needs_thermal_rgb_alignment = _preview_needs_alignment or self.view_mode in (
+                ViewMode.FUSION, ViewMode.SIDE_BY_SIDE,
+                ViewMode.PICTURE_IN_PICTURE, ViewMode.THREE_D,
+            )
+            if (_view_mode_needs_thermal_rgb_alignment
+                    and self.parallax_compensator
                     and self.parallax_compensator.has_correction()
                     and thermal_frame is not None
                     and thermal_frame is not self.thermal_placeholder):
@@ -1565,9 +1600,9 @@ class ThermalInspectionApp:
             # the main viewport's view mode, so it's checkable any time;
             # gated on its own component-mode needs instead (its "RGB Only"
             # mode needs no thermal alignment at all - see
-            # Fusion3DPointCloudView.needs_thermal_alignment).
-            _3d_panel = getattr(self.gui, 'fusion_3d_panel', None) if self.gui else None
-            _preview = getattr(_3d_panel, 'point_cloud_view', None) if _3d_panel else None
+            # Fusion3DPointCloudView.needs_thermal_alignment). _3d_panel/
+            # _preview are computed above, alongside _preview_needs_alignment,
+            # since the parallax-correction gate above needs to know this too.
             _preview_ready = bool(
                 _preview is not None and _preview.isVisible()
                 and (_thermal_aligned_realsense or not _preview.needs_thermal_alignment())
