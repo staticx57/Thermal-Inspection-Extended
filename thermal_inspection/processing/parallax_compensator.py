@@ -20,6 +20,7 @@ NEW in v3.3.0:
 - Lazy model loading
 """
 
+import math
 import numpy as np
 import cv2
 import logging
@@ -586,6 +587,16 @@ class ParallaxCompensator:
         self.manual_shift_x = 0
         self.manual_shift_y = 0
 
+        # Static crop-in zoom factor correcting a genuine FOV mismatch
+        # between the thermal and RGB sensors (from their focal lengths and
+        # sensor widths - a fixed optical property, not something that
+        # varies frame to frame like parallax disparity does). Unlike the
+        # per-frame shift/crop below, applying a resize here is correct:
+        # it's compensating a real difference in what each camera actually
+        # sees, not introducing an artifact. Computed via
+        # compute_fov_crop_factor()/compute_auto_alignment(), 1.0 = no crop.
+        self.fov_zoom_factor = 1.0
+
         # Cache
         self.last_depth_map = None
         self.last_displacement_map = None
@@ -678,8 +689,139 @@ class ParallaxCompensator:
         return (self.manual_shift_x, self.manual_shift_y)
 
     def has_manual_shift(self) -> bool:
-        """Whether a non-zero manual shift is set."""
-        return self.manual_shift_x != 0 or self.manual_shift_y != 0
+        """Whether a non-zero manual shift or FOV crop-zoom is set."""
+        return (self.manual_shift_x != 0 or self.manual_shift_y != 0
+                or abs(self.fov_zoom_factor - 1.0) > 1e-3)
+
+    def set_fov_zoom_factor(self, factor: float):
+        """
+        Set the static crop-in zoom factor applied on top of any shift, e.g.
+        to correct a real FOV mismatch between the two sensors. 1.0 = none.
+        """
+        self.fov_zoom_factor = max(1.0, float(factor))
+        logger.info(f"Parallax FOV crop-zoom factor set to {self.fov_zoom_factor:.4f}")
+
+    def get_fov_zoom_factor(self) -> float:
+        """Get the current static FOV crop-zoom factor."""
+        return self.fov_zoom_factor
+
+    def compute_fov_crop_factor(self) -> float:
+        """
+        Compute the crop-in zoom factor needed to make the thermal camera's
+        horizontal FOV match the RGB camera's, from each camera's focal
+        length and sensor width (self.geometry). This is a fixed optical
+        property - it doesn't depend on distance to the subject, only on
+        the two cameras' own optics.
+
+        Returns 1.0 (no crop needed) if the thermal FOV is already the same
+        or narrower than the RGB FOV - this compensator only ever crops the
+        thermal frame, so it can't correct the opposite case (RGB narrower
+        than thermal) without also touching the RGB frame.
+        """
+        thermal_half_fov = math.atan2(self.geometry.thermal_sensor_width_mm / 2.0,
+                                     self.geometry.thermal_focal_length_mm)
+        rgb_half_fov = math.atan2(self.geometry.rgb_sensor_width_mm / 2.0,
+                                 self.geometry.rgb_focal_length_mm)
+
+        if thermal_half_fov <= rgb_half_fov:
+            return 1.0
+
+        # Crop the thermal frame down to the angular width the RGB camera
+        # actually covers, then that crop gets resized back up to full
+        # resolution (see _apply_fov_zoom) - the ratio of the tangents of
+        # the half-FOV angles is exactly the fraction of the thermal
+        # sensor's width that subtends the RGB camera's (narrower) FOV.
+        return math.tan(thermal_half_fov) / math.tan(rgb_half_fov)
+
+    def compute_geometric_shift_px(self, working_distance_m: float) -> int:
+        """
+        Compute the horizontal pixel disparity expected at a given subject
+        distance, from camera baseline and thermal focal length alone -
+        the same formula as compute_disparity(), applied to a single
+        scalar distance instead of a per-pixel depth map.
+        """
+        working_distance_m = max(0.05, float(working_distance_m))
+        thermal_focal_px = (self.geometry.thermal_focal_length_mm /
+                           self.geometry.thermal_sensor_width_mm *
+                           self.geometry.thermal_resolution[0])
+        disparity_px = (self.geometry.baseline_mm * thermal_focal_px) / (working_distance_m * 1000.0)
+        return int(round(disparity_px))
+
+    def compute_auto_alignment(self, working_distance_m: float = 2.0,
+                              rgb_frame: Optional[np.ndarray] = None) -> Tuple[int, float]:
+        """
+        One-time alignment calculation from camera geometry, optionally
+        refined by a single depth-estimation call - meant to be triggered
+        on demand (e.g. a GUI button), not run every frame. The result is
+        stored as a static manual shift + FOV crop-zoom factor, which then
+        costs nothing further per frame (see _apply_manual_shift_only) -
+        unlike leaving depth-based correction continuously enabled.
+
+        Args:
+            working_distance_m: Assumed subject distance in meters, used
+                directly unless rgb_frame is provided.
+            rgb_frame: If given, runs the currently-selected depth
+                estimation method (whatever depth_estimator.method is set
+                to - simplified/midas/depthanything/realsense) ONCE to
+                measure/estimate the actual scene distance instead of
+                trusting the assumed working_distance_m - this is the
+                "depth estimation enhances this" refinement. Ignored if
+                None (pure geometric calculation, no ML/hardware call).
+
+        Returns:
+            (dx_px, fov_zoom_factor) - the values that were applied.
+        """
+        resolved_distance_m = working_distance_m
+
+        if rgb_frame is not None:
+            try:
+                thermal_w, thermal_h = self.geometry.thermal_resolution
+                rgb_for_depth = rgb_frame
+                if rgb_frame.shape[0] > thermal_h or rgb_frame.shape[1] > thermal_w:
+                    rgb_for_depth = cv2.resize(rgb_frame, (thermal_w, thermal_h),
+                                              interpolation=cv2.INTER_LINEAR)
+                depth_map = self.depth_estimator.estimate_depth(rgb_for_depth)
+                if depth_map is not None:
+                    h, w = depth_map.shape[:2]
+                    # Sample the central region only - the subject being
+                    # aligned to is assumed to be roughly centered in frame,
+                    # same assumption "simplified"'s center-distance already
+                    # makes; avoids skew from background/foreground clutter
+                    # at the edges.
+                    cy0, cy1 = int(h * 0.4), int(h * 0.6)
+                    cx0, cx1 = int(w * 0.4), int(w * 0.6)
+                    center_region = depth_map[cy0:cy1, cx0:cx1]
+                    valid = center_region[np.isfinite(center_region) & (center_region > 0)]
+                    if valid.size > 0:
+                        resolved_distance_m = float(np.median(valid))
+                        logger.info(
+                            f"Auto-alignment: refined working distance to "
+                            f"{resolved_distance_m:.2f}m via {self.depth_estimator.method} depth estimation"
+                        )
+                    else:
+                        logger.warning(
+                            "Auto-alignment: depth estimation returned no valid center-region "
+                            f"samples - falling back to assumed {working_distance_m:.2f}m"
+                        )
+                else:
+                    logger.warning(
+                        "Auto-alignment: depth estimation failed - falling back to "
+                        f"assumed {working_distance_m:.2f}m"
+                    )
+            except Exception as e:
+                logger.warning(f"Auto-alignment: depth refinement failed ({e}), using assumed distance")
+
+        dx = self.compute_geometric_shift_px(resolved_distance_m)
+        zoom = self.compute_fov_crop_factor()
+
+        self.manual_shift_x = dx
+        self.fov_zoom_factor = zoom
+
+        logger.info(
+            f"Auto-alignment computed: shift=({dx}, {self.manual_shift_y})px "
+            f"at {resolved_distance_m:.2f}m, FOV crop-zoom={zoom:.4f}"
+        )
+        return dx, zoom
 
     def has_correction(self) -> bool:
         """
@@ -981,36 +1123,61 @@ class ParallaxCompensator:
         corrected = self._remap_thermal_cpu(thermal_frame, flow_map, h, w)
 
         # BORDER_REPLICATE smears the edge row/column across whatever strip
-        # shifted off-frame, rather than leaving a gap - crop that invalid
-        # strip away and rescale back to the original size instead, so the
-        # displayed frame has no duplicated/smeared content. Standard
-        # tradeoff for shift-based alignment: a small, fixed loss of field
-        # of view instead of a visible seam.
+        # shifted off-frame, rather than leaving a gap. This used to crop
+        # that strip away and cv2.resize() the remainder back up to the
+        # original size - which zooms/stretches the ENTIRE frame (not just
+        # the edge) to fill the gap, distorting real thermal readings
+        # everywhere via resize interpolation, not just at the border. A
+        # real crop shouldn't stretch the valid interior at all - blank the
+        # invalid strip instead and leave every other pixel exactly as
+        # measured (same "no fake data" reasoning as the depth-map
+        # watermark: don't manufacture pixel values, even by interpolation,
+        # where there's no real aligned data).
         shift_x = flow_map[:, :, 0]
         shift_y = flow_map[:, :, 1]
 
         # map_x = x - shift_x goes out of [0, w) on the LEFT wherever
         # shift_x is large positive (small x - large shift < 0), and out on
         # the RIGHT wherever shift_x is large negative (x near w-1 + |shift|
-        # exceeds w-1) - crop by the actual max magnitude present on each
-        # side, not a blanket worst case, so a small shift doesn't cost more
-        # field of view than it has to.
-        left_crop = max(0, int(np.ceil(shift_x.max())))
-        right_crop = max(0, int(np.ceil(-shift_x.min())))
-        top_crop = max(0, int(np.ceil(shift_y.max())))
-        bottom_crop = max(0, int(np.ceil(-shift_y.min())))
+        # exceeds w-1) - blank only the actual max magnitude present on each
+        # side, not a blanket worst case, so a small shift doesn't blank
+        # more field of view than it has to.
+        left_crop = max(0, min(w, int(np.ceil(shift_x.max()))))
+        right_crop = max(0, min(w, int(np.ceil(-shift_x.min()))))
+        top_crop = max(0, min(h, int(np.ceil(shift_y.max()))))
+        bottom_crop = max(0, min(h, int(np.ceil(-shift_y.min()))))
 
-        if left_crop + right_crop >= w or top_crop + bottom_crop >= h:
-            # Shift exceeds the frame itself - nothing valid would remain;
-            # fall back to the uncropped (replicated-border) version rather
-            # than crash on an empty crop region.
-            return corrected
+        if top_crop:
+            corrected[:top_crop, :] = 0
+        if bottom_crop:
+            corrected[h - bottom_crop:, :] = 0
+        if left_crop:
+            corrected[:, :left_crop] = 0
+        if right_crop:
+            corrected[:, w - right_crop:] = 0
 
-        if left_crop or right_crop or top_crop or bottom_crop:
-            cropped = corrected[top_crop:h - bottom_crop, left_crop:w - right_crop]
-            corrected = cv2.resize(cropped, (w, h), interpolation=cv2.INTER_LINEAR)
+        if abs(self.fov_zoom_factor - 1.0) > 1e-3:
+            corrected = self._apply_fov_zoom(corrected)
 
         return corrected
+
+    def _apply_fov_zoom(self, frame: np.ndarray) -> np.ndarray:
+        """
+        Crop-and-zoom by self.fov_zoom_factor to correct a real FOV
+        mismatch between the thermal and RGB sensors (see
+        compute_fov_crop_factor). Unlike the per-frame shift/crop above,
+        a resize here is correct rather than a "stretch" artifact - it's a
+        static, one-time correction for a genuine optical difference
+        between the two cameras, not per-frame jitter, and is only ever
+        applied when the user has explicitly computed/set a zoom factor.
+        """
+        h, w = frame.shape[:2]
+        crop_w = max(1, min(w, int(round(w / self.fov_zoom_factor))))
+        crop_h = max(1, min(h, int(round(h / self.fov_zoom_factor))))
+        x0 = (w - crop_w) // 2
+        y0 = (h - crop_h) // 2
+        cropped = frame[y0:y0 + crop_h, x0:x0 + crop_w]
+        return cv2.resize(cropped, (w, h), interpolation=cv2.INTER_LINEAR)
 
     def get_depth_map(self) -> Optional[np.ndarray]:
         """Get last computed depth map for visualization."""
@@ -1028,7 +1195,9 @@ class ParallaxCompensator:
             'baseline_mm': self.geometry.baseline_mm,
             'thermal_resolution': self.geometry.thermal_resolution,
             'rgb_resolution': self.geometry.rgb_resolution,
-            'depth_available': self.last_depth_map is not None
+            'depth_available': self.last_depth_map is not None,
+            'manual_shift': (self.manual_shift_x, self.manual_shift_y),
+            'fov_zoom_factor': self.fov_zoom_factor,
         }
 
 

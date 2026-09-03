@@ -32,6 +32,7 @@ class ParallaxPanel(QWidget):
     show_depth_map_toggled = pyqtSignal(bool)
     show_displacement_toggled = pyqtSignal(bool)
     shift_changed = pyqtSignal(int, int)  # (dx, dy) pixels
+    auto_alignment_requested = pyqtSignal(float, bool)  # working_distance_m, refine_with_depth
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -187,6 +188,52 @@ class ParallaxPanel(QWidget):
         self.reset_shift_btn.setToolTip("Reset horizontal/vertical shift to 0")
         self.reset_shift_btn.clicked.connect(self._on_reset_shift)
         shift_layout.addWidget(self.reset_shift_btn)
+
+        # ----------------------------------------------------------------
+        # Auto-Calculate Alignment - a one-time calculation from camera
+        # baseline + FOV difference (not a per-frame process), optionally
+        # refined by a single depth-estimation call. Sets the shift/zoom
+        # above rather than replacing them - the manual controls stay
+        # available for further fine-tuning afterward.
+        # ----------------------------------------------------------------
+        auto_align_label = QLabel(
+            "Or auto-calculate from camera geometry (baseline + FOV) -\n"
+            "runs once, not every frame:"
+        )
+        auto_align_label.setWordWrap(True)
+        auto_align_label.setStyleSheet("color: #888888; font-size: 9pt;")
+        shift_layout.addWidget(auto_align_label)
+
+        distance_layout = QHBoxLayout()
+        distance_layout.setContentsMargins(0, 0, 0, 0)
+        distance_layout.addWidget(QLabel("Working Distance:"))
+        self.working_distance_spin = QDoubleSpinBox()
+        self.working_distance_spin.setRange(0.1, 20.0)
+        self.working_distance_spin.setValue(2.0)
+        self.working_distance_spin.setDecimals(1)
+        self.working_distance_spin.setSuffix(" m")
+        self.working_distance_spin.setSingleStep(0.1)
+        self.working_distance_spin.setToolTip("Assumed subject distance - ignored if refined by depth estimation below")
+        self.working_distance_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        distance_layout.addWidget(self.working_distance_spin)
+        shift_layout.addLayout(distance_layout)
+
+        self.refine_with_depth_checkbox = QCheckBox("Refine using depth estimation")
+        self.refine_with_depth_checkbox.setToolTip(
+            "Run the selected depth estimation method once on the current frame "
+            "to measure the actual scene distance instead of the assumed value above"
+        )
+        shift_layout.addWidget(self.refine_with_depth_checkbox)
+
+        self.auto_align_btn = QPushButton("Auto-Calculate Alignment")
+        self.auto_align_btn.setToolTip("Compute shift + FOV crop-zoom once from camera geometry")
+        self.auto_align_btn.clicked.connect(self._on_auto_align_clicked)
+        shift_layout.addWidget(self.auto_align_btn)
+
+        self.auto_align_result_label = QLabel("")
+        self.auto_align_result_label.setWordWrap(True)
+        self.auto_align_result_label.setStyleSheet("color: #4CAF50; font-size: 9pt;")
+        shift_layout.addWidget(self.auto_align_result_label)
 
         shift_group.setLayout(shift_layout)
         layout.addWidget(shift_group)
@@ -345,6 +392,13 @@ class ParallaxPanel(QWidget):
         self.shift_x_spin.setValue(0)
         self.shift_y_spin.setValue(0)
 
+    def _on_auto_align_clicked(self):
+        """Request a one-time auto-alignment calculation."""
+        self.auto_alignment_requested.emit(
+            self.working_distance_spin.value(),
+            self.refine_with_depth_checkbox.isChecked()
+        )
+
     # ========================================================================
     # Public Methods - Called by main GUI
     # ========================================================================
@@ -420,6 +474,26 @@ class ParallaxPanel(QWidget):
     def get_manual_shift(self) -> tuple:
         """Get the current (dx, dy) manual alignment shift in pixels."""
         return (self.shift_x_spin.value(), self.shift_y_spin.value())
+
+    def set_auto_alignment_result(self, dx: int, dy: int, fov_zoom_factor: float):
+        """
+        Reflect a completed auto-alignment calculation: syncs the manual
+        shift spinboxes to the computed value (so they show what's actually
+        active and can be fine-tuned further) and reports the FOV
+        crop-zoom factor, which has no dedicated control of its own.
+        """
+        self.shift_x_spin.blockSignals(True)
+        self.shift_y_spin.blockSignals(True)
+        self.shift_x_spin.setValue(dx)
+        self.shift_y_spin.setValue(dy)
+        self.shift_x_spin.blockSignals(False)
+        self.shift_y_spin.blockSignals(False)
+
+        zoom_note = (f", FOV crop-zoom {fov_zoom_factor:.3f}x"
+                    if abs(fov_zoom_factor - 1.0) > 1e-3 else "")
+        self.auto_align_result_label.setText(
+            f"Applied: shift ({dx}, {dy})px{zoom_note}"
+        )
 
 
 # ============================================================================

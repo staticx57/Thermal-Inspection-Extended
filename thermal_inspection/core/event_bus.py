@@ -162,6 +162,8 @@ class AppEventBus(QObject):
     depth_map_display_toggled = pyqtSignal(bool)
     displacement_display_toggled = pyqtSignal(bool)
     parallax_shift_changed = pyqtSignal(int, int)
+    parallax_auto_alignment_requested = pyqtSignal(float, bool)  # working_distance_m, refine_with_depth
+    parallax_auto_alignment_result = pyqtSignal(int, int, float)  # dx, dy, fov_zoom_factor
 
     # =====================================================================
     # Analyzer / Processor Settings

@@ -641,6 +641,7 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("parallax_panel", "show_depth_map_toggled", self._on_show_depth_map_toggled, "(parallax depth)")
         self._safe_connect("parallax_panel", "show_displacement_toggled", self._on_show_displacement_toggled, "(parallax displacement)")
         self._safe_connect("parallax_panel", "shift_changed", self._on_parallax_shift_changed, "(parallax shift)")
+        self._safe_connect("parallax_panel", "auto_alignment_requested", self._on_parallax_auto_alignment_requested, "(parallax auto-align)")
 
         # === GRADIENT OVERLAY PANEL ===
         self._safe_connect("gradient_panel", "gradient_enabled", self._on_gradient_enabled, "(gradient)")
@@ -737,6 +738,7 @@ class InspectionAppWindow(QMainWindow):
         bus.calibration_export_result.connect(self._on_bus_calibration_export_result)
         bus.calibration_import_result.connect(self._on_bus_calibration_import_result)
         bus.calibration_gui_update_requested.connect(self._on_bus_calibration_gui_update)
+        bus.parallax_auto_alignment_result.connect(self._on_bus_parallax_auto_alignment_result)
 
         # --- Recording ---
         bus.recording_state_changed.connect(self._on_bus_recording_state_changed)
@@ -2361,6 +2363,16 @@ class InspectionAppWindow(QMainWindow):
             self.event_bus.parallax_shift_changed.emit(dx, dy)
         elif self.app and hasattr(self.app, 'set_parallax_shift'):
             self.app.set_parallax_shift(dx, dy)
+
+    def _on_parallax_auto_alignment_requested(self, working_distance_m: float, refine_with_depth: bool):
+        """Request a one-time auto-alignment calculation from camera geometry."""
+        if self.event_bus:
+            self.event_bus.parallax_auto_alignment_requested.emit(working_distance_m, refine_with_depth)
+
+    def _on_bus_parallax_auto_alignment_result(self, dx: int, dy: int, fov_zoom_factor: float):
+        """Reflect a completed auto-alignment calculation in the panel."""
+        if hasattr(self, 'parallax_panel'):
+            self.parallax_panel.set_auto_alignment_result(dx, dy, fov_zoom_factor)
 
     # ========================================================================
     # Gradient Overlay Handlers

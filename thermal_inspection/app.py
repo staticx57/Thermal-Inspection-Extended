@@ -429,6 +429,7 @@ class ThermalInspectionApp:
         bus.parallax_shift_changed.connect(
             lambda dx, dy: self.set_parallax_shift(dx, dy) if hasattr(self, 'set_parallax_shift') else None
         )
+        bus.parallax_auto_alignment_requested.connect(self._bus_parallax_auto_alignment_requested)
 
         # --- Gradient Overlay ---
         bus.gradient_enabled_changed.connect(
@@ -1371,6 +1372,11 @@ class ThermalInspectionApp:
 
             # Save latest thermal frame for calibration point lookup and spot metering
             self._last_thermal_frame = thermal_frame
+            # Save latest real (non-placeholder) RGB frame for on-demand
+            # parallax auto-alignment, which runs off the GUI thread in
+            # response to a button click rather than every frame.
+            if rgb_frame is not None and rgb_frame is not self.rgb_placeholder:
+                self._last_rgb_frame = rgb_frame
 
             # Every ROI, hot/cold spot, and spot-meter coordinate downstream is
             # expressed in this frame's native pixel space, so the GUI's overlay
@@ -2623,6 +2629,24 @@ class ThermalInspectionApp:
             self.parallax_compensator.set_displacement_display(show)
         else:
             logger.warning("ParallaxCompensator not available for displacement overlay toggle")
+
+    def _bus_parallax_auto_alignment_requested(self, working_distance_m: float, refine_with_depth: bool):
+        """
+        Handle a one-time auto-alignment request from the Parallax panel:
+        compute a static shift + FOV crop-zoom from camera geometry (and
+        optionally one depth-estimation call), then report the result back
+        so the panel can display it. Runs once on request, not per frame -
+        the computed values become a plain manual shift afterward, costing
+        nothing further until recalculated.
+        """
+        if not self.parallax_compensator:
+            logger.warning("ParallaxCompensator not available for auto-alignment")
+            return
+        rgb_frame = getattr(self, '_last_rgb_frame', None) if refine_with_depth else None
+        dx, zoom = self.parallax_compensator.compute_auto_alignment(working_distance_m, rgb_frame)
+        dy = self.parallax_compensator.manual_shift_y
+        if self.event_bus:
+            self.event_bus.parallax_auto_alignment_result.emit(dx, dy, zoom)
 
     # =========================================================================
     # Baseline & Misc Methods
