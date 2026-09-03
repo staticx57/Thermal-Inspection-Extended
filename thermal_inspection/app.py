@@ -1429,21 +1429,27 @@ class ThermalInspectionApp:
             # depth estimation at all - just a constant translation.
             #
             # Also gated on the view mode actually needing thermal/RGB
-            # alignment. Parallax correction exists solely to line up
-            # thermal and RGB for a COMBINED view - it crops, shifts, and/or
-            # zooms one or both frames relative to their native capture.
-            # Thermal Only and RGB Only show a single camera's feed with
-            # nothing to align it to, so applying the correction there only
-            # degrades the image (crops the FOV, blacks out padded borders)
-            # for no benefit - confirmed live ("thermal only mode... should
-            # not be affected but it is" / "with it enabled it is always a
-            # broken fused mode regardless" - every standalone view was
-            # being warped as if it were a combined one). It also silently
-            # replaced thermal_16bit - the frame every radiometric read
-            # (spot meter, isotherm, calibration, anomaly detection) comes
-            # from - with geometrically-corrected/interpolated data instead
-            # of the sensor's true per-pixel values, whenever a standalone
-            # view was active.
+            # alignment - only a mode that blends the two into the SAME
+            # pixels needs them warped into agreement first. Thermal Only
+            # and RGB Only show one camera's feed with nothing to align it
+            # to; Side-by-Side and Picture-in-Picture show both feeds too,
+            # but as distinct, non-overlapping panes (hconcat, or a small
+            # inset drawn over a corner) rather than combined over the same
+            # pixels, so misalignment between them isn't even visible -
+            # confirmed live ("side by side and pip do not need correction
+            # as they are distinct feeds not fused overtop one another").
+            # Only Fusion (alpha-blends thermal+RGB into one image) and 3D
+            # (needs per-pixel depth-color correspondence) actually require
+            # it. Applying it in the other modes only degraded the image
+            # (crops the FOV, blacks out padded borders) for no benefit -
+            # confirmed live ("thermal only mode... should not be affected
+            # but it is" / "with it enabled it is always a broken fused
+            # mode regardless"). It also silently replaced thermal_16bit -
+            # the frame every radiometric read (spot meter, isotherm,
+            # calibration, anomaly detection) comes from - with
+            # geometrically-corrected/interpolated data instead of the
+            # sensor's true per-pixel values, whenever a non-blending view
+            # was active.
             #
             # The 3D Fusion settings tab's point-cloud preview is checkable
             # independent of the main viewport's view mode (see its use
@@ -1458,8 +1464,7 @@ class ThermalInspectionApp:
                 and _preview.needs_thermal_alignment()
             )
             _view_mode_needs_thermal_rgb_alignment = _preview_needs_alignment or self.view_mode in (
-                ViewMode.FUSION, ViewMode.SIDE_BY_SIDE,
-                ViewMode.PICTURE_IN_PICTURE, ViewMode.THREE_D,
+                ViewMode.FUSION, ViewMode.THREE_D,
             )
             if (_view_mode_needs_thermal_rgb_alignment
                     and self.parallax_compensator
