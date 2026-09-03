@@ -1670,7 +1670,25 @@ class ThermalInspectionApp:
                             if _corrected_thermal_for_preview is not None and not _main_view_needs_thermal_rgb_alignment:
                                 _preview_rgb = (_corrected_rgb_for_preview
                                                 if _corrected_rgb_for_preview is not None else rgb_frame)
-                                if self.palette_manager and _corrected_thermal_for_preview.dtype != np.uint8:
+                                # Mirror the main path's already_colorized check
+                                # (line ~1551) exactly - a dtype-only check is
+                                # wrong for cameras whose raw thermal_frame is
+                                # itself single-channel uint8 (e.g. Tau2's
+                                # video-only path): corrected_thermal then stays
+                                # 2D, and update_from_realsense's fusion blend
+                                # needs (H,W,3) - passing a 2D frame through
+                                # crashed with "operands could not be broadcast
+                                # together with shapes (N,) (N,3)".
+                                _pv_already_colorized = (
+                                    _corrected_thermal_for_preview.dtype == np.uint8
+                                    and _corrected_thermal_for_preview.ndim == 3
+                                    and _corrected_thermal_for_preview.shape[2] == 3
+                                    and not np.array_equal(
+                                        _corrected_thermal_for_preview[:, :, 0],
+                                        _corrected_thermal_for_preview[:, :, 1],
+                                    )
+                                )
+                                if self.palette_manager and not _pv_already_colorized:
                                     _preview_colorized = self.palette_manager.apply_composite_palette(
                                         _corrected_thermal_for_preview, self.roi_controller.roi_manager
                                     )
