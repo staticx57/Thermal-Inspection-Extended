@@ -160,6 +160,7 @@ class AppEventBus(QObject):
     parallax_baseline_changed = pyqtSignal(float)
     parallax_method_changed = pyqtSignal(str)
     depth_map_display_toggled = pyqtSignal(bool)
+    displacement_display_toggled = pyqtSignal(bool)
     parallax_shift_changed = pyqtSignal(int, int)
 
     # =====================================================================

@@ -639,6 +639,7 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("parallax_panel", "depth_method_changed", self._on_parallax_method_changed, "(parallax)")
         self._safe_connect("parallax_panel.apply_geometry_btn", "clicked", self._on_parallax_geometry_apply, "(parallax)")
         self._safe_connect("parallax_panel", "show_depth_map_toggled", self._on_show_depth_map_toggled, "(parallax depth)")
+        self._safe_connect("parallax_panel", "show_displacement_toggled", self._on_show_displacement_toggled, "(parallax displacement)")
         self._safe_connect("parallax_panel", "shift_changed", self._on_parallax_shift_changed, "(parallax shift)")
 
         # === GRADIENT OVERLAY PANEL ===
@@ -2343,6 +2344,16 @@ class InspectionAppWindow(QMainWindow):
             pc = self.app.parallax_compensator
             if hasattr(pc, 'set_depth_display'):
                 pc.set_depth_display(show)
+
+    def _on_show_displacement_toggled(self, show: bool):
+        """Show/hide the sparse displacement-vector arrow overlay on the video stream."""
+        logger.info(f"Displacement-vector overlay: {'ON' if show else 'OFF'}")
+        if self.event_bus:
+            self.event_bus.displacement_display_toggled.emit(show)
+        elif self.app and hasattr(self.app, 'parallax_compensator'):
+            pc = self.app.parallax_compensator
+            if hasattr(pc, 'set_displacement_display'):
+                pc.set_displacement_display(show)
 
     def _on_parallax_shift_changed(self, dx: int, dy: int):
         """Handle manual alignment shift change (fixed mounting-offset correction)."""

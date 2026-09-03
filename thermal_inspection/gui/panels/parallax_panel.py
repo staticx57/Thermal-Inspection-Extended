@@ -30,6 +30,7 @@ class ParallaxPanel(QWidget):
     baseline_changed = pyqtSignal(float)
     depth_method_changed = pyqtSignal(str)
     show_depth_map_toggled = pyqtSignal(bool)
+    show_displacement_toggled = pyqtSignal(bool)
     shift_changed = pyqtSignal(int, int)  # (dx, dy) pixels
 
     def __init__(self, parent=None):
@@ -248,8 +249,9 @@ class ParallaxPanel(QWidget):
 
         # Show displacement vectors checkbox
         self.show_displacement_checkbox = QCheckBox("Show Displacement Vectors")
-        self.show_displacement_checkbox.setToolTip("Visualize pixel displacement (debug)")
+        self.show_displacement_checkbox.setToolTip("Overlay a sparse grid of arrows showing per-pixel shift (debug)")
         self.show_displacement_checkbox.setEnabled(False)
+        self.show_displacement_checkbox.stateChanged.connect(self._on_show_displacement_changed)
         viz_layout.addWidget(self.show_displacement_checkbox)
 
         viz_group.setLayout(viz_layout)
@@ -328,6 +330,11 @@ class ParallaxPanel(QWidget):
         """Handle show depth map checkbox change."""
         enabled = (state == Qt.CheckState.Checked.value)
         self.show_depth_map_toggled.emit(enabled)
+
+    def _on_show_displacement_changed(self, state: int):
+        """Handle show displacement vectors checkbox change."""
+        enabled = (state == Qt.CheckState.Checked.value)
+        self.show_displacement_toggled.emit(enabled)
 
     def _on_shift_changed(self, _value: int):
         """Handle horizontal/vertical shift spinbox change — emit combined (dx, dy)."""

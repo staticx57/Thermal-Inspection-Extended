@@ -574,6 +574,7 @@ class ParallaxCompensator:
         self.depth_estimator = DepthEstimator(method=depth_method)
         self.enabled = False  # CRITICAL: Disabled by default
         self.show_depth_map = False  # Whether to return depth-map overlay instead of corrected thermal
+        self.show_displacement = False  # Whether to overlay a sparse displacement-vector grid (debug)
 
         # Manual alignment shift (pixels) - a constant, distance-independent
         # translation on top of (or instead of, when depth-based correction
@@ -633,6 +634,18 @@ class ParallaxCompensator:
         """
         self.show_depth_map = show
         logger.info(f"Parallax depth-map overlay: {'ON' if show else 'OFF'}")
+
+    def set_displacement_display(self, show: bool):
+        """Enable or disable displacement-vector overlay mode.
+
+        When True, apply_correction() draws a sparse grid of arrows over
+        the corrected thermal frame showing the actual per-pixel shift
+        applied - lets you see at a glance whether correction is doing
+        something reasonable (consistent direction/magnitude) or garbage
+        (random-looking vectors) without reading raw numbers.
+        """
+        self.show_displacement = show
+        logger.info(f"Parallax displacement-vector overlay: {'ON' if show else 'OFF'}")
 
     def set_baseline(self, baseline_mm: float):
         """Set camera baseline distance in millimeters."""
@@ -783,6 +796,9 @@ class ParallaxCompensator:
             corrected_thermal = self._remap_thermal(thermal_frame, flow_map)
             self.last_correction_time_ms = (time.perf_counter() - _t_corr_start) * 1000.0
 
+            if self.show_displacement:
+                corrected_thermal = self._draw_displacement_vectors(corrected_thermal, flow_map)
+
             return corrected_thermal
 
         except Exception as e:
@@ -800,7 +816,48 @@ class ParallaxCompensator:
         flow_map[:, :, 1] = self.manual_shift_y
         self.last_displacement_map = flow_map
 
-        return self._remap_thermal(thermal_frame, flow_map)
+        corrected = self._remap_thermal(thermal_frame, flow_map)
+        if self.show_displacement:
+            corrected = self._draw_displacement_vectors(corrected, flow_map)
+        return corrected
+
+    # Grid spacing (pixels) for the displacement-vector overlay - dense
+    # enough to see spatial variation, sparse enough not to turn the whole
+    # frame into a solid mass of arrows.
+    _DISPLACEMENT_GRID_STEP = 32
+
+    def _draw_displacement_vectors(self, frame: np.ndarray, flow_map: np.ndarray) -> np.ndarray:
+        """
+        Overlay a sparse grid of arrows showing the actual per-pixel shift
+        that was just applied (flow_map's own (dx, dy) at each sampled
+        point) - a way to see at a glance whether correction looks
+        reasonable (consistent direction/magnitude, e.g. larger near
+        objects than far ones) or clearly wrong (random-looking vectors),
+        without reading raw displacement numbers.
+        """
+        vis = frame.copy()
+        h, w = vis.shape[:2]
+        step = self._DISPLACEMENT_GRID_STEP
+
+        shift_x = flow_map[:, :, 0]
+        shift_y = flow_map[:, :, 1]
+        max_mag = float(np.sqrt(shift_x ** 2 + shift_y ** 2).max())
+
+        for y in range(step // 2, h, step):
+            for x in range(step // 2, w, step):
+                dx = float(shift_x[y, x])
+                dy = float(shift_y[y, x])
+                mag = (dx ** 2 + dy ** 2) ** 0.5
+                # Green (small shift) -> red (large shift), relative to
+                # this frame's own max so the color scale stays meaningful
+                # regardless of how far the camera is from the subject.
+                t = 0.0 if max_mag < 1e-6 else min(1.0, mag / max_mag)
+                color = (0, int(255 * (1.0 - t)), int(255 * t))  # BGR: green->red
+                end_x = int(round(x + dx))
+                end_y = int(round(y + dy))
+                cv2.arrowedLine(vis, (x, y), (end_x, end_y), color, 1, tipLength=0.35)
+
+        return vis
 
     def _resolve_remap_gpu(self) -> bool:
         """

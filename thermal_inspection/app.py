@@ -425,6 +425,7 @@ class ThermalInspectionApp:
             lambda m: self.set_parallax_depth_method(m) if hasattr(self, 'set_parallax_depth_method') else None
         )
         bus.depth_map_display_toggled.connect(self._bus_depth_map_display_toggled)
+        bus.displacement_display_toggled.connect(self._bus_displacement_display_toggled)
         bus.parallax_shift_changed.connect(
             lambda dx, dy: self.set_parallax_shift(dx, dy) if hasattr(self, 'set_parallax_shift') else None
         )
@@ -2609,6 +2610,13 @@ class ThermalInspectionApp:
             logger.info(f"Parallax depth map display set to: {show}")
         else:
             logger.warning("ParallaxCompensator not available for depth map display toggle")
+
+    def _bus_displacement_display_toggled(self, show: bool):
+        """Handle event bus signal to toggle displacement-vector overlay on parallax compensator."""
+        if self.parallax_compensator and hasattr(self.parallax_compensator, 'set_displacement_display'):
+            self.parallax_compensator.set_displacement_display(show)
+        else:
+            logger.warning("ParallaxCompensator not available for displacement overlay toggle")
 
     # =========================================================================
     # Baseline & Misc Methods
