@@ -790,6 +790,26 @@ class ParallaxCompensator:
                 # Resize to match thermal output shape if needed
                 if depth_colourised.shape[:2] != thermal_frame.shape[:2]:
                     depth_colourised = cv2.resize(depth_colourised, (thermal_w, thermal_h))
+
+                # NORM_MINMAX always stretches whatever depth_resized
+                # contains to the full 0-255 rainbow range, regardless of
+                # the actual absolute values - for "simplified" specifically
+                # (a fixed top-far/bottom-near gradient that never reads
+                # the scene at all, see _estimate_depth_simplified), this
+                # produces the exact same-looking colorful gradient every
+                # time no matter what's really in front of the camera,
+                # which reads as "measuring real depth" when it isn't.
+                # Label it honestly instead of letting a heuristic look
+                # like a real hardware measurement - matches the same
+                # principle applied to the 3D Fusion view (never present
+                # an estimate as if it were measured data).
+                if self.depth_estimator.method != "realsense":
+                    label = f"ESTIMATED depth ({self.depth_estimator.method}) - not measured"
+                    cv2.putText(depth_colourised, label, (10, 25),
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+                    cv2.putText(depth_colourised, label, (10, 25),
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
+
                 self.last_correction_time_ms = (time.perf_counter() - _t_corr_start) * 1000.0
                 return depth_colourised
 
