@@ -551,8 +551,19 @@ class InspectionOverlayWidget(QWidget):
                 label_text = f"⚠ {anomaly.description}" if anomaly.description else f"⚠ {anomaly.anomaly_type.value}"
                 draw_label(int(wx) + 15, int(wy), label_text, QColor(255, 255, 0))
 
-        # Draw measurement points (spot meters)
+        # Draw measurement points (spot meters) - markers first for ALL
+        # points, then labels in a second pass. Labels get collision-
+        # avoidance against _drawn_label_rects (see draw_label), but that
+        # only helps if every marker's footprint is already reserved in
+        # that list BEFORE any label is placed - doing markers+label
+        # per-point in one pass meant a label could only ever see EARLIER
+        # points' markers, not later ones, so it could still get nudged
+        # straight onto a marker that hadn't been drawn/reserved yet. The
+        # physical spot position itself (the marker) never moves - only
+        # the label can be nudged to avoid covering it.
         if self._should_draw_thermal_overlays():
+            spot_render_info = []  # (wx, wy, point, point_color) for the label pass below
+
             for i, point in enumerate(self.measurement_points):
                 wx, wy = self._transform_thermal_coords(point.x, point.y)
 
@@ -578,7 +589,13 @@ class InspectionOverlayWidget(QWidget):
                 painter.setBrush(QColor(r, g, b, 100))
 
                 painter.drawEllipse(int(wx) - 5, int(wy) - 5, 10, 10)
+                # Reserve the marker's own footprint (with a small margin)
+                # so no label - its own or another spot's - ever gets
+                # nudged on top of it.
+                _drawn_label_rects.append(QRect(int(wx) - 7, int(wy) - 7, 14, 14))
+                spot_render_info.append((wx, wy, point, point_color))
 
+            for wx, wy, point, point_color in spot_render_info:
                 if point.temperature is not None:
                     unit = getattr(point, 'unit', '')
                     label_text = f"{point.label}: {point.temperature:.1f}{unit}"
