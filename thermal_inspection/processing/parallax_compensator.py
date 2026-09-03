@@ -1339,6 +1339,11 @@ class ParallaxCompensator:
     # frame into a solid mass of arrows.
     _DISPLACEMENT_GRID_STEP = 32
 
+    # Maximum fraction of width/height _remap_thermal will ever blank away
+    # per side - see its use for why this exists (an extreme real-depth
+    # disparity could otherwise blank the entire frame to black).
+    _MAX_CROP_FRACTION = 0.35
+
     def _draw_displacement_vectors(self, frame: np.ndarray, flow_map: np.ndarray) -> np.ndarray:
         """
         Overlay a sparse grid of arrows showing the actual per-pixel shift
@@ -1493,10 +1498,24 @@ class ParallaxCompensator:
         # exceeds w-1) - blank only the actual max magnitude present on each
         # side, not a blanket worst case, so a small shift doesn't blank
         # more field of view than it has to.
-        left_crop = max(0, min(w, int(np.ceil(shift_x.max()))))
-        right_crop = max(0, min(w, int(np.ceil(-shift_x.min()))))
-        top_crop = max(0, min(h, int(np.ceil(shift_y.max()))))
-        bottom_crop = max(0, min(h, int(np.ceil(-shift_y.min()))))
+        #
+        # Capped at _MAX_CROP_FRACTION per side (not just min(w, ...)/
+        # min(h, ...)) - a real depth source (e.g. RealSense) can
+        # legitimately report a very close object, producing a disparity
+        # far larger than the frame is wide. Capping only at the frame's
+        # own dimension still let left_crop (or any side) reach the full
+        # width/height, and corrected[:, :w] = 0 blanks the ENTIRE frame
+        # to black - confirmed live: "turning on Intel RealSense parallax
+        # compensation turns the RGB feed black" (synthetic depth methods
+        # never report distances close enough to trigger this). Some
+        # residual smeared border can remain visible in this extreme case
+        # instead - a real but far lesser problem than an all-black frame.
+        max_crop_w = int(w * self._MAX_CROP_FRACTION)
+        max_crop_h = int(h * self._MAX_CROP_FRACTION)
+        left_crop = max(0, min(max_crop_w, int(np.ceil(shift_x.max()))))
+        right_crop = max(0, min(max_crop_w, int(np.ceil(-shift_x.min()))))
+        top_crop = max(0, min(max_crop_h, int(np.ceil(shift_y.max()))))
+        bottom_crop = max(0, min(max_crop_h, int(np.ceil(-shift_y.min()))))
 
         if top_crop:
             corrected[:top_crop, :] = 0
