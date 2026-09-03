@@ -50,27 +50,11 @@ class ThresholdVisualization(Enum):
     GRADIENT_OVERLAY = "gradient_overlay"  # Smooth gradient based on distance from threshold
 
 
-# GRADIENT_OVERLAY's falloff radius in pixels - alpha reaches exactly 0
-# at this distance from the nearest anomaly pixel (see apply_threshold_
-# visualization).
-_GRADIENT_FALLOFF_PX = 50
-
-# Extra margin (beyond _GRADIENT_FALLOFF_PX) applied when cropping to a
-# bounding box around the mask for that same function's distance-transform
-# optimization. cv2.distanceTransform's maskSize=5 chamfer approximation
-# turned out to depend very slightly on how close a query pixel is to the
-# array's own edge, not just on the nearest zero pixel's position - a
-# crop padded by exactly the falloff radius reproduced the full-frame
-# result to within ~4e-6 in the raw distance value (verified), which is
-# usually irrelevant but can flip a uint8 truncation by 1 count right at
-# the exact boundary where alpha's clip(0,1) saturates. Padding further
-# by this margin gives the chamfer propagation enough extra pixels to
-# converge to the same floating-point value as the unpadded full-frame
-# computation (verified zero difference, including at that boundary, up
-# to and beyond this margin) - restoring true bit-for-bit equivalence
-# while still cropping to a small fraction of the frame for a localized
-# anomaly.
-_GRADIENT_CROP_PADDING_PX = _GRADIENT_FALLOFF_PX + 30
+# GRADIENT_OVERLAY's blend strength cap - alpha never exceeds this, even
+# at maximum severity (the pixel sitting exactly at the frame's most
+# extreme value on the anomalous side). Keeps a version of the base
+# palette visible through the tint at its strongest.
+_GRADIENT_MAX_ALPHA = 0.5
 
 
 @dataclass
@@ -1339,6 +1323,65 @@ class ThermalAnalyzer:
             max_threshold=max_threshold
         )
 
+    @staticmethod
+    def _gradient_severity(
+        values: np.ndarray,
+        threshold_mode: ThresholdMode,
+        min_threshold: float,
+        max_threshold: Optional[float],
+        frame_min: float,
+        frame_max: float,
+    ) -> np.ndarray:
+        """Per-pixel severity in [0, 1] for GRADIENT_OVERLAY: how far past
+        the threshold(s) each pixel's actual value is, normalized against
+        this frame's own dynamic range on the relevant side - 0 right at
+        the threshold, 1 at the frame's most extreme value. Drives tint
+        intensity by how anomalous a pixel actually is, rather than by
+        distance from the detected region's edge (the previous design -
+        see git history - which left large detected regions looking like
+        a flat overlay with only a thin fading rim, not a gradient).
+
+        Mirrors detect_threshold_anomalies' own per-mode mask logic so a
+        pixel with severity 0 here is never one the mask actually flagged
+        (callers still multiply by the discrete mask before use, as cheap
+        insurance against float boundary edge cases, not because this can
+        disagree with it in the ordinary case).
+        """
+        values = values.astype(np.float32)
+
+        if threshold_mode == ThresholdMode.ABOVE:
+            denom = frame_max - min_threshold
+            severity = (values - min_threshold) / denom if denom > 0 else np.zeros_like(values)
+
+        elif threshold_mode == ThresholdMode.BELOW:
+            denom = min_threshold - frame_min
+            severity = (min_threshold - values) / denom if denom > 0 else np.zeros_like(values)
+
+        elif threshold_mode == ThresholdMode.BETWEEN:
+            hi = max_threshold if max_threshold is not None else min_threshold + 1000
+            half_width = (hi - min_threshold) / 2.0
+            if half_width > 0:
+                center = (min_threshold + hi) / 2.0
+                # Peaks at the band's center, fading to 0 at both edges -
+                # a value right at min_threshold or max_threshold is the
+                # least anomalous a "between" detection can be.
+                severity = 1.0 - np.abs(values - center) / half_width
+            else:
+                severity = np.ones_like(values)  # degenerate single-value band
+
+        elif threshold_mode == ThresholdMode.OUTSIDE:
+            hi = max_threshold if max_threshold is not None else min_threshold + 1000
+            below_denom = min_threshold - frame_min
+            above_denom = frame_max - hi
+            below = ((min_threshold - values) / below_denom) if below_denom > 0 else np.zeros_like(values)
+            above = ((values - hi) / above_denom) if above_denom > 0 else np.zeros_like(values)
+            severity = np.where(values < min_threshold, below, above)
+
+        else:
+            severity = np.zeros_like(values)
+
+        return np.clip(severity, 0.0, 1.0)
+
     def apply_threshold_visualization(
         self,
         thermal_frame: np.ndarray,
@@ -1403,65 +1446,58 @@ class ThermalAnalyzer:
             output = binary_3ch
 
         elif viz_mode == ThresholdVisualization.GRADIENT_OVERLAY:
-            # Any pixel farther than _GRADIENT_FALLOFF_PX from the nearest
-            # anomaly pixel gets alpha=0 below - i.e. output == input there,
-            # exactly, not approximately. So instead of computing the
-            # distance transform and blend over the WHOLE frame, restrict
-            # both to a box around the mask padded by the falloff radius,
-            # and leave every pixel outside it as a bare copy. This is
-            # bit-identical to running the full-frame version (verified
-            # against it across many random masks) - it just skips work
-            # that would produce a no-op. Anomaly detections are typically
-            # a small fraction of the frame, so this is the actual
-            # algorithmic win the previous two passes' micro-optimizations
-            # couldn't reach: measured 2-7.5x faster for localized or
-            # absent anomalies, since a quiet scene (no anomalies) skips
-            # the distance transform and blend entirely. The one case this
-            # doesn't help - anomalies covering roughly half the frame or
-            # more - falls back to the direct full-frame path below so the
-            # extra copy/slice bookkeeping can't make that case slower.
+            # Tint intensity tracks how anomalous each pixel's actual value
+            # is (see _gradient_severity), not distance from the detected
+            # region's edge - a large detected region now shows its own
+            # hottest/coldest core glowing strongest and fading smoothly
+            # down to no tint at all as values approach the threshold,
+            # instead of a flat-opacity blob with a thin fading rim
+            # (confirmed live: "just a red overlay on top of the view,
+            # not much of a gradient").
+            #
+            # Severity is exactly 0 outside the mask (by construction: the
+            # formulas' zero-crossing lines up with detect_threshold_
+            # anomalies' own comparisons - see _gradient_severity's
+            # docstring), so output == input there, exactly. Restricting
+            # to the mask's own bounding box - no falloff padding needed,
+            # unlike the old distance-based version - skips that work
+            # entirely for whatever's outside it. Falls back to the direct
+            # full-frame path when the box would cover >=70% of the frame
+            # anyway, so that case can't regress from the extra copy/slice
+            # bookkeeping.
             ys, xs = np.nonzero(mask)
             if ys.size == 0:
                 output = colorized_frame.copy()
             else:
                 h, w = mask.shape[:2]
-                y0 = max(0, int(ys.min()) - _GRADIENT_CROP_PADDING_PX)
-                y1 = min(h, int(ys.max()) + _GRADIENT_CROP_PADDING_PX + 1)
-                x0 = max(0, int(xs.min()) - _GRADIENT_CROP_PADDING_PX)
-                x1 = min(w, int(xs.max()) + _GRADIENT_CROP_PADDING_PX + 1)
+                y0, y1 = int(ys.min()), int(ys.max()) + 1
+                x0, x1 = int(xs.min()), int(xs.max()) + 1
                 full_frame = (y1 - y0) * (x1 - x0) >= 0.7 * h * w
 
                 if full_frame:
                     sub_frame = colorized_frame
+                    sub_thermal = thermal_frame
                     sub_mask = mask
                 else:
                     sub_frame = colorized_frame[y0:y1, x0:x1]
+                    sub_thermal = thermal_frame[y0:y1, x0:x1]
                     sub_mask = mask[y0:y1, x0:x1]
 
-                mask_binary = (sub_mask > 0).astype(np.uint8)
-                dist_from_anomaly = cv2.distanceTransform(1 - mask_binary, cv2.DIST_L2, 5)
-                dist_from_anomaly = np.clip(dist_from_anomaly / float(_GRADIENT_FALLOFF_PX), 0.0, 1.0)
+                severity = self._gradient_severity(
+                    sub_thermal, detection_result.threshold_mode,
+                    detection_result.min_threshold, detection_result.max_threshold,
+                    float(thermal_frame.min()), float(thermal_frame.max()),
+                )
+                mask_binary = (sub_mask > 0).astype(np.float32)
 
-                # Blend. Measured live at 27-43ms/frame (full-frame) before
-                # this rewrite - profiled down to the (H,W,3)*(H,W,1)
-                # broadcast multiplies themselves: on this NumPy build a
-                # broadcast elementwise multiply measured ~3x slower than
-                # the equivalent same-shape multiply (6.4ms vs 2.2ms for
-                # one array this size), not a memory-bandwidth limit - the
-                # float64 upcast from mixing uint8 and float32 and the
-                # wasted np.ones_like(colorized_frame) allocation this
-                # replaced were real but comparatively minor next to that.
-                # A first fix split into per-channel cv2.split/merge
-                # multiplies (no broadcast) - correct, but cv2.split/merge
-                # themselves turned out to cost ~5.6ms of that (copying to
-                # 3 separate contiguous arrays and back), against ~0.07ms
-                # for the actual multiply. Operating on strided views into
-                # the interleaved array directly - no split/merge at all -
-                # is bit-identical and cut isolated timing from ~10ms to
-                # ~4.4ms. The overlay color is pure red (BGR 0,0,255), so
-                # its contribution to B/G is always zero - only the R view
-                # needs the alpha term.
-                alpha = (1.0 - dist_from_anomaly) * 0.5  # float32, (h,w), in [0, 0.5]
+                # Blend via strided views into the interleaved array
+                # rather than a broadcast multiply or cv2.split/merge -
+                # both measured markedly slower on this NumPy build for
+                # the equivalent (H,W,3)*(H,W,1) operation (see git
+                # history for the isolated benchmarks). The overlay color
+                # is pure red (BGR 0,0,255), so its contribution to B/G
+                # is always zero - only the R view needs the alpha term.
+                alpha = severity * mask_binary * _GRADIENT_MAX_ALPHA  # float32, (h,w)
                 weight = 1.0 - alpha
                 sub_f32 = sub_frame.astype(np.float32)
                 sub_f32[..., 0] *= weight
