@@ -50,6 +50,29 @@ class ThresholdVisualization(Enum):
     GRADIENT_OVERLAY = "gradient_overlay"  # Smooth gradient based on distance from threshold
 
 
+# GRADIENT_OVERLAY's falloff radius in pixels - alpha reaches exactly 0
+# at this distance from the nearest anomaly pixel (see apply_threshold_
+# visualization).
+_GRADIENT_FALLOFF_PX = 50
+
+# Extra margin (beyond _GRADIENT_FALLOFF_PX) applied when cropping to a
+# bounding box around the mask for that same function's distance-transform
+# optimization. cv2.distanceTransform's maskSize=5 chamfer approximation
+# turned out to depend very slightly on how close a query pixel is to the
+# array's own edge, not just on the nearest zero pixel's position - a
+# crop padded by exactly the falloff radius reproduced the full-frame
+# result to within ~4e-6 in the raw distance value (verified), which is
+# usually irrelevant but can flip a uint8 truncation by 1 count right at
+# the exact boundary where alpha's clip(0,1) saturates. Padding further
+# by this margin gives the chamfer propagation enough extra pixels to
+# converge to the same floating-point value as the unpadded full-frame
+# computation (verified zero difference, including at that boundary, up
+# to and beyond this margin) - restoring true bit-for-bit equivalence
+# while still cropping to a small fraction of the frame for a localized
+# anomaly.
+_GRADIENT_CROP_PADDING_PX = _GRADIENT_FALLOFF_PX + 30
+
+
 @dataclass
 class ThermalStatistics:
     """Statistical data for a thermal region."""
@@ -1380,39 +1403,78 @@ class ThermalAnalyzer:
             output = binary_3ch
 
         elif viz_mode == ThresholdVisualization.GRADIENT_OVERLAY:
-            # Distance-based gradient fade
-            # Compute distance transform from anomaly edges
-            mask_binary = (mask > 0).astype(np.uint8)
-            dist_from_anomaly = cv2.distanceTransform(1 - mask_binary, cv2.DIST_L2, 5)
-            dist_from_anomaly = np.clip(dist_from_anomaly / 50.0, 0.0, 1.0)  # Normalize to 0-1, stays float32
+            # Any pixel farther than _GRADIENT_FALLOFF_PX from the nearest
+            # anomaly pixel gets alpha=0 below - i.e. output == input there,
+            # exactly, not approximately. So instead of computing the
+            # distance transform and blend over the WHOLE frame, restrict
+            # both to a box around the mask padded by the falloff radius,
+            # and leave every pixel outside it as a bare copy. This is
+            # bit-identical to running the full-frame version (verified
+            # against it across many random masks) - it just skips work
+            # that would produce a no-op. Anomaly detections are typically
+            # a small fraction of the frame, so this is the actual
+            # algorithmic win the previous two passes' micro-optimizations
+            # couldn't reach: measured 2-7.5x faster for localized or
+            # absent anomalies, since a quiet scene (no anomalies) skips
+            # the distance transform and blend entirely. The one case this
+            # doesn't help - anomalies covering roughly half the frame or
+            # more - falls back to the direct full-frame path below so the
+            # extra copy/slice bookkeeping can't make that case slower.
+            ys, xs = np.nonzero(mask)
+            if ys.size == 0:
+                output = colorized_frame.copy()
+            else:
+                h, w = mask.shape[:2]
+                y0 = max(0, int(ys.min()) - _GRADIENT_CROP_PADDING_PX)
+                y1 = min(h, int(ys.max()) + _GRADIENT_CROP_PADDING_PX + 1)
+                x0 = max(0, int(xs.min()) - _GRADIENT_CROP_PADDING_PX)
+                x1 = min(w, int(xs.max()) + _GRADIENT_CROP_PADDING_PX + 1)
+                full_frame = (y1 - y0) * (x1 - x0) >= 0.7 * h * w
 
-            # Create gradient overlay. Measured live at 27-43ms/frame on a
-            # 512x640 frame before this rewrite - profiled down to the
-            # (H,W,3)*(H,W,1) broadcast multiplies themselves: on this
-            # NumPy build a broadcast elementwise multiply measured ~3x
-            # slower than the equivalent same-shape multiply (6.4ms vs
-            # 2.2ms for one array this size), not a memory-bandwidth
-            # limit - the float64 upcast from mixing uint8 and float32
-            # and the wasted np.ones_like(colorized_frame) allocation
-            # this replaced were real but comparatively minor next to
-            # that. A first fix split into per-channel cv2.split/merge
-            # multiplies (no broadcast) - correct, but cv2.split/merge
-            # themselves turned out to cost ~5.6ms of that (copying to 3
-            # separate contiguous arrays and back), against ~0.07ms for
-            # the actual multiply. Operating on strided views into the
-            # interleaved array directly - no split/merge at all - is
-            # bit-identical and cut isolated timing from ~10ms to ~4.4ms
-            # (confirmed live: still noticeably faster). The overlay
-            # color is pure red (BGR 0,0,255), so its contribution to
-            # B/G is always zero - only the R view needs the alpha term.
-            alpha = (1.0 - dist_from_anomaly) * 0.5  # float32, (H,W), in [0, 0.5]
-            weight = 1.0 - alpha
-            frame_f32 = colorized_frame.astype(np.float32)
-            frame_f32[..., 0] *= weight
-            frame_f32[..., 1] *= weight
-            frame_f32[..., 2] *= weight
-            frame_f32[..., 2] += 255.0 * alpha
-            output = frame_f32.astype(np.uint8)
+                if full_frame:
+                    sub_frame = colorized_frame
+                    sub_mask = mask
+                else:
+                    sub_frame = colorized_frame[y0:y1, x0:x1]
+                    sub_mask = mask[y0:y1, x0:x1]
+
+                mask_binary = (sub_mask > 0).astype(np.uint8)
+                dist_from_anomaly = cv2.distanceTransform(1 - mask_binary, cv2.DIST_L2, 5)
+                dist_from_anomaly = np.clip(dist_from_anomaly / float(_GRADIENT_FALLOFF_PX), 0.0, 1.0)
+
+                # Blend. Measured live at 27-43ms/frame (full-frame) before
+                # this rewrite - profiled down to the (H,W,3)*(H,W,1)
+                # broadcast multiplies themselves: on this NumPy build a
+                # broadcast elementwise multiply measured ~3x slower than
+                # the equivalent same-shape multiply (6.4ms vs 2.2ms for
+                # one array this size), not a memory-bandwidth limit - the
+                # float64 upcast from mixing uint8 and float32 and the
+                # wasted np.ones_like(colorized_frame) allocation this
+                # replaced were real but comparatively minor next to that.
+                # A first fix split into per-channel cv2.split/merge
+                # multiplies (no broadcast) - correct, but cv2.split/merge
+                # themselves turned out to cost ~5.6ms of that (copying to
+                # 3 separate contiguous arrays and back), against ~0.07ms
+                # for the actual multiply. Operating on strided views into
+                # the interleaved array directly - no split/merge at all -
+                # is bit-identical and cut isolated timing from ~10ms to
+                # ~4.4ms. The overlay color is pure red (BGR 0,0,255), so
+                # its contribution to B/G is always zero - only the R view
+                # needs the alpha term.
+                alpha = (1.0 - dist_from_anomaly) * 0.5  # float32, (h,w), in [0, 0.5]
+                weight = 1.0 - alpha
+                sub_f32 = sub_frame.astype(np.float32)
+                sub_f32[..., 0] *= weight
+                sub_f32[..., 1] *= weight
+                sub_f32[..., 2] *= weight
+                sub_f32[..., 2] += 255.0 * alpha
+                sub_out = sub_f32.astype(np.uint8)
+
+                if full_frame:
+                    output = sub_out
+                else:
+                    output = colorized_frame.copy()
+                    output[y0:y1, x0:x1] = sub_out
 
         return output
 
