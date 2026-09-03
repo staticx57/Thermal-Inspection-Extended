@@ -844,8 +844,12 @@ class Fusion3DSettingsPanel(QWidget):
             self.status_label.setStyleSheet("color: #888888; font-size: 10pt;")
         elif not thermal_aligned:
             self.status_label.setText(
-                "RealSense connected, but thermal isn't aligned to it. "
-                "Enable Parallax Correction (depth method \"Intel RealSense\")."
+                "RealSense connected, but thermal isn't aligned to it. Enable "
+                "Parallax Correction (or set a manual shift) with Correction "
+                "Target set to \"Thermal\" - depth method \"Intel RealSense\" "
+                "only helps if Correction Target is also \"Thermal\": "
+                "\"RGB\" warps the RGB frame away from RealSense's own "
+                "native depth alignment."
             )
             self.status_label.setStyleSheet("color: #cc8800; font-size: 10pt;")
         else:

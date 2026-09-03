@@ -1533,6 +1533,19 @@ class ThermalInspectionApp:
                     not self.parallax_compensator.enabled
                     or self.parallax_compensator.depth_estimator.method == "realsense"
                 )
+                # correction_target=="rgb" warps the RGB frame to align
+                # with thermal - but RealSense's depth is natively
+                # hardware-aligned to its OWN raw, unwarped color stream.
+                # Warping that RGB frame breaks the depth-color
+                # correspondence 3D Fusion's relief shading and point-
+                # cloud coloring both depend on (get_depth_frame() is
+                # always fetched raw/unwarped) - confirmed live ("3d
+                # fusion also ignores the crop factor and shift... a
+                # display that is mismatched in the two cameras POVs").
+                # Only "thermal" target keeps this consistent: RealSense's
+                # own RGB+depth stay untouched, and thermal is warped to
+                # match them instead.
+                and self.parallax_compensator.get_correction_target() == "thermal"
             )
             if _rs_backend is not None and _rs_backend is not self._last_3d_hw_available_reported:
                 self._gui_invoke("set_fusion_3d_hardware_available", True)
