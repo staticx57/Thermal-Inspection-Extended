@@ -56,6 +56,19 @@ class ThresholdVisualization(Enum):
 # palette visible through the tint at its strongest.
 _GRADIENT_MAX_ALPHA = 0.5
 
+# GRADIENT_OVERLAY's tint colors (BGR), chosen per threshold mode rather
+# than a single fixed color - a BELOW (cold-anomaly) detection tinted red
+# reads as "hot" regardless of what it's actually flagging, which is
+# backwards (confirmed live: "we may be looking at cool anomalies not
+# always hot"). ABOVE/BELOW map directly to the conventional hot/cold
+# colors; BETWEEN (a specific value band, not inherently hot or cold)
+# gets a neutral "flagged region" color distinct from both; OUTSIDE
+# tints each pixel with whichever of the two applies to its own side
+# (see apply_threshold_visualization).
+_GRADIENT_COLOR_HOT = (0, 0, 255)      # red - ABOVE
+_GRADIENT_COLOR_COLD = (255, 0, 0)     # blue - BELOW
+_GRADIENT_COLOR_BAND = (255, 0, 255)   # magenta - BETWEEN
+
 
 @dataclass
 class ThermalStatistics:
@@ -1483,27 +1496,51 @@ class ThermalAnalyzer:
                     sub_thermal = thermal_frame[y0:y1, x0:x1]
                     sub_mask = mask[y0:y1, x0:x1]
 
+                threshold_mode = detection_result.threshold_mode
+                min_t = detection_result.min_threshold
+                max_t = detection_result.max_threshold
                 severity = self._gradient_severity(
-                    sub_thermal, detection_result.threshold_mode,
-                    detection_result.min_threshold, detection_result.max_threshold,
+                    sub_thermal, threshold_mode, min_t, max_t,
                     float(thermal_frame.min()), float(thermal_frame.max()),
                 )
                 mask_binary = (sub_mask > 0).astype(np.float32)
+                alpha = severity * mask_binary * _GRADIENT_MAX_ALPHA  # float32, (h,w)
+                weight = 1.0 - alpha
 
                 # Blend via strided views into the interleaved array
                 # rather than a broadcast multiply or cv2.split/merge -
                 # both measured markedly slower on this NumPy build for
                 # the equivalent (H,W,3)*(H,W,1) operation (see git
-                # history for the isolated benchmarks). The overlay color
-                # is pure red (BGR 0,0,255), so its contribution to B/G
-                # is always zero - only the R view needs the alpha term.
-                alpha = severity * mask_binary * _GRADIENT_MAX_ALPHA  # float32, (h,w)
-                weight = 1.0 - alpha
+                # history for the isolated benchmarks).
+                #
+                # OUTSIDE is two-sided (below min OR above max), so each
+                # pixel needs whichever color matches its own side - the
+                # per-channel color becomes a (h,w) array selected by
+                # np.where instead of a single scalar. The other three
+                # modes use one fixed color for every tinted pixel, so
+                # b/g/r stay plain Python scalars (cheap: scalar*array,
+                # not array*array).
+                if threshold_mode == ThresholdMode.OUTSIDE:
+                    is_below = sub_thermal < min_t
+                    hot, cold = _GRADIENT_COLOR_HOT, _GRADIENT_COLOR_COLD
+                    b = np.where(is_below, cold[0], hot[0]).astype(np.float32)
+                    g = np.where(is_below, cold[1], hot[1]).astype(np.float32)
+                    r = np.where(is_below, cold[2], hot[2]).astype(np.float32)
+                else:
+                    color = {
+                        ThresholdMode.ABOVE: _GRADIENT_COLOR_HOT,
+                        ThresholdMode.BELOW: _GRADIENT_COLOR_COLD,
+                        ThresholdMode.BETWEEN: _GRADIENT_COLOR_BAND,
+                    }.get(threshold_mode, _GRADIENT_COLOR_HOT)
+                    b, g, r = float(color[0]), float(color[1]), float(color[2])
+
                 sub_f32 = sub_frame.astype(np.float32)
                 sub_f32[..., 0] *= weight
+                sub_f32[..., 0] += b * alpha
                 sub_f32[..., 1] *= weight
+                sub_f32[..., 1] += g * alpha
                 sub_f32[..., 2] *= weight
-                sub_f32[..., 2] += 255.0 * alpha
+                sub_f32[..., 2] += r * alpha
                 sub_out = sub_f32.astype(np.uint8)
 
                 if full_frame:
