@@ -1594,7 +1594,8 @@ class ThermalInspectionApp:
             # 3. Analyze (Radiometric stats)
             analysis_results = {
                 'stats': None, 'hot_spots': [], 'cold_spots': [],
-                'anomalies': [], 'motion_detections': [],
+                'anomalies': [], 'enhanced_fusion_anomalies': [],
+                'motion_detections': [],
                 'edge_clusters': [], 'trend': None
             }
 
@@ -1905,6 +1906,7 @@ class ThermalInspectionApp:
                     hot_spots=analysis_results.get('hot_spots', []),
                     cold_spots=analysis_results.get('cold_spots', []),
                     anomalies=analysis_results.get('anomalies', []),
+                    enhanced_fusion_anomalies=analysis_results.get('enhanced_fusion_anomalies', []),
                     motion_detections=analysis_results.get('motion_detections', []),
                     edge_clusters=analysis_results.get('edge_clusters', []),
                     trend=analysis_results.get('trend'),
@@ -2106,25 +2108,33 @@ class ThermalInspectionApp:
     def set_enabled_anomaly_types(self, types_dict: dict):
         """Set enabled anomaly types."""
         self.enabled_anomaly_types = types_dict.copy()
+        # "enhanced_fusion" specifically gates whether ThermalAnalyzer.
+        # analyze() runs detect_enhanced_fusion_anomalies() at all (see
+        # its own comment there) - the other four types are always
+        # computed regardless of checkbox state, only filtered at the
+        # priority-colorization merge below.
+        if self.thermal_analyzer:
+            self.thermal_analyzer.enabled_anomaly_types = self.enabled_anomaly_types
 
     # Anomaly-panel type checkbox key -> analysis_results key holding that
-    # category's detections. All five share the same `bbox` (x1,y1,x2,y2)
+    # category's detections. All six share the same `bbox` (x1,y1,x2,y2)
     # field - HotSpot/ColdSpot/ThermalAnomaly's docstrings say so
     # explicitly ("for anomaly priority compatibility") - but nothing ever
     # actually combined them: apply_anomaly_priority_colorization() only
     # ever received analysis_results['anomalies'] (ThermalAnomaly alone),
     # so toggling Motion/Edges/Hot Spots/Cold Spots off (or on) had zero
     # effect on the anomaly-priority fade regardless of checkbox state.
-    # "enhanced_fusion" is deliberately not in this map -
-    # detect_enhanced_fusion_anomalies() exists but is never called
-    # anywhere in the pipeline; that checkbox has no detection behind it
-    # yet, a separate gap from this dead-merge bug.
+    # "enhanced_fusion" maps to 'enhanced_fusion_anomalies' -
+    # detect_enhanced_fusion_anomalies() is now actually called (gated on
+    # this same enabled_anomaly_types, see set_enabled_anomaly_types and
+    # ThermalAnalyzer.analyze()) instead of never being wired in at all.
     _ANOMALY_TYPE_RESULT_KEYS = {
         'hot_spots': 'hot_spots',
         'cold_spots': 'cold_spots',
         'thermal_anomalies': 'anomalies',
         'motion': 'motion_detections',
         'edges': 'edge_clusters',
+        'enhanced_fusion': 'enhanced_fusion_anomalies',
     }
 
     def _collect_priority_anomalies(self, analysis_results: dict) -> list:

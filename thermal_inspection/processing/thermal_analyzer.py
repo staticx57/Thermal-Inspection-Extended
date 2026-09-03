@@ -164,6 +164,16 @@ class ThermalAnalyzer:
         self._est_map_cache_key: Optional[int] = None
         self._est_map_cache: Optional[np.ndarray] = None
 
+        # Which anomaly-panel types are enabled - set externally by app.py
+        # (mirrors AnomalyWidget's own checkboxes). Only consulted for
+        # "enhanced_fusion" (see analyze()): hot_spots/cold_spots/
+        # thermal_anomalies are always computed regardless of their own
+        # checkbox state (existing behavior, unchanged) since they're
+        # cheap; enhanced_fusion's Sobel+Canny+contour pipeline is
+        # meaningfully more expensive and defaults OFF in the UI, so it's
+        # not worth running every frame unless actually enabled.
+        self.enabled_anomaly_types: Dict[str, bool] = {}
+
         # Temperature settings
         self.temp_unit = TemperatureUnit(
             self.config.get("temperature_unit", "C")
@@ -295,6 +305,20 @@ class ThermalAnalyzer:
         cold_spots = self.detect_cold_spots(thermal_frame)
         anomalies = self.detect_anomalies(thermal_frame)
 
+        # "Enhanced Fusion" anomaly type - the checkbox existed in the
+        # panel but detect_enhanced_fusion_anomalies() was never called
+        # anywhere in the pipeline, so it had no detection behind it at
+        # all regardless of the checkbox. Gated on enabled_anomaly_types
+        # (unlike the three detections above, which always run) since its
+        # Sobel+Canny+contour pipeline costs meaningfully more and this
+        # type defaults OFF in the UI.
+        enhanced_fusion_anomalies: List[ThermalAnomaly] = []
+        if self.enabled_anomaly_types.get('enhanced_fusion', False):
+            try:
+                enhanced_fusion_anomalies = self.detect_enhanced_fusion_anomalies(thermal_frame)
+            except Exception as e:
+                logger.error(f"Enhanced fusion anomaly detection error: {e}")
+
         # For histogram: convert to float temperature array
         temp_array = None
         if thermal_frame is not None:
@@ -310,6 +334,7 @@ class ThermalAnalyzer:
             'hot_spots': hot_spots,
             'cold_spots': cold_spots,
             'anomalies': anomalies,
+            'enhanced_fusion_anomalies': enhanced_fusion_anomalies,
             'motion_detections': [], # Filled by ThermalProcessor
             'edge_clusters': [],     # Filled by ThermalProcessor
             'trend': None,           # Placeholder

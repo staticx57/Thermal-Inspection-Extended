@@ -2595,6 +2595,7 @@ class InspectionAppWindow(QMainWindow):
                                 hot_spots: List[HotSpot],
                                 cold_spots: List[ColdSpot],
                                 anomalies: List[ThermalAnomaly],
+                                enhanced_fusion_anomalies: List = None,
                                 motion_detections: List = None,
                                 edge_clusters: List = None,
                                 trend: Optional[TemperatureTrend] = None,
@@ -2627,7 +2628,8 @@ class InspectionAppWindow(QMainWindow):
             "cold_spots": len(cold_spots),
             "thermal_anomalies": len(anomalies),
             "motion": len(motion_detections) if motion_detections else 0,
-            "edges": len(edge_clusters) if edge_clusters else 0
+            "edges": len(edge_clusters) if edge_clusters else 0,
+            "enhanced_fusion": len(enhanced_fusion_anomalies) if enhanced_fusion_anomalies else 0,
         }
         self.anomaly_widget.update_counts(counts)
 
