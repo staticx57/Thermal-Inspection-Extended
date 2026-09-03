@@ -1872,7 +1872,16 @@ class ThermalInspectionApp:
                     self.gui.update_thermal_resolution(*self._last_thermal_resolution)
                     self._gui_thermal_resolution_synced = self._last_thermal_resolution
 
-                self.gui.update_frame(display_frame)
+                # frame_frozen was set by toggle_freeze() but never read
+                # anywhere - the Freeze button updated its own label/icon
+                # and nothing else, the video kept updating live
+                # regardless. Skip only the visible video push here -
+                # analysis/recording/metrics continue normally on the
+                # freshly computed frame, so unfreezing resumes cleanly
+                # with no backlog, and a snapshot/recording taken while
+                # frozen isn't itself frozen in time for no reason.
+                if not self.frame_frozen:
+                    self.gui.update_frame(display_frame)
 
                 _prof_t_guiframe = time.time()
 
