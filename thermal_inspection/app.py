@@ -1727,9 +1727,15 @@ class ThermalInspectionApp:
 
             # Apply anomaly priority if enabled
             if self.thermal_processor and self.thermal_processor.anomaly_priority_enabled:
+                _anomprio_anomalies = self._collect_priority_anomalies(analysis_results)
+                _anomprio_t0 = time.perf_counter()
                 colorized_thermal = self.thermal_processor.apply_anomaly_priority_colorization(
-                    thermal_frame, self._collect_priority_anomalies(analysis_results), colorized_thermal
+                    thermal_frame, _anomprio_anomalies, colorized_thermal
                 )
+                if self.frame_count % 30 == 0:
+                    print(f"[PROFILE_ANOMALY_PRIORITY] anomaly_count={len(_anomprio_anomalies)} "
+                          f"shape={colorized_thermal.shape} "
+                          f"ms={(time.perf_counter() - _anomprio_t0) * 1000:.2f}", flush=True)
 
             # 3b. Apply isotherm overlay via IsothermManager
             if thermal_16bit is not None:
