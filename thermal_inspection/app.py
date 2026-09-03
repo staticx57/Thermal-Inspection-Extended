@@ -439,6 +439,9 @@ class ThermalInspectionApp:
         bus.parallax_zoom_changed.connect(
             lambda z: self.set_parallax_zoom(z) if hasattr(self, 'set_parallax_zoom') else None
         )
+        bus.parallax_correction_target_changed.connect(
+            lambda t: self.set_parallax_correction_target(t) if hasattr(self, 'set_parallax_correction_target') else None
+        )
 
         # --- Gradient Overlay ---
         bus.gradient_enabled_changed.connect(
@@ -1424,9 +1427,16 @@ class ThermalInspectionApp:
                 try:
                     safe_rgb = (rgb_frame if rgb_frame is not None
                                 and rgb_frame is not self.rgb_placeholder else None)
-                    thermal_frame = self.parallax_compensator.apply_correction(
+                    corrected_thermal, corrected_rgb = self.parallax_compensator.apply_correction(
                         thermal_frame, safe_rgb
                     )
+                    thermal_frame = corrected_thermal
+                    # Only overwrite rgb_frame when a real corrected frame
+                    # came back - safe_rgb was None (no real RGB available)
+                    # returns None here too, and reassigning that would
+                    # clobber a legitimate placeholder frame downstream.
+                    if corrected_rgb is not None:
+                        rgb_frame = corrected_rgb
                     # Parallax panel's "Performance" section - built with a
                     # working update method but nothing ever called it.
                     # Throttled: this is a display metric, not something
@@ -2672,6 +2682,13 @@ class ThermalInspectionApp:
         """Set the manual crop-in zoom factor (1.0 = none) directly, independent of auto-alignment."""
         if self.parallax_compensator:
             self.parallax_compensator.set_fov_zoom_factor(zoom_factor)
+        else:
+            logger.warning("ParallaxCompensator not available")
+
+    def set_parallax_correction_target(self, target: str):
+        """Set which frame ("thermal" or "rgb") apply_correction() warps/crops."""
+        if self.parallax_compensator:
+            self.parallax_compensator.set_correction_target(target)
         else:
             logger.warning("ParallaxCompensator not available")
 

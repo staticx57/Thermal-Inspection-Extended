@@ -166,6 +166,7 @@ class AppEventBus(QObject):
     parallax_auto_alignment_result = pyqtSignal(int, int, float)  # dx, dy, fov_zoom_factor
     parallax_geometry_optics_changed = pyqtSignal(dict)  # thermal/rgb focal_length_mm + sensor_width_mm
     parallax_zoom_changed = pyqtSignal(float)  # manual crop-in zoom factor
+    parallax_correction_target_changed = pyqtSignal(str)  # "thermal" or "rgb"
 
     # =====================================================================
     # Analyzer / Processor Settings

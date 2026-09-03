@@ -587,6 +587,41 @@ class ParallaxCompensator:
         self.manual_shift_x = 0
         self.manual_shift_y = 0
 
+        # Which frame actually gets warped/cropped to align with the
+        # other - "thermal" (default, this module's original behavior) or
+        # "rgb". "rgb" is generally the better choice when the RGB sensor
+        # has substantially more native resolution than the thermal one
+        # (true for every camera pair this app supports - Boson/Tau2/
+        # Lepton are all far lower-resolution than any UVC/Firefly/GigE/
+        # RealSense RGB source): the abundant RGB pixels absorb the
+        # crop/warp loss while thermal stays byte-for-byte as captured.
+        # This isn't just about pixel count either - thermal pixel values
+        # are real radiometric measurements, not cosmetic appearance, so
+        # every OTHER consumer of thermal_frame (spot meter, isotherm
+        # overlay, calibration, radiometric anomaly detection) currently
+        # reads a bilinear-interpolated blend of neighboring temperature
+        # readings whenever correction_target=="thermal" and depth-based
+        # correction is active - not the sensor's actual per-pixel
+        # measurement. correction_target=="rgb" leaves thermal completely
+        # untouched for all of that.
+        #
+        # Kept as an opt-in setting rather than switching the default,
+        # since the sign/scale conversion to RGB's own resolution and
+        # focal length (see _apply_correction_rgb_target) is derived from
+        # the existing thermal-shift formula's convention, not yet
+        # verified against real hardware the way that formula's own
+        # thermal-shift direction has been over this project's testing.
+        self.correction_target = "thermal"
+
+        # Derived from the existing thermal-shift formula's convention
+        # (see _apply_correction_rgb_target), NOT yet confirmed against
+        # real hardware. If RGB alignment ever visibly drifts in the
+        # wrong direction as depth changes (misalignment gets worse
+        # instead of better with distance, or a manual shift moves things
+        # the opposite way from what the sign implies it should), this is
+        # the one value to flip to -1.0/+1.0.
+        self._rgb_target_sign = -1.0
+
         # Static crop-in zoom factor correcting a genuine FOV mismatch
         # between the thermal and RGB sensors (from their focal lengths and
         # sensor widths - a fixed optical property, not something that
@@ -672,6 +707,41 @@ class ParallaxCompensator:
         """Wire a real hardware depth source (e.g. a RealSense camera) for depth_method="realsense"."""
         self.depth_estimator.set_hardware_depth_source(source_fn)
 
+    def set_correction_target(self, target: str):
+        """
+        Choose which frame apply_correction() actually warps/crops to
+        align with the other: "thermal" (default) or "rgb".
+
+        "rgb" is generally the better choice whenever the RGB sensor has
+        substantially more native resolution than the thermal one (true
+        for every camera pair this app supports) - see this class's
+        correction_target comment in __init__ for the full reasoning
+        (spare RGB pixels absorb the crop/warp loss; thermal pixel values
+        are real radiometric measurements that stay byte-for-byte exact
+        instead of being bilinear-blended by the remap).
+
+        Switching targets changes which frame's pixel space
+        manual_shift_x/manual_shift_y are expressed in - a shift tuned
+        for one target is not meaningful for the other (different
+        resolution, different focal length in pixels). Re-tune (or
+        re-run Auto-Calculate Alignment) after switching.
+        """
+        target = target.lower()
+        if target not in ("thermal", "rgb"):
+            logger.warning(f"Unknown parallax correction target '{target}', ignoring")
+            return
+        if target != self.correction_target:
+            logger.info(
+                f"Parallax correction target changed to '{target}' - manual shift "
+                f"({self.manual_shift_x}, {self.manual_shift_y})px was tuned for the "
+                f"other target's pixel space and likely needs re-tuning"
+            )
+        self.correction_target = target
+
+    def get_correction_target(self) -> str:
+        """Get which frame apply_correction() currently warps/crops ("thermal" or "rgb")."""
+        return self.correction_target
+
     def set_manual_shift(self, dx: int, dy: int):
         """
         Set a constant manual alignment shift (pixels), independent of
@@ -713,39 +783,54 @@ class ParallaxCompensator:
         property - it doesn't depend on distance to the subject, only on
         the two cameras' own optics.
 
-        Returns 1.0 (no crop needed) if the thermal FOV is already the same
-        or narrower than the RGB FOV - this compensator only ever crops the
-        thermal frame, so it can't correct the opposite case (RGB narrower
-        than thermal) without also touching the RGB frame.
+        Returns 1.0 (no crop needed) if correction_target's own FOV is
+        already the same or narrower than the other camera's - this only
+        ever crops whichever frame correction_target points to, so it
+        can't correct the opposite case (the OTHER camera being the
+        narrower one) without also touching that frame instead.
         """
         thermal_half_fov = math.atan2(self.geometry.thermal_sensor_width_mm / 2.0,
                                      self.geometry.thermal_focal_length_mm)
         rgb_half_fov = math.atan2(self.geometry.rgb_sensor_width_mm / 2.0,
                                  self.geometry.rgb_focal_length_mm)
 
-        if thermal_half_fov <= rgb_half_fov:
+        if self.correction_target == "rgb":
+            target_half_fov, fixed_half_fov = rgb_half_fov, thermal_half_fov
+        else:
+            target_half_fov, fixed_half_fov = thermal_half_fov, rgb_half_fov
+
+        if target_half_fov <= fixed_half_fov:
             return 1.0
 
-        # Crop the thermal frame down to the angular width the RGB camera
-        # actually covers, then that crop gets resized back up to full
-        # resolution (see _apply_fov_zoom) - the ratio of the tangents of
-        # the half-FOV angles is exactly the fraction of the thermal
-        # sensor's width that subtends the RGB camera's (narrower) FOV.
-        return math.tan(thermal_half_fov) / math.tan(rgb_half_fov)
+        # Crop the target frame down to the angular width the fixed
+        # camera actually covers, then that crop gets resized back up to
+        # full resolution (see _apply_fov_zoom) - the ratio of the
+        # tangents of the half-FOV angles is exactly the fraction of the
+        # target sensor's width that subtends the fixed camera's
+        # (narrower) FOV.
+        return math.tan(target_half_fov) / math.tan(fixed_half_fov)
 
     def compute_geometric_shift_px(self, working_distance_m: float) -> int:
         """
         Compute the horizontal pixel disparity expected at a given subject
-        distance, from camera baseline and thermal focal length alone -
-        the same formula as compute_disparity(), applied to a single
-        scalar distance instead of a per-pixel depth map.
+        distance, in whichever frame's pixel space correction_target
+        points to - the same formula as compute_disparity()/
+        compute_disparity_rgb(), applied to a single scalar distance
+        instead of a per-pixel depth map.
         """
         working_distance_m = max(0.05, float(working_distance_m))
-        thermal_focal_px = (self.geometry.thermal_focal_length_mm /
-                           self.geometry.thermal_sensor_width_mm *
-                           self.geometry.thermal_resolution[0])
-        disparity_px = (self.geometry.baseline_mm * thermal_focal_px) / (working_distance_m * 1000.0)
-        return int(round(disparity_px))
+        if self.correction_target == "rgb":
+            focal_px = (self.geometry.rgb_focal_length_mm /
+                      self.geometry.rgb_sensor_width_mm *
+                      self.geometry.rgb_resolution[0])
+            sign = self._rgb_target_sign
+        else:
+            focal_px = (self.geometry.thermal_focal_length_mm /
+                      self.geometry.thermal_sensor_width_mm *
+                      self.geometry.thermal_resolution[0])
+            sign = 1.0
+        disparity_px = (self.geometry.baseline_mm * focal_px) / (working_distance_m * 1000.0)
+        return int(round(sign * disparity_px))
 
     def compute_auto_alignment(self, working_distance_m: float = 2.0,
                               rgb_frame: Optional[np.ndarray] = None) -> Tuple[int, float]:
@@ -836,7 +921,8 @@ class ParallaxCompensator:
 
     def compute_disparity(self, depth_map: np.ndarray) -> np.ndarray:
         """
-        Compute pixel disparity from depth map using camera geometry.
+        Compute pixel disparity (in the THERMAL frame's own pixel space)
+        from depth map using camera geometry.
 
         Formula: disparity = (baseline × focal_length) / depth
 
@@ -854,30 +940,69 @@ class ParallaxCompensator:
 
         return disparity_px.astype(np.float32)
 
-    def apply_correction(self, thermal_frame: np.ndarray,
-                        rgb_frame: np.ndarray) -> np.ndarray:
+    def compute_disparity_rgb(self, depth_map: np.ndarray, rgb_width_px: int) -> np.ndarray:
         """
-        Apply parallax correction to thermal frame to align with RGB frame.
+        Compute pixel disparity in the RGB frame's own pixel space, using
+        the RGB camera's own focal length and the RGB frame's ACTUAL live
+        width (not a stored default resolution) - a camera's own angular
+        resolution (pixels per radian) is what converts a physical
+        baseline/depth-derived angular shift into a pixel count, and RGB's
+        differs from thermal's, so the same physical disparity is a
+        different number of pixels in each frame.
+
+        Args:
+            depth_map: Depth map in meters (H, W), same shape as the RGB
+                frame this disparity will be applied to
+            rgb_width_px: The RGB frame's actual width in pixels
+
+        Returns:
+            Disparity map in pixels (H, W), in RGB's pixel space
+        """
+        rgb_focal_px = (self.geometry.rgb_focal_length_mm /
+                       self.geometry.rgb_sensor_width_mm *
+                       rgb_width_px)
+
+        disparity_px = (self.geometry.baseline_mm * rgb_focal_px) / (depth_map * 1000.0)
+
+        return disparity_px.astype(np.float32)
+
+    def apply_correction(self, thermal_frame: np.ndarray,
+                        rgb_frame: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Apply parallax correction, aligning one camera's view to the
+        other's - which one actually gets warped/cropped is controlled by
+        self.correction_target ("thermal", this module's original
+        behavior, or "rgb" - see set_correction_target()'s docstring for
+        why "rgb" is usually the better choice).
 
         Args:
             thermal_frame: Thermal image (H_t, W_t, C) or (H_t, W_t)
-            rgb_frame: RGB image (H_r, W_r, 3)
+            rgb_frame: RGB image (H_r, W_r, 3), or None
 
         Returns:
-            Corrected thermal frame aligned with RGB perspective
+            (thermal_out, rgb_out) - both always populated; whichever
+            frame isn't the active correction_target is returned
+            completely unmodified (not even copied).
         """
         if thermal_frame is None:
-            return thermal_frame
+            return thermal_frame, rgb_frame
 
+        if self.correction_target == "rgb":
+            return self._apply_correction_rgb_target(thermal_frame, rgb_frame)
+        return self._apply_correction_thermal_target(thermal_frame, rgb_frame)
+
+    def _apply_correction_thermal_target(self, thermal_frame: np.ndarray,
+                                        rgb_frame: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """correction_target=="thermal": warp/crop thermal to align with RGB. See apply_correction()."""
         if not self.enabled:
             # Depth-based correction is off, but a manual shift may still be
             # requested - apply just the constant translation. Skips depth
             # estimation entirely (no RGB frame needed, no GPU/CPU cost for
             # a plain mounting-offset correction).
-            return self._apply_manual_shift_only(thermal_frame)
+            return self._apply_manual_shift_only(thermal_frame), rgb_frame
 
         if rgb_frame is None:
-            return self._apply_manual_shift_only(thermal_frame)
+            return self._apply_manual_shift_only(thermal_frame), rgb_frame
 
         try:
             thermal_h, thermal_w = thermal_frame.shape[:2]
@@ -908,7 +1033,7 @@ class ParallaxCompensator:
             self.last_depth_time_ms = (time.perf_counter() - _t_depth_start) * 1000.0
             if depth_map is None:
                 logger.warning("Depth estimation failed - returning uncorrected thermal frame")
-                return thermal_frame
+                return thermal_frame, rgb_frame
 
             self.last_depth_map = depth_map
 
@@ -926,34 +1051,9 @@ class ParallaxCompensator:
 
             # Return depth-map colourised overlay when requested (debug/QA mode)
             if self.show_depth_map:
-                d_norm = cv2.normalize(depth_resized, None, 0, 255, cv2.NORM_MINMAX)
-                d_u8 = d_norm.astype(np.uint8)
-                depth_colourised = cv2.applyColorMap(d_u8, cv2.COLORMAP_JET)
-                # Resize to match thermal output shape if needed
-                if depth_colourised.shape[:2] != thermal_frame.shape[:2]:
-                    depth_colourised = cv2.resize(depth_colourised, (thermal_w, thermal_h))
-
-                # NORM_MINMAX always stretches whatever depth_resized
-                # contains to the full 0-255 rainbow range, regardless of
-                # the actual absolute values - for "simplified" specifically
-                # (a fixed top-far/bottom-near gradient that never reads
-                # the scene at all, see _estimate_depth_simplified), this
-                # produces the exact same-looking colorful gradient every
-                # time no matter what's really in front of the camera,
-                # which reads as "measuring real depth" when it isn't.
-                # Label it honestly instead of letting a heuristic look
-                # like a real hardware measurement - matches the same
-                # principle applied to the 3D Fusion view (never present
-                # an estimate as if it were measured data).
-                if self.depth_estimator.method != "realsense":
-                    label = f"ESTIMATED depth ({self.depth_estimator.method}) - not measured"
-                    cv2.putText(depth_colourised, label, (10, 25),
-                              cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
-                    cv2.putText(depth_colourised, label, (10, 25),
-                              cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
-
+                depth_colourised = self._colourise_depth_debug(depth_resized, thermal_w, thermal_h)
                 self.last_correction_time_ms = (time.perf_counter() - _t_corr_start) * 1000.0
-                return depth_colourised
+                return depth_colourised, rgb_frame
 
             corrected_thermal = self._remap_thermal(thermal_frame, flow_map)
             self.last_correction_time_ms = (time.perf_counter() - _t_corr_start) * 1000.0
@@ -961,11 +1061,119 @@ class ParallaxCompensator:
             if self.show_displacement:
                 corrected_thermal = self._draw_displacement_vectors(corrected_thermal, flow_map)
 
-            return corrected_thermal
+            return corrected_thermal, rgb_frame
 
         except Exception as e:
             logger.error(f"Error applying parallax correction: {e}")
-            return thermal_frame
+            return thermal_frame, rgb_frame
+
+    def _apply_correction_rgb_target(self, thermal_frame: np.ndarray,
+                                    rgb_frame: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        correction_target=="rgb": warp/crop RGB to align with thermal,
+        leaving thermal completely untouched. See apply_correction() and
+        set_correction_target()'s docstrings for why.
+
+        Runs the remap at RGB's own native resolution (not downscaled to
+        thermal's), so the abundant RGB pixels genuinely absorb the
+        crop/warp loss instead of it costing anything at thermal's
+        (much smaller) scale - the tradeoff is that this remap step
+        itself costs more CPU per frame than warping the smaller thermal
+        frame did, proportional to RGB's resolution (e.g. a 4K RGB source
+        costs substantially more here than a 640x512 one).
+        """
+        if not self.enabled:
+            return thermal_frame, self._apply_manual_shift_only_rgb(rgb_frame)
+
+        if rgb_frame is None:
+            return thermal_frame, rgb_frame
+
+        try:
+            thermal_h, thermal_w = thermal_frame.shape[:2]
+            rgb_h, rgb_w = rgb_frame.shape[:2]
+
+            # Depth estimation still runs at thermal's (small) resolution
+            # regardless of correction_target - it's an analysis step, not
+            # the thing being warped, and downscaling first doesn't cost
+            # accuracy for the same reasons _apply_correction_thermal_target
+            # doesn't either.
+            rgb_for_depth = rgb_frame
+            if rgb_h > thermal_h or rgb_w > thermal_w:
+                rgb_for_depth = cv2.resize(rgb_frame, (thermal_w, thermal_h),
+                                          interpolation=cv2.INTER_LINEAR)
+
+            _t_depth_start = time.perf_counter()
+            depth_map = self.depth_estimator.estimate_depth(rgb_for_depth)
+            self.last_depth_time_ms = (time.perf_counter() - _t_depth_start) * 1000.0
+            if depth_map is None:
+                logger.warning("Depth estimation failed - returning uncorrected RGB frame")
+                return thermal_frame, rgb_frame
+
+            self.last_depth_map = depth_map
+
+            _t_corr_start = time.perf_counter()
+            # Resize the depth map up to RGB's own native resolution (not
+            # thermal's) - the disparity/flow map, and the remap it drives,
+            # need to be at the same resolution as the frame being warped.
+            depth_resized = cv2.resize(depth_map, (rgb_w, rgb_h),
+                                      interpolation=cv2.INTER_LINEAR)
+
+            disparity_map = self.compute_disparity_rgb(depth_resized, rgb_w)
+
+            # Opposite sign convention from the thermal-target path - see
+            # set_correction_target()'s docstring and _rgb_target_sign's
+            # definition in __init__: aligning RGB to thermal's (now
+            # unmoved) raw position is the inverse of aligning thermal to
+            # RGB's raw position, derived from the same physical baseline
+            # geometry. Manual shift is in RGB's own pixel space here, not
+            # thermal's - a value tuned for correction_target=="thermal"
+            # is not meaningful after switching (see set_correction_target).
+            sign = self._rgb_target_sign
+            flow_map = np.zeros((rgb_h, rgb_w, 2), dtype=np.float32)
+            flow_map[:, :, 0] = sign * (disparity_map + self.manual_shift_x)
+            flow_map[:, :, 1] = sign * self.manual_shift_y
+
+            self.last_displacement_map = flow_map
+
+            if self.show_depth_map:
+                depth_colourised = self._colourise_depth_debug(depth_resized, rgb_w, rgb_h)
+                self.last_correction_time_ms = (time.perf_counter() - _t_corr_start) * 1000.0
+                return thermal_frame, depth_colourised
+
+            corrected_rgb = self._remap_thermal(rgb_frame, flow_map)
+            self.last_correction_time_ms = (time.perf_counter() - _t_corr_start) * 1000.0
+
+            if self.show_displacement:
+                corrected_rgb = self._draw_displacement_vectors(corrected_rgb, flow_map)
+
+            return thermal_frame, corrected_rgb
+
+        except Exception as e:
+            logger.error(f"Error applying parallax correction (rgb target): {e}")
+            return thermal_frame, rgb_frame
+
+    def _colourise_depth_debug(self, depth_resized: np.ndarray, out_w: int, out_h: int) -> np.ndarray:
+        """
+        Shared "Show Depth Map" debug overlay for either correction
+        target - colourises depth_resized and, for any non-hardware
+        (estimated) depth method, watermarks it as such so a heuristic
+        never reads as a real measurement (same reasoning as the 3D
+        Fusion view).
+        """
+        d_norm = cv2.normalize(depth_resized, None, 0, 255, cv2.NORM_MINMAX)
+        d_u8 = d_norm.astype(np.uint8)
+        depth_colourised = cv2.applyColorMap(d_u8, cv2.COLORMAP_JET)
+        if depth_colourised.shape[:2] != (out_h, out_w):
+            depth_colourised = cv2.resize(depth_colourised, (out_w, out_h))
+
+        if self.depth_estimator.method != "realsense":
+            label = f"ESTIMATED depth ({self.depth_estimator.method}) - not measured"
+            cv2.putText(depth_colourised, label, (10, 25),
+                      cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+            cv2.putText(depth_colourised, label, (10, 25),
+                      cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
+
+        return depth_colourised
 
     def _apply_manual_shift_only(self, thermal_frame: np.ndarray) -> np.ndarray:
         """Apply just the constant manual (dx, dy) shift, no depth estimation."""
@@ -979,6 +1187,23 @@ class ParallaxCompensator:
         self.last_displacement_map = flow_map
 
         corrected = self._remap_thermal(thermal_frame, flow_map)
+        if self.show_displacement:
+            corrected = self._draw_displacement_vectors(corrected, flow_map)
+        return corrected
+
+    def _apply_manual_shift_only_rgb(self, rgb_frame: Optional[np.ndarray]) -> Optional[np.ndarray]:
+        """RGB-target equivalent of _apply_manual_shift_only - see _apply_correction_rgb_target."""
+        if rgb_frame is None or not self.has_manual_shift():
+            return rgb_frame
+
+        h, w = rgb_frame.shape[:2]
+        sign = self._rgb_target_sign
+        flow_map = np.zeros((h, w, 2), dtype=np.float32)
+        flow_map[:, :, 0] = sign * self.manual_shift_x
+        flow_map[:, :, 1] = sign * self.manual_shift_y
+        self.last_displacement_map = flow_map
+
+        corrected = self._remap_thermal(rgb_frame, flow_map)
         if self.show_displacement:
             corrected = self._draw_displacement_vectors(corrected, flow_map)
         return corrected
@@ -1241,13 +1466,19 @@ if __name__ == "__main__":
     thermal_dummy = np.random.randint(0, 255, (512, 640, 3), dtype=np.uint8)
     rgb_dummy = np.random.randint(0, 255, (1200, 1920, 3), dtype=np.uint8)
 
-    result_disabled = compensator.apply_correction(thermal_dummy, rgb_dummy)
-    assert np.array_equal(result_disabled, thermal_dummy), "Disabled mode should return original"
-    print("✓ Disabled mode: Returns original thermal frame")
+    thermal_disabled, rgb_disabled = compensator.apply_correction(thermal_dummy, rgb_dummy)
+    assert np.array_equal(thermal_disabled, thermal_dummy), "Disabled mode should return original thermal"
+    assert np.array_equal(rgb_disabled, rgb_dummy), "Disabled mode should return original rgb"
+    print("✓ Disabled mode: Returns original thermal/rgb frames")
 
     compensator.enable(True)
-    result_enabled = compensator.apply_correction(thermal_dummy, rgb_dummy)
-    print(f"✓ Enabled mode: Processed frame shape {result_enabled.shape}")
+    thermal_enabled, rgb_enabled = compensator.apply_correction(thermal_dummy, rgb_dummy)
+    print(f"✓ Enabled mode (target=thermal): Processed frame shape {thermal_enabled.shape}")
+
+    compensator.set_correction_target("rgb")
+    thermal_rgb_target, rgb_corrected = compensator.apply_correction(thermal_dummy, rgb_dummy)
+    assert np.array_equal(thermal_rgb_target, thermal_dummy), "rgb target should leave thermal untouched"
+    print(f"✓ Enabled mode (target=rgb): Processed frame shape {rgb_corrected.shape}, thermal untouched")
 
     if compensator.get_depth_map() is not None:
         print(f"✓ Depth map generated: {compensator.get_depth_map().shape}")

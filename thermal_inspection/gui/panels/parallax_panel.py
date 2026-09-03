@@ -35,6 +35,7 @@ class ParallaxPanel(QWidget):
     auto_alignment_requested = pyqtSignal(float, bool)  # working_distance_m, refine_with_depth
     zoom_changed = pyqtSignal(float)  # crop-in zoom factor, 1.0 = none
     geometry_optics_changed = pyqtSignal(dict)  # thermal/rgb focal_length_mm + sensor_width_mm
+    correction_target_changed = pyqtSignal(str)  # "thermal" or "rgb"
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -104,6 +105,54 @@ class ParallaxPanel(QWidget):
 
         status_group.setLayout(status_layout)
         layout.addWidget(status_group)
+
+        # ====================================================================
+        # Correction Target
+        # ====================================================================
+        # Which frame actually gets warped/cropped to align with the other.
+        # RGB is generally the better choice: every RGB source this app
+        # supports has substantially more native resolution than the
+        # thermal side, so RGB's spare pixels absorb the crop/warp loss -
+        # and thermal pixel values are real radiometric measurements, not
+        # just cosmetic appearance, so leaving thermal untouched means
+        # spot meter/isotherm/calibration/anomaly detection all read the
+        # sensor's actual per-pixel measurement instead of a bilinear
+        # blend of neighboring readings.
+        target_group = QGroupBox("Correction Target")
+        target_layout = QVBoxLayout()
+        target_layout.setSpacing(6)
+        target_layout.setContentsMargins(8, 8, 8, 8)
+
+        target_info = QLabel(
+            "Which camera's view gets warped/cropped to align with the other.\n"
+            "RGB usually preserves more real detail (more native pixels to\n"
+            "spare) and keeps thermal's temperature data completely raw."
+        )
+        target_info.setWordWrap(True)
+        target_info.setStyleSheet("color: #888888; font-size: 9pt;")
+        target_layout.addWidget(target_info)
+
+        target_row = QHBoxLayout()
+        target_row.setContentsMargins(0, 0, 0, 0)
+        target_row.addWidget(QLabel("Correct:"))
+        self.correction_target_combo = QComboBox()
+        self.correction_target_combo.addItems(["Thermal (legacy)", "RGB (recommended)"])
+        self.correction_target_combo.setCurrentIndex(0)
+        self.correction_target_combo.setToolTip(
+            "Thermal: this module's original behavior - warps the (lower-resolution) "
+            "thermal frame to match RGB.\n"
+            "RGB: warps the (higher-resolution) RGB frame to match thermal instead - "
+            "preserves more detail and keeps thermal's radiometric data completely raw, "
+            "but costs more CPU per frame (RGB is usually much larger) and its "
+            "alignment direction hasn't been confirmed against real hardware yet."
+        )
+        self.correction_target_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.correction_target_combo.currentIndexChanged.connect(self._on_correction_target_changed)
+        target_row.addWidget(self.correction_target_combo)
+        target_layout.addLayout(target_row)
+
+        target_group.setLayout(target_layout)
+        layout.addWidget(target_group)
 
         # ====================================================================
         # Camera Geometry Configuration
@@ -494,6 +543,11 @@ class ParallaxPanel(QWidget):
         """Handle manual zoom/crop-factor spinbox change — emit signal live."""
         self.zoom_changed.emit(value)
 
+    def _on_correction_target_changed(self, index: int):
+        """Handle Correction Target combo change — emit signal live."""
+        target = "rgb" if index == 1 else "thermal"
+        self.correction_target_changed.emit(target)
+
     def _on_auto_align_clicked(self):
         """Request a one-time auto-alignment calculation."""
         self.auto_alignment_requested.emit(
@@ -553,6 +607,10 @@ class ParallaxPanel(QWidget):
     def get_baseline(self) -> float:
         """Get configured baseline distance in millimeters."""
         return self.baseline_spin.value()
+
+    def get_correction_target(self) -> str:
+        """Get which frame ("thermal" or "rgb") is set to be warped/cropped."""
+        return "rgb" if self.correction_target_combo.currentIndex() == 1 else "thermal"
 
     def get_camera_optics(self) -> dict:
         """Get configured lens optics for both cameras (mm)."""

@@ -40,7 +40,7 @@ class TestBug1_ApplyCorrectionCalledInFrameLoop:
         thermal[:, :, 0] = np.tile(np.arange(640, dtype=np.uint8), (512, 1))  # horizontal gradient
         rgb = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
 
-        result = comp.apply_correction(thermal, rgb)
+        result, rgb_out = comp.apply_correction(thermal, rgb)
 
         assert result is not None
         assert result.shape == thermal.shape
@@ -49,6 +49,8 @@ class TestBug1_ApplyCorrectionCalledInFrameLoop:
         assert not np.array_equal(result, thermal), (
             "apply_correction returned identical frame — no shift applied"
         )
+        # Default correction_target is "thermal" - rgb passes through untouched.
+        assert np.array_equal(rgb_out, rgb)
 
     def test_apply_correction_passthrough_when_disabled(self):
         from thermal_inspection.processing.parallax_compensator import ParallaxCompensator
@@ -57,9 +59,10 @@ class TestBug1_ApplyCorrectionCalledInFrameLoop:
 
         thermal = np.ones((512, 640, 3), dtype=np.uint8) * 42
         rgb = np.ones((480, 640, 3), dtype=np.uint8)
-        result = comp.apply_correction(thermal, rgb)
+        result, rgb_out = comp.apply_correction(thermal, rgb)
 
         assert np.array_equal(result, thermal), "Disabled compensator must return original frame unchanged"
+        assert np.array_equal(rgb_out, rgb)
 
 
 class TestBug2_BaselineChangedSignal:
@@ -95,7 +98,7 @@ class TestBug3_SetDepthDisplay:
         thermal = np.zeros((512, 640, 3), dtype=np.uint8)
         rgb = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
 
-        result = comp.apply_correction(thermal, rgb)
+        result, _rgb_out = comp.apply_correction(thermal, rgb)
         assert result is not None
         assert result.shape == (512, 640, 3)
         # Depth overlay should be colourised (non-uniform colour channels, JET palette)
@@ -113,7 +116,7 @@ class TestBug3_SetDepthDisplay:
         thermal[:, 320:, 0] = 200
         rgb = np.ones((480, 640, 3), dtype=np.uint8) * 128
 
-        result = comp.apply_correction(thermal, rgb)
+        result, _rgb_out = comp.apply_correction(thermal, rgb)
         assert result is not None
         # Should be corrected thermal (shifted), not a JET overlay
         assert result.shape == thermal.shape
