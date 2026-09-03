@@ -324,25 +324,33 @@ class ParallaxPanel(QWidget):
         self.reset_shift_btn.clicked.connect(self._on_reset_shift)
         shift_layout.addWidget(self.reset_shift_btn)
 
-        # Manual zoom / crop factor - the same crop-and-resize mechanism
+        # Manual zoom / crop factor - the same crop-and-scale mechanism
         # Auto-Calculate Alignment uses to correct a real FOV mismatch
         # (fov_zoom_factor), but directly user-settable for cases the
         # geometric calculation can't cover on its own: correcting for
         # inaccurate/unknown lens specs by eye, or a deliberate manual
-        # crop-in. 1.0 = no crop; higher crops in (zooms) further.
+        # crop-in/out. 1.0 = no change; above 1.0 crops in (narrows
+        # effective FOV, magnifying the center); below 1.0 shrinks the
+        # frame's content and pads the border with black (for when this
+        # camera's FOV is narrower than the other's - there's no real
+        # pixel data to widen it with, but this at least matches angular
+        # scale so real features still line up in position).
         zoom_layout = QHBoxLayout()
         zoom_layout.setContentsMargins(0, 0, 0, 0)
-        zoom_layout.addWidget(QLabel("Zoom / Crop-In:"))
+        zoom_layout.addWidget(QLabel("Zoom / Crop Factor:"))
         self.zoom_spin = QDoubleSpinBox()
-        self.zoom_spin.setRange(1.0, 3.0)
+        self.zoom_spin.setRange(0.2, 3.0)
         self.zoom_spin.setValue(1.0)
         self.zoom_spin.setDecimals(3)
         self.zoom_spin.setSuffix("x")
         self.zoom_spin.setSingleStep(0.01)
         self.zoom_spin.setToolTip(
-            "Manually crop the thermal frame in and rescale to fill - for "
-            "correcting FOV mismatch by eye, independent of the geometry "
-            "fields above. 1.0 = no crop."
+            "Manually crop/scale this frame for correcting FOV mismatch by "
+            "eye, independent of the geometry fields above. 1.0 = no "
+            "change; above 1.0 crops in (zooms); below 1.0 shrinks the "
+            "content and pads the border with black (for a narrower-FOV "
+            "camera - it can't actually see wider, so this only matches "
+            "angular scale, not fills in real detail)."
         )
         self.zoom_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.zoom_spin.valueChanged.connect(self._on_zoom_changed)
@@ -350,7 +358,7 @@ class ParallaxPanel(QWidget):
         shift_layout.addLayout(zoom_layout)
 
         self.reset_zoom_btn = QPushButton("Reset Zoom")
-        self.reset_zoom_btn.setToolTip("Reset zoom/crop factor to 1.0x (no crop)")
+        self.reset_zoom_btn.setToolTip("Reset zoom/crop factor to 1.0x (no change)")
         self.reset_zoom_btn.clicked.connect(lambda: self.zoom_spin.setValue(1.0))
         shift_layout.addWidget(self.reset_zoom_btn)
 

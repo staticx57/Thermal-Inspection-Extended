@@ -813,10 +813,14 @@ class ParallaxCompensator:
 
     def set_fov_zoom_factor(self, factor: float):
         """
-        Set the static crop-in zoom factor applied on top of any shift, e.g.
-        to correct a real FOV mismatch between the two sensors. 1.0 = none.
+        Set the static crop/scale factor applied on top of any shift, e.g.
+        to correct a real FOV mismatch between the two sensors. 1.0 = none;
+        >1.0 crops in (narrows effective FOV, magnifying the center);
+        <1.0 shrinks the frame's content and pads the border with black
+        (widens effective angular scale to match a wider-FOV other camera -
+        see _apply_fov_zoom for why this can't just "zoom out" for real).
         """
-        self.fov_zoom_factor = max(1.0, float(factor))
+        self.fov_zoom_factor = max(0.1, float(factor))
         logger.info(f"Parallax FOV crop-zoom factor set to {self.fov_zoom_factor:.4f}")
 
     def get_fov_zoom_factor(self) -> float:
@@ -825,17 +829,19 @@ class ParallaxCompensator:
 
     def compute_fov_crop_factor(self) -> float:
         """
-        Compute the crop-in zoom factor needed to make the thermal camera's
-        horizontal FOV match the RGB camera's, from each camera's focal
-        length and sensor width (self.geometry). This is a fixed optical
-        property - it doesn't depend on distance to the subject, only on
-        the two cameras' own optics.
+        Compute the crop/scale factor needed to make correction_target's
+        own horizontal FOV match the other camera's, from each camera's
+        focal length and sensor width (self.geometry). This is a fixed
+        optical property - it doesn't depend on distance to the subject,
+        only on the two cameras' own optics.
 
-        Returns 1.0 (no crop needed) if correction_target's own FOV is
-        already the same or narrower than the other camera's - this only
-        ever crops whichever frame correction_target points to, so it
-        can't correct the opposite case (the OTHER camera being the
-        narrower one) without also touching that frame instead.
+        Returns >1.0 when the target camera's FOV is wider than the other
+        camera's (crop in - see _apply_fov_zoom), <1.0 when it's narrower
+        (shrink and pad - the target camera physically can't see as wide
+        an angle as the other one, so there's no real pixel data to fill
+        the difference with; padding at least matches angular scale so
+        real features the target CAN see still line up), or 1.0 when they
+        already match.
         """
         thermal_half_fov = math.atan2(self.geometry.thermal_sensor_width_mm / 2.0,
                                      self.geometry.thermal_focal_length_mm)
@@ -847,15 +853,11 @@ class ParallaxCompensator:
         else:
             target_half_fov, fixed_half_fov = thermal_half_fov, rgb_half_fov
 
-        if target_half_fov <= fixed_half_fov:
-            return 1.0
-
-        # Crop the target frame down to the angular width the fixed
-        # camera actually covers, then that crop gets resized back up to
-        # full resolution (see _apply_fov_zoom) - the ratio of the
-        # tangents of the half-FOV angles is exactly the fraction of the
-        # target sensor's width that subtends the fixed camera's
-        # (narrower) FOV.
+        # The ratio of the tangents of the half-FOV angles is exactly the
+        # fraction of the target sensor's angular width the fixed camera's
+        # FOV subtends - >1 (crop in) when target is wider, <1 (shrink +
+        # pad) when target is narrower, computed the same way either
+        # direction rather than only ever handling the "wider" case.
         return math.tan(target_half_fov) / math.tan(fixed_half_fov)
 
     def compute_geometric_shift_px(self, working_distance_m: float) -> int:
@@ -1533,21 +1535,49 @@ class ParallaxCompensator:
 
     def _apply_fov_zoom(self, frame: np.ndarray) -> np.ndarray:
         """
-        Crop-and-zoom by self.fov_zoom_factor to correct a real FOV
-        mismatch between the thermal and RGB sensors (see
-        compute_fov_crop_factor). Unlike the per-frame shift/crop above,
-        a resize here is correct rather than a "stretch" artifact - it's a
-        static, one-time correction for a genuine optical difference
-        between the two cameras, not per-frame jitter, and is only ever
-        applied when the user has explicitly computed/set a zoom factor.
+        Crop/scale by self.fov_zoom_factor to correct a real FOV mismatch
+        between the thermal and RGB sensors (see compute_fov_crop_factor).
+        Unlike the per-frame shift/crop above, a resize here is correct
+        rather than a "stretch" artifact - it's a static, one-time
+        correction for a genuine optical difference between the two
+        cameras, not per-frame jitter, and is only ever applied when the
+        user has explicitly computed/set a zoom factor.
+
+        factor > 1.0: crop in - the target camera's FOV is wider than the
+        other camera's, so the extra angular coverage really is there to
+        crop away; magnifying the remaining center crop back to full size
+        narrows the effective FOV to match.
+
+        factor < 1.0: shrink and pad - the target camera's FOV is
+        NARROWER than the other camera's. There's no real pixel data to
+        widen it with (the sensor genuinely didn't capture that extra
+        angle), so this can't crop-and-zoom like the >1.0 case; instead it
+        shrinks the frame's actual content and centers it on a black
+        canvas of the original size. This matches angular scale (pixels
+        per degree) between the two frames - real features the target
+        camera CAN see still land in the correct relative position - at
+        the cost of the target's own frame only filling the center
+        portion of itself, bordered by black.
         """
         h, w = frame.shape[:2]
-        crop_w = max(1, min(w, int(round(w / self.fov_zoom_factor))))
-        crop_h = max(1, min(h, int(round(h / self.fov_zoom_factor))))
-        x0 = (w - crop_w) // 2
-        y0 = (h - crop_h) // 2
-        cropped = frame[y0:y0 + crop_h, x0:x0 + crop_w]
-        return cv2.resize(cropped, (w, h), interpolation=cv2.INTER_LINEAR)
+        factor = self.fov_zoom_factor
+
+        if factor >= 1.0:
+            crop_w = max(1, min(w, int(round(w / factor))))
+            crop_h = max(1, min(h, int(round(h / factor))))
+            x0 = (w - crop_w) // 2
+            y0 = (h - crop_h) // 2
+            cropped = frame[y0:y0 + crop_h, x0:x0 + crop_w]
+            return cv2.resize(cropped, (w, h), interpolation=cv2.INTER_LINEAR)
+
+        new_w = max(1, min(w, int(round(w * factor))))
+        new_h = max(1, min(h, int(round(h * factor))))
+        shrunk = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        canvas = np.zeros_like(frame)
+        x0 = (w - new_w) // 2
+        y0 = (h - new_h) // 2
+        canvas[y0:y0 + new_h, x0:x0 + new_w] = shrunk
+        return canvas
 
     def get_depth_map(self) -> Optional[np.ndarray]:
         """Get last computed depth map for visualization."""
