@@ -430,6 +430,12 @@ class ThermalInspectionApp:
             lambda dx, dy: self.set_parallax_shift(dx, dy) if hasattr(self, 'set_parallax_shift') else None
         )
         bus.parallax_auto_alignment_requested.connect(self._bus_parallax_auto_alignment_requested)
+        bus.parallax_geometry_optics_changed.connect(
+            lambda optics: self.set_parallax_camera_optics(optics) if hasattr(self, 'set_parallax_camera_optics') else None
+        )
+        bus.parallax_zoom_changed.connect(
+            lambda z: self.set_parallax_zoom(z) if hasattr(self, 'set_parallax_zoom') else None
+        )
 
         # --- Gradient Overlay ---
         bus.gradient_enabled_changed.connect(
@@ -2588,6 +2594,32 @@ class ThermalInspectionApp:
         """Set a constant manual alignment shift (pixels) for a fixed mounting offset."""
         if self.parallax_compensator:
             self.parallax_compensator.set_manual_shift(dx, dy)
+        else:
+            logger.warning("ParallaxCompensator not available")
+
+    def set_parallax_camera_optics(self, optics: dict):
+        """
+        Set per-camera lens focal length/sensor width (mm) - real specs
+        from the attached lens' datasheet, since neither the thermal nor
+        RGB camera SDKs used here report this themselves (Boson ships
+        several fixed lens options with no SDK-queryable FOV; RGB lenses
+        are often swappable third-party glass). Drives both the geometric
+        auto-alignment shift and the FOV crop-zoom factor.
+        """
+        if not self.parallax_compensator:
+            logger.warning("ParallaxCompensator not available")
+            return
+        geometry = self.parallax_compensator.geometry
+        geometry.thermal_focal_length_mm = optics.get('thermal_focal_length_mm', geometry.thermal_focal_length_mm)
+        geometry.thermal_sensor_width_mm = optics.get('thermal_sensor_width_mm', geometry.thermal_sensor_width_mm)
+        geometry.rgb_focal_length_mm = optics.get('rgb_focal_length_mm', geometry.rgb_focal_length_mm)
+        geometry.rgb_sensor_width_mm = optics.get('rgb_sensor_width_mm', geometry.rgb_sensor_width_mm)
+        logger.info(f"Parallax camera optics updated: {optics}")
+
+    def set_parallax_zoom(self, zoom_factor: float):
+        """Set the manual crop-in zoom factor (1.0 = none) directly, independent of auto-alignment."""
+        if self.parallax_compensator:
+            self.parallax_compensator.set_fov_zoom_factor(zoom_factor)
         else:
             logger.warning("ParallaxCompensator not available")
 

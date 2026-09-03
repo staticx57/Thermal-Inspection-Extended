@@ -642,6 +642,7 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("parallax_panel", "show_displacement_toggled", self._on_show_displacement_toggled, "(parallax displacement)")
         self._safe_connect("parallax_panel", "shift_changed", self._on_parallax_shift_changed, "(parallax shift)")
         self._safe_connect("parallax_panel", "auto_alignment_requested", self._on_parallax_auto_alignment_requested, "(parallax auto-align)")
+        self._safe_connect("parallax_panel", "zoom_changed", self._on_parallax_zoom_changed, "(parallax zoom)")
 
         # === GRADIENT OVERLAY PANEL ===
         self._safe_connect("gradient_panel", "gradient_enabled", self._on_gradient_enabled, "(gradient)")
@@ -2339,10 +2340,21 @@ class InspectionAppWindow(QMainWindow):
 
     def _on_parallax_geometry_apply(self):
         baseline = self.parallax_panel.get_baseline()
+        optics = self.parallax_panel.get_camera_optics()
         if self.event_bus:
             self.event_bus.parallax_baseline_changed.emit(baseline)
+            self.event_bus.parallax_geometry_optics_changed.emit(optics)
         elif self.app and hasattr(self.app, 'set_parallax_baseline'):
             self.app.set_parallax_baseline(baseline)
+            if hasattr(self.app, 'set_parallax_camera_optics'):
+                self.app.set_parallax_camera_optics(optics)
+
+    def _on_parallax_zoom_changed(self, zoom_factor: float):
+        """Handle manual zoom/crop-factor spinbox change."""
+        if self.event_bus:
+            self.event_bus.parallax_zoom_changed.emit(zoom_factor)
+        elif self.app and hasattr(self.app, 'set_parallax_zoom'):
+            self.app.set_parallax_zoom(zoom_factor)
 
     def _on_show_depth_map_toggled(self, show: bool):
         """Show/hide depth map overlay on the video stream."""

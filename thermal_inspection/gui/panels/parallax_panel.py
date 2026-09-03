@@ -33,6 +33,8 @@ class ParallaxPanel(QWidget):
     show_displacement_toggled = pyqtSignal(bool)
     shift_changed = pyqtSignal(int, int)  # (dx, dy) pixels
     auto_alignment_requested = pyqtSignal(float, bool)  # working_distance_m, refine_with_depth
+    zoom_changed = pyqtSignal(float)  # crop-in zoom factor, 1.0 = none
+    geometry_optics_changed = pyqtSignal(dict)  # thermal/rgb focal_length_mm + sensor_width_mm
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -127,14 +129,65 @@ class ParallaxPanel(QWidget):
         baseline_layout.addWidget(self.baseline_spin)
         geometry_layout.addLayout(baseline_layout)
 
+        # Per-camera lens optics - drive both the disparity calculation
+        # (needs thermal focal length in pixels) and the FOV crop-zoom
+        # factor (needs both cameras' FOV, from focal length + sensor
+        # width). Defaults match a FLIR Boson 9mm lens / a typical Firefly
+        # C-mount lens - editable here since actual hardware varies (Boson
+        # ships with 6.3/7.5/9/13/19/24/35/50/100mm lens options, and RGB
+        # lenses are often swappable third-party glass with no way for this
+        # app to read their specs from the camera SDK).
+        optics_note = QLabel(
+            "Lens specs (from your camera/lens datasheet) - needed for FOV "
+            "crop-zoom and geometric auto-alignment to be accurate:"
+        )
+        optics_note.setWordWrap(True)
+        optics_note.setStyleSheet("color: #888888; font-size: 9pt;")
+        geometry_layout.addWidget(optics_note)
+
+        def _make_optics_row(label_text, default_val, tooltip):
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.addWidget(QLabel(label_text))
+            spin = QDoubleSpinBox()
+            spin.setRange(0.5, 200.0)
+            spin.setValue(default_val)
+            spin.setDecimals(2)
+            spin.setSuffix(" mm")
+            spin.setSingleStep(0.5)
+            spin.setToolTip(tooltip)
+            spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            row.addWidget(spin)
+            geometry_layout.addLayout(row)
+            return spin
+
+        self.thermal_focal_spin = _make_optics_row(
+            "Thermal Focal Length:", 9.0, "Thermal camera lens focal length (mm)")
+        self.thermal_sensor_width_spin = _make_optics_row(
+            "Thermal Sensor Width:", 10.88, "Thermal sensor physical width (mm)")
+        self.rgb_focal_spin = _make_optics_row(
+            "RGB Focal Length:", 6.0, "RGB camera lens focal length (mm)")
+        self.rgb_sensor_width_spin = _make_optics_row(
+            "RGB Sensor Width:", 6.784, "RGB sensor physical width (mm)")
+
+        self.fov_display_label = QLabel("")
+        self.fov_display_label.setStyleSheet("color: #888888; font-size: 9pt;")
+        self.fov_display_label.setWordWrap(True)
+        geometry_layout.addWidget(self.fov_display_label)
+
+        for spin in (self.thermal_focal_spin, self.thermal_sensor_width_spin,
+                     self.rgb_focal_spin, self.rgb_sensor_width_spin):
+            spin.valueChanged.connect(self._update_fov_display)
+
         # Apply button
         self.apply_geometry_btn = QPushButton("Apply Geometry")
         self.apply_geometry_btn.setToolTip("Apply camera geometry changes")
-        self.apply_geometry_btn.setEnabled(False)
+        self.apply_geometry_btn.setEnabled(True)
         geometry_layout.addWidget(self.apply_geometry_btn)
 
         geometry_group.setLayout(geometry_layout)
         layout.addWidget(geometry_group)
+        self._update_fov_display()
 
         # ====================================================================
         # Manual Alignment Shift
@@ -188,6 +241,36 @@ class ParallaxPanel(QWidget):
         self.reset_shift_btn.setToolTip("Reset horizontal/vertical shift to 0")
         self.reset_shift_btn.clicked.connect(self._on_reset_shift)
         shift_layout.addWidget(self.reset_shift_btn)
+
+        # Manual zoom / crop factor - the same crop-and-resize mechanism
+        # Auto-Calculate Alignment uses to correct a real FOV mismatch
+        # (fov_zoom_factor), but directly user-settable for cases the
+        # geometric calculation can't cover on its own: correcting for
+        # inaccurate/unknown lens specs by eye, or a deliberate manual
+        # crop-in. 1.0 = no crop; higher crops in (zooms) further.
+        zoom_layout = QHBoxLayout()
+        zoom_layout.setContentsMargins(0, 0, 0, 0)
+        zoom_layout.addWidget(QLabel("Zoom / Crop-In:"))
+        self.zoom_spin = QDoubleSpinBox()
+        self.zoom_spin.setRange(1.0, 3.0)
+        self.zoom_spin.setValue(1.0)
+        self.zoom_spin.setDecimals(3)
+        self.zoom_spin.setSuffix("x")
+        self.zoom_spin.setSingleStep(0.01)
+        self.zoom_spin.setToolTip(
+            "Manually crop the thermal frame in and rescale to fill - for "
+            "correcting FOV mismatch by eye, independent of the geometry "
+            "fields above. 1.0 = no crop."
+        )
+        self.zoom_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.zoom_spin.valueChanged.connect(self._on_zoom_changed)
+        zoom_layout.addWidget(self.zoom_spin)
+        shift_layout.addLayout(zoom_layout)
+
+        self.reset_zoom_btn = QPushButton("Reset Zoom")
+        self.reset_zoom_btn.setToolTip("Reset zoom/crop factor to 1.0x (no crop)")
+        self.reset_zoom_btn.clicked.connect(lambda: self.zoom_spin.setValue(1.0))
+        shift_layout.addWidget(self.reset_zoom_btn)
 
         # ----------------------------------------------------------------
         # Auto-Calculate Alignment - a one-time calculation from camera
@@ -350,8 +433,10 @@ class ParallaxPanel(QWidget):
             self.status_label.setText("Status: DISABLED")
             self.status_label.setStyleSheet("color: #ffaa00; font-weight: bold;")
 
-        # Enable/disable controls
-        self.apply_geometry_btn.setEnabled(enabled)
+        # Enable/disable controls - apply_geometry_btn is deliberately NOT
+        # gated on this: baseline/lens optics/zoom feed the manual-shift-
+        # only and auto-alignment paths too, which work even with
+        # depth-based correction (this checkbox) turned off.
         self.show_depth_checkbox.setEnabled(enabled)
         self.show_displacement_checkbox.setEnabled(enabled)
 
@@ -361,6 +446,19 @@ class ParallaxPanel(QWidget):
     def _on_baseline_changed(self, value: float):
         """Handle baseline spinbox change — emit signal live."""
         self.baseline_changed.emit(value)
+
+    def _update_fov_display(self):
+        """Recompute and show each camera's horizontal FOV from its focal length/sensor width fields."""
+        import math
+
+        def hfov_deg(focal_mm, sensor_width_mm):
+            return math.degrees(2 * math.atan2(sensor_width_mm / 2.0, focal_mm))
+
+        thermal_fov = hfov_deg(self.thermal_focal_spin.value(), self.thermal_sensor_width_spin.value())
+        rgb_fov = hfov_deg(self.rgb_focal_spin.value(), self.rgb_sensor_width_spin.value())
+        self.fov_display_label.setText(
+            f"Computed FOV — Thermal: {thermal_fov:.1f}°, RGB: {rgb_fov:.1f}°"
+        )
 
     def _on_method_changed(self, index: int):
         """Handle depth method change."""
@@ -391,6 +489,10 @@ class ParallaxPanel(QWidget):
         """Reset both shift spinboxes to 0 (each valueChanged emits shift_changed)."""
         self.shift_x_spin.setValue(0)
         self.shift_y_spin.setValue(0)
+
+    def _on_zoom_changed(self, value: float):
+        """Handle manual zoom/crop-factor spinbox change — emit signal live."""
+        self.zoom_changed.emit(value)
 
     def _on_auto_align_clicked(self):
         """Request a one-time auto-alignment calculation."""
@@ -452,6 +554,15 @@ class ParallaxPanel(QWidget):
         """Get configured baseline distance in millimeters."""
         return self.baseline_spin.value()
 
+    def get_camera_optics(self) -> dict:
+        """Get configured lens optics for both cameras (mm)."""
+        return {
+            'thermal_focal_length_mm': self.thermal_focal_spin.value(),
+            'thermal_sensor_width_mm': self.thermal_sensor_width_spin.value(),
+            'rgb_focal_length_mm': self.rgb_focal_spin.value(),
+            'rgb_sensor_width_mm': self.rgb_sensor_width_spin.value(),
+        }
+
     def get_depth_method(self) -> str:
         """
         Get selected depth estimation method.
@@ -478,18 +589,21 @@ class ParallaxPanel(QWidget):
     def set_auto_alignment_result(self, dx: int, dy: int, fov_zoom_factor: float):
         """
         Reflect a completed auto-alignment calculation: syncs the manual
-        shift spinboxes to the computed value (so they show what's actually
-        active and can be fine-tuned further) and reports the FOV
-        crop-zoom factor, which has no dedicated control of its own.
+        shift spinboxes and the Zoom/Crop-In spinbox to the computed
+        values, so they show what's actually active and can be fine-tuned
+        further with the same controls a user would use manually.
         """
         self.shift_x_spin.blockSignals(True)
         self.shift_y_spin.blockSignals(True)
+        self.zoom_spin.blockSignals(True)
         self.shift_x_spin.setValue(dx)
         self.shift_y_spin.setValue(dy)
+        self.zoom_spin.setValue(fov_zoom_factor)
         self.shift_x_spin.blockSignals(False)
         self.shift_y_spin.blockSignals(False)
+        self.zoom_spin.blockSignals(False)
 
-        zoom_note = (f", FOV crop-zoom {fov_zoom_factor:.3f}x"
+        zoom_note = (f", zoom {fov_zoom_factor:.3f}x"
                     if abs(fov_zoom_factor - 1.0) > 1e-3 else "")
         self.auto_align_result_label.setText(
             f"Applied: shift ({dx}, {dy})px{zoom_note}"

@@ -74,6 +74,8 @@ class RGBCameraRealSense:
 
         self._last_depth_frame = None  # rs.depth_frame, kept for point-cloud calc
         self._last_color_image = None
+        self._depth_sensor: Optional["rs.sensor"] = None  # cached on open() for option get/set
+        self._device: Optional["rs.device"] = None  # cached on open() for get_info() diagnostics
 
     def is_available(self) -> bool:
         """Whether pyrealsense2 is importable on this system."""
@@ -102,6 +104,8 @@ class RGBCameraRealSense:
             self.model = device.get_info(rs.camera_info.name)
             depth_sensor = device.first_depth_sensor()
             self.depth_scale = depth_sensor.get_depth_scale()
+            self._depth_sensor = depth_sensor
+            self._device = device
 
             self.align = rs.align(rs.stream.color)
             self.pointcloud = rs.pointcloud()
@@ -231,12 +235,14 @@ class RGBCameraRealSense:
         self.is_open = False
         self._last_depth_frame = None
         self._last_color_image = None
+        self._depth_sensor = None
+        self._device = None
 
     def is_opened(self) -> bool:
         return self.is_open
 
     def get_info(self) -> Dict[str, Any]:
-        return {
+        info: Dict[str, Any] = {
             'backend': 'realsense',
             'type': 'rgb',
             'bit_depth': 8,
@@ -244,7 +250,99 @@ class RGBCameraRealSense:
             'resolution': (self.width, self.height),
             'features': ['depth', 'point_cloud'],
             'model': self.model or self.camera_type,
+            'depth_scale_m': self.depth_scale,
         }
+
+        # Real hardware-reported diagnostics (device.get_info() calls a
+        # librealsense property table baked into firmware) - only added
+        # when actually available, never guessed, so a field's absence
+        # means "this device/firmware doesn't report it", not "unknown".
+        if self._device is not None:
+            for key, camera_info_field in (
+                ('serial_number', rs.camera_info.serial_number),
+                ('firmware_version', rs.camera_info.firmware_version),
+                ('usb_type', rs.camera_info.usb_type_descriptor),
+                ('product_line', rs.camera_info.product_line),
+                ('physical_port', rs.camera_info.physical_port),
+            ):
+                try:
+                    if self._device.supports(camera_info_field):
+                        info[key] = self._device.get_info(camera_info_field)
+                except Exception:
+                    pass
+
+        intr = self.get_depth_intrinsics()
+        if intr is not None and intr.get('fx') and intr.get('width'):
+            import math
+            info['horizontal_fov_deg'] = math.degrees(2 * math.atan2(intr['width'] / 2.0, intr['fx']))
+            if intr.get('fy') and intr.get('height'):
+                info['vertical_fov_deg'] = math.degrees(2 * math.atan2(intr['height'] / 2.0, intr['fy']))
+
+        return info
+
+    def get_depth_sensor_options(self) -> Dict[str, Dict[str, float]]:
+        """
+        Query which depth-sensor options the connected device actually
+        supports right now, with each one's current/min/max/default value -
+        built dynamically from the live device rather than a hardcoded
+        list, so a control panel built from this never offers a setting
+        the attached device doesn't really have.
+
+        Returns:
+            {option_name: {'value', 'min', 'max', 'step', 'default'}},
+            e.g. {'emitter_enabled': {...}, 'laser_power': {...}}. Empty if
+            no device is open or nothing could be queried.
+        """
+        if self._depth_sensor is None:
+            return {}
+
+        options: Dict[str, Dict[str, float]] = {}
+        try:
+            for opt in self._depth_sensor.get_supported_options():
+                try:
+                    if not self._depth_sensor.supports(opt):
+                        continue
+                    rng = self._depth_sensor.get_option_range(opt)
+                    options[opt.name] = {
+                        'value': self._depth_sensor.get_option(opt),
+                        'min': rng.min,
+                        'max': rng.max,
+                        'step': rng.step,
+                        'default': rng.default,
+                    }
+                except Exception as e:
+                    logger.debug(f"RealSense: could not query option {opt}: {e}")
+        except Exception as e:
+            logger.debug(f"RealSense: could not enumerate depth sensor options: {e}")
+
+        return options
+
+    def set_depth_sensor_option(self, option_name: str, value: float) -> bool:
+        """
+        Set a depth-sensor option by name (one of the keys returned by
+        get_depth_sensor_options(), e.g. 'emitter_enabled', 'laser_power').
+        Returns False (no-op) if no device is open, the name doesn't match
+        a real rs.option, or the device doesn't currently support it.
+        """
+        if self._depth_sensor is None:
+            return False
+        # rs.option is a pybind11-wrapped enum, not a Python enum.Enum - it
+        # doesn't support the `EnumClass[name]` subscript lookup, only
+        # getattr-style attribute access.
+        opt = getattr(rs.option, option_name, None)
+        if opt is None:
+            logger.warning(f"RealSense: unknown depth sensor option '{option_name}'")
+            return False
+        try:
+            if not self._depth_sensor.supports(opt):
+                logger.warning(f"RealSense: device does not support option '{option_name}'")
+                return False
+            self._depth_sensor.set_option(opt, value)
+            logger.info(f"RealSense depth sensor option '{option_name}' set to {value}")
+            return True
+        except Exception as e:
+            logger.error(f"RealSense: failed to set option '{option_name}' to {value}: {e}")
+            return False
 
     def get_resolution(self) -> Optional[Tuple[int, int]]:
         if self.width and self.height:

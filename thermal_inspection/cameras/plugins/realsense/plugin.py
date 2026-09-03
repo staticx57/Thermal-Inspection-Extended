@@ -67,6 +67,17 @@ class RealSenseSDK(CameraSDK):
                     return {"success": False, "error": "Intrinsics not available"}
                 return {"success": True, **intr}
 
+            elif command == "get_depth_sensor_options":
+                return {"success": True, "options": cam.get_depth_sensor_options()}
+
+            elif command == "set_depth_sensor_option":
+                option = params.get("option")
+                value = params.get("value")
+                if option is None or value is None:
+                    return {"success": False, "error": "Missing 'option' or 'value' param"}
+                ok = cam.set_depth_sensor_option(option, value)
+                return {"success": ok}
+
             else:
                 return {"success": False, "error": f"Unknown RealSense command '{command}'"}
 
@@ -74,7 +85,8 @@ class RealSenseSDK(CameraSDK):
             return {"success": False, "error": str(e)}
 
     def get_supported_commands(self) -> List[str]:
-        return ["get_camera_info", "get_depth_frame", "get_point_cloud", "get_depth_intrinsics"]
+        return ["get_camera_info", "get_depth_frame", "get_point_cloud", "get_depth_intrinsics",
+                "get_depth_sensor_options", "set_depth_sensor_option"]
 
 
 class RealSensePlugin(CameraPlugin):
