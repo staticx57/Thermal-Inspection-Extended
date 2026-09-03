@@ -699,18 +699,27 @@ class ThermalProcessor:
                 else:
                     gray = gray.astype(np.uint8)
 
-            # Convert grayscale to BGR format
-            grayscale_frame = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-
-            # Blend: 0=full color (anomaly), 1=full grayscale (far from anomaly)
-            # blend_weight shape: (H, W, 1) to broadcast across color channels
-            blend_weight = normalized_distance[:, :, np.newaxis]
-
-            # Perform weighted blend
-            blended = (
-                colored_frame * (1 - blend_weight) +
-                grayscale_frame * blend_weight
-            ).astype(np.uint8)
+            # Blend: 0=full color (anomaly), 1=full grayscale (far from
+            # anomaly). Previously broadcast (H,W,3)*(H,W,1) via
+            # grayscale_frame (a full 3-channel replica of gray, built via
+            # cv2.cvtColor GRAY2BGR just to have matching channel counts
+            # for the multiply) - measured at ~19.6ms/call on a 512x640
+            # frame, the same broadcast-multiply/uint8-float64-upcast
+            # slowdown found and fixed in GRADIENT_OVERLAY (see
+            # thermal_analyzer.py's git history for the isolated
+            # benchmarks that root-caused it there). gray is already
+            # identical across B/G/R after GRAY2BGR replication, so skip
+            # building that 3-channel array entirely and blend each
+            # channel against gray directly via same-shape (not
+            # broadcast) multiplies instead.
+            weight = normalized_distance.astype(np.float32, copy=False)
+            inv_weight = 1.0 - weight
+            gray_f32 = gray.astype(np.float32)
+            out_f32 = colored_frame.astype(np.float32)
+            out_f32[..., 0] = out_f32[..., 0] * inv_weight + gray_f32 * weight
+            out_f32[..., 1] = out_f32[..., 1] * inv_weight + gray_f32 * weight
+            out_f32[..., 2] = out_f32[..., 2] * inv_weight + gray_f32 * weight
+            blended = out_f32.astype(np.uint8)
 
             return blended
 
