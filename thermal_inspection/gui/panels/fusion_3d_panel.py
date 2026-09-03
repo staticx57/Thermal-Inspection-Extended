@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import logging
 import importlib.util
+import time
 from typing import Optional
 
 import cv2
@@ -764,10 +765,14 @@ def apply_3d_visualization(mode: str, image_bgr: np.ndarray, depth_m: np.ndarray
     interval_m. Irrelevant kwargs for the current mode are simply unused
     by that function's own defaults.
     """
+    _t0 = time.perf_counter()
     if _resolve_3d_gpu():
         try:
             gpu_fn = _GPU_MODE_FN.get(mode, apply_depth_relief_gpu)
-            return gpu_fn(image_bgr, depth_m, strength=strength, **kwargs)
+            result = gpu_fn(image_bgr, depth_m, strength=strength, **kwargs)
+            print(f"[PROFILE_3D_VIZ] path=GPU mode={mode} shape={image_bgr.shape} "
+                  f"ms={(time.perf_counter() - _t0) * 1000:.2f}", flush=True)
+            return result
         except Exception as e:
             logger.warning(f"3D Fusion GPU path failed, falling back to CPU: {e}")
 
@@ -778,8 +783,14 @@ def apply_3d_visualization(mode: str, image_bgr: np.ndarray, depth_m: np.ndarray
         small_img = cv2.resize(image_bgr, (CPU_MAX_PROC_WIDTH, ph), interpolation=cv2.INTER_LINEAR)
         small_depth = cv2.resize(depth_m, (CPU_MAX_PROC_WIDTH, ph), interpolation=cv2.INTER_NEAREST)
         result = cpu_fn(small_img, small_depth, strength=strength, **kwargs)
-        return cv2.resize(result, (bw, bh), interpolation=cv2.INTER_LINEAR)
-    return cpu_fn(image_bgr, depth_m, strength=strength, **kwargs)
+        result = cv2.resize(result, (bw, bh), interpolation=cv2.INTER_LINEAR)
+        print(f"[PROFILE_3D_VIZ] path=CPU(scaled) mode={mode} shape={image_bgr.shape} "
+              f"proc_width={CPU_MAX_PROC_WIDTH} ms={(time.perf_counter() - _t0) * 1000:.2f}", flush=True)
+        return result
+    result = cpu_fn(image_bgr, depth_m, strength=strength, **kwargs)
+    print(f"[PROFILE_3D_VIZ] path=CPU(full) mode={mode} shape={image_bgr.shape} "
+          f"ms={(time.perf_counter() - _t0) * 1000:.2f}", flush=True)
+    return result
 
 
 class Fusion3DPointCloudView(QWidget):

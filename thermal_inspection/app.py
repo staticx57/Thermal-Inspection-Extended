@@ -1645,6 +1645,10 @@ class ThermalInspectionApp:
             proc_results = {}
             if self.thermal_processor and thermal_frame is not self.thermal_placeholder:
                 proc_results = self.thermal_processor.process_frame(thermal_frame)
+                if self.frame_count % 30 == 0:
+                    print(f"[PROFILE_PROC_FRAME] motion={self.thermal_processor.motion_enabled} "
+                          f"edge={self.thermal_processor.edge_enabled} "
+                          f"ms={proc_results.get('processing_time_ms', 0):.2f}", flush=True)
 
             # Anomaly Priority is applied after analysis below (line ~903)
 
