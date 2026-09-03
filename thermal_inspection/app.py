@@ -157,9 +157,21 @@ class ThermalInspectionApp:
         self._auto_cycle_deadline = 0.0
 
         # Throttle for handing frames to ThreadedAnalyzer - see its
-        # submission call site in _process_frame_loop for why.
+        # submission call site in _process_frame_loop for why. The
+        # analyzer thread has no pacing of its own (ThreadedAnalyzer._run
+        # reanalyzes immediately whenever a new frame lands, no idle gap),
+        # so this submission interval IS its duty cycle - at 30Hz with
+        # analyze() measured 10-40ms/call, it was often busy nearly
+        # continuously, a confirmed contender for the same memory
+        # bandwidth Fusion's feature_weighted mode and Anomaly Priority's
+        # colorization both need on the main thread (28 logical cores on
+        # this hardware rule out core scarcity - this is bandwidth
+        # contention, not a shortage of execution units). Hot/cold-spot
+        # overlays and stats don't need to update faster than a human can
+        # perceive - 15Hz matches the precedent already set by 3D
+        # Fusion's own point-cloud update interval below.
         self._last_analysis_submit_time = 0.0
-        self._analysis_submit_interval_s = 1.0 / 30.0
+        self._analysis_submit_interval_s = 1.0 / 15.0
 
         # Throttle for 3D Fusion point-cloud updates - GL upload + the
         # per-point thermal-color sampling isn't free, and the view only
