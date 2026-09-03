@@ -458,7 +458,18 @@ class Fusion3DPointCloudView(QWidget):
         self._gl_view.addItem(grid)
 
         self._scatter = gl.GLScatterPlotItem(pos=np.zeros((1, 3), dtype=np.float32))
-        self._scatter.setGLOptions('opaque')
+        # 'translucent' (not 'opaque') so each point renders as a smooth,
+        # anti-aliased circular sprite rather than a single hard-edged
+        # pixel - with alpha always 1.0 (see update_from_realsense) this
+        # doesn't change the final color against the black background,
+        # but should make small points read as solid dots instead of
+        # faint aliased specks. Per-point color math was verified correct
+        # (a controlled test with known bright colors produced the
+        # expected RGB output, full alpha) - the reported "points are
+        # dark" issue is a rendering visibility problem, not a data bug,
+        # so this plus the larger point size below are the fix; not yet
+        # confirmed against real hardware.
+        self._scatter.setGLOptions('translucent')
         self._gl_view.addItem(self._scatter)
 
         self._no_source_label = QLabel(
@@ -557,7 +568,7 @@ class Fusion3DPointCloudView(QWidget):
                 )
             self._camera_auto_framed = True
 
-        self._scatter.setData(pos=vertices, color=colors, size=2.0, pxMode=True)
+        self._scatter.setData(pos=vertices, color=colors, size=5.0, pxMode=True)
 
     def update_from_realsense(self, vertices: np.ndarray, uv: np.ndarray,
                                rgb_frame: np.ndarray, thermal_colorized: np.ndarray):

@@ -1637,7 +1637,7 @@ class ThermalInspectionApp:
             # Apply anomaly priority if enabled
             if self.thermal_processor and self.thermal_processor.anomaly_priority_enabled:
                 colorized_thermal = self.thermal_processor.apply_anomaly_priority_colorization(
-                    thermal_frame, analysis_results['anomalies'], colorized_thermal
+                    thermal_frame, self._collect_priority_anomalies(analysis_results), colorized_thermal
                 )
 
             # 3b. Apply isotherm overlay via IsothermManager
@@ -2052,6 +2052,41 @@ class ThermalInspectionApp:
     def set_enabled_anomaly_types(self, types_dict: dict):
         """Set enabled anomaly types."""
         self.enabled_anomaly_types = types_dict.copy()
+
+    # Anomaly-panel type checkbox key -> analysis_results key holding that
+    # category's detections. All five share the same `bbox` (x1,y1,x2,y2)
+    # field - HotSpot/ColdSpot/ThermalAnomaly's docstrings say so
+    # explicitly ("for anomaly priority compatibility") - but nothing ever
+    # actually combined them: apply_anomaly_priority_colorization() only
+    # ever received analysis_results['anomalies'] (ThermalAnomaly alone),
+    # so toggling Motion/Edges/Hot Spots/Cold Spots off (or on) had zero
+    # effect on the anomaly-priority fade regardless of checkbox state.
+    # "enhanced_fusion" is deliberately not in this map -
+    # detect_enhanced_fusion_anomalies() exists but is never called
+    # anywhere in the pipeline; that checkbox has no detection behind it
+    # yet, a separate gap from this dead-merge bug.
+    _ANOMALY_TYPE_RESULT_KEYS = {
+        'hot_spots': 'hot_spots',
+        'cold_spots': 'cold_spots',
+        'thermal_anomalies': 'anomalies',
+        'motion': 'motion_detections',
+        'edges': 'edge_clusters',
+    }
+
+    def _collect_priority_anomalies(self, analysis_results: dict) -> list:
+        """
+        Merge every enabled anomaly-type category's detections into one
+        list for apply_anomaly_priority_colorization() - each entry only
+        needs the shared `bbox` field that method reads. A type absent
+        from self.enabled_anomaly_types (e.g. before the user has ever
+        touched a checkbox) defaults to enabled, matching the panel's own
+        all-checked-by-default initial state.
+        """
+        combined = []
+        for type_key, results_key in self._ANOMALY_TYPE_RESULT_KEYS.items():
+            if self.enabled_anomaly_types.get(type_key, True):
+                combined.extend(analysis_results.get(results_key) or [])
+        return combined
 
     def delete_roi(self, roi_id: str):
         """Delete specific ROI."""

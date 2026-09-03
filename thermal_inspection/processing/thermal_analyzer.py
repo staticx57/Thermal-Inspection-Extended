@@ -1327,12 +1327,21 @@ class ThermalAnalyzer:
             output = np.where(mask[..., np.newaxis] > 0, colorized_frame, gray_3ch)
 
         elif viz_mode == ThresholdVisualization.COLOR_NON_ANOMALY:
-            # Highlight anomaly regions with different processing
-            # Apply brightness boost to anomaly regions
-            anomaly_boost = colorized_frame.copy()
-            anomaly_boost = cv2.convertScaleAbs(anomaly_boost, alpha=1.3, beta=30)
+            # Highlight anomaly regions with a distinct color tint rather
+            # than a plain brightness boost - convertScaleAbs's +30/*1.3
+            # boost clips to white on already-bright palette regions (e.g.
+            # ironbow's hot end), and "Above Threshold" (the default
+            # detection mode) selects exactly those brightest pixels by
+            # definition - the effect was applying but visually
+            # indistinguishable from doing nothing on typical palettes. A
+            # hue shift stays visible regardless of the underlying
+            # brightness at that pixel.
+            highlight_color = np.array([0, 255, 255], dtype=np.float32)  # BGR: bright yellow
+            blend = 0.5
+            tinted = (colorized_frame.astype(np.float32) * (1 - blend)
+                    + highlight_color * blend).astype(np.uint8)
 
-            output = np.where(mask[..., np.newaxis] > 0, anomaly_boost, colorized_frame)
+            output = np.where(mask[..., np.newaxis] > 0, tinted, colorized_frame)
 
         elif viz_mode == ThresholdVisualization.BINARY_MASK:
             # Pure black and white
