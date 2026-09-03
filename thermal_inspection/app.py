@@ -175,6 +175,11 @@ class ThermalInspectionApp:
         self._3d_fog_near_m = 0.3
         self._3d_fog_far_m = 4.0
         self._3d_contour_interval_m = 0.5
+
+        # Throttle for pushing parallax perf metrics to the GUI - a display
+        # metric, not something that needs updating every single frame.
+        self._last_parallax_perf_update_time = 0.0
+        self._parallax_perf_update_interval_s = 0.5
         # Cache for the main viewport's THREE_D display frame - see its
         # branch in the display_frame selection for why this is throttled
         # instead of recomputed every frame.
@@ -1406,6 +1411,18 @@ class ThermalInspectionApp:
                     thermal_frame = self.parallax_compensator.apply_correction(
                         thermal_frame, safe_rgb
                     )
+                    # Parallax panel's "Performance" section - built with a
+                    # working update method but nothing ever called it.
+                    # Throttled: this is a display metric, not something
+                    # that needs GUI updates every single frame.
+                    _now_px_perf = time.time()
+                    if _now_px_perf - self._last_parallax_perf_update_time >= self._parallax_perf_update_interval_s:
+                        self._last_parallax_perf_update_time = _now_px_perf
+                        self._gui_invoke(
+                            "_update_parallax_performance",
+                            self.parallax_compensator.last_depth_time_ms,
+                            self.parallax_compensator.last_correction_time_ms,
+                        )
                 except Exception as _px_err:
                     logger.debug(f"Parallax correction failed: {_px_err}")
 

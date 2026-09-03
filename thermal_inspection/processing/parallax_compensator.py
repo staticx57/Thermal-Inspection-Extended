@@ -23,6 +23,7 @@ NEW in v3.3.0:
 import numpy as np
 import cv2
 import logging
+import time
 from typing import Optional, Tuple
 from dataclasses import dataclass
 
@@ -594,6 +595,12 @@ class ParallaxCompensator:
         self._coord_grid_shape = None
         self._coord_grid_xy = None
 
+        # Last-call timing, in milliseconds - feeds the Parallax panel's
+        # "Performance" section (depth_time_label/correction_time_label),
+        # previously built but never actually populated by anything.
+        self.last_depth_time_ms = 0.0
+        self.last_correction_time_ms = 0.0
+
         logger.info("ParallaxCompensator initialized (DISABLED by default)")
         logger.info(f"  Baseline: {self.geometry.baseline_mm}mm")
         logger.info(f"  Depth method: {depth_method}")
@@ -731,13 +738,16 @@ class ParallaxCompensator:
                 rgb_for_depth = cv2.resize(rgb_frame, (thermal_w, thermal_h),
                                           interpolation=cv2.INTER_LINEAR)
 
+            _t_depth_start = time.perf_counter()
             depth_map = self.depth_estimator.estimate_depth(rgb_for_depth)
+            self.last_depth_time_ms = (time.perf_counter() - _t_depth_start) * 1000.0
             if depth_map is None:
                 logger.warning("Depth estimation failed - returning uncorrected thermal frame")
                 return thermal_frame
 
             self.last_depth_map = depth_map
 
+            _t_corr_start = time.perf_counter()
             depth_resized = cv2.resize(depth_map, (thermal_w, thermal_h),
                                       interpolation=cv2.INTER_LINEAR)
 
@@ -757,9 +767,11 @@ class ParallaxCompensator:
                 # Resize to match thermal output shape if needed
                 if depth_colourised.shape[:2] != thermal_frame.shape[:2]:
                     depth_colourised = cv2.resize(depth_colourised, (thermal_w, thermal_h))
+                self.last_correction_time_ms = (time.perf_counter() - _t_corr_start) * 1000.0
                 return depth_colourised
 
             corrected_thermal = self._remap_thermal(thermal_frame, flow_map)
+            self.last_correction_time_ms = (time.perf_counter() - _t_corr_start) * 1000.0
 
             return corrected_thermal
 

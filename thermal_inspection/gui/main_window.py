@@ -2502,6 +2502,11 @@ class InspectionAppWindow(QMainWindow):
         if hasattr(self, 'roi_temp_panel'):
             self.roi_temp_panel.update_roi_data(roi_stats)
 
+    def _update_parallax_performance(self, depth_time_ms: float, correction_time_ms: float):
+        """Push parallax correction timing to the Parallax panel's Performance section."""
+        if hasattr(self, 'parallax_panel'):
+            self.parallax_panel.set_performance_metrics(depth_time_ms, correction_time_ms)
+
     def update_thermal_analysis(self, stats: Optional[ThermalStatistics],
                                 hot_spots: List[HotSpot],
                                 cold_spots: List[ColdSpot],
