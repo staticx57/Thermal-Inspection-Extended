@@ -93,7 +93,12 @@ class VideoRecorder:
                 logger.error("Failed to open fusion video writer")
                 return False
 
-            # Initialize thermal/RGB writers if enabled
+            # Initialize thermal/RGB writers if enabled - unlike the
+            # fusion writer above, a failed-to-open thermal/RGB writer
+            # used to be left silently in place: write_frame()'s own
+            # isOpened() check would then skip every write with no log
+            # at all, so "save_thermal"/"save_rgb" would appear enabled
+            # all recording long while quietly producing no output.
             if self.config.get('save_thermal', False):
                 thermal_path = output_dir / f"{timestamp}_thermal.avi"
                 self.thermal_writer = cv2.VideoWriter(
@@ -102,6 +107,9 @@ class VideoRecorder:
                     fps,
                     frame_size
                 )
+                if not self.thermal_writer.isOpened():
+                    logger.error(f"Failed to open thermal video writer: {thermal_path}")
+                    self.thermal_writer = None
 
             if self.config.get('save_rgb', False):
                 rgb_path = output_dir / f"{timestamp}_rgb.avi"
@@ -111,6 +119,9 @@ class VideoRecorder:
                     fps,
                     frame_size
                 )
+                if not self.rgb_writer.isOpened():
+                    logger.error(f"Failed to open RGB video writer: {rgb_path}")
+                    self.rgb_writer = None
 
             # Initialize metadata
             self.start_time = datetime.now()
@@ -226,16 +237,24 @@ class VideoRecorder:
                     json.dump(self.metadata, f, indent=2)
                 logger.info(f"Metadata saved: {metadata_path}")
 
-            # Release video writers
-            self.cleanup()
-
-            self.recording = False
             logger.info(f"Recording stopped: {self.frame_count} frames, {self.metadata['duration']:.1f}s")
             return True
 
         except Exception as e:
             logger.error(f"Failed to stop recording: {e}")
             return False
+
+        finally:
+            # Always release the video writers and clear the recording
+            # flag, even if metadata serialization above failed - this
+            # used to sit at the end of the try block, so a JSON error
+            # (bad value, disk full, permissions) left the writers
+            # un-released (leaking file handles, an unfinalized video
+            # file) and self.recording stuck True forever, silently
+            # blocking every future start_recording() call for the rest
+            # of the process.
+            self.cleanup()
+            self.recording = False
 
     def cleanup(self):
         """Release all video writers."""

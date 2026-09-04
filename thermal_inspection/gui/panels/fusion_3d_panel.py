@@ -157,22 +157,31 @@ FOG_FADE_METRIC_LABELS = {
 # noisy pixel maxing it out.
 _FOG_MOTION_DIFF_SCALE = 40.0
 
-# Previous-frame cache for the motion fade metric, keyed by frame shape -
-# module-level like this file's other per-process caches (_turbo_lut_gpu
-# etc.), since apply_depth_fog itself is otherwise a stateless pure
-# function of its arguments.
-_fog_motion_prev_gray: dict = {}
+# Previous-frame cache for the motion fade metric - module-level like
+# this file's other per-process caches (_turbo_lut_gpu_cache etc.), since
+# apply_depth_fog itself is otherwise a stateless pure function of its
+# arguments. Holds only the single most recently seen (shape, frame) pair,
+# not one entry per distinct shape ever seen - a session that changes
+# resolution repeatedly would otherwise accumulate one stale full-frame
+# array per resolution forever, since nothing ever evicted the old
+# per-shape dict this used to be. Known, accepted limitation: after any
+# camera reconnect at the SAME shape, the first frame still diffs against
+# the stale pre-disconnect frame, producing a one-frame spurious "fully in
+# motion" flash - fixing that needs a reconnect signal this module doesn't
+# have visibility into, and Depth Fog's "motion" metric is a rarely-used
+# option where a single self-correcting frame flash isn't worth that.
+_fog_motion_prev: Optional[tuple] = None  # (shape, gray) or None
 
 
 def _compute_motion_normalized_cpu(image_bgr: np.ndarray) -> np.ndarray:
     """Per-pixel motion magnitude in [0, 1] from frame-to-frame grayscale difference - see FOG_FADE_METRICS."""
+    global _fog_motion_prev
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY).astype(np.float32)
-    key = gray.shape
-    prev = _fog_motion_prev_gray.get(key)
-    _fog_motion_prev_gray[key] = gray
-    if prev is None:
+    prev_shape, prev_gray = _fog_motion_prev if _fog_motion_prev is not None else (None, None)
+    _fog_motion_prev = (gray.shape, gray)
+    if prev_gray is None or prev_shape != gray.shape:
         return np.zeros(gray.shape, dtype=np.float32)
-    return np.clip(np.abs(gray - prev) / _FOG_MOTION_DIFF_SCALE, 0.0, 1.0)
+    return np.clip(np.abs(gray - prev_gray) / _FOG_MOTION_DIFF_SCALE, 0.0, 1.0)
 
 
 def apply_depth_relief(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5,
@@ -719,18 +728,24 @@ def apply_depth_anaglyph_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strengt
     return result.squeeze(0).permute(1, 2, 0).contiguous().to(torch.uint8).cpu().numpy()
 
 
-_turbo_lut_gpu = None  # cached (256, 3) torch tensor - built once per process
+_turbo_lut_gpu_cache: dict = {}  # device -> cached (256, 3) torch tensor, built once per device
 
 
 def _get_turbo_lut_gpu(device):
-    """Build (once) and cache OpenCV's TURBO colormap as a (256, 3) BGR lookup table on the GPU."""
-    global _turbo_lut_gpu
-    if _turbo_lut_gpu is None:
+    """
+    Build (once per device) and cache OpenCV's TURBO colormap as a (256, 3)
+    BGR lookup table on the GPU. Keyed by device (not a single unkeyed
+    global) - this process is CUDA-only today so it's a single entry in
+    practice, but an unkeyed cache would silently hand back a tensor built
+    for a DIFFERENT device the moment a second backend (DirectML etc., see
+    the backlog) is ever active in the same process.
+    """
+    if device not in _turbo_lut_gpu_cache:
         import torch
         gradient = np.arange(256, dtype=np.uint8).reshape(256, 1)
         colored = cv2.applyColorMap(gradient, cv2.COLORMAP_TURBO).reshape(256, 3)  # BGR
-        _turbo_lut_gpu = torch.from_numpy(colored.astype(np.float32)).to(device)
-    return _turbo_lut_gpu
+        _turbo_lut_gpu_cache[device] = torch.from_numpy(colored.astype(np.float32)).to(device)
+    return _turbo_lut_gpu_cache[device]
 
 
 def apply_depth_colorize_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5,
