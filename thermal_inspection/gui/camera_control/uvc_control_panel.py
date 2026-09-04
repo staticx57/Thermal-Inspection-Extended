@@ -27,13 +27,8 @@ class UVCControlPanel(QWidget):
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
-        self.event_bus = None
         self._block_signals = False
         self._build_ui()
-
-    def set_event_bus(self, event_bus):
-        """Attach event bus to broadcast commands."""
-        self.event_bus = event_bus
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -202,9 +197,14 @@ class UVCControlPanel(QWidget):
         self._emit_command("set_property", {"property": prop_name, "value": value})
 
     def _emit_command(self, command: str, params: dict):
+        # command_requested is the one real path - main_window.py's
+        # _wire_plugin_panel() connects it straight to the event bus.
+        # This used to also carry a dead direct-emit fallback via a
+        # self.event_bus/set_event_bus() that nothing ever called - found
+        # during a general audit: since set_event_bus() clearly looks
+        # meant to be wired up, the day someone did, every command from
+        # this panel would have fired twice.
         self.command_requested.emit(command, params)
-        if self.event_bus:
-            self.event_bus.camera_command_requested.emit("rgb", command, params)
 
     def update_camera_info(self, info: dict):
         """Update display when camera connects."""

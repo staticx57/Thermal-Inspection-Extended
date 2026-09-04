@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
     QSlider, QCheckBox
 )
 from PyQt6.QtGui import QFont
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 
 logger = logging.getLogger(__name__)
 
@@ -24,15 +24,13 @@ logger = logging.getLogger(__name__)
 class RealSenseControlPanel(QWidget):
     """Info/status + depth-sensor option panel for an active Intel RealSense camera."""
 
+    command_requested = pyqtSignal(str, dict)
+
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
-        self.event_bus = None
         self._block_signals = False
         self._option_widgets: dict = {}  # option_name -> (widget, kind)
         self._build_ui()
-
-    def set_event_bus(self, event_bus):
-        self.event_bus = event_bus
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -192,7 +190,15 @@ class RealSenseControlPanel(QWidget):
     def _on_option_changed(self, option_name: str, value: float):
         if self._block_signals:
             return
-        if self.event_bus:
-            self.event_bus.camera_command_requested.emit(
-                "rgb", "set_depth_sensor_option", {"option": option_name, "value": value}
-            )
+        # Found during a general audit: this panel had no
+        # command_requested signal at all, only a self.event_bus/
+        # set_event_bus() path that nothing ever called - every
+        # depth-sensor option change here silently did nothing, with no
+        # error or log. command_requested is the same signal every other
+        # camera-control panel uses; main_window.py's _wire_plugin_panel()
+        # already generically connects it (hasattr(panel,
+        # 'command_requested')) for whichever role this plugin actually
+        # has, so no wiring change was needed there.
+        self.command_requested.emit(
+            "set_depth_sensor_option", {"option": option_name, "value": value}
+        )

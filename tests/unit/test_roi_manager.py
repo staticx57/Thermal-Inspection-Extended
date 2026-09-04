@@ -288,6 +288,48 @@ class TestROI:
         assert roi.roi_type == ROIType.RECTANGLE
         assert roi.label == "Test ROI"
 
+    @pytest.mark.unit
+    def test_to_dict_from_dict_round_trip_preserves_every_field(self):
+        """Regression test for a general-audit finding (2026-09-03):
+        to_dict() only serialized 10 of the dataclass's ~18 fields,
+        silently dropping selected/custom_palette/the temp_* fields/
+        emissivity/temp_history/normalized_points/source_resolution on
+        every save -> load round trip (a session restart). Every field
+        gets a non-default value here so a dropped one is caught."""
+        roi = ROI(
+            roi_id="test",
+            roi_type=ROIType.RECTANGLE,
+            roi_source=ROISource.MANUAL,
+            points=[(100, 100), (200, 200)],
+            label="Test ROI",
+            color=(10, 20, 30),
+            active=False,
+            locked=True,
+            selected=True,
+            custom_palette="ironbow",
+            metadata={"note": "hi"},
+            temp_min=10.0,
+            temp_max=90.0,
+            temp_avg=50.0,
+            temp_std=5.0,
+            emissivity=0.95,
+            temp_history=[48.0, 49.0, 50.0],
+            normalized_points=[(0.1, 0.1), (0.2, 0.2)],
+            source_resolution=(1280, 800),
+        )
+
+        restored = ROI.from_dict(roi.to_dict())
+
+        for field_name in (
+            "roi_id", "roi_type", "roi_source", "points", "label", "color",
+            "active", "locked", "selected", "custom_palette", "metadata",
+            "temp_min", "temp_max", "temp_avg", "temp_std", "emissivity",
+            "temp_history", "normalized_points", "source_resolution",
+        ):
+            assert getattr(restored, field_name) == getattr(roi, field_name), (
+                f"field '{field_name}' did not survive a to_dict/from_dict round trip"
+            )
+
 
 class TestROITypes:
     """Tests for ROI type enumeration."""
@@ -395,3 +437,49 @@ class TestEdgeCases:
 
         # Should have default color (0, 255, 0) - green
         assert roi.color == (0, 255, 0)
+
+
+class TestCalculateIou:
+    """
+    Regression tests for a general-audit finding (2026-09-03):
+    calculate_iou() had no zero-guard on its union-area denominator,
+    unlike cleanup_overlapping_rois' own containment calc three lines
+    below its call site. A zero-area box (e.g. a manual rectangle ROI
+    created by a click without drag) reaching this function used to
+    raise ZeroDivisionError.
+    """
+
+    @pytest.mark.unit
+    def test_zero_area_boxes_do_not_raise(self):
+        manager = ROIManager()
+        # Two degenerate (zero-area) boxes at the same position - the
+        # exact case that used to make the union-area denominator 0.
+        assert manager.calculate_iou((10, 10, 0, 0), (10, 10, 0, 0)) == 0.0
+
+    @pytest.mark.unit
+    def test_identical_boxes_have_iou_one(self):
+        manager = ROIManager()
+        assert manager.calculate_iou((0, 0, 100, 100), (0, 0, 100, 100)) == pytest.approx(1.0)
+
+    @pytest.mark.unit
+    def test_non_overlapping_boxes_have_iou_zero(self):
+        manager = ROIManager()
+        assert manager.calculate_iou((0, 0, 10, 10), (100, 100, 10, 10)) == 0.0
+
+    @pytest.mark.unit
+    def test_cleanup_overlapping_rois_does_not_raise_with_a_zero_area_manual_roi(self):
+        """The realistic path this bug was reachable from: a manual
+        rectangle ROI with zero area (a click without drag) coexisting
+        with an auto-detected ROI when cleanup runs."""
+        manager = ROIManager()
+        manager.create_manual_roi(
+            roi_type=ROIType.RECTANGLE, points=[(50, 50), (50, 50)],
+        )
+        auto_roi = ROI(
+            roi_id="auto1", roi_type=ROIType.RECTANGLE,
+            roi_source=ROISource.AUTO_TEMPERATURE,
+            points=[(10, 10), (60, 60)],
+        )
+        manager.rois[auto_roi.roi_id] = auto_roi
+
+        manager.cleanup_overlapping_rois()  # must not raise

@@ -166,7 +166,17 @@ class ROI:
         return False
 
     def to_dict(self) -> Dict:
-        """Convert to dictionary for JSON serialization."""
+        """
+        Convert to dictionary for JSON serialization.
+
+        Used to omit selected/custom_palette/the temp_* fields/emissivity/
+        temp_history - so a save/load round trip (session restart)
+        silently discarded a user's per-ROI custom palette and emissivity
+        override with no indication why, and normalized_points/
+        source_resolution were never written at all, meaning they always
+        reloaded as empty/default regardless of what scale_rois() had
+        computed before saving.
+        """
         return {
             "roi_id": self.roi_id,
             "roi_type": self.roi_type.value,
@@ -176,9 +186,19 @@ class ROI:
             "color": self.color,
             "active": self.active,
             "locked": self.locked,
+            "selected": self.selected,
+            "custom_palette": self.custom_palette,
             "metadata": self.metadata,
             "created_at": self.created_at,
-            "last_updated": self.last_updated
+            "last_updated": self.last_updated,
+            "temp_min": self.temp_min,
+            "temp_max": self.temp_max,
+            "temp_avg": self.temp_avg,
+            "temp_std": self.temp_std,
+            "emissivity": self.emissivity,
+            "temp_history": self.temp_history,
+            "normalized_points": self.normalized_points,
+            "source_resolution": self.source_resolution,
         }
 
     @classmethod
@@ -199,9 +219,17 @@ class ROI:
             color=tuple(data.get("color", [0, 255, 0])),
             active=data.get("active", True),
             locked=data.get("locked", False),
+            selected=data.get("selected", False),
+            custom_palette=data.get("custom_palette", None),
             metadata=data.get("metadata", {}),
             created_at=data.get("created_at", time.time()),
             last_updated=data.get("last_updated", time.time()),
+            temp_min=data.get("temp_min", None),
+            temp_max=data.get("temp_max", None),
+            temp_avg=data.get("temp_avg", None),
+            temp_std=data.get("temp_std", None),
+            emissivity=data.get("emissivity", None),
+            temp_history=list(data.get("temp_history", [])),
             normalized_points=[tuple(p) for p in norm_points],
             source_resolution=tuple(data.get("source_resolution", (640, 512)))
         )
@@ -669,9 +697,13 @@ class ROIManager:
         boxAArea = boxA[2] * boxA[3]
         boxBArea = boxB[2] * boxB[3]
 
-        # Compute IoU
-        iou = interArea / float(boxAArea + boxBArea - interArea)
-        return iou
+        # Compute IoU - guarded the same way the containment calc three
+        # lines below cleanup_overlapping_rois's call site already is:
+        # a zero-area box (e.g. a manual rectangle ROI created by a click
+        # without drag) makes the union area 0 too, which would otherwise
+        # raise ZeroDivisionError here.
+        union_area = float(boxAArea + boxBArea - interArea)
+        return interArea / union_area if union_area > 0 else 0.0
 
     def cleanup_overlapping_rois(self, iou_threshold: float = 0.05):
         """

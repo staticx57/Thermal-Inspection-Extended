@@ -31,13 +31,9 @@ class GigEControlPanel(QWidget):
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
-        self.event_bus = None
         self._discovered_cameras: List[GigEDeviceInfo] = []
         self._block_signals = False
         self._build_ui()
-
-    def set_event_bus(self, event_bus):
-        self.event_bus = event_bus
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -234,11 +230,15 @@ class GigEControlPanel(QWidget):
             self._emit_command("set_packet_size", {"packet_size": mtu})
 
     def _emit_command(self, command: str, params: dict):
+        # command_requested is the one real path - main_window.py's
+        # _wire_plugin_panel() connects it straight to the event bus.
+        # This used to also carry a dead direct-emit fallback via a
+        # self.event_bus/set_event_bus() that nothing ever called - found
+        # during a general audit: it unconditionally emitted for BOTH
+        # "thermal" and "rgb" roles regardless of this camera's actual
+        # is_thermal role, so the day someone wired set_event_bus() up,
+        # every command would have fired twice, once for the wrong role.
         self.command_requested.emit(command, params)
-        if self.event_bus:
-            # Route to either thermal or rgb role based on active camera
-            self.event_bus.camera_command_requested.emit("thermal", command, params)
-            self.event_bus.camera_command_requested.emit("rgb", command, params)
 
     def update_camera_info(self, info: dict):
         """Update fields from active camera SDK."""
