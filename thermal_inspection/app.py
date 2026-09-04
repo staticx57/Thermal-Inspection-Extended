@@ -696,6 +696,19 @@ class ThermalInspectionApp:
         Thread-safe GUI method call.  Uses QTimer.singleShot to marshal the
         call onto the Qt main thread — works with any Python callable stored
         on the GUI object, without needing Q_ARG wrappers.
+
+        _process_frame_loop (the by far most frequent caller - this fires
+        many times per rendered frame, e.g. update_fusion_3d_view,
+        _update_parallax_performance, set_fusion_3d_thermal_aligned) is
+        itself driven by self.timer, a QTimer that's never moved off the
+        GUI thread - so those calls are already running on the GUI thread
+        and marshaling them through QTimer.singleShot(0, ...) anyway was
+        pure overhead: an extra event-loop round trip deferring the actual
+        call to the *next* iteration, on every single tick that fires one
+        of these, found during a rendering-jitter investigation. Callers
+        that genuinely are on a background thread (ThreadedCapture,
+        ThreadedAnalyzer) still need the marshal for thread safety, so
+        this only skips it when already on the GUI thread.
         """
         if self.gui is None:
             return
@@ -703,9 +716,14 @@ class ThermalInspectionApp:
         if not hasattr(gui_ref, method_name):
             return
         try:
-            from PyQt6.QtCore import QTimer
             method = getattr(gui_ref, method_name)
-            QTimer.singleShot(0, lambda: method(*args))
+            from PyQt6.QtCore import QCoreApplication, QThread
+            app_instance = QCoreApplication.instance()
+            if app_instance is not None and QThread.currentThread() is app_instance.thread():
+                method(*args)
+            else:
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(0, lambda: method(*args))
         except Exception as exc:
             logger.debug(f"_gui_invoke {method_name} failed: {exc}")
 
