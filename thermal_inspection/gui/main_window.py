@@ -2629,27 +2629,43 @@ class InspectionAppWindow(QMainWindow):
                                 trend: Optional[TemperatureTrend] = None,
                                 temp_array = None,
                                 palette_lut = None,
-                                is_radiometric: bool = False):
-        """Update thermal analysis displays."""
+                                is_radiometric: bool = False,
+                                results_changed: bool = True):
+        """Update thermal analysis displays.
+
+        results_changed is False when hot_spots/cold_spots/anomalies/stats/
+        trend/temp_array are the exact same values already pushed on a
+        previous call (the background analyzer runs at ~30Hz, far slower
+        than this can be called) - rebuilding the hot/cold/anomaly
+        QListWidgets and rebinning the histogram from scratch every single
+        render tick regardless was real, continuous Qt widget-rebuild cost
+        for data that hadn't actually changed. Video overlay markers and
+        the motion/edge counts (which DO update every tick, independent of
+        the throttled analyzer) are deliberately left ungated below.
+        """
         self.video_widget.update_thermal_detections(hot_spots, cold_spots, anomalies)
-        self.analysis_panel.update_statistics(stats)
-        self.analysis_panel.update_hot_spots(hot_spots)
-        self.analysis_panel.update_cold_spots(cold_spots)
-        self.analysis_panel.update_anomalies(anomalies)
-        self.analysis_panel.update_trend(trend)
+
+        if results_changed:
+            self.analysis_panel.update_statistics(stats)
+            self.analysis_panel.update_hot_spots(hot_spots)
+            self.analysis_panel.update_cold_spots(cold_spots)
+            self.analysis_panel.update_anomalies(anomalies)
+            self.analysis_panel.update_trend(trend)
+
+            # Update histogram if temp_array is available - same throttled
+            # analyzer output as the lists above.
+            if temp_array is not None and hasattr(self.analysis_panel, 'update_histogram'):
+                self.analysis_panel.update_histogram(temp_array)
 
         # Update histogram temperature unit based on mode
         if hasattr(self.analysis_panel, 'set_histogram_temperature_unit'):
             unit = 'C' if is_radiometric else 'RAW'
             self.analysis_panel.set_histogram_temperature_unit(unit)
 
-        # Update histogram palette LUT if available
+        # Update histogram palette LUT if available - independent of the
+        # analyzer's own cadence (palette changes on its own schedule).
         if palette_lut is not None and hasattr(self.analysis_panel, 'set_histogram_palette_lut'):
             self.analysis_panel.set_histogram_palette_lut(palette_lut)
-
-        # Update histogram if temp_array is available
-        if temp_array is not None and hasattr(self.analysis_panel, 'update_histogram'):
-            self.analysis_panel.update_histogram(temp_array)
 
         counts = {
             "hot_spots": len(hot_spots),

@@ -247,6 +247,10 @@ class ThermalInspectionApp:
         # completed result is, non-blocking, so video rendering is no
         # longer gated by analysis cost at all.
         self._last_analysis_results = None
+        # Tracks whether self.gui.update_thermal_analysis() has already
+        # been pushed the CURRENT self._last_analysis_results object -
+        # see its use further down for why.
+        self._last_gui_pushed_analysis_results = None
 
         # Placeholders
         self.thermal_placeholder = None
@@ -2175,6 +2179,29 @@ class ThermalInspectionApp:
                         analysis_count=(self.threaded_analyzer.analysis_count if self.threaded_analyzer else None),
                         analyzer_errors=(self.threaded_analyzer.error_count if self.threaded_analyzer else None),
                     )
+                # hot_spots/cold_spots/anomalies/stats/trend/temp_array all
+                # come from the SAME analysis_results object, which is only
+                # a NEW object when the background ThreadedAnalyzer (~30Hz)
+                # actually produces a fresh result - this render loop tick
+                # is reusing self._last_analysis_results by reference
+                # otherwise (see its assignment above). Pushing the panel's
+                # hot/cold/anomaly QListWidgets + stats/trend labels +
+                # histogram rebin to the GUI is real Qt widget-rebuild cost
+                # (clear() + N addItem() calls each), and was running on
+                # EVERY render tick (100+/s) regardless of whether the data
+                # underneath had actually changed since the last push -
+                # exactly the kind of small, continuous, easy-to-miss cost
+                # that adds up over time. Comparing object identity against
+                # the same reference that gates the analyzer-submit path
+                # above is safe here (unlike an id()-based cache on a
+                # short-lived local array): self._last_analysis_results is
+                # a persistent instance attribute, kept alive by `self` for
+                # as long as the analyzer hasn't produced a newer one, so
+                # there's no risk of a freed object's address being reused
+                # and misread as "unchanged".
+                _analysis_results_changed = analysis_results is not self._last_gui_pushed_analysis_results
+                if _analysis_results_changed:
+                    self._last_gui_pushed_analysis_results = analysis_results
                 self.gui.update_thermal_analysis(
                     stats=analysis_results.get('stats'),
                     hot_spots=analysis_results.get('hot_spots', []),
@@ -2186,7 +2213,8 @@ class ThermalInspectionApp:
                     trend=analysis_results.get('trend'),
                     temp_array=analysis_results.get('temp_array'),
                     palette_lut=palette_lut,
-                    is_radiometric=analysis_results.get('is_radiometric', False)
+                    is_radiometric=analysis_results.get('is_radiometric', False),
+                    results_changed=_analysis_results_changed,
                 )
 
                 # Update ROIs
