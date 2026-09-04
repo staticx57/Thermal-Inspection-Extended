@@ -754,6 +754,20 @@ class FusionProcessor:
             self._edge_color_cache_key = cache_key
         return self._edge_color_cache
 
+    def _get_edge_color_image_u8(self, shape: Tuple[int, int, int], color: Tuple[int, int, int]) -> np.ndarray:
+        """
+        Same caching idea as _get_edge_color_image, but uint8 - for
+        _enhanced_edge_highlight's mask-based blend (cv2.bitwise_and),
+        which needs a uint8 source, not the float32 this method's
+        sibling produces for its own additive-lerp math.
+        """
+        cache_key = (shape, color)
+        cached = getattr(self, '_edge_color_cache_u8_key', None)
+        if cached != cache_key:
+            self._edge_color_cache_u8 = np.full(shape, color, dtype=np.uint8)
+            self._edge_color_cache_u8_key = cache_key
+        return self._edge_color_cache_u8
+
     def _thermal_overlay(self, thermal: np.ndarray, rgb: np.ndarray) -> np.ndarray:
         """
         Overlay hotspots on base with priority control
@@ -1327,17 +1341,27 @@ class FusionProcessor:
                 edges = cv2.dilate(edges, kernel_dilate, iterations=1)
 
             # Create colored edge overlay
-            edge_mask = edges > 0
-            if edge_mask.any():
+            if cv2.countNonZero(edges) > 0:
                 # Apply edge color with intensity-based alpha
                 edge_alpha = 0.6 + (self.fusion_intensity * 0.4)  # Range: 0.6 to 1.0
 
-                # Create edge layer. Boolean-mask scatter assignment
-                # (array[mask] = value) is the same fancy-indexing cost
-                # found in _thermal_overlay - np.where against a physically
-                # replicated (H,W,3) mask avoids it.
-                edge_mask_3ch = np.repeat(edge_mask[:, :, np.newaxis], 3, axis=2)
-                edge_layer = np.where(edge_mask_3ch, np.array(edge_color, dtype=result.dtype), 0).astype(result.dtype)
+                # Profiled as this mode's single biggest remaining cost
+                # (5-34ms/call, wildly variable - repeated large-array
+                # allocation/deallocation churn) once the multi-scale
+                # detection above was fixed: np.repeat to replicate the
+                # mask across 3 channels, then np.where against a freshly
+                # built (H,W,3) color array, both allocated fresh every
+                # frame. cv2.bitwise_and's mask parameter does the same
+                # "color where mask else 0" selection in one optimized
+                # call, directly against `edges` (already a single-channel
+                # 0/255-ish uint8 array - cv2 treats any nonzero as "in",
+                # identical to the old `edges > 0` semantics) with no
+                # separate boolean mask or 3-channel replication needed,
+                # and the constant color image itself is cached (same
+                # idea as _get_edge_color_image, this mode's uint8
+                # equivalent) instead of rebuilt every call.
+                color_img_u8 = self._get_edge_color_image_u8(result.shape, edge_color)
+                edge_layer = cv2.bitwise_and(color_img_u8, color_img_u8, mask=edges)
 
                 # Blend edges onto result
                 result = cv2.addWeighted(result, 1.0, edge_layer, edge_alpha, 0)
