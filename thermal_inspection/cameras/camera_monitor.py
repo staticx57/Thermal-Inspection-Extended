@@ -43,7 +43,7 @@ class CameraMonitor:
     - Callback notifications for state changes
     """
 
-    def __init__(self, scan_interval: float = 3.0, callback: Optional[Callable[[CameraEvent], None]] = None):
+    def __init__(self, scan_interval: float = 3.0, callback: Optional[Callable[[CameraEvent], None]] = None) -> None:
         """
         Initialize camera monitor
 
@@ -91,7 +91,7 @@ class CameraMonitor:
             logger.debug(f"Device fingerprint unavailable: {exc}")
             return None
 
-    def start(self):
+    def start(self) -> None:
         """Start monitoring in background thread"""
         if self.running:
             logger.warning("Camera monitor already running")
@@ -102,7 +102,7 @@ class CameraMonitor:
         self.thread.start()
         logger.info("Camera monitor started")
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop monitoring thread"""
         if not self.running:
             return
@@ -113,7 +113,7 @@ class CameraMonitor:
             self.thread = None
         logger.info("Camera monitor stopped")
 
-    def mark_device_active(self, device_id: int):
+    def mark_device_active(self, device_id: int) -> None:
         """
         Mark a device as actively in use by the application
         This prevents the monitor from trying to probe it
@@ -124,7 +124,7 @@ class CameraMonitor:
         self.active_device_ids.add(device_id)
         logger.debug(f"Device {device_id} marked as active")
 
-    def mark_device_inactive(self, device_id: int):
+    def mark_device_inactive(self, device_id: int) -> None:
         """
         Mark a device as no longer in use
 
@@ -134,7 +134,7 @@ class CameraMonitor:
         self.active_device_ids.discard(device_id)
         logger.debug(f"Device {device_id} marked as inactive")
 
-    def force_scan(self):
+    def force_scan(self) -> None:
         """Force an immediate full camera scan (non-blocking)"""
         logger.info("Forcing immediate camera scan")
         threading.Thread(
@@ -144,7 +144,7 @@ class CameraMonitor:
             name="ForcedCameraScan",
         ).start()
 
-    def _scan_loop(self):
+    def _scan_loop(self) -> None:
         """Main monitoring loop (runs in background thread)"""
         logger.info("Camera monitoring loop started")
 
@@ -162,7 +162,7 @@ class CameraMonitor:
 
         logger.info("Camera monitoring loop stopped")
 
-    def _perform_scan(self, force: bool = False):
+    def _perform_scan(self, force: bool = False) -> None:
         """
         Perform a single scan for camera changes.
 

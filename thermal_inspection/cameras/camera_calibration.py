@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 import logging
 import json
-from typing import Tuple
+from typing import Tuple, Any
 import time
 
 logging.basicConfig(level=logging.INFO)
@@ -19,7 +19,7 @@ class CameraCalibrator:
     Computes homography matrix to align RGB to thermal coordinate system
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize calibrator"""
         self.homography_matrix = None
         self.thermal_points = []
@@ -337,13 +337,14 @@ class CameraCalibrator:
             return False
 
 
-def calibration_wizard(thermal_cam, rgb_cam, output_file: str = "camera_calibration.json"):
+def calibration_wizard(thermal_cam: Any, rgb_cam: Any, output_file: str = "camera_calibration.json") -> None:
     """
     Interactive calibration wizard
 
     Args:
-        thermal_cam: Thermal camera object (with read() method)
-        rgb_cam: RGB camera object (with read() method)
+        thermal_cam: Thermal camera object (with read() method) - duck-typed,
+            no shared base class across this project's camera backends
+        rgb_cam: RGB camera object (with read() method) - duck-typed, same as above
         output_file: Output calibration file path
     """
     print("="*60)
