@@ -883,7 +883,7 @@ class FusionProcessor:
             inset_aspect = inset_w / inset_h
             allocated_aspect = allocated_w / allocated_h
 
-            logger.info(f"[FUSION PIP] Inset: {inset_w}x{inset_h} (aspect {inset_aspect:.3f}), Allocated: {allocated_w}x{allocated_h} (aspect {allocated_aspect:.3f})")
+            logger.debug(f"[FUSION PIP] Inset: {inset_w}x{inset_h} (aspect {inset_aspect:.3f}), Allocated: {allocated_w}x{allocated_h} (aspect {allocated_aspect:.3f})")
 
             if inset_aspect > allocated_aspect:
                 # Inset is wider, fit to width
@@ -898,7 +898,7 @@ class FusionProcessor:
                 offset_x = (allocated_w - actual_w) // 2
                 offset_y = 0
 
-            logger.info(f"[FUSION PIP] Actual size: {actual_w}x{actual_h}, Offset: ({offset_x}, {offset_y})")
+            logger.debug(f"[FUSION PIP] Actual size: {actual_w}x{actual_h}, Offset: ({offset_x}, {offset_y})")
 
             # Resize inset maintaining aspect ratio
             inset_resized = cv2.resize(inset, (actual_w, actual_h))

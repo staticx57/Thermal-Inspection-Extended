@@ -252,9 +252,6 @@ class InspectionOverlayWidget(QWidget):
                 frame_x = pip_x + (x * scale_x)
                 frame_y = pip_y + (y * scale_y)
 
-                if 200 <= x <= 450 and 150 <= y <= 350:
-                    logger.info(f"[OVERLAY] PIP transform: input=({x:.1f},{y:.1f}), priority={self.fusion_priority}")
-
                 return self.frame_to_widget(frame_x, frame_y)
 
         else:
@@ -329,7 +326,6 @@ class InspectionOverlayWidget(QWidget):
             else:
                 self.pip_rect = None
                 self.pip_thermal_rect = None
-            logger.info(f"[OVERLAY] PIP rect recalculated: allocated={self.pip_rect}, thermal_actual={self.pip_thermal_rect}")
 
     def frame_to_widget(self, x: float, y: float) -> tuple:
         """Convert frame coordinates to widget coordinates."""
@@ -571,9 +567,6 @@ class InspectionOverlayWidget(QWidget):
 
             for i, point in enumerate(self.measurement_points):
                 wx, wy = self._transform_thermal_coords(point.x, point.y)
-
-                if i == 4 and self.current_view_mode == 'picture_in_picture':
-                    logger.info(f"[SPOT DEBUG] Center spot: input=({point.x},{point.y}), output=({wx},{wy})")
 
                 should_flash = False
                 if hasattr(self, 'analysis_panel') and hasattr(self.analysis_panel, 'spot_meter_panel'):
