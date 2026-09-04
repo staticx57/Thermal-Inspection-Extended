@@ -12,6 +12,8 @@ from collections import deque
 import time
 import logging
 
+from thermal_inspection.utils.profiling import profile_log
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,6 +34,20 @@ class AnomalyType(Enum):
     RAPID_DECREASE = "rapid_decrease"
     GRADIENT_ANOMALY = "gradient_anomaly"
     STATISTICAL_OUTLIER = "statistical_outlier"
+
+
+# User-facing labels for AnomalyType, for display only - the enum's own
+# values stay as their technical/internal names (used as dict keys,
+# logged, etc. elsewhere), this is purely what the GUI shows.
+ANOMALY_TYPE_LABELS: Dict["AnomalyType", str] = {
+    AnomalyType.NONE: "None",
+    AnomalyType.HOT_SPOT: "Hot Spot",
+    AnomalyType.COLD_SPOT: "Cold Spot",
+    AnomalyType.RAPID_INCREASE: "Rapid Heating",
+    AnomalyType.RAPID_DECREASE: "Rapid Cooling",
+    AnomalyType.GRADIENT_ANOMALY: "Sharp Edge",
+    AnomalyType.STATISTICAL_OUTLIER: "Unusual Spot",
+}
 
 
 class ThresholdMode(Enum):
@@ -192,6 +208,9 @@ class ThermalAnalyzer:
         self.last_fpa_temp_c: Optional[float] = None
         self._est_map_cache_key: Optional[int] = None
         self._est_map_cache: Optional[np.ndarray] = None
+        # Monotonic per-analyze() token - see _estimated_map's docstring
+        # for why this replaced id(thermal_frame) as the cache key.
+        self._analyze_generation: int = 0
 
         # GRADIENT_OVERLAY's alpha/color LUTs (256-entry, indexed by a
         # frame_min/frame_max-normalized quantized value) - severity,
@@ -251,10 +270,6 @@ class ThermalAnalyzer:
         self.background_alpha = self.config.get("background_alpha", 0.01)  # Learning rate
         self.background_init_frames = 30
         self.frame_count = 0
-
-        # Motion guard: skip background model update when camera is panning
-        # Threshold is in raw pixel units (default 15 = significant scene change)
-        self._motion_guard_threshold = self.config.get("motion_guard_threshold", 15.0)
 
         # Grid-based rate-of-change: 8x8 grid tracks per-cell temperature history
         # so localised hotspots are not diluted by the global mean
@@ -337,10 +352,26 @@ class ThermalAnalyzer:
         # detect_hot_spots/detect_cold_spots each convert a 3-channel frame
         # to grayscale internally, producing a fresh array each time. Doing
         # it once here means every downstream call shares the same array
-        # object, so _estimated_map()'s identity-based cache actually hits
-        # instead of recomputing the estimator's adaptive-range scan per call.
+        # object, so _estimated_map()'s cache actually hits instead of
+        # recomputing the estimator's adaptive-range scan per call.
         if thermal_frame is not None and len(thermal_frame.shape) == 3:
             thermal_frame = cv2.cvtColor(thermal_frame, cv2.COLOR_BGR2GRAY)
+
+        # Bumped once per analyze() call - _estimated_map() keys its cache
+        # off this, not id(thermal_frame). A freshly-converted grayscale
+        # array is dereferenced the instant this call returns, and CPython
+        # very reliably reuses that exact just-freed memory block for the
+        # NEXT frame's same-size cv2.cvtColor output - so an id()-based
+        # cache key doesn't just risk a rare collision, it reliably hits on
+        # every subsequent call, permanently freezing hot/cold-spot and
+        # anomaly detection on whichever frame happened to populate the
+        # cache first (confirmed live: "no longer finding anomalies... under
+        # the same visual conditions" on a non-radiometric/estimation-mode
+        # camera). A monotonic counter can never collide across calls the
+        # way a recycled memory address can, while still hitting for every
+        # call made within THIS analyze() invocation (the cache's actual
+        # intended purpose).
+        self._analyze_generation += 1
 
         stats = self.compute_statistics(thermal_frame)
         hot_spots = self.detect_hot_spots(thermal_frame)
@@ -407,14 +438,22 @@ class ThermalAnalyzer:
         compute_statistics/detect_hot_spots/detect_cold_spots each call this
         once, and detect_anomalies calls compute_statistics again internally
         - a single analyze() pass was recomputing the estimator's adaptive-
-        range percentile scan 4-5x on the same frame. Cached by frame
-        identity (valid for the lifetime of one analyze() call, since a new
-        frame object arrives each time the throttle in app.py lets one
-        through).
+        range percentile scan 4-5x on the same frame. Cached by analyze()'s
+        generation counter (self._analyze_generation), NOT id(thermal_frame)
+        - a previous version keyed this by object identity, which appeared
+        to work (valid within one analyze() call, since the shared grayscale
+        array is one object for its whole duration) but silently broke
+        across calls: the array goes out of scope the instant analyze()
+        returns, and CPython/numpy very reliably hand the next same-size
+        allocation that exact freed address right back, so id() didn't just
+        risk a rare collision, it reliably matched on every later call -
+        permanently freezing the estimated map (and therefore hot/cold-spot
+        and anomaly detection) on whichever frame happened to populate the
+        cache first. A monotonic counter can't collide this way.
         """
         if self.is_radiometric or not self.estimation_enabled or self.thermal_estimator is None:
             return None
-        cache_key = id(thermal_frame)
+        cache_key = self._analyze_generation
         if self._est_map_cache_key == cache_key:
             return self._est_map_cache
         fpa = self.last_fpa_temp_c if self.last_fpa_temp_c is not None else 25.0
@@ -938,7 +977,7 @@ class ThermalAnalyzer:
                             location=(w//2, h//2),
                             bbox=(0, 0, w, h),
                             severity=min(1.0, rate_of_change / (self.rapid_change_threshold * 2)),
-                            description=f"Rapid temperature increase: {rate_of_change:.1f}°/s",
+                            description=f"{rate_of_change:.1f}°C/s",
                             metadata={"rate": rate_of_change}
                         ))
 
@@ -949,7 +988,7 @@ class ThermalAnalyzer:
                             location=(w//2, h//2),
                             bbox=(0, 0, w, h),
                             severity=min(1.0, abs(rate_of_change) / (self.rapid_change_threshold * 2)),
-                            description=f"Rapid temperature decrease: {rate_of_change:.1f}°/s",
+                            description=f"{rate_of_change:.1f}°C/s",
                             metadata={"rate": rate_of_change}
                         ))
 
@@ -988,7 +1027,7 @@ class ThermalAnalyzer:
                         location=(cx, cy),
                         bbox=(x, y, x+w, y+h),
                         severity=severity,
-                        description=f"Gradient region: {max_grad:.1f}° over {area:.0f}px²",
+                        description=f"{max_grad:.1f}°C over {area:.0f}px²",
                         metadata={"max_gradient": max_grad, "area": float(area)}
                     ))
 
@@ -1000,14 +1039,30 @@ class ThermalAnalyzer:
                 self.background_model = thermal_float.copy()
                 self.frame_count = 0
             else:
-                # ── Fix 4: Motion guard ─────────────────────────────────────────
-                # If the global mean diff is very high the camera is panning.
-                # Skip the model update AND outlier detection for this frame to
-                # avoid poisoning the background model and generating false flags.
-                global_diff = float(np.mean(cv2.absdiff(thermal_float, self.background_model)))
-                if global_diff > self._motion_guard_threshold:
-                    return anomalies   # camera moving — no update, no outlier detection
-
+                # No motion guard: an earlier version of this code (added
+                # 2026-08-31, "Fix 4") skipped updating background_model
+                # whenever a frame's global mean diff against it exceeded a
+                # fixed threshold, intended to stop a real camera pan from
+                # poisoning the model. Confirmed live this caused two
+                # separate failures instead: (1) non-radiometric AGC
+                # continuously re-normalizes contrast, shifting a frame's
+                # global brightness enough to trip the guard with NO actual
+                # motion at all - background_model then froze on its old
+                # baseline forever, permanently silencing anomaly detection
+                # ("no longer finding anomalies... under the same visual
+                # conditions"); (2) even a rebaseline-on-sustained-trip
+                # escape hatch still paused detection during completely
+                # ordinary handheld repositioning ("any motion will cause
+                # this wait period to repeat... previously this was never
+                # an issue"). Before this guard existed (pre-2026-08-31),
+                # accumulateWeighted ran unconditionally every frame - a
+                # brief pan only shifts the model by background_alpha's
+                # small learning rate (1%) for the few frames it's actually
+                # moving, self-correcting smoothly with no interruption at
+                # all, and detection never has anything to "catch up" from.
+                # Restored that behavior exactly rather than continuing to
+                # tune a guard whose failure mode is worse than the
+                # problem it guards against.
                 cv2.accumulateWeighted(thermal_float, self.background_model, self.background_alpha)
 
             self.frame_count += 1
@@ -1026,6 +1081,21 @@ class ThermalAnalyzer:
                 contours, _ = cv2.findContours(
                     outlier_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
                 )
+
+                _now_so = time.time()
+                if _now_so - getattr(self, "_last_stat_outlier_log_time", 0.0) >= 1.0:
+                    self._last_stat_outlier_log_time = _now_so
+                    _areas = sorted((cv2.contourArea(c) for c in contours), reverse=True)[:5]
+                    profile_log(
+                        "ANOMALY_STAT_OUTLIER",
+                        frame_count=self.frame_count,
+                        mean_diff=f"{mean_diff:.2f}",
+                        std_diff=f"{std_diff:.2f}",
+                        threshold=f"{threshold:.2f}",
+                        outlier_px=int(np.count_nonzero(outlier_mask)),
+                        contour_count=len(contours),
+                        top_areas=_areas,
+                    )
 
                 for contour in contours:
                     area = cv2.contourArea(contour)
@@ -1046,7 +1116,7 @@ class ThermalAnalyzer:
                         location=(cx, cy),
                         bbox=(x, y, x+w, y+h),
                         severity=severity,
-                        description=f"Statistical outlier (diff: {max_diff:.1f})",
+                        description=f"Δ{max_diff:.1f} vs. background",
                         metadata={"max_diff": float(max_diff), "threshold": float(threshold)}
                     ))
 
@@ -1755,7 +1825,7 @@ class ThermalAnalyzer:
                 location=(cx, cy),
                 bbox=bbox,
                 severity=severity,
-                description=f"Thermal+Edge fusion anomaly (thermal:{thermal_score:.2f}, edge:{edge_score:.2f})",
+                description=f"thermal {thermal_score:.2f} / edge {edge_score:.2f}",
                 metadata={
                     'area': area,
                     'thermal_score': thermal_score,

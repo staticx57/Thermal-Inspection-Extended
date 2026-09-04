@@ -135,7 +135,15 @@ class IsothermBandManager:
                 # Convert RGB to BGR for OpenCV
                 b, g, r = band.color[2], band.color[1], band.color[0]
 
-                # Alpha blend (50% transparency)
+                # Alpha blend (50% transparency). Kept as fancy-index
+                # gather/scatter (NOT rewritten to a full-frame np.where
+                # like _thermal_overlay/_enhanced_edge_highlight) -
+                # measured slower here since isotherm bands are narrow
+                # temperature ranges covering a small fraction of the
+                # frame (unlike those full-coverage overlays), so the
+                # fancy-index's O(masked pixels) cost beats a full-frame
+                # O(all pixels) blend. See PROFILE_ISOTHERM in app.py for
+                # this call's actual per-frame cost.
                 alpha = 0.5
                 output[mask] = (
                     alpha * np.array([b, g, r], dtype=np.uint8) +

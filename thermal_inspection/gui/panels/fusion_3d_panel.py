@@ -32,7 +32,8 @@ from typing import Optional
 import cv2
 import numpy as np
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, QComboBox, QPushButton
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, QComboBox, QPushButton,
+    QCheckBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
@@ -1211,6 +1212,7 @@ class Fusion3DSettingsPanel(QWidget):
     contour_interval_changed = pyqtSignal(float)   # interval_m
     gradient_style_changed = pyqtSignal(str)       # see GRADIENT_STYLES
     fog_fade_metric_changed = pyqtSignal(str)       # see FOG_FADE_METRICS
+    point_cloud_enabled_changed = pyqtSignal(bool)
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -1250,10 +1252,14 @@ class Fusion3DSettingsPanel(QWidget):
         self.data_source_combo = QComboBox()
         self.data_source_combo.addItem("Auto (Fusion when aligned)", "auto")
         self.data_source_combo.addItem("RGB Only", "rgb_only")
+        self.data_source_combo.addItem("Depth + Thermal Only", "thermal_only")
         self.data_source_combo.addItem("RGB + Thermal (Fusion)", "fusion")
         self.data_source_combo.setToolTip(
             "What the main viewport's 3D mode shades with real depth.\n"
             "Auto: Fusion when thermal is aligned to RealSense, else RGB Only.\n"
+            "Depth + Thermal Only: shades the thermal image alone, no RGB - "
+            "doesn't need thermal aligned to RealSense since there's no RGB "
+            "to align it to.\n"
             "Forcing \"RGB + Thermal\" without alignment falls back to RGB "
             "Only anyway - thermal and RGB pixels wouldn't correspond to "
             "the same real-world points otherwise."
@@ -1387,8 +1393,35 @@ class Fusion3DSettingsPanel(QWidget):
         preview_label.setStyleSheet("font-weight: bold; padding-top: 8px;")
         layout.addWidget(preview_label)
 
+        # Off by default: this preview is a verification tool, not part
+        # of 3D Fusion itself, but fetching RealSense's point cloud and
+        # updating the GL scatter view is a real per-frame cost that
+        # runs the entire time this tab is open (confirmed live as a
+        # major contributor to a sub-12fps report while on the 3D
+        # Fusion tab) - most users never need it.
+        self.point_cloud_enabled_checkbox = QCheckBox("Enable Point-Cloud Preview")
+        self.point_cloud_enabled_checkbox.setChecked(False)
+        self.point_cloud_enabled_checkbox.setToolTip(
+            "Verification tool only - not required for 3D Fusion itself. "
+            "Fetches RealSense's point cloud and updates the 3D scatter "
+            "view below every frame while this tab is open, which costs "
+            "real time on top of everything else. Leave off unless "
+            "you're specifically debugging depth/RGB/thermal alignment."
+        )
+        self.point_cloud_enabled_checkbox.toggled.connect(self._on_point_cloud_enabled_toggled)
+        layout.addWidget(self.point_cloud_enabled_checkbox)
+
+        self.point_cloud_disabled_label = QLabel(
+            "Point-cloud preview is off (enable above to verify RealSense "
+            "depth/RGB/thermal alignment)."
+        )
+        self.point_cloud_disabled_label.setWordWrap(True)
+        self.point_cloud_disabled_label.setStyleSheet("color: #888888; font-size: 9pt; padding: 12px;")
+        layout.addWidget(self.point_cloud_disabled_label)
+
+        self.component_combo_label = QLabel("Components:")
         mode_layout = QHBoxLayout()
-        mode_layout.addWidget(QLabel("Components:"))
+        mode_layout.addWidget(self.component_combo_label)
         self.component_combo = QComboBox()
         self.component_combo.addItem("RGB + Thermal (Fusion)", "fusion")
         self.component_combo.addItem("RGB Only (no thermal needed)", "rgb_only")
@@ -1411,8 +1444,18 @@ class Fusion3DSettingsPanel(QWidget):
         reset_btn = QPushButton("Reset Preview Camera")
         reset_btn.clicked.connect(self.point_cloud_view.reset_camera)
         layout.addWidget(reset_btn)
+        self._point_cloud_widgets = [
+            self.component_combo_label, self.component_combo, self.point_cloud_view, reset_btn,
+        ]
+        self._on_point_cloud_enabled_toggled(False)  # sets the initial hidden state above
 
         layout.addStretch()
+
+    def _on_point_cloud_enabled_toggled(self, checked: bool):
+        for w in self._point_cloud_widgets:
+            w.setVisible(checked)
+        self.point_cloud_disabled_label.setVisible(not checked)
+        self.point_cloud_enabled_changed.emit(checked)
 
     def _on_mode_combo_changed(self, index: int):
         mode = self.mode_combo.itemData(index)

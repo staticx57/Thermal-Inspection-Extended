@@ -187,6 +187,12 @@ class ThermalInspectionApp:
         self._3d_relief_strength = 0.5
         self._3d_mode = "relief"  # "relief", "fog", or "contours" - see fusion_3d_panel.THREE_D_MODES
         self._3d_data_source = "auto"  # "auto", "rgb_only", or "fusion" - which base image THREE_D shades
+        # Off by default - a verification tool, not part of 3D Fusion
+        # itself, but fetching RealSense's point cloud + updating the GL
+        # scatter view is a real per-frame cost for as long as the 3D
+        # Fusion tab stays open (confirmed live as a major contributor to
+        # a sub-12fps report while on that tab).
+        self._3d_point_cloud_enabled = False
         self._3d_fog_near_m = 0.3
         self._3d_fog_far_m = 4.0
         self._3d_contour_interval_m = 0.5
@@ -375,6 +381,7 @@ class ThermalInspectionApp:
         bus.fusion_3d_strength_changed.connect(self.set_3d_relief_strength)
         bus.fusion_3d_mode_changed.connect(self.set_3d_mode)
         bus.fusion_3d_data_source_changed.connect(self.set_3d_data_source)
+        bus.fusion_3d_point_cloud_enabled_changed.connect(self.set_3d_point_cloud_enabled)
         bus.fusion_3d_fog_range_changed.connect(self.set_3d_fog_range)
         bus.fusion_3d_contour_interval_changed.connect(self.set_3d_contour_interval)
         bus.fusion_3d_gradient_style_changed.connect(self.set_3d_gradient_style)
@@ -1680,8 +1687,16 @@ class ThermalInspectionApp:
             # Fusion3DPointCloudView.needs_thermal_alignment). _3d_panel/
             # _preview are computed above, alongside _preview_needs_alignment,
             # since the parallax-correction gate above needs to know this too.
+            #
+            # Also gated on _3d_point_cloud_enabled (off by default) - this
+            # is a verification tool, not part of 3D Fusion itself, but
+            # fetching RealSense's point cloud + updating the GL scatter
+            # view is a real per-frame cost for as long as this tab stays
+            # open, confirmed live as a major contributor to a sub-12fps
+            # report on the 3D Fusion tab.
             _preview_ready = bool(
-                _preview is not None and _preview.isVisible()
+                self._3d_point_cloud_enabled
+                and _preview is not None and _preview.isVisible()
                 and (_thermal_aligned_realsense or not _preview.needs_thermal_alignment())
             )
             if (_rs_backend and _preview_ready
@@ -1849,7 +1864,19 @@ class ThermalInspectionApp:
 
             # 3b. Apply isotherm overlay via IsothermManager
             if thermal_16bit is not None:
+                _iso_t0 = time.perf_counter()
                 colorized_thermal = self.isotherm_manager.apply_overlay(colorized_thermal, thermal_16bit)
+                if self.frame_count % 30 == 0:
+                    _iso_state = self.isotherm_manager.get_state()
+                    profile_log(
+                        "ISOTHERM",
+                        enabled=_iso_state.enabled,
+                        mode=_iso_state.mode,
+                        multiband=_iso_state.multiband_mode,
+                        band_count=(len(self.isotherm_manager._band_manager.get_enabled_bands())
+                                    if _iso_state.multiband_mode and self.isotherm_manager._band_manager else 0),
+                        ms=f"{(time.perf_counter() - _iso_t0) * 1000:.2f}",
+                    )
 
             # 3c. Apply manual threshold overlay via ThresholdManager
             ts = self.threshold_manager.get_state()
@@ -2035,7 +2062,14 @@ class ThermalInspectionApp:
                                 # nothing, thermal just gone) cost a long
                                 # live-debugging detour with zero UI feedback.
                                 _3d_rgb_only_no_thermal = False
-                                if want_fusion and _thermal_aligned_realsense and self.fusion_processor and rgb_frame is not None:
+                                if self._3d_data_source == "thermal_only":
+                                    # Depth + thermal, no RGB at all - doesn't
+                                    # need _thermal_aligned_realsense since
+                                    # there's no RGB to align thermal TO here;
+                                    # depth_map is resized to base_2d's shape
+                                    # below regardless of source.
+                                    base_2d = colorized_thermal
+                                elif want_fusion and _thermal_aligned_realsense and self.fusion_processor and rgb_frame is not None:
                                     fusion_rgb = rgb_frame
                                     if self._fusion_color_mode == "grayscale":
                                         gray = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2GRAY)
@@ -2127,6 +2161,20 @@ class ThermalInspectionApp:
                     palette_lut = self.palette_manager.get_current_palette_lut()
 
                 # Update analysis
+                if self.frame_count % 30 == 0:
+                    profile_log(
+                        "ANOMALY_COUNTS",
+                        hot=len(analysis_results.get('hot_spots', []) or []),
+                        cold=len(analysis_results.get('cold_spots', []) or []),
+                        anom=len(analysis_results.get('anomalies', []) or []),
+                        has_results=self._last_analysis_results is not None,
+                        is_radiometric=analysis_results.get('is_radiometric', False),
+                        estimation_enabled=(self.thermal_analyzer.estimation_enabled if self.thermal_analyzer else None),
+                        hot_thresh=(self.thermal_analyzer.hot_spot_threshold if self.thermal_analyzer else None),
+                        cold_thresh=(self.thermal_analyzer.cold_spot_threshold if self.thermal_analyzer else None),
+                        analysis_count=(self.threaded_analyzer.analysis_count if self.threaded_analyzer else None),
+                        analyzer_errors=(self.threaded_analyzer.error_count if self.threaded_analyzer else None),
+                    )
                 self.gui.update_thermal_analysis(
                     stats=analysis_results.get('stats'),
                     hot_spots=analysis_results.get('hot_spots', []),
@@ -2490,12 +2538,21 @@ class ThermalInspectionApp:
         self._last_3d_display_frame = None  # force an immediate recompute in the new mode
 
     def set_3d_data_source(self, source: str):
-        """Set which base image ViewMode.THREE_D shades - "auto", "rgb_only", or "fusion"."""
-        if source not in ("auto", "rgb_only", "fusion"):
+        """Set which base image ViewMode.THREE_D shades - "auto", "rgb_only", "thermal_only", or "fusion"."""
+        if source not in ("auto", "rgb_only", "thermal_only", "fusion"):
             logger.warning(f"Unknown 3D Fusion data source '{source}', ignoring")
             return
         self._3d_data_source = source
         self._last_3d_display_frame = None  # force an immediate recompute with the new source
+
+    def set_3d_point_cloud_enabled(self, enabled: bool):
+        """Enable/disable the 3D Fusion settings tab's point-cloud preview.
+
+        Off by default - it's a verification tool, not part of 3D Fusion
+        itself, but fetching RealSense's point cloud and updating the GL
+        scatter view costs real time on every frame while the tab is open.
+        """
+        self._3d_point_cloud_enabled = bool(enabled)
 
     def set_3d_fog_range(self, near_m: float, far_m: float):
         """Set the near/far distance range (meters) for the "fog" 3D Fusion mode."""
