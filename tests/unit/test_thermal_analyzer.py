@@ -622,3 +622,45 @@ class TestGradientOverlayLUT:
         )
 
         assert analyzer._gradient_lut_cache is not first_luts
+
+    @pytest.mark.unit
+    def test_reused_frame_min_max_matches_a_fresh_recompute(self):
+        """Debt-ledger item: percentage-mode detection_result.frame_min/
+        frame_max (computed by an earlier detect_threshold_anomalies()
+        call) is reused here rather than recomputed from THIS call's own
+        thermal_frame argument, on the assumption both calls in app.py's
+        only real call path always receive the exact same frame object.
+        Not runtime-validated (nothing to validate against if it were
+        ever violated - there's no second frame to compare to), so this
+        pins the actual invariant instead: reusing detection_result's
+        values must produce byte-identical output to a fresh recompute
+        from the same frame data, so the two code paths can never
+        silently diverge even though only one of them normally runs."""
+        thermal, colorized, mask, min_t, max_t, frame_min, frame_max, detection = self._make_case(
+            ThresholdMode.BETWEEN
+        )
+        analyzer = ThermalAnalyzer()
+
+        with_reused_values = analyzer.apply_threshold_visualization(
+            thermal, colorized, detection, ThresholdVisualization.GRADIENT_OVERLAY
+        )
+
+        detection_without_cache = ThresholdDetectionResult(
+            mask=detection.mask, anomaly_count=detection.anomaly_count,
+            total_pixels=detection.total_pixels, anomaly_percentage=detection.anomaly_percentage,
+            min_threshold=detection.min_threshold, max_threshold=detection.max_threshold,
+            threshold_mode=detection.threshold_mode, timestamp=0.0,
+            frame_min=None, frame_max=None,  # forces a fresh recompute from `thermal` below
+        )
+        analyzer2 = ThermalAnalyzer()  # fresh LUT cache, same frame
+        with_fresh_recompute = analyzer2.apply_threshold_visualization(
+            thermal, colorized, detection_without_cache, ThresholdVisualization.GRADIENT_OVERLAY
+        )
+
+        assert np.array_equal(with_reused_values, with_fresh_recompute), (
+            "reusing detection_result's frame_min/frame_max must be "
+            "byte-identical to recomputing them from the same frame - "
+            "the two code paths are currently only equivalent because "
+            "app.py's single caller always passes the same frame to "
+            "both detect_threshold_anomalies() and this method"
+        )

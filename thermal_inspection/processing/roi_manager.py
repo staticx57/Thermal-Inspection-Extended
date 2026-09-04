@@ -62,6 +62,11 @@ class ROI:
     normalized_points: List[Tuple[float, float]] = field(default_factory=list)
     source_resolution: Tuple[int, int] = (640, 512)
 
+    # get_mask() cache - excluded from equality/repr (compare=False), it's
+    # derived state, not part of an ROI's actual identity/config.
+    _mask_cache_key: Optional[tuple] = field(default=None, repr=False, compare=False)
+    _mask_cache: Optional[np.ndarray] = field(default=None, repr=False, compare=False)
+
 
     def get_bbox(self) -> Tuple[int, int, int, int]:
         """Get bounding box (x, y, w, h) for this ROI."""
@@ -85,10 +90,21 @@ class ROI:
 
         Returns:
             Binary mask (uint8) where ROI area is 255
+
+        Cached by (shape, points, roi_type) - an ROI's geometry rarely
+        changes between calls (every real call site here just reads the
+        mask, never mutates it in place), so redrawing it from scratch on
+        every call was a wasted full-frame allocation + cv2 draw each time.
         """
+        cache_key = (shape, tuple(self.points), self.roi_type)
+        if self._mask_cache_key == cache_key:
+            return self._mask_cache
+
         mask = np.zeros(shape, dtype=np.uint8)
 
         if not self.points:
+            self._mask_cache_key = cache_key
+            self._mask_cache = mask
             return mask
 
         points_array = np.array(self.points, dtype=np.int32)
@@ -118,6 +134,8 @@ class ROI:
                 radius = int(np.sqrt(dx**2 + dy**2))
                 cv2.circle(mask, center, radius, 255, -1)
 
+        self._mask_cache_key = cache_key
+        self._mask_cache = mask
         return mask
 
     def get_centroid(self) -> Tuple[int, int]:
