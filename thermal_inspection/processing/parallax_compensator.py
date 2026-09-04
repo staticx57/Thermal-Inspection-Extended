@@ -30,6 +30,13 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
+# The closest a depth reading can be treated as real (meters) - guards
+# against near-zero/invalid depth producing an extreme or divide-by-zero
+# disparity. Also the canonical source for fusion_3d_panel.MIN_VALID_DEPTH_M
+# (that module imports it from here rather than redefining it) - the two
+# copies previously only stayed in sync by coincidence.
+MIN_VALID_DEPTH_M = 0.05
+
 # Optional: Depth estimation model (DepthAnything V2, MiDaS, etc.)
 # NOTE: We don't import torch/transformers here to avoid DLL loading errors
 # They will be imported lazily when actually needed
@@ -916,7 +923,7 @@ class ParallaxCompensator:
         compute_disparity_rgb(), applied to a single scalar distance
         instead of a per-pixel depth map.
         """
-        working_distance_m = max(0.05, float(working_distance_m))
+        working_distance_m = max(MIN_VALID_DEPTH_M, float(working_distance_m))
         if self.correction_target == "rgb":
             focal_px = (self.geometry.rgb_focal_length_mm /
                       self.geometry.rgb_sensor_width_mm *
@@ -1042,7 +1049,7 @@ class ParallaxCompensator:
         # non-positive depth as "far away" (~5m, the far end of the
         # realistic working range) - negligible disparity there rather
         # than a runaway/undefined shift.
-        safe_depth = np.where(depth_map > 0.05, depth_map, 5.0)
+        safe_depth = np.where(depth_map > MIN_VALID_DEPTH_M, depth_map, 5.0)
 
         thermal_focal_px = (self.geometry.thermal_focal_length_mm /
                            self.geometry.thermal_sensor_width_mm *
@@ -1073,7 +1080,7 @@ class ParallaxCompensator:
         # See compute_disparity()'s identical guard - real depth sources'
         # 0="no valid reading" pixels would otherwise divide to inf and
         # crash the crop-blanking logic, discarding the entire correction.
-        safe_depth = np.where(depth_map > 0.05, depth_map, 5.0)
+        safe_depth = np.where(depth_map > MIN_VALID_DEPTH_M, depth_map, 5.0)
 
         rgb_focal_px = (self.geometry.rgb_focal_length_mm /
                        self.geometry.rgb_sensor_width_mm *

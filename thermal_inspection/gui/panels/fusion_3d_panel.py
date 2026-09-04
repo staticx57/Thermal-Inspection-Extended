@@ -38,6 +38,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 
 from thermal_inspection.utils.profiling import profile_log
+from thermal_inspection.processing.parallax_compensator import MIN_VALID_DEPTH_M
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,9 @@ except ImportError:
 # ordinary room. Left unfiltered, those dominate both the relief-shading
 # gradient computation and the point-cloud preview's framing.
 MAX_VALID_DEPTH_M = 6.0
-MIN_VALID_DEPTH_M = 0.05
+# MIN_VALID_DEPTH_M is imported (see top of file) rather than redefined
+# here - it used to be an independent copy of the same value, which only
+# stayed in sync by coincidence.
 
 # Point budget for the point-cloud preview's real-time GLScatterPlotItem
 # updates - a RealSense depth frame can have 300k+ valid points at full
@@ -393,6 +396,26 @@ def apply_depth_contours(image_bgr: np.ndarray, depth_m: np.ndarray, strength: f
     return result
 
 
+_anaglyph_meshgrid_cache_key = None
+_anaglyph_meshgrid_cache = None
+
+
+def _get_anaglyph_meshgrid(h: int, w: int):
+    """Cached (x_coords, y_coords) float32 grids for apply_depth_anaglyph's
+    cv2.remap calls - rebuilt only when the frame shape changes, unlike
+    this module's other per-process caches (e.g. _get_edge_color_image
+    equivalents), this one was rebuilding a full (H,W) meshgrid on every
+    call regardless of shape ever changing."""
+    global _anaglyph_meshgrid_cache_key, _anaglyph_meshgrid_cache
+    cache_key = (h, w)
+    if _anaglyph_meshgrid_cache_key != cache_key:
+        _anaglyph_meshgrid_cache = np.meshgrid(
+            np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32)
+        )
+        _anaglyph_meshgrid_cache_key = cache_key
+    return _anaglyph_meshgrid_cache
+
+
 def apply_depth_anaglyph(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5, **_unused) -> np.ndarray:
     """
     Synthesize a red/cyan anaglyph stereo pair from a single image + real
@@ -442,7 +465,7 @@ def apply_depth_anaglyph(image_bgr: np.ndarray, depth_m: np.ndarray, strength: f
     strength = max(0.0, min(1.0, strength))
     half_disparity = (closeness * strength * ANAGLYPH_MAX_SHIFT_PX) / 2.0
 
-    x_coords, y_coords = np.meshgrid(np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32))
+    x_coords, y_coords = _get_anaglyph_meshgrid(h, w)
     left_eye = cv2.remap(image_bgr, x_coords - half_disparity, y_coords,
                         interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
     right_eye = cv2.remap(image_bgr, x_coords + half_disparity, y_coords,
@@ -690,6 +713,28 @@ def apply_depth_contours_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strengt
     return result.squeeze(0).permute(1, 2, 0).contiguous().to(torch.uint8).cpu().numpy()
 
 
+_anaglyph_meshgrid_gpu_cache_key = None
+_anaglyph_meshgrid_gpu_cache = None
+
+
+def _get_anaglyph_meshgrid_gpu(h: int, w: int, torch, device):
+    """GPU-tensor equivalent of _get_anaglyph_meshgrid - rebuilt only
+    when (h, w, device) changes instead of on every call. Returns the
+    already-(1,1,H,W)-unsqueezed (xs, ys), matching what apply_depth_
+    anaglyph_gpu's sample() needs directly."""
+    global _anaglyph_meshgrid_gpu_cache_key, _anaglyph_meshgrid_gpu_cache
+    cache_key = (h, w, str(device))
+    if _anaglyph_meshgrid_gpu_cache_key != cache_key:
+        ys, xs = torch.meshgrid(
+            torch.arange(h, device=device, dtype=torch.float32),
+            torch.arange(w, device=device, dtype=torch.float32),
+            indexing='ij'
+        )
+        _anaglyph_meshgrid_gpu_cache = (xs.unsqueeze(0).unsqueeze(0), ys.unsqueeze(0).unsqueeze(0))
+        _anaglyph_meshgrid_gpu_cache_key = cache_key
+    return _anaglyph_meshgrid_gpu_cache
+
+
 def apply_depth_anaglyph_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float = 0.5, **_unused) -> np.ndarray:
     """GPU (torch/CUDA) implementation of apply_depth_anaglyph - see its docstring for the algorithm."""
     import torch
@@ -704,13 +749,7 @@ def apply_depth_anaglyph_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strengt
     strength = max(0.0, min(1.0, strength))
     half_disparity = (closeness * strength * ANAGLYPH_MAX_SHIFT_PX) / 2.0  # (1,1,H,W)
 
-    ys, xs = torch.meshgrid(
-        torch.arange(h, device=_torch_device, dtype=torch.float32),
-        torch.arange(w, device=_torch_device, dtype=torch.float32),
-        indexing='ij'
-    )
-    xs = xs.unsqueeze(0).unsqueeze(0)
-    ys = ys.unsqueeze(0).unsqueeze(0)
+    xs, ys = _get_anaglyph_meshgrid_gpu(h, w, torch, _torch_device)
 
     def sample(map_x):
         grid_x = (map_x / max(w - 1, 1)) * 2 - 1
@@ -1447,14 +1486,17 @@ class Fusion3DSettingsPanel(QWidget):
         self._point_cloud_widgets = [
             self.component_combo_label, self.component_combo, self.point_cloud_view, reset_btn,
         ]
-        self._on_point_cloud_enabled_toggled(False)  # sets the initial hidden state above
+        self._set_point_cloud_widgets_visible(False)  # initial hidden state, no signal - nothing is connected to it yet during construction
 
         layout.addStretch()
 
-    def _on_point_cloud_enabled_toggled(self, checked: bool):
+    def _set_point_cloud_widgets_visible(self, checked: bool):
         for w in self._point_cloud_widgets:
             w.setVisible(checked)
         self.point_cloud_disabled_label.setVisible(not checked)
+
+    def _on_point_cloud_enabled_toggled(self, checked: bool):
+        self._set_point_cloud_widgets_visible(checked)
         self.point_cloud_enabled_changed.emit(checked)
 
     def _on_mode_combo_changed(self, index: int):

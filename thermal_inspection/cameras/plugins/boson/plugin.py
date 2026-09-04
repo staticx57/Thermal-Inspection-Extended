@@ -271,7 +271,7 @@ class BosonPlugin(CameraPlugin):
             return False
 
     def create_backend(self, match: CameraPluginMatch):
-        com_port = match.com_port or get_serial_port(self.plugin_id, DEFAULT_COM_PORT)
+        com_port = match.com_port or self._resolve_com_port()
         # Cached for get_capabilities(), which the host calls right after
         # this for the same match/activation — avoids probing twice.
         self._last_probed_radiometric = self._probe_radiometric_capable(com_port)
@@ -295,7 +295,7 @@ class BosonPlugin(CameraPlugin):
 
     def create_sdk(self, match: CameraPluginMatch) -> BosonCameraSDK:
         return BosonCameraSDK(
-            com_port=match.com_port or get_serial_port(self.plugin_id, DEFAULT_COM_PORT)
+            com_port=match.com_port or self._resolve_com_port()
         )
 
     def create_control_panel(self) -> Optional[QWidget]:
