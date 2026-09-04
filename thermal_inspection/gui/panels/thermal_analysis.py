@@ -15,7 +15,9 @@ from PyQt6.QtGui import QFont, QPalette
 
 from thermal_inspection.processing.palette_manager import PaletteType
 from thermal_inspection.processing.roi_manager import ROI
-from thermal_inspection.processing.thermal_analyzer import ThermalStatistics, HotSpot, ColdSpot, ThermalAnomaly, TemperatureTrend
+from thermal_inspection.processing.thermal_analyzer import (
+    ThermalStatistics, HotSpot, ColdSpot, ThermalAnomaly, TemperatureTrend, ANOMALY_TYPE_LABELS
+)
 from thermal_inspection.gui.panels.spot_meter_panel import SpotMeterPanel
 from thermal_inspection.gui.panels.grid_overlay_panel import GridOverlayPanel
 
@@ -580,10 +582,11 @@ class ThermalAnalysisPanel(QWidget):
         """Update anomaly list."""
         self.anomaly_list.clear()
         for i, anom in enumerate(anomalies, 1):
-            text = f"#{i}: {anom.anomaly_type} - {anom.description}"
+            friendly_type = ANOMALY_TYPE_LABELS.get(anom.anomaly_type, anom.anomaly_type.value)
+            text = f"#{i}: {friendly_type} - {anom.description}"
             item = QListWidgetItem(text)
             # Add tooltip with full information
-            tooltip = f"Anomaly #{i}\nType: {anom.anomaly_type}\nDescription: {anom.description}\nSeverity: {anom.severity}\nLocation: ({anom.location[0]:.1f}, {anom.location[1]:.1f})"
+            tooltip = f"Anomaly #{i}\nType: {friendly_type}\nDescription: {anom.description}\nSeverity: {anom.severity}\nLocation: ({anom.location[0]:.1f}, {anom.location[1]:.1f})"
             item.setToolTip(tooltip)
             self.anomaly_list.addItem(item)
 

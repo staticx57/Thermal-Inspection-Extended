@@ -12,7 +12,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QRect
 from PyQt6.QtGui import QPainter, QPen, QColor, QPolygon
 
 from thermal_inspection.processing.roi_manager import ROI, ROIType
-from thermal_inspection.processing.thermal_analyzer import HotSpot, ColdSpot, ThermalAnomaly
+from thermal_inspection.processing.thermal_analyzer import HotSpot, ColdSpot, ThermalAnomaly, ANOMALY_TYPE_LABELS
 from thermal_inspection.gui.widgets.colorbar_widget import ColorbarWidget
 
 logger = logging.getLogger(__name__)
@@ -550,7 +550,10 @@ class InspectionOverlayWidget(QWidget):
                 painter.drawLine(int(wx) - 8, int(wy) + 6, int(wx) + 8, int(wy) + 6)
                 painter.drawLine(int(wx) + 8, int(wy) + 6, int(wx), int(wy) - 10)
 
-                label_text = f"⚠ {anomaly.description}" if anomaly.description else f"⚠ {anomaly.anomaly_type.value}"
+                label_text = (
+                    f"⚠ {anomaly.description}" if anomaly.description
+                    else f"⚠ {ANOMALY_TYPE_LABELS.get(anomaly.anomaly_type, anomaly.anomaly_type.value)}"
+                )
                 draw_label(int(wx) + 15, int(wy), label_text, QColor(255, 255, 0))
 
         # Draw measurement points (spot meters) - markers first for ALL

@@ -1286,15 +1286,31 @@ class FusionProcessor:
             # Scale 1: Fine details
             edges_fine = cv2.Canny(overlay_gray, self.edge_threshold_low, self.edge_threshold_high)
 
-            # Scale 2: Medium features (dilate to capture broader structures)
+            # Scales 2/3 (medium/large "broader structure" passes): this
+            # used to run morphologyEx(GRADIENT) with a bigger kernel at
+            # FULL resolution for each scale - correct in effect, but doing
+            # 2 extra full-res morphology+Canny passes measured as this
+            # mode's actual cost outlier (~20ms/frame vs ~1-11ms for every
+            # other fusion mode - confirmed live during a stacked-settings
+            # sweep). An image pyramid - analyze coarser scales on a
+            # DOWNSAMPLED image, then scale the result back up - is the
+            # textbook way multi-scale edge detection is actually done
+            # (Canny/Marr-Hildreth pyramids), not just a speed hack: scale
+            # 2 does 1/4 the pixels, scale 3 does 1/16, cutting the
+            # dominant per-scale cost by roughly that same factor before
+            # the (comparatively cheap) resize back up.
+            h, w = overlay_gray.shape[:2]
             kernel_medium = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-            gray_medium = cv2.morphologyEx(overlay_gray, cv2.MORPH_GRADIENT, kernel_medium)
-            edges_medium = cv2.Canny(gray_medium, self.edge_threshold_low * 0.7, self.edge_threshold_high * 0.7)
+            medium_small = cv2.pyrDown(overlay_gray)
+            gray_medium = cv2.morphologyEx(medium_small, cv2.MORPH_GRADIENT, kernel_medium)
+            edges_medium_small = cv2.Canny(gray_medium, self.edge_threshold_low * 0.7, self.edge_threshold_high * 0.7)
+            edges_medium = cv2.resize(edges_medium_small, (w, h), interpolation=cv2.INTER_LINEAR)
 
-            # Scale 3: Large features
             kernel_large = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-            gray_large = cv2.morphologyEx(overlay_gray, cv2.MORPH_GRADIENT, kernel_large)
-            edges_large = cv2.Canny(gray_large, self.edge_threshold_low * 0.5, self.edge_threshold_high * 0.5)
+            large_small = cv2.pyrDown(medium_small)
+            gray_large = cv2.morphologyEx(large_small, cv2.MORPH_GRADIENT, kernel_large)
+            edges_large_small = cv2.Canny(gray_large, self.edge_threshold_low * 0.5, self.edge_threshold_high * 0.5)
+            edges_large = cv2.resize(edges_large_small, (w, h), interpolation=cv2.INTER_LINEAR)
 
             # Combine multi-scale edges (weighted combination)
             edges = cv2.addWeighted(edges_fine, 0.5, edges_medium, 0.3, 0)
