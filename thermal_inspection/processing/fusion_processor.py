@@ -42,6 +42,11 @@ _TORCH_SPEC_AVAILABLE = importlib.util.find_spec("torch") is not None
 # specific, just GPU-visible.
 _FEATURE_WEIGHTED_SIGMOID_K = 2.0
 
+# thermal_contours' minimum contour area (px^2) to bother drawing - below
+# this a contour is an invisible speck at the mode's fixed 2px line width
+# anyway. See _thermal_contours' own comment for why this exists.
+_THERMAL_CONTOURS_MIN_AREA = 20
+
 
 class FusionProcessor:
     """
@@ -1171,6 +1176,21 @@ class FusionProcessor:
             # Convert thermal to grayscale for contour detection
             thermal_gray = cv2.cvtColor(thermal, cv2.COLOR_BGR2GRAY)
 
+            # A thermal sensor's per-pixel read noise, thresholded directly
+            # at 8 levels, produces a "salt and pepper" binary pattern with
+            # an enormous number of tiny disconnected contours -
+            # cv2.findContours' cost scales with contour count and boundary
+            # complexity, not just pixel count. Measured live: pure noise
+            # cost ~950ms for findContours alone (216k contours found) at
+            # 512x640 - effectively freezing the app if this mode were
+            # selected on a noisy scene. A light blur removes single-pixel
+            # noise before thresholding while preserving genuine
+            # temperature-boundary edges (this mode's actual purpose per
+            # its own docstring) - measured: realistic thermal-like data
+            # (smooth gradient + moderate sensor noise) drops to ~17ms,
+            # matching every other fusion mode.
+            thermal_gray = cv2.GaussianBlur(thermal_gray, (5, 5), 0)
+
             # Find contours at multiple temperature levels
             # Create several threshold levels to show temperature gradients
             num_levels = 8
@@ -1202,6 +1222,12 @@ class FusionProcessor:
 
                 # Find contours
                 contours, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+
+                # Remaining single-pixel-scale noise specks the blur above
+                # didn't fully remove draw as invisible-at-2px-linewidth
+                # dots anyway - skipping them cuts drawContours' cost
+                # further on a noisy frame with no visual difference.
+                contours = [c for c in contours if cv2.contourArea(c) >= _THERMAL_CONTOURS_MIN_AREA]
 
                 # Draw contours
                 color = contour_colors[i % len(contour_colors)]

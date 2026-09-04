@@ -43,6 +43,7 @@ class VideoWidget(QLabel):
         # Frame buffer reuse (performance optimization for Jetson)
         self._last_qimage = None
         self._last_qpixmap = None
+        self._qimage_backing_frame = None  # keeps _last_qimage's buffer alive - see update_frame
         self._frame_width = 0
         self._frame_height = 0
 
@@ -85,11 +86,24 @@ class VideoWidget(QLabel):
         # Convert BGR to RGB
         if len(frame.shape) == 3 and frame.shape[2] == 3:
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # cv2.cvtColor always returns a freshly-allocated array (never
+            # a view into frame or any caller-owned/reused buffer - see
+            # this class's own docstring on buffer reuse), so it's safe
+            # to build the QImage directly against it instead of also
+            # copying into a second buffer - just keep rgb_frame alive
+            # for as long as the QImage/QPixmap might still reference it
+            # (until the next update_frame() replaces it). resizeEvent
+            # below re-derives a pixmap from self._last_qimage on a
+            # resize, well after this call returns, so this can't just
+            # be a local variable.
+            self._qimage_backing_frame = rgb_frame
+            qimage = QImage(rgb_frame.data, width, height, 3 * width, QImage.Format.Format_RGB888)
         else:
-            rgb_frame = frame
-
-        qimage = QImage(rgb_frame.data, width, height, 3 * width, QImage.Format.Format_RGB888)
-        self._last_qimage = qimage.copy()
+            # frame here may be a reference to a caller-owned/reused
+            # buffer, not a fresh allocation - copy still required to
+            # avoid a QImage view that goes stale/dangles.
+            qimage = QImage(frame.data, width, height, 3 * width, QImage.Format.Format_RGB888).copy()
+        self._last_qimage = qimage
 
         # Display directly (it's already scaled)
         self._last_qpixmap = QPixmap.fromImage(self._last_qimage)
