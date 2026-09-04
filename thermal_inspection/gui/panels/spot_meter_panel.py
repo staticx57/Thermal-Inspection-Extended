@@ -614,15 +614,24 @@ class SpotMeterPanel(QWidget):
 
 
     def update_temperature(self, spot_id: str, temperature: float, unit: str = "°C"):
-        """Update temperature reading for a spot meter.
+        """Update temperature reading for a single spot meter.
 
         Args:
             spot_id: Spot meter ID
             temperature: New temperature value
             unit: Temperature unit string
         """
-        if spot_id not in self.spots:
+        if not self._apply_temperature(spot_id, temperature, unit):
             return
+        self._update_statistics()
+        self._update_graph()
+
+    def _apply_temperature(self, spot_id: str, temperature: float, unit: str = "°C") -> bool:
+        """Store a new reading and refresh just this spot's own list item -
+        the aggregate stats/graph refresh is the caller's job (a single
+        call after every spot in a batch is done, not once per spot)."""
+        if spot_id not in self.spots:
+            return False
 
         data = self.spots[spot_id]
         data.temperature = temperature
@@ -635,28 +644,39 @@ class SpotMeterPanel(QWidget):
 
         # Update list item display
         self._refresh_list_item(spot_id)
-        self._update_statistics()
-
-        # Update history graph
-        self._update_graph()
+        return True
 
     def update_spot_temperatures(self, values: List[Dict]):
         """Batch update temperatures from main loop.
 
+        Refreshes aggregate statistics and the history graph exactly
+        once after every spot's reading is applied, instead of once per
+        spot (update_temperature()'s single-spot path did that
+        redundantly - N active spot meters meant the same aggregate
+        stats labels and history graph got rebuilt N times on a single
+        render tick, confirmed live as this loop runs unconditionally
+        every frame from the main loop).
+
         Args:
             values: List of {'label': str, 'temperature': float, 'unit': str}
         """
+        any_updated = False
         for val in values:
             label = val.get('label', '')
             # Find spot by label
             for spot_id, data in self.spots.items():
                 if data.label == label:
-                    self.update_temperature(
+                    if self._apply_temperature(
                         spot_id,
                         val.get('temperature'),
                         val.get('unit', '°C')
-                    )
+                    ):
+                        any_updated = True
                     break
+
+        if any_updated:
+            self._update_statistics()
+            self._update_graph()
 
     def _refresh_list_item(self, spot_id: str):
         """Refresh the display of a specific list item."""
