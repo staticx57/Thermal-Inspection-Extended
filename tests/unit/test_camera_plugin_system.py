@@ -251,14 +251,32 @@ def test_tau2_crc_calculation():
 
 
 def test_tau2_camera_frame_sanitization():
-    """Test 14-bit alignment and Y16 normalization in Tau2Camera."""
-    cam = Tau2Camera(device_id=0, resolution=(640, 512), tlinear=True, high_res=True)
-
-    # Left-shifted 14-bit data (raw values > 16383)
+    """
+    Test Y16 decoding in Tau2Camera across all three supported byte_order
+    values. 'swap' is the default and the one confirmed against real
+    hardware (see _decode_byte_swapped's docstring: it turned a
+    low-coherence, effectively-blank-looking buffer into a clearly
+    recognizable thermal image) - it's a full 16-bit high/low byte swap,
+    not a 14-bit clamp, so unlike 'split' its output is not guaranteed
+    <= 16383. This previously asserted a >>2 & 0x3FFF bit-packing scheme
+    that predates that hardware finding and doesn't match any of the
+    three modes _normalize_14bit actually implements.
+    """
     raw = np.array([[60000, 40000]], dtype=np.uint16)
-    normalized = cam._normalize_14bit(raw)
-    assert np.all(normalized <= 16383)
-    assert normalized[0, 0] == (60000 >> 2) & 0x3FFF
+
+    cam_swap = Tau2Camera(device_id=0, resolution=(640, 512), tlinear=True,
+                           high_res=True, byte_order='swap')
+    swapped = cam_swap._normalize_14bit(raw)
+    np.testing.assert_array_equal(swapped, np.array([[24810, 16540]], dtype=np.uint16))
+
+    cam_native = Tau2Camera(device_id=0, resolution=(640, 512), tlinear=True,
+                             high_res=True, byte_order='native')
+    np.testing.assert_array_equal(cam_native._normalize_14bit(raw), raw)
+
+    cam_split = Tau2Camera(device_id=0, resolution=(640, 512), tlinear=True,
+                            high_res=True, byte_order='split')
+    split = cam_split._normalize_14bit(raw)
+    assert np.all(split <= 16383)
 
 
 def test_builtin_plugins_auto_registered():

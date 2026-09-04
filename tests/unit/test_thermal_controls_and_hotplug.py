@@ -28,18 +28,46 @@ class TestThermalPluginRegistration:
         boson = registry.get_plugin("flir_boson")
         assert boson.camera_role == CameraRole.THERMAL
         match = CameraPluginMatch(plugin_id="flir_boson", device_index=0)
-        caps = boson.get_capabilities(match)
-        assert caps.radiometric is True
-        assert caps.has_ffc is True
-        assert caps.has_gain_mode is True
 
-        # Tau 2
+        # Radiometric capability is only known after create_backend() probes
+        # a live serial COM port (Boson ships in both -R radiometric and
+        # non-radiometric SKUs) - before any probe, get_capabilities() must
+        # correctly default to False rather than overclaim. See
+        # BosonPlugin.get_capabilities's _last_probed_radiometric.
+        caps_unprobed = boson.get_capabilities(match)
+        assert caps_unprobed.radiometric is False
+        assert caps_unprobed.has_ffc is True
+        assert caps_unprobed.has_gain_mode is True
+
+        # Simulate what create_backend() would have cached after probing a
+        # radiometric unit.
+        boson._last_probed_radiometric = True
+        caps_probed = boson.get_capabilities(match)
+        assert caps_probed.radiometric is True
+        assert caps_probed.bit_depth == 16
+        assert caps_probed.has_ffc is True
+        assert caps_probed.has_gain_mode is True
+
+        # Tau 2 - every CCI-commanded capability (radiometric, tlinear,
+        # gain/FFC/palette control) requires a control port; without one
+        # (this project's actual hardware - see project memory: no CCI,
+        # video-only) get_capabilities() correctly reports none of them
+        # rather than overclaiming. The shared `match` above has no
+        # com_port, so it doubles as that no-CCI case here.
         tau2 = registry.get_plugin("flir_tau2")
         assert tau2.camera_role == CameraRole.THERMAL
-        caps_tau = tau2.get_capabilities(match)
-        assert caps_tau.radiometric is True
-        assert caps_tau.bit_depth == 16
-        assert caps_tau.has_tlinear is True
+        caps_tau_no_cci = tau2.get_capabilities(match)
+        assert caps_tau_no_cci.radiometric is False
+        assert caps_tau_no_cci.bit_depth == 8
+        assert caps_tau_no_cci.has_tlinear is False
+
+        # With a CCI control port available, the full CCI-commanded
+        # feature set becomes available.
+        match_with_cci = CameraPluginMatch(plugin_id="flir_tau2", device_index=0, com_port="COM3")
+        caps_tau_cci = tau2.get_capabilities(match_with_cci)
+        assert caps_tau_cci.radiometric is True
+        assert caps_tau_cci.bit_depth == 16
+        assert caps_tau_cci.has_tlinear is True
 
         # Lepton
         lepton = registry.get_plugin("flir_lepton")

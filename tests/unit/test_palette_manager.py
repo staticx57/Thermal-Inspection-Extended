@@ -10,7 +10,49 @@ Tests the thermal color palette management including:
 
 import pytest
 import numpy as np
-from thermal_inspection.processing.palette_manager import PaletteManager, PaletteType, PaletteConfig
+from thermal_inspection.processing.palette_manager import (
+    PaletteManager, PaletteType, PaletteConfig, is_camera_native_colorized,
+)
+
+
+class TestIsCameraNativeColorized:
+    """
+    Tests for is_camera_native_colorized - the shared predicate deciding
+    whether a thermal frame is already a genuine camera-produced false
+    color image (skip palette) vs. grayscale-replicated-into-BGR (still
+    needs apply_composite_palette). Two independent hand-rolled copies of
+    this check drifted apart in app.py and caused a live crash before
+    being consolidated into this one function - see its docstring.
+    """
+
+    @pytest.mark.unit
+    def test_equal_channels_is_not_colorized(self):
+        """Grayscale replicated into BGR (equal channels) still needs a palette."""
+        frame = np.full((8, 8, 3), 128, dtype=np.uint8)
+        assert is_camera_native_colorized(frame) is False
+
+    @pytest.mark.unit
+    def test_unequal_channels_is_colorized(self):
+        """A genuine false-color BGR frame (unequal channels) is already display-ready."""
+        frame = np.zeros((8, 8, 3), dtype=np.uint8)
+        frame[:, :, 0] = 200  # blue channel differs from green/red
+        assert is_camera_native_colorized(frame) is True
+
+    @pytest.mark.unit
+    def test_single_channel_frame_is_not_colorized(self):
+        """A 2D single-channel frame (e.g. raw Tau2 video-only uint8 output) can't be BGR."""
+        frame = np.full((8, 8), 128, dtype=np.uint8)
+        assert is_camera_native_colorized(frame) is False
+
+    @pytest.mark.unit
+    def test_non_uint8_frame_is_not_colorized(self):
+        """16-bit radiometric data is never already-colorized regardless of shape."""
+        frame = np.zeros((8, 8, 3), dtype=np.uint16)
+        assert is_camera_native_colorized(frame) is False
+
+    @pytest.mark.unit
+    def test_none_frame_is_not_colorized(self):
+        assert is_camera_native_colorized(None) is False
 
 
 class TestPaletteManagerInit:

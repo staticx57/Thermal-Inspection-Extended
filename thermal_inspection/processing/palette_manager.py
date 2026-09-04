@@ -14,6 +14,33 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def is_camera_native_colorized(frame: np.ndarray) -> bool:
+    """
+    True when frame is already a genuine, camera-produced false-color BGR
+    image (e.g. a Tau2 breakout board with no CCI line - it can't be
+    commanded into a raw/grayscale output mode, so this IS the
+    display-ready image, the same feed Windows' own Camera app shows).
+
+    Re-running such a frame through apply_composite_palette() would
+    collapse it to grayscale (throwing away 2 of 3 real color channels)
+    and recolor what's left with an unrelated palette. A camera whose
+    channels are actually equal (grayscale replicated into BGR by the
+    UVC layer, e.g. a non-radiometric Boson) still needs the normal
+    palette path - that's what the channel-equality check excludes.
+
+    Callers that also need to exclude a specific placeholder frame (the
+    app's "no camera" filler image) should check that separately by
+    identity - this function only classifies the frame's own content.
+    """
+    return bool(
+        frame is not None
+        and frame.dtype == np.uint8
+        and frame.ndim == 3
+        and frame.shape[2] == 3
+        and not np.array_equal(frame[:, :, 0], frame[:, :, 1])
+    )
+
+
 class PaletteType(Enum):
     """Available thermal color palettes (45 total)."""
 

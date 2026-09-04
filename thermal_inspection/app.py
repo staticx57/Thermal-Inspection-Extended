@@ -27,6 +27,7 @@ from .core.isotherm_manager import IsothermManager
 from .core.event_bus import AppEventBus
 from .cameras.plugin import get_host
 from .processing.thermal_analyzer import ThresholdMode, ThresholdVisualization
+from .processing.palette_manager import is_camera_native_colorized
 
 logger = logging.getLogger(__name__)
 
@@ -1550,10 +1551,7 @@ class ThermalInspectionApp:
             # Base colorized frame
             already_colorized = (
                 thermal_frame is not self.thermal_placeholder
-                and thermal_frame.dtype == np.uint8
-                and thermal_frame.ndim == 3
-                and thermal_frame.shape[2] == 3
-                and not np.array_equal(thermal_frame[:, :, 0], thermal_frame[:, :, 1])
+                and is_camera_native_colorized(thermal_frame)
             )
             if thermal_frame is self.thermal_placeholder:
                 colorized_thermal = thermal_frame
@@ -1679,25 +1677,18 @@ class ThermalInspectionApp:
                             if _corrected_thermal_for_preview is not None and not _main_view_needs_thermal_rgb_alignment:
                                 _preview_rgb = (_corrected_rgb_for_preview
                                                 if _corrected_rgb_for_preview is not None else rgb_frame)
-                                # Mirror the main path's already_colorized check
-                                # (line ~1551) exactly - a dtype-only check is
-                                # wrong for cameras whose raw thermal_frame is
-                                # itself single-channel uint8 (e.g. Tau2's
-                                # video-only path): corrected_thermal then stays
-                                # 2D, and update_from_realsense's fusion blend
-                                # needs (H,W,3) - passing a 2D frame through
-                                # crashed with "operands could not be broadcast
-                                # together with shapes (N,) (N,3)".
-                                _pv_already_colorized = (
-                                    _corrected_thermal_for_preview.dtype == np.uint8
-                                    and _corrected_thermal_for_preview.ndim == 3
-                                    and _corrected_thermal_for_preview.shape[2] == 3
-                                    and not np.array_equal(
-                                        _corrected_thermal_for_preview[:, :, 0],
-                                        _corrected_thermal_for_preview[:, :, 1],
-                                    )
-                                )
-                                if self.palette_manager and not _pv_already_colorized:
+                                # Shared with the main path's identical need
+                                # (see is_camera_native_colorized) - these two
+                                # sites used to each hand-roll this check, and
+                                # the copies drifted: this one was dtype-only,
+                                # which is wrong for cameras whose raw
+                                # thermal_frame is itself single-channel uint8
+                                # (e.g. Tau2's video-only path) - corrected_thermal
+                                # then stays 2D, and update_from_realsense's
+                                # fusion blend needs (H,W,3), crashing with
+                                # "operands could not be broadcast together
+                                # with shapes (N,) (N,3)".
+                                if self.palette_manager and not is_camera_native_colorized(_corrected_thermal_for_preview):
                                     _preview_colorized = self.palette_manager.apply_composite_palette(
                                         _corrected_thermal_for_preview, self.roi_controller.roi_manager
                                     )
