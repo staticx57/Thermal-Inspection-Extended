@@ -1982,6 +1982,19 @@ class ThermalInspectionApp:
                                     fade_metric=self._3d_fog_fade_metric,
                                 )
                             else:
+                                # Tracks specifically the "depth-shaded RGB,
+                                # no thermal at all" case below - not the
+                                # fusion_processor.process() branch (thermal
+                                # IS present there, just via the non-fused
+                                # path) and not the no-RGB-camera branch
+                                # (colorized_thermal alone is the only sane
+                                # base_2d there, nothing silently dropped).
+                                # Watermarked below once _last_3d_display_frame
+                                # is final - see High #1 in the debt ledger:
+                                # this exact silent fallback (sliders doing
+                                # nothing, thermal just gone) cost a long
+                                # live-debugging detour with zero UI feedback.
+                                _3d_rgb_only_no_thermal = False
                                 if want_fusion and _thermal_aligned_realsense and self.fusion_processor and rgb_frame is not None:
                                     fusion_rgb = rgb_frame
                                     if self._fusion_color_mode == "grayscale":
@@ -1990,6 +2003,7 @@ class ThermalInspectionApp:
                                     base_2d = self.fusion_processor.process(colorized_thermal, fusion_rgb)
                                 elif rgb_frame is not None and rgb_frame is not self.rgb_placeholder:
                                     base_2d = rgb_frame
+                                    _3d_rgb_only_no_thermal = True
                                 else:
                                     base_2d = colorized_thermal
 
@@ -2013,6 +2027,11 @@ class ThermalInspectionApp:
                                     )
                                 else:
                                     self._last_3d_display_frame = base_2d
+
+                                if _3d_rgb_only_no_thermal:
+                                    self._last_3d_display_frame = self._watermark_3d_rgb_only(
+                                        self._last_3d_display_frame
+                                    )
                         except Exception as _3d_disp_err:
                             logger.debug(f"3D Fusion display frame failed: {_3d_disp_err}")
                             self._last_3d_display_frame = colorized_thermal
@@ -2871,6 +2890,25 @@ class ThermalInspectionApp:
     def execute_camera_command(self, role: str, command: str, params: Optional[dict] = None) -> dict:
         """Execute a generic camera command via the CameraPluginHost."""
         return self.plugin_host.execute_command(role, command, params)
+
+    @staticmethod
+    def _watermark_3d_rgb_only(frame: np.ndarray) -> np.ndarray:
+        """
+        Label the THREE_D view's depth-shaded-RGB-only fallback directly on
+        the frame itself, mirroring parallax_compensator's own
+        "ESTIMATED depth - not measured" watermark convention (same
+        two-pass black-shadow/white-fill approach for legibility against
+        any background). This fallback happens silently otherwise - no
+        thermal blended in, fusion sliders doing nothing - and the
+        settings tab's own status_label explaining why only reaches
+        someone looking at that specific tab, not the main viewport. See
+        High #1 in the debt ledger.
+        """
+        label = "3D Fusion: RGB only (thermal not aligned - see 3D Fusion tab)"
+        frame = frame.copy()
+        cv2.putText(frame, label, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 2, cv2.LINE_AA)
+        cv2.putText(frame, label, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
+        return frame
 
     # =========================================================================
     # Parallax Compensation Methods
