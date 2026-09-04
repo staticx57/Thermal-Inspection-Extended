@@ -1084,6 +1084,13 @@ class InspectionAppWindow(QMainWindow):
                 if self.cameras_tabs.widget(i) == old_panel:
                     title = self.cameras_tabs.tabText(i)
                     self.cameras_tabs.removeTab(i)
+                    # QTabWidget.removeTab() does NOT destroy the removed
+                    # widget - it's left as a live, still-parented,
+                    # still-wired-to-_wire_plugin_panel's connections
+                    # orphan. Every reconnect/hot-plug of the same camera
+                    # would otherwise add another one, none ever freed for
+                    # the life of the process.
+                    old_panel.deleteLater()
                     self.cameras_tabs.insertTab(i, panel, title)
                     replaced = True
                     break

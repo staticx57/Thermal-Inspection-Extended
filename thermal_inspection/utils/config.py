@@ -8,6 +8,7 @@ Features:
 - Manual theme override
 - Persistent user preferences
 """
+import copy
 import json
 import os
 import logging
@@ -93,7 +94,15 @@ class Config:
             config_file: Path to config file (relative to project root)
         """
         self.config_file = config_file
-        self.config = self.DEFAULT_CONFIG.copy()
+        # DEFAULT_CONFIG nests mutable objects (rgb_resolution/
+        # thermal_resolution lists, the serial_ports dict-of-dicts) - a
+        # shallow .copy() shares those by reference across every
+        # ConfigManager instance, so any future in-place mutation
+        # (.append, item assignment) on one instance's config would
+        # silently corrupt the class-level default for the rest of the
+        # process. No such mutation exists today, but deepcopy costs
+        # nothing here (this dict is tiny, built once per instance).
+        self.config = copy.deepcopy(self.DEFAULT_CONFIG)
         self.load()
 
         # Theme switching state (prevent jitter with hysteresis)
