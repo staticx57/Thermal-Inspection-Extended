@@ -1118,6 +1118,18 @@ class Fusion3DPointCloudView(QWidget):
             self.update_point_cloud(vertices, np.zeros((0, 4), dtype=np.float32))
             return
 
+        # Defense in depth against the exact bug class that crashed this
+        # method on every frame for a single-channel-uint8 thermal source
+        # (app.py's own "already colorized?" check has since been fixed
+        # and de-duplicated - see palette_manager.is_camera_native_colorized
+        # - but this method's own contract, "these are (H,W,3) BGR", is
+        # worth enforcing here too rather than trusting every future
+        # caller to uphold it upstream).
+        if thermal_colorized is not None and thermal_colorized.ndim == 2:
+            thermal_colorized = cv2.cvtColor(thermal_colorized, cv2.COLOR_GRAY2BGR)
+        if rgb_frame is not None and rgb_frame.ndim == 2:
+            rgb_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_GRAY2BGR)
+
         valid = (vertices[:, 2] > 0) & (vertices[:, 2] <= MAX_VALID_DEPTH_M)
         vertices = vertices[valid]
         uv = uv[valid]
