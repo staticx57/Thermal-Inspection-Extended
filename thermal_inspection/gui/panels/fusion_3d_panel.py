@@ -36,6 +36,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
+from thermal_inspection.utils.profiling import profile_log
+
 logger = logging.getLogger(__name__)
 
 # Optional: torch, for GPU-accelerated depth visualizations at full
@@ -796,14 +798,13 @@ def apply_3d_visualization(mode: str, image_bgr: np.ndarray, depth_m: np.ndarray
             result = gpu_fn(image_bgr, depth_m, strength=strength, **kwargs)
             global _apply_3d_viz_call_count
             _apply_3d_viz_call_count += 1
-            mem_str = ""
+            _viz_fields = dict(path="GPU", mode=mode, shape=image_bgr.shape,
+                                ms=f"{(time.perf_counter() - _t0) * 1000:.2f}")
             if _apply_3d_viz_call_count % 50 == 0:
                 import torch
-                allocated = torch.cuda.memory_allocated() / 1e6
-                reserved = torch.cuda.memory_reserved() / 1e6
-                mem_str = f" gpu_allocated_mb={allocated:.1f} gpu_reserved_mb={reserved:.1f}"
-            print(f"[PROFILE_3D_VIZ] path=GPU mode={mode} shape={image_bgr.shape} "
-                  f"ms={(time.perf_counter() - _t0) * 1000:.2f}{mem_str}", flush=True)
+                _viz_fields["gpu_allocated_mb"] = f"{torch.cuda.memory_allocated() / 1e6:.1f}"
+                _viz_fields["gpu_reserved_mb"] = f"{torch.cuda.memory_reserved() / 1e6:.1f}"
+            profile_log("3D_VIZ", **_viz_fields)
             return result
         except Exception as e:
             logger.warning(f"3D Fusion GPU path failed, falling back to CPU: {e}")
@@ -816,12 +817,14 @@ def apply_3d_visualization(mode: str, image_bgr: np.ndarray, depth_m: np.ndarray
         small_depth = cv2.resize(depth_m, (CPU_MAX_PROC_WIDTH, ph), interpolation=cv2.INTER_NEAREST)
         result = cpu_fn(small_img, small_depth, strength=strength, **kwargs)
         result = cv2.resize(result, (bw, bh), interpolation=cv2.INTER_LINEAR)
-        print(f"[PROFILE_3D_VIZ] path=CPU(scaled) mode={mode} shape={image_bgr.shape} "
-              f"proc_width={CPU_MAX_PROC_WIDTH} ms={(time.perf_counter() - _t0) * 1000:.2f}", flush=True)
+        profile_log(
+            "3D_VIZ", path="CPU(scaled)", mode=mode, shape=image_bgr.shape,
+            proc_width=CPU_MAX_PROC_WIDTH, ms=f"{(time.perf_counter() - _t0) * 1000:.2f}",
+        )
         return result
     result = cpu_fn(image_bgr, depth_m, strength=strength, **kwargs)
-    print(f"[PROFILE_3D_VIZ] path=CPU(full) mode={mode} shape={image_bgr.shape} "
-          f"ms={(time.perf_counter() - _t0) * 1000:.2f}", flush=True)
+    profile_log("3D_VIZ", path="CPU(full)", mode=mode, shape=image_bgr.shape,
+                ms=f"{(time.perf_counter() - _t0) * 1000:.2f}")
     return result
 
 
@@ -912,8 +915,8 @@ def apply_3d_visualization_fused(mode: str, thermal_colorized: np.ndarray, rgb_f
             # Not throttled by frame count (this function itself is only
             # called at the caller's own throttled 3D-viz update rate,
             # same as apply_3d_visualization's own print above).
-            print(f"[PROFILE_3D_VIZ_FUSED] mode={mode} shape={thermal_colorized.shape} "
-                  f"ms={(time.perf_counter() - _t0) * 1000:.2f}", flush=True)
+            profile_log("3D_VIZ_FUSED", mode=mode, shape=thermal_colorized.shape,
+                        ms=f"{(time.perf_counter() - _t0) * 1000:.2f}")
             return result
         except Exception as e:
             logger.warning(f"3D Fusion fused GPU path failed, falling back to two-step: {e}")

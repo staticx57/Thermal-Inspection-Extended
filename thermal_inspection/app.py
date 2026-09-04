@@ -28,6 +28,7 @@ from .core.event_bus import AppEventBus
 from .cameras.plugin import get_host
 from .processing.thermal_analyzer import ThresholdMode, ThresholdVisualization
 from .processing.palette_manager import is_camera_native_colorized
+from .utils.profiling import profile_log
 
 logger = logging.getLogger(__name__)
 
@@ -1531,12 +1532,15 @@ class ThermalInspectionApp:
                             self.parallax_compensator.last_correction_time_ms,
                         )
                     if self.frame_count % 30 == 0:
-                        print(f"[PROFILE_PARALLAX] target={self.parallax_compensator.get_correction_target()} "
-                              f"method={self.parallax_compensator.depth_estimator.method} "
-                              f"enabled={self.parallax_compensator.enabled} "
-                              f"thermal_shape={thermal_frame.shape} "
-                              f"depth_ms={self.parallax_compensator.last_depth_time_ms:.2f} "
-                              f"correction_ms={self.parallax_compensator.last_correction_time_ms:.2f}", flush=True)
+                        profile_log(
+                            "PARALLAX",
+                            target=self.parallax_compensator.get_correction_target(),
+                            method=self.parallax_compensator.depth_estimator.method,
+                            enabled=self.parallax_compensator.enabled,
+                            thermal_shape=thermal_frame.shape,
+                            depth_ms=f"{self.parallax_compensator.last_depth_time_ms:.2f}",
+                            correction_ms=f"{self.parallax_compensator.last_correction_time_ms:.2f}",
+                        )
                 except Exception as _px_err:
                     logger.debug(f"Parallax correction failed: {_px_err}")
 
@@ -1639,14 +1643,17 @@ class ThermalInspectionApp:
                 self._gui_invoke("set_fusion_3d_thermal_aligned", _thermal_aligned_realsense)
                 self._last_3d_aligned_reported = _thermal_aligned_realsense
             if self.frame_count % 30 == 0:
-                print(f"[PROFILE_3D_ALIGN] aligned={_thermal_aligned_realsense} "
-                      f"rs_backend={_rs_backend is not None} "
-                      f"px_compensator={self.parallax_compensator is not None} "
-                      f"has_correction={self.parallax_compensator.has_correction() if self.parallax_compensator else None} "
-                      f"px_enabled={self.parallax_compensator.enabled if self.parallax_compensator else None} "
-                      f"method={self.parallax_compensator.depth_estimator.method if self.parallax_compensator else None} "
-                      f"target={self.parallax_compensator.get_correction_target() if self.parallax_compensator else None}",
-                      flush=True)
+                px = self.parallax_compensator
+                profile_log(
+                    "3D_ALIGN",
+                    aligned=_thermal_aligned_realsense,
+                    rs_backend=_rs_backend is not None,
+                    px_compensator=px is not None,
+                    has_correction=px.has_correction() if px else None,
+                    px_enabled=px.enabled if px else None,
+                    method=px.depth_estimator.method if px else None,
+                    target=px.get_correction_target() if px else None,
+                )
 
             # Point-cloud preview (3D Fusion settings tab) - independent of
             # the main viewport's view mode, so it's checkable any time;
@@ -1709,9 +1716,12 @@ class ThermalInspectionApp:
             if self.thermal_processor and thermal_frame is not self.thermal_placeholder:
                 proc_results = self.thermal_processor.process_frame(thermal_frame)
                 if self.frame_count % 30 == 0:
-                    print(f"[PROFILE_PROC_FRAME] motion={self.thermal_processor.motion_enabled} "
-                          f"edge={self.thermal_processor.edge_enabled} "
-                          f"ms={proc_results.get('processing_time_ms', 0):.2f}", flush=True)
+                    profile_log(
+                        "PROC_FRAME",
+                        motion=self.thermal_processor.motion_enabled,
+                        edge=self.thermal_processor.edge_enabled,
+                        ms=f"{proc_results.get('processing_time_ms', 0):.2f}",
+                    )
 
             # Anomaly Priority is applied after analysis below (line ~903)
 
@@ -1812,9 +1822,12 @@ class ThermalInspectionApp:
                     thermal_frame, _anomprio_anomalies, colorized_thermal
                 )
                 if self.frame_count % 30 == 0:
-                    print(f"[PROFILE_ANOMALY_PRIORITY] anomaly_count={len(_anomprio_anomalies)} "
-                          f"shape={colorized_thermal.shape} "
-                          f"ms={(time.perf_counter() - _anomprio_t0) * 1000:.2f}", flush=True)
+                    profile_log(
+                        "ANOMALY_PRIORITY",
+                        anomaly_count=len(_anomprio_anomalies),
+                        shape=colorized_thermal.shape,
+                        ms=f"{(time.perf_counter() - _anomprio_t0) * 1000:.2f}",
+                    )
 
             # 3b. Apply isotherm overlay via IsothermManager
             if thermal_16bit is not None:
@@ -1852,11 +1865,16 @@ class ThermalInspectionApp:
                     )
                     _thresh_t3 = time.perf_counter()
                     if self.frame_count % 30 == 0:
-                        print(f"[PROFILE_THRESHOLD] mode={t_mode.value} viz={v_mode.value} "
-                              f"source_shape={source.shape} colorized_shape={colorized_thermal.shape} "
-                              f"detect_ms={(_thresh_t1 - _thresh_t0) * 1000:.2f} "
-                              f"viz_ms={(_thresh_t2 - _thresh_t1) * 1000:.2f} "
-                              f"emit_ms={(_thresh_t3 - _thresh_t2) * 1000:.2f}", flush=True)
+                        profile_log(
+                            "THRESHOLD",
+                            mode=t_mode.value,
+                            viz=v_mode.value,
+                            source_shape=source.shape,
+                            colorized_shape=colorized_thermal.shape,
+                            detect_ms=f"{(_thresh_t1 - _thresh_t0) * 1000:.2f}",
+                            viz_ms=f"{(_thresh_t2 - _thresh_t1) * 1000:.2f}",
+                            emit_ms=f"{(_thresh_t3 - _thresh_t2) * 1000:.2f}",
+                        )
                 except Exception as _thresh_err:
                     logger.debug(f"Manual threshold overlay error: {_thresh_err}")
 
@@ -1882,9 +1900,13 @@ class ThermalInspectionApp:
                     display_frame = self.fusion_processor.process(colorized_thermal, fusion_rgb)
                     _fus_ms = (time.perf_counter() - _fus_t0) * 1000
                     if self.frame_count % 30 == 0:
-                        print(f"[PROFILE_FUSION2] mode={self.fusion_processor.fusion_mode} "
-                              f"thermal_shape={colorized_thermal.shape} rgb_in_shape={fusion_rgb.shape} "
-                              f"fusion_ms={_fus_ms:.2f}", flush=True)
+                        profile_log(
+                            "FUSION2",
+                            mode=self.fusion_processor.fusion_mode,
+                            thermal_shape=colorized_thermal.shape,
+                            rgb_in_shape=fusion_rgb.shape,
+                            fusion_ms=f"{_fus_ms:.2f}",
+                        )
                 else:
                     display_frame = colorized_thermal
             elif self.view_mode == ViewMode.SIDE_BY_SIDE:
@@ -2193,12 +2215,27 @@ class ThermalInspectionApp:
             _stage_fusion_ms = (_lv.get('_prof_t_fusion', loop_start) - _lv.get('_prof_t_preprocess', loop_start)) * 1000
             _stage_guiframe_ms = (_lv.get('_prof_t_guiframe', loop_start) - _lv.get('_prof_t_fusion', loop_start)) * 1000
             _stage_rest_ms = loop_time * 1000 - (_stage_capture_ms + _stage_preprocess_ms + _stage_fusion_ms + _stage_guiframe_ms)
-            print(f"[PROFILE_STAGES] capture={_stage_capture_ms:.1f} preprocess={_stage_preprocess_ms:.1f} "
-                  f"fusion_dispatch={_stage_fusion_ms:.1f} gui_update_frame={_stage_guiframe_ms:.1f} "
-                  f"rest={_stage_rest_ms:.1f} total={loop_time*1000:.1f}", flush=True)
-            print(f"[PROFILE_COMBO] fps={self.smoothed_fps:.1f} jitter_ms={loop_max_ms - loop_min_ms:.1f} "
-                  f"loop_max={loop_max_ms:.1f} loop_min={loop_min_ms:.1f} view={self.view_mode} "
-                  f"fusion_mode={fmode} rgb_shape={rgb_shape} rgb_cap_fps={rgb_cap_fps} rgb_cap_err={rgb_cap_err}", flush=True)
+            profile_log(
+                "STAGES",
+                capture=f"{_stage_capture_ms:.1f}",
+                preprocess=f"{_stage_preprocess_ms:.1f}",
+                fusion_dispatch=f"{_stage_fusion_ms:.1f}",
+                gui_update_frame=f"{_stage_guiframe_ms:.1f}",
+                rest=f"{_stage_rest_ms:.1f}",
+                total=f"{loop_time * 1000:.1f}",
+            )
+            profile_log(
+                "COMBO",
+                fps=f"{self.smoothed_fps:.1f}",
+                jitter_ms=f"{loop_max_ms - loop_min_ms:.1f}",
+                loop_max=f"{loop_max_ms:.1f}",
+                loop_min=f"{loop_min_ms:.1f}",
+                view=self.view_mode,
+                fusion_mode=fmode,
+                rgb_shape=rgb_shape,
+                rgb_cap_fps=rgb_cap_fps,
+                rgb_cap_err=rgb_cap_err,
+            )
 
     def toggle_freeze(self, enabled: bool):
         """Toggle frame freeze."""
