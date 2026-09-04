@@ -19,6 +19,7 @@ from thermal_inspection.processing.thermal_analyzer import (
     TemperatureUnit,
     AnomalyType,
     ThresholdMode,
+    ThresholdVisualization,
     ThresholdDetectionResult
 )
 
@@ -461,3 +462,163 @@ class TestPerformance:
         assert stats1.min_temp == stats2.min_temp
         assert stats1.max_temp == stats2.max_temp
         assert stats1.mean_temp == stats2.mean_temp
+
+
+def _reference_gradient_overlay(thermal_frame, colorized_frame, mask, threshold_mode,
+                                 min_t, max_t, frame_min, frame_max):
+    """
+    Pre-LUT reference implementation of GRADIENT_OVERLAY - full per-pixel
+    float32 arithmetic, no quantization. Kept only so the LUT-based
+    version can be checked against it; not itself the code under test.
+    """
+    _MAX_ALPHA = 0.5
+    _HOT, _COLD, _BAND = (0, 0, 255), (255, 0, 0), (255, 0, 255)
+    severity = ThermalAnalyzer._gradient_severity(
+        thermal_frame, threshold_mode, min_t, max_t, frame_min, frame_max
+    )
+    mask_binary = (mask > 0).astype(np.float32)
+    alpha = severity * mask_binary * _MAX_ALPHA
+    weight = 1.0 - alpha
+    if threshold_mode == ThresholdMode.OUTSIDE:
+        is_below = thermal_frame < min_t
+        b = np.where(is_below, _COLD[0], _HOT[0]).astype(np.float32)
+        g = np.where(is_below, _COLD[1], _HOT[1]).astype(np.float32)
+        r = np.where(is_below, _COLD[2], _HOT[2]).astype(np.float32)
+    else:
+        color = {ThresholdMode.ABOVE: _HOT, ThresholdMode.BELOW: _COLD,
+                  ThresholdMode.BETWEEN: _BAND}.get(threshold_mode, _HOT)
+        b, g, r = float(color[0]), float(color[1]), float(color[2])
+    f32 = colorized_frame.astype(np.float32)
+    f32[..., 0] *= weight; f32[..., 0] += b * alpha
+    f32[..., 1] *= weight; f32[..., 1] += g * alpha
+    f32[..., 2] *= weight; f32[..., 2] += r * alpha
+    return f32.astype(np.uint8)
+
+
+class TestGradientOverlayLUT:
+    """
+    Tests for apply_threshold_visualization's GRADIENT_OVERLAY LUT
+    optimization. Previously this branch recomputed severity, the mask
+    multiply, and (for OUTSIDE) per-pixel color selection as full (H,W)
+    numpy passes on every single frame, which cost ~25-35ms/frame
+    regardless of any other feature enabled and single-handedly capped
+    FPS to the low 20s ("manual threshold with nothing else applied...
+    20s fps, major bug" / "gradient overlay is slow in all 4 modes",
+    2026-09-03). Those quantities are pure functions of a pixel's raw
+    value plus the threshold configuration, so they're now a cached
+    256-entry LUT (_get_gradient_luts) expanded per-frame via cv2.LUT -
+    these tests pin both the caching behavior and that the quantization
+    this introduces stays within a small, documented tolerance of the
+    original per-pixel formula (not bit-identical - see
+    _get_gradient_luts' docstring).
+    """
+
+    @staticmethod
+    def _make_case(mode, seed=0):
+        rng = np.random.default_rng(seed)
+        h, w = 128, 160
+        thermal = (20000 + rng.normal(0, 2000, size=(h, w))).astype(np.float32)
+        colorized = rng.integers(0, 255, size=(h, w, 3), dtype=np.uint8)
+        frame_min, frame_max = float(thermal.min()), float(thermal.max())
+
+        if mode in (ThresholdMode.BETWEEN, ThresholdMode.OUTSIDE):
+            min_t = float(np.percentile(thermal, 30))
+            max_t = float(np.percentile(thermal, 70))
+        else:
+            min_t = float(np.percentile(thermal, 50))
+            max_t = None
+
+        if mode == ThresholdMode.ABOVE:
+            mask = ((thermal >= min_t).astype(np.uint8)) * 255
+        elif mode == ThresholdMode.BELOW:
+            mask = ((thermal <= min_t).astype(np.uint8)) * 255
+        elif mode == ThresholdMode.BETWEEN:
+            mask = (((thermal >= min_t) & (thermal <= max_t)).astype(np.uint8)) * 255
+        else:
+            mask = (((thermal < min_t) | (thermal > max_t)).astype(np.uint8)) * 255
+
+        detection = ThresholdDetectionResult(
+            mask=mask, anomaly_count=int((mask > 0).sum()), total_pixels=h * w,
+            anomaly_percentage=float((mask > 0).mean() * 100),
+            min_threshold=min_t, max_threshold=max_t, threshold_mode=mode,
+            timestamp=0.0, frame_min=frame_min, frame_max=frame_max,
+        )
+        return thermal, colorized, mask, min_t, max_t, frame_min, frame_max, detection
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("mode", [
+        ThresholdMode.ABOVE, ThresholdMode.BELOW, ThresholdMode.BETWEEN, ThresholdMode.OUTSIDE,
+    ])
+    def test_matches_reference_within_quantization_tolerance(self, mode):
+        thermal, colorized, mask, min_t, max_t, frame_min, frame_max, detection = self._make_case(mode)
+        analyzer = ThermalAnalyzer()
+
+        result = analyzer.apply_threshold_visualization(
+            thermal, colorized, detection, ThresholdVisualization.GRADIENT_OVERLAY
+        )
+        reference = _reference_gradient_overlay(
+            thermal, colorized, mask, mode, min_t, max_t, frame_min, frame_max
+        )
+
+        diff = np.abs(result.astype(np.int16) - reference.astype(np.int16))
+        # 256-level quantization of the [frame_min, frame_max] value range
+        # introduces small rounding differences - bound generously above
+        # what's actually observed (max ~5/255) rather than pinned exactly,
+        # so this doesn't become flaky if the RNG seed or frame size changes.
+        assert diff.max() <= 10, f"{mode}: max diff {diff.max()}/255 exceeds quantization tolerance"
+
+    @pytest.mark.unit
+    def test_severity_is_zero_outside_mask(self):
+        """output must equal the input exactly wherever the mask is 0 -
+        the LUT's in_mask predicate must mirror detect_threshold_anomalies'
+        own comparisons exactly, or this guarantee silently breaks."""
+        thermal, colorized, mask, *_, detection = self._make_case(ThresholdMode.ABOVE)
+        analyzer = ThermalAnalyzer()
+
+        result = analyzer.apply_threshold_visualization(
+            thermal, colorized, detection, ThresholdVisualization.GRADIENT_OVERLAY
+        )
+
+        outside = mask == 0
+        np.testing.assert_array_equal(result[outside], colorized[outside])
+
+    @pytest.mark.unit
+    def test_lut_cache_reused_across_calls_with_same_config(self):
+        thermal, colorized, mask, min_t, max_t, frame_min, frame_max, detection = self._make_case(
+            ThresholdMode.OUTSIDE
+        )
+        analyzer = ThermalAnalyzer()
+
+        analyzer.apply_threshold_visualization(
+            thermal, colorized, detection, ThresholdVisualization.GRADIENT_OVERLAY
+        )
+        cached_key = analyzer._gradient_lut_cache_key
+        cached_luts = analyzer._gradient_lut_cache
+
+        analyzer.apply_threshold_visualization(
+            thermal, colorized, detection, ThresholdVisualization.GRADIENT_OVERLAY
+        )
+
+        assert analyzer._gradient_lut_cache_key == cached_key
+        assert analyzer._gradient_lut_cache is cached_luts, (
+            "same threshold config on the next call must reuse the cached LUT tuple, not rebuild it"
+        )
+
+    @pytest.mark.unit
+    def test_lut_cache_invalidated_when_threshold_changes(self):
+        thermal, colorized, mask, min_t, max_t, frame_min, frame_max, detection = self._make_case(
+            ThresholdMode.ABOVE
+        )
+        analyzer = ThermalAnalyzer()
+
+        analyzer.apply_threshold_visualization(
+            thermal, colorized, detection, ThresholdVisualization.GRADIENT_OVERLAY
+        )
+        first_luts = analyzer._gradient_lut_cache
+
+        detection.min_threshold = min_t + 500  # simulate the user moving the slider
+        analyzer.apply_threshold_visualization(
+            thermal, colorized, detection, ThresholdVisualization.GRADIENT_OVERLAY
+        )
+
+        assert analyzer._gradient_lut_cache is not first_luts

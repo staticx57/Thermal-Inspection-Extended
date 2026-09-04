@@ -193,6 +193,19 @@ class ThermalAnalyzer:
         self._est_map_cache_key: Optional[int] = None
         self._est_map_cache: Optional[np.ndarray] = None
 
+        # GRADIENT_OVERLAY's alpha/color LUTs (256-entry, indexed by a
+        # frame_min/frame_max-normalized quantized value) - severity,
+        # in-mask-or-not, and OUTSIDE's per-value color are all pure
+        # functions of a pixel's raw value plus threshold_mode/min_t/max_t/
+        # frame_min/frame_max, so recomputing them via full (H,W) numpy
+        # passes on every single frame was pure waste whenever the
+        # threshold configuration hasn't changed between frames (the
+        # overwhelmingly common case) - confirmed live: this was costing
+        # ~25-35ms/frame regardless of any other feature, single-handedly
+        # capping FPS to the low 20s. See apply_threshold_visualization.
+        self._gradient_lut_cache_key = None
+        self._gradient_lut_cache = None
+
         # Which anomaly-panel types are enabled - set externally by app.py
         # (mirrors AnomalyWidget's own checkboxes). Only consulted for
         # "enhanced_fusion" (see analyze()): hot_spots/cold_spots/
@@ -1408,6 +1421,72 @@ class ThermalAnalyzer:
 
         return np.clip(severity, 0.0, 1.0)
 
+    def _get_gradient_luts(
+        self,
+        threshold_mode: 'ThresholdMode',
+        min_threshold: float,
+        max_threshold: Optional[float],
+        frame_min: float,
+        frame_max: float,
+    ):
+        """
+        Build (or return the cached) 256-entry LUTs GRADIENT_OVERLAY needs:
+        alpha_lut (severity * in-mask * _GRADIENT_MAX_ALPHA) and, for
+        OUTSIDE mode only, b_lut/g_lut/r_lut for the per-value hot/cold
+        color choice - each indexed by a value quantized into [0, 255]
+        across [frame_min, frame_max]. All of these are pure functions of
+        a pixel's raw value plus the five args here, so this only actually
+        recomputes anything when the threshold configuration changes
+        between frames (see _gradient_lut_cache_key on __init__) - the
+        LUT is evaluated on 256 samples via _gradient_severity itself
+        (identical math, just not spread across the whole frame), then
+        expanded per-frame with a single cheap cv2.LUT call instead of a
+        handful of full (H,W) float32 passes.
+
+        The in-mask predicate here must mirror detect_threshold_
+        anomalies' own comparisons exactly (>=/<=/</> per mode) - alpha
+        is baked to exactly 0 outside it, same guarantee
+        _gradient_severity's docstring already promises for severity
+        alone, just extended to cover the mask multiply too.
+        """
+        key = (threshold_mode, min_threshold, max_threshold, frame_min, frame_max)
+        if self._gradient_lut_cache_key == key:
+            return self._gradient_lut_cache
+
+        samples = np.linspace(frame_min, frame_max, 256).astype(np.float32)
+        severity = self._gradient_severity(
+            samples, threshold_mode, min_threshold, max_threshold, frame_min, frame_max
+        )
+
+        if threshold_mode == ThresholdMode.ABOVE:
+            in_mask = samples >= min_threshold
+        elif threshold_mode == ThresholdMode.BELOW:
+            in_mask = samples <= min_threshold
+        elif threshold_mode == ThresholdMode.BETWEEN:
+            hi = max_threshold if max_threshold is not None else min_threshold + 1000
+            in_mask = (samples >= min_threshold) & (samples <= hi)
+        elif threshold_mode == ThresholdMode.OUTSIDE:
+            hi = max_threshold if max_threshold is not None else min_threshold + 1000
+            in_mask = (samples < min_threshold) | (samples > hi)
+        else:
+            in_mask = np.zeros_like(samples, dtype=bool)
+
+        alpha_lut = (severity * in_mask.astype(np.float32) * _GRADIENT_MAX_ALPHA).astype(np.float32)
+
+        color_lut = None
+        if threshold_mode == ThresholdMode.OUTSIDE:
+            is_below = samples < min_threshold
+            hot, cold = _GRADIENT_COLOR_HOT, _GRADIENT_COLOR_COLD
+            color_lut = (
+                np.where(is_below, cold[0], hot[0]).astype(np.float32),
+                np.where(is_below, cold[1], hot[1]).astype(np.float32),
+                np.where(is_below, cold[2], hot[2]).astype(np.float32),
+            )
+
+        self._gradient_lut_cache_key = key
+        self._gradient_lut_cache = (alpha_lut, color_lut)
+        return self._gradient_lut_cache
+
     def apply_threshold_visualization(
         self,
         thermal_frame: np.ndarray,
@@ -1481,74 +1560,84 @@ class ThermalAnalyzer:
             # (confirmed live: "just a red overlay on top of the view,
             # not much of a gradient").
             #
-            # Severity is exactly 0 outside the mask (by construction: the
-            # formulas' zero-crossing lines up with detect_threshold_
-            # anomalies' own comparisons - see _gradient_severity's
-            # docstring), so output == input there, exactly. Restricting
-            # to the mask's own bounding box - no falloff padding needed,
-            # unlike the old distance-based version - skips that work
-            # entirely for whatever's outside it. Falls back to the direct
-            # full-frame path when the box would cover >=70% of the frame
-            # anyway, so that case can't regress from the extra copy/slice
-            # bookkeeping.
-            ys, xs = np.nonzero(mask)
-            if ys.size == 0:
+            # An earlier version of this branch restricted the blend to
+            # the mask's bounding box, computing severity/mask/color as
+            # full (H,W) numpy passes over whatever that box covered. It
+            # regressed badly on ordinary, non-contrived threshold configs
+            # (e.g. OUTSIDE a band, or ABOVE a threshold well inside the
+            # scene's natural range) - real thermal scenes commonly flag a
+            # scattered, frame-spanning fraction of pixels rather than one
+            # tight hot spot, which balloons the bounding box to the
+            # frame's full extent and defeats the restriction entirely.
+            # Confirmed live: ~25-35ms/frame regardless of the box, single-
+            # handedly capping FPS to the low 20s with nothing else
+            # enabled ("manual threshold with nothing else applied... 20s
+            # fps, major bug" / "gradient overlay is slow in all 4
+            # modes").
+            #
+            # severity, the mask, and OUTSIDE's per-value color are all
+            # pure functions of a pixel's raw value plus threshold_mode/
+            # min_t/max_t/frame_min/frame_max - _get_gradient_luts caches
+            # a 256-entry LUT for each, recomputed only when that
+            # configuration actually changes (not every frame), and a
+            # single cv2.LUT call expands each one across the whole frame
+            # in place of the full per-pixel arithmetic this used to do.
+            threshold_mode = detection_result.threshold_mode
+            min_t = detection_result.min_threshold
+            max_t = detection_result.max_threshold
+            # Percentage-mode detection already computed these to convert
+            # its percentage threshold to an absolute value - reuse rather
+            # than pay for a second full-frame min/max reduction. Only
+            # raw-value mode needs to compute it here (detect_threshold_
+            # anomalies has no reason to otherwise).
+            frame_min = detection_result.frame_min
+            frame_max = detection_result.frame_max
+            if frame_min is None or frame_max is None:
+                frame_min = float(thermal_frame.min())
+                frame_max = float(thermal_frame.max())
+
+            if frame_max <= frame_min:
+                # Degenerate (flat) frame - every value is identical, so
+                # normalizing into [0, 255] below would divide by zero.
                 output = colorized_frame.copy()
             else:
-                h, w = mask.shape[:2]
-                y0, y1 = int(ys.min()), int(ys.max()) + 1
-                x0, x1 = int(xs.min()), int(xs.max()) + 1
-                full_frame = (y1 - y0) * (x1 - x0) >= 0.7 * h * w
-
-                if full_frame:
-                    sub_frame = colorized_frame
-                    sub_thermal = thermal_frame
-                    sub_mask = mask
-                else:
-                    sub_frame = colorized_frame[y0:y1, x0:x1]
-                    sub_thermal = thermal_frame[y0:y1, x0:x1]
-                    sub_mask = mask[y0:y1, x0:x1]
-
-                threshold_mode = detection_result.threshold_mode
-                min_t = detection_result.min_threshold
-                max_t = detection_result.max_threshold
-                # Percentage-mode detection already computed these to
-                # convert its percentage threshold to an absolute value -
-                # reuse rather than pay for a second full-frame min/max
-                # reduction. Only raw-value mode needs to compute it here
-                # (detect_threshold_anomalies has no reason to otherwise).
-                frame_min = detection_result.frame_min
-                frame_max = detection_result.frame_max
-                if frame_min is None or frame_max is None:
-                    frame_min = float(thermal_frame.min())
-                    frame_max = float(thermal_frame.max())
-                severity = self._gradient_severity(
-                    sub_thermal, threshold_mode, min_t, max_t,
-                    frame_min, frame_max,
+                alpha_lut, color_lut = self._get_gradient_luts(
+                    threshold_mode, min_t, max_t, frame_min, frame_max
                 )
-                mask_binary = (sub_mask > 0).astype(np.float32)
-                alpha = severity * mask_binary * _GRADIENT_MAX_ALPHA  # float32, (h,w)
+                scale = 255.0 / (frame_max - frame_min)
+                # cv2.convertScaleAbs does saturate_cast<uchar>(src*alpha+beta)
+                # as one fused SIMD call - measured ~30-50x faster than the
+                # equivalent numpy (subtract, multiply, clip, astype) chain
+                # on this build, same pattern already established elsewhere
+                # in this module (COLOR_NON_ANOMALY's integer blend, etc.).
+                quantized = cv2.convertScaleAbs(thermal_frame, alpha=scale, beta=-frame_min * scale)
+
+                alpha = cv2.LUT(quantized, alpha_lut)  # float32, (h,w)
+                # 256-level quantization means a value right at the
+                # threshold can land in the same bucket as one just past
+                # it, so alpha_lut's own baked-in mask isn't exactly 0
+                # outside detect_threshold_anomalies' real (exact, not
+                # quantized) mask at those boundary pixels - measured
+                # live: ~0.07% of pixels, off by at most 1/255. Multiplying
+                # by the real mask here is cheap (one more elementwise op)
+                # and restores the exact "0 outside the mask" guarantee
+                # _gradient_severity's docstring promises - same reasoning
+                # as this branch's own pre-LUT version keeping a
+                # mask_binary multiply as "insurance against float
+                # boundary edge cases".
+                alpha *= (mask > 0)
                 weight = 1.0 - alpha
 
-                # Blend via strided views into the interleaved array
-                # rather than a broadcast multiply or cv2.split/merge -
-                # both measured markedly slower on this NumPy build for
-                # the equivalent (H,W,3)*(H,W,1) operation (see git
-                # history for the isolated benchmarks).
-                #
                 # OUTSIDE is two-sided (below min OR above max), so each
-                # pixel needs whichever color matches its own side - the
-                # per-channel color becomes a (h,w) array selected by
-                # np.where instead of a single scalar. The other three
-                # modes use one fixed color for every tinted pixel, so
-                # b/g/r stay plain Python scalars (cheap: scalar*array,
-                # not array*array).
-                if threshold_mode == ThresholdMode.OUTSIDE:
-                    is_below = sub_thermal < min_t
-                    hot, cold = _GRADIENT_COLOR_HOT, _GRADIENT_COLOR_COLD
-                    b = np.where(is_below, cold[0], hot[0]).astype(np.float32)
-                    g = np.where(is_below, cold[1], hot[1]).astype(np.float32)
-                    r = np.where(is_below, cold[2], hot[2]).astype(np.float32)
+                # pixel needs whichever color matches its own side - color_lut
+                # is only built for that mode (see _get_gradient_luts). The
+                # other three modes use one fixed color for every tinted
+                # pixel, so b/g/r stay plain Python scalars (cheap:
+                # scalar*array, not array*array).
+                if color_lut is not None:
+                    b = cv2.LUT(quantized, color_lut[0])
+                    g = cv2.LUT(quantized, color_lut[1])
+                    r = cv2.LUT(quantized, color_lut[2])
                 else:
                     color = {
                         ThresholdMode.ABOVE: _GRADIENT_COLOR_HOT,
@@ -1557,20 +1646,19 @@ class ThermalAnalyzer:
                     }.get(threshold_mode, _GRADIENT_COLOR_HOT)
                     b, g, r = float(color[0]), float(color[1]), float(color[2])
 
-                sub_f32 = sub_frame.astype(np.float32)
-                sub_f32[..., 0] *= weight
-                sub_f32[..., 0] += b * alpha
-                sub_f32[..., 1] *= weight
-                sub_f32[..., 1] += g * alpha
-                sub_f32[..., 2] *= weight
-                sub_f32[..., 2] += r * alpha
-                sub_out = sub_f32.astype(np.uint8)
-
-                if full_frame:
-                    output = sub_out
-                else:
-                    output = colorized_frame.copy()
-                    output[y0:y1, x0:x1] = sub_out
+                # Blend via strided views into the interleaved array
+                # rather than a broadcast multiply or cv2.split/merge -
+                # both measured markedly slower on this NumPy build for
+                # the equivalent (H,W,3)*(H,W,1) operation (see git
+                # history for the isolated benchmarks).
+                output_f32 = colorized_frame.astype(np.float32)
+                output_f32[..., 0] *= weight
+                output_f32[..., 0] += b * alpha
+                output_f32[..., 1] *= weight
+                output_f32[..., 1] += g * alpha
+                output_f32[..., 2] *= weight
+                output_f32[..., 2] += r * alpha
+                output = output_f32.astype(np.uint8)
 
         return output
 
