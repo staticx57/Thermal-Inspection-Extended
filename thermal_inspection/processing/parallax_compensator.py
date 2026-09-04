@@ -666,6 +666,21 @@ class ParallaxCompensator:
         # Cache
         self.last_depth_map = None
         self.last_displacement_map = None
+        self._last_flow_map_compute_time = 0.0
+        # Depth-estimate+disparity-compute recompute throttle - see
+        # _apply_correction_thermal_target/_apply_correction_rgb_target. A
+        # physical camera pair's depth-based misalignment changes slowly
+        # (tied to what's actually in front of the cameras, not per-frame
+        # noise), so recomputing it at the full render rate was pure waste -
+        # confirmed live: apply_correction() alone measured ~11ms/frame when
+        # depth-based correction was genuinely engaged (simplified method),
+        # stacking with 3D/2D Fusion's own per-frame cost to push several
+        # mode/setting combinations into the low 20s fps. _remap_thermal
+        # still runs on the CURRENT frame's live pixel data every single
+        # call - only the depth-estimate+disparity step is throttled, so
+        # this can't freeze the displayed video the way caching the whole
+        # corrected frame would have.
+        self.correction_recompute_interval_s = 1.0 / 15.0
         # _remap_thermal's coordinate grid only depends on (h, w), which is
         # constant frame-to-frame - cache it instead of rebuilding via
         # np.meshgrid() every single call. Profiled live: ~1.8ms/frame of
@@ -697,6 +712,11 @@ class ParallaxCompensator:
         """Enable or disable parallax compensation."""
         self.enabled = enabled
         logger.info(f"Parallax compensation: {'ENABLED' if enabled else 'DISABLED'}")
+        # A flow map cached from before a disable/re-enable cycle could be
+        # arbitrarily stale (the scene, camera position, or settings may
+        # have changed while correction was off) - force a fresh compute
+        # rather than reuse it.
+        self.last_displacement_map = None
 
     def is_enabled(self) -> bool:
         """Check if parallax compensation is enabled."""
@@ -785,6 +805,10 @@ class ParallaxCompensator:
                     f"Parallax FOV crop-zoom factor auto-inverted for the new target: "
                     f"{old_factor:.4f} -> {self.fov_zoom_factor:.4f}"
                 )
+            # A cached flow map is in the OLD target's pixel space/resolution
+            # entirely - the exact same class of bug as the earlier "frame
+            # cut in half on target switch" issue if reused here.
+            self.last_displacement_map = None
         self.correction_target = target
 
     def get_correction_target(self) -> str:
@@ -802,6 +826,7 @@ class ParallaxCompensator:
         self.manual_shift_x = int(dx)
         self.manual_shift_y = int(dy)
         logger.info(f"Manual alignment shift set to ({self.manual_shift_x}, {self.manual_shift_y}) px")
+        self.last_displacement_map = None
 
     def get_manual_shift(self) -> Tuple[int, int]:
         """Get the current manual alignment shift (dx, dy) in pixels."""
@@ -824,6 +849,11 @@ class ParallaxCompensator:
             f"Parallax RGB-target max width set to "
             f"{'unlimited (full native resolution)' if self.rgb_target_max_width is None else f'{self.rgb_target_max_width}px'}"
         )
+        # Changes the working resolution _apply_correction_rgb_target
+        # computes the flow map at - the shape-mismatch check in
+        # _flow_map_needs_recompute would catch this too, but being
+        # explicit costs nothing and matches set_baseline/set_manual_shift.
+        self.last_displacement_map = None
 
     def get_rgb_target_max_width(self) -> Optional[int]:
         """Get the current correction_target=="rgb" working-resolution cap (None = unlimited)."""
@@ -1053,6 +1083,34 @@ class ParallaxCompensator:
 
         return disparity_px.astype(np.float32)
 
+    def _flow_map_needs_recompute(self, expected_shape: Tuple[int, int]) -> bool:
+        """
+        Whether the cached self.last_displacement_map is stale and the
+        depth-estimate+disparity-compute step must run again this call -
+        either there's no cache yet, its shape doesn't match what this
+        call needs (a correction-target switch changes the working
+        resolution entirely - this is the same shape-mismatch class of
+        bug as the earlier "frame cut in half on target switch" issue, so
+        this check is a deliberate safety net, not just an optimization),
+        or the recompute throttle interval has elapsed.
+        """
+        return (
+            self.last_displacement_map is None
+            or self.last_displacement_map.shape[:2] != expected_shape
+            or (time.perf_counter() - self._last_flow_map_compute_time) >= self.correction_recompute_interval_s
+        )
+
+    def invalidate_correction_cache(self):
+        """
+        Force the next apply_correction() call to recompute depth+disparity
+        immediately rather than reuse a cached flow map - call this after
+        any change that could make the cached flow map wrong (swapping the
+        depth estimator, e.g. app.py's set_parallax_depth_method(), which
+        replaces self.depth_estimator directly rather than through a method
+        on this class).
+        """
+        self.last_displacement_map = None
+
     def apply_correction(self, thermal_frame: np.ndarray,
                         rgb_frame: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -1093,62 +1151,68 @@ class ParallaxCompensator:
 
         try:
             thermal_h, thermal_w = thermal_frame.shape[:2]
+            _t_corr_start = time.perf_counter()
 
-            # Depth output gets resized down to thermal resolution a few
-            # lines below regardless of method, so estimating it at the
-            # RGB camera's native resolution is pure waste - for
-            # "simplified" specifically the result doesn't depend on pixel
-            # content at all (only rgb_image.shape), so shrinking first
-            # costs no accuracy either way. Confirmed live: with a 4K RGB
-            # camera this stage alone was costing ~50-90ms/frame (vs
-            # ~1-2ms at a normal RGB resolution) for a depth map that gets
-            # immediately downsampled to 640x512 anyway.
-            rgb_for_depth = rgb_frame
-            if rgb_frame.shape[0] > thermal_h or rgb_frame.shape[1] > thermal_w:
-                # INTER_LINEAR, not INTER_AREA: measured INTER_AREA at 7ms for
-                # a 4K->640x512 downscale vs INTER_LINEAR's 0.9ms (OpenCV's
-                # proper area-averaging is far more expensive than its
-                # SIMD/IPP-optimized linear path at large downscale ratios).
-                # The precision difference is moot here - "simplified" never
-                # reads pixel content at all, and midas/depthanything resize
-                # again internally to their own fixed model input size.
-                rgb_for_depth = cv2.resize(rgb_frame, (thermal_w, thermal_h),
+            # show_depth_map always recomputes fresh - someone actively
+            # inspecting depth-estimation quality wants current
+            # information, not a throttled/stale sample.
+            if self.show_depth_map or self._flow_map_needs_recompute((thermal_h, thermal_w)):
+                # Depth output gets resized down to thermal resolution a few
+                # lines below regardless of method, so estimating it at the
+                # RGB camera's native resolution is pure waste - for
+                # "simplified" specifically the result doesn't depend on pixel
+                # content at all (only rgb_image.shape), so shrinking first
+                # costs no accuracy either way. Confirmed live: with a 4K RGB
+                # camera this stage alone was costing ~50-90ms/frame (vs
+                # ~1-2ms at a normal RGB resolution) for a depth map that gets
+                # immediately downsampled to 640x512 anyway.
+                rgb_for_depth = rgb_frame
+                if rgb_frame.shape[0] > thermal_h or rgb_frame.shape[1] > thermal_w:
+                    # INTER_LINEAR, not INTER_AREA: measured INTER_AREA at 7ms for
+                    # a 4K->640x512 downscale vs INTER_LINEAR's 0.9ms (OpenCV's
+                    # proper area-averaging is far more expensive than its
+                    # SIMD/IPP-optimized linear path at large downscale ratios).
+                    # The precision difference is moot here - "simplified" never
+                    # reads pixel content at all, and midas/depthanything resize
+                    # again internally to their own fixed model input size.
+                    rgb_for_depth = cv2.resize(rgb_frame, (thermal_w, thermal_h),
+                                              interpolation=cv2.INTER_LINEAR)
+
+                _t_depth_start = time.perf_counter()
+                depth_map = self.depth_estimator.estimate_depth(rgb_for_depth)
+                self.last_depth_time_ms = (time.perf_counter() - _t_depth_start) * 1000.0
+                if depth_map is None:
+                    # Depth-based correction can't run this frame (e.g.
+                    # depth_method="realsense" but no RealSense hardware is
+                    # actually providing frames right now), but a manual
+                    # shift/FOV crop-zoom may still be configured - dropping
+                    # to a bare, completely uncorrected pass-through silently
+                    # discarded those too, every single frame depth failed,
+                    # not just the depth-based component. Fall back to
+                    # whatever static correction is available instead.
+                    logger.warning("Depth estimation failed - falling back to manual shift/crop only")
+                    return self._apply_manual_shift_only(thermal_frame), rgb_frame
+
+                self.last_depth_map = depth_map
+                depth_resized = cv2.resize(depth_map, (thermal_w, thermal_h),
                                           interpolation=cv2.INTER_LINEAR)
 
-            _t_depth_start = time.perf_counter()
-            depth_map = self.depth_estimator.estimate_depth(rgb_for_depth)
-            self.last_depth_time_ms = (time.perf_counter() - _t_depth_start) * 1000.0
-            if depth_map is None:
-                # Depth-based correction can't run this frame (e.g.
-                # depth_method="realsense" but no RealSense hardware is
-                # actually providing frames right now), but a manual
-                # shift/FOV crop-zoom may still be configured - dropping
-                # to a bare, completely uncorrected pass-through silently
-                # discarded those too, every single frame depth failed,
-                # not just the depth-based component. Fall back to
-                # whatever static correction is available instead.
-                logger.warning("Depth estimation failed - falling back to manual shift/crop only")
-                return self._apply_manual_shift_only(thermal_frame), rgb_frame
+                disparity_map = self.compute_disparity(depth_resized)
 
-            self.last_depth_map = depth_map
+                flow_map = np.zeros((thermal_h, thermal_w, 2), dtype=np.float32)
+                flow_map[:, :, 0] = disparity_map + self.manual_shift_x
+                flow_map[:, :, 1] = self.manual_shift_y
 
-            _t_corr_start = time.perf_counter()
-            depth_resized = cv2.resize(depth_map, (thermal_w, thermal_h),
-                                      interpolation=cv2.INTER_LINEAR)
+                self.last_displacement_map = flow_map
+                self._last_flow_map_compute_time = time.perf_counter()
 
-            disparity_map = self.compute_disparity(depth_resized)
-
-            flow_map = np.zeros((thermal_h, thermal_w, 2), dtype=np.float32)
-            flow_map[:, :, 0] = disparity_map + self.manual_shift_x
-            flow_map[:, :, 1] = self.manual_shift_y
-
-            self.last_displacement_map = flow_map
-
-            # Return depth-map colourised overlay when requested (debug/QA mode)
-            if self.show_depth_map:
-                depth_colourised = self._colourise_depth_debug(depth_resized, thermal_w, thermal_h)
-                self.last_correction_time_ms = (time.perf_counter() - _t_corr_start) * 1000.0
-                return depth_colourised, rgb_frame
+                # Return depth-map colourised overlay when requested (debug/QA mode)
+                if self.show_depth_map:
+                    depth_colourised = self._colourise_depth_debug(depth_resized, thermal_w, thermal_h)
+                    self.last_correction_time_ms = (time.perf_counter() - _t_corr_start) * 1000.0
+                    return depth_colourised, rgb_frame
+            else:
+                flow_map = self.last_displacement_map
 
             corrected_thermal = self._remap_thermal(thermal_frame, flow_map)
             self.last_correction_time_ms = (time.perf_counter() - _t_corr_start) * 1000.0
@@ -1189,72 +1253,78 @@ class ParallaxCompensator:
             rgb_h, rgb_w = rgb_frame.shape[:2]
             work_w, work_h = self._resolve_rgb_work_size(rgb_w, rgb_h)
             capped = (work_w, work_h) != (rgb_w, rgb_h)
+            _t_corr_start = time.perf_counter()
 
-            # Depth estimation still runs at thermal's (small) resolution
-            # regardless of correction_target - it's an analysis step, not
-            # the thing being warped, and downscaling first doesn't cost
-            # accuracy for the same reasons _apply_correction_thermal_target
-            # doesn't either.
-            rgb_for_depth = rgb_frame
-            if rgb_h > thermal_h or rgb_w > thermal_w:
-                rgb_for_depth = cv2.resize(rgb_frame, (thermal_w, thermal_h),
+            # show_depth_map always recomputes fresh - see
+            # _apply_correction_thermal_target's identical reasoning.
+            if self.show_depth_map or self._flow_map_needs_recompute((work_h, work_w)):
+                # Depth estimation still runs at thermal's (small) resolution
+                # regardless of correction_target - it's an analysis step, not
+                # the thing being warped, and downscaling first doesn't cost
+                # accuracy for the same reasons _apply_correction_thermal_target
+                # doesn't either.
+                rgb_for_depth = rgb_frame
+                if rgb_h > thermal_h or rgb_w > thermal_w:
+                    rgb_for_depth = cv2.resize(rgb_frame, (thermal_w, thermal_h),
+                                              interpolation=cv2.INTER_LINEAR)
+
+                _t_depth_start = time.perf_counter()
+                depth_map = self.depth_estimator.estimate_depth(rgb_for_depth)
+                self.last_depth_time_ms = (time.perf_counter() - _t_depth_start) * 1000.0
+                if depth_map is None:
+                    # See _apply_correction_thermal_target's identical fallback
+                    # reasoning - don't drop a configured manual shift/FOV
+                    # crop-zoom just because depth-based correction couldn't
+                    # run this frame.
+                    logger.warning("Depth estimation failed - falling back to manual shift/crop only")
+                    return thermal_frame, self._apply_manual_shift_only_rgb(rgb_frame)
+
+                self.last_depth_map = depth_map
+
+                # Resize the depth map up to the WORKING resolution (RGB's own
+                # native size, or rgb_target_max_width's cap) - the
+                # disparity/flow map, and the remap it drives, need to be at
+                # the same resolution as the frame actually being warped.
+                depth_resized = cv2.resize(depth_map, (work_w, work_h),
                                           interpolation=cv2.INTER_LINEAR)
 
-            _t_depth_start = time.perf_counter()
-            depth_map = self.depth_estimator.estimate_depth(rgb_for_depth)
-            self.last_depth_time_ms = (time.perf_counter() - _t_depth_start) * 1000.0
-            if depth_map is None:
-                # See _apply_correction_thermal_target's identical fallback
-                # reasoning - don't drop a configured manual shift/FOV
-                # crop-zoom just because depth-based correction couldn't
-                # run this frame.
-                logger.warning("Depth estimation failed - falling back to manual shift/crop only")
-                return thermal_frame, self._apply_manual_shift_only_rgb(rgb_frame)
+                # compute_disparity_rgb still uses rgb_w (the REAL native
+                # width) for the focal-length-in-pixels conversion - that's a
+                # property of the actual sensor, not whatever resolution we're
+                # processing at - then scale the result down to the working
+                # resolution's own pixel grid below, same reasoning as
+                # _apply_manual_shift_only_rgb's scale factor.
+                disparity_map = self.compute_disparity_rgb(depth_resized, rgb_w)
+                scale = work_w / rgb_w
 
-            self.last_depth_map = depth_map
+                # Opposite sign convention from the thermal-target path - see
+                # set_correction_target()'s docstring and _rgb_target_sign's
+                # definition in __init__: aligning RGB to thermal's (now
+                # unmoved) raw position is the inverse of aligning thermal to
+                # RGB's raw position, derived from the same physical baseline
+                # geometry. Manual shift is in RGB's own native pixel space
+                # here, not thermal's - a value tuned for
+                # correction_target=="thermal" is not meaningful after
+                # switching (see set_correction_target).
+                sign = self._rgb_target_sign
+                # disparity_map and manual_shift_x are both in native-pixel
+                # units (see above / rgb_target_max_width) - scale their SUM
+                # down to the working resolution's own pixel grid together.
+                flow_map = np.zeros((work_h, work_w, 2), dtype=np.float32)
+                flow_map[:, :, 0] = sign * scale * (disparity_map + self.manual_shift_x)
+                flow_map[:, :, 1] = sign * scale * self.manual_shift_y
 
-            _t_corr_start = time.perf_counter()
-            # Resize the depth map up to the WORKING resolution (RGB's own
-            # native size, or rgb_target_max_width's cap) - the
-            # disparity/flow map, and the remap it drives, need to be at
-            # the same resolution as the frame actually being warped.
-            depth_resized = cv2.resize(depth_map, (work_w, work_h),
-                                      interpolation=cv2.INTER_LINEAR)
+                self.last_displacement_map = flow_map
+                self._last_flow_map_compute_time = time.perf_counter()
 
-            # compute_disparity_rgb still uses rgb_w (the REAL native
-            # width) for the focal-length-in-pixels conversion - that's a
-            # property of the actual sensor, not whatever resolution we're
-            # processing at - then scale the result down to the working
-            # resolution's own pixel grid below, same reasoning as
-            # _apply_manual_shift_only_rgb's scale factor.
-            disparity_map = self.compute_disparity_rgb(depth_resized, rgb_w)
-            scale = work_w / rgb_w
-
-            # Opposite sign convention from the thermal-target path - see
-            # set_correction_target()'s docstring and _rgb_target_sign's
-            # definition in __init__: aligning RGB to thermal's (now
-            # unmoved) raw position is the inverse of aligning thermal to
-            # RGB's raw position, derived from the same physical baseline
-            # geometry. Manual shift is in RGB's own native pixel space
-            # here, not thermal's - a value tuned for
-            # correction_target=="thermal" is not meaningful after
-            # switching (see set_correction_target).
-            sign = self._rgb_target_sign
-            # disparity_map and manual_shift_x are both in native-pixel
-            # units (see above / rgb_target_max_width) - scale their SUM
-            # down to the working resolution's own pixel grid together.
-            flow_map = np.zeros((work_h, work_w, 2), dtype=np.float32)
-            flow_map[:, :, 0] = sign * scale * (disparity_map + self.manual_shift_x)
-            flow_map[:, :, 1] = sign * scale * self.manual_shift_y
-
-            self.last_displacement_map = flow_map
-
-            if self.show_depth_map:
-                depth_colourised = self._colourise_depth_debug(depth_resized, work_w, work_h)
-                if capped:
-                    depth_colourised = cv2.resize(depth_colourised, (rgb_w, rgb_h))
-                self.last_correction_time_ms = (time.perf_counter() - _t_corr_start) * 1000.0
-                return thermal_frame, depth_colourised
+                if self.show_depth_map:
+                    depth_colourised = self._colourise_depth_debug(depth_resized, work_w, work_h)
+                    if capped:
+                        depth_colourised = cv2.resize(depth_colourised, (rgb_w, rgb_h))
+                    self.last_correction_time_ms = (time.perf_counter() - _t_corr_start) * 1000.0
+                    return thermal_frame, depth_colourised
+            else:
+                flow_map = self.last_displacement_map
 
             work_frame = (cv2.resize(rgb_frame, (work_w, work_h), interpolation=cv2.INTER_LINEAR)
                         if capped else rgb_frame)

@@ -3048,6 +3048,12 @@ class ThermalInspectionApp:
             # to reconnect and re-wire it.
             new_estimator._hardware_depth_source = old_estimator._hardware_depth_source
             self.parallax_compensator.depth_estimator = new_estimator
+            # Swapping the estimator bypasses every ParallaxCompensator
+            # method that would normally invalidate its cached flow map -
+            # a stale one here would keep applying the OLD method's
+            # correction under the NEW method's name until the next
+            # scheduled throttled recompute.
+            self.parallax_compensator.invalidate_correction_cache()
             logger.info(f"Parallax depth method set to: {method}")
         else:
             logger.warning("ParallaxCompensator not available")
