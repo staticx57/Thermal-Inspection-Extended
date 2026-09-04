@@ -114,10 +114,12 @@ class SettingsManager:
             temp_file = self.config_file.with_suffix('.tmp')
             with open(temp_file, 'w', encoding='utf-8') as f:
                 json.dump(self._settings, f, indent=2, sort_keys=True)
-            if self.is_windows:
-                if self.config_file.exists():
-                    self.config_file.unlink()
-            temp_file.rename(self.config_file)
+            # os.replace() is atomic and overwrites the destination on
+            # both platforms - Path.rename() doesn't overwrite on
+            # Windows, which is why this used to unlink() the destination
+            # as a separate step first: a crash between that unlink() and
+            # the rename() left no config file at all.
+            os.replace(temp_file, self.config_file)
             logger.info(f"Settings saved to {self.config_file}")
             return True
         except Exception as e:

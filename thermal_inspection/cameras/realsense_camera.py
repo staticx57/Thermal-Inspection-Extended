@@ -129,7 +129,12 @@ class RGBCameraRealSense:
 
         except Exception as e:
             logger.error(f"Failed to open RealSense camera: {e}")
-            self.pipeline = None
+            # pipeline.start() above may have already succeeded before a
+            # later step (get_device()/first_depth_sensor()/etc.) failed -
+            # release() stops it properly; just clearing the reference
+            # (the old behavior) orphaned a running RealSense stream with
+            # nothing left to stop it.
+            self.release()
             return False
 
     def read(self) -> Tuple[bool, Optional[np.ndarray]]:

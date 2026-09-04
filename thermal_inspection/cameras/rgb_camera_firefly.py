@@ -155,9 +155,18 @@ class RGBCameraFirefly:
 
         except PySpin.SpinnakerException as ex:
             logger.error(f'Spinnaker error: {ex}')
+            # self.cam.Init() (and possibly _configure_camera()/
+            # BeginAcquisition()) may have already succeeded before
+            # whatever failed - release() undoes exactly that (it's a
+            # no-op for whichever of self.cam/self.system never got set),
+            # same as it's called on this method's own early-return paths
+            # above. Without this, a camera that fails mid-open stays
+            # claimed by this process and every retry fails too.
+            self.release()
             return False
         except Exception as e:
             logger.error(f'Failed to open Firefly camera: {e}')
+            self.release()
             return False
 
     def get_max_resolution(self) -> Tuple[int, int]:

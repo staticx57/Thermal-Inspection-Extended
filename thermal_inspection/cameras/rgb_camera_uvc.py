@@ -246,6 +246,10 @@ class RGBCameraUVC:
 
         except Exception as e:
             logger.error(f"Failed to open UVC camera: {e}")
+            # self.cap may already be a genuinely opened VideoCapture if a
+            # later step (resolution negotiation, warmup) is what threw -
+            # release() closes it; leaving it open here leaked the handle.
+            self.release()
             return False
 
     def is_opened(self) -> bool:

@@ -79,7 +79,11 @@ class GigECamera:
 
         except Exception as e:
             logger.error(f"Failed to open GigE camera: {e}")
-            self.is_open = False
+            # Same shape as the other backends' open() fixes: self.cap may
+            # already be genuinely open if a later step threw - release()
+            # closes it instead of just flipping the flag and leaking the
+            # handle.
+            self.release()
             return False
 
     def is_opened(self) -> bool:
