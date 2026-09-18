@@ -81,6 +81,7 @@ class PyUSBThermalBackend(ThermalBackend):
         self.dev = None
         self.endpoint = None
         self._is_opened = False
+        self._last_frame = None
 
         if not PYUSB_AVAILABLE:
             logger.error("PyUSB not available - cannot use direct USB backend")
@@ -222,6 +223,7 @@ class PyUSBThermalBackend(ThermalBackend):
             # Reshape to image dimensions
             frame = frame.reshape(self.FRAME_HEIGHT, self.FRAME_WIDTH)
 
+            self._last_frame = frame
             return True, frame
 
         except usb.core.USBError as e:
@@ -311,9 +313,17 @@ class PyUSBThermalBackend(ThermalBackend):
 
         Returns:
             np.ndarray: Temperature map in Celsius (float32), or None on error
+
+        Uses the already-captured last frame rather than calling read()
+        again - a caller on the main thread doing that would race
+        ThreadedCameraCapture's own background-thread reads on the same
+        USB endpoint (this backend's read() blocks up to 1s per call -
+        see its timeout - so a second concurrent read is the same class
+        of bug found live on the Boson flirpy path: see
+        flirpy_thermal_backend.py's get_spot_temperature()).
         """
-        ret, frame = self.read()
-        if not ret or frame is None:
+        frame = self._last_frame
+        if frame is None:
             return None
 
         try:

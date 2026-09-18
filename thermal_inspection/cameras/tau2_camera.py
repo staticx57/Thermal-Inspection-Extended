@@ -81,6 +81,7 @@ class Tau2Camera:
         self._fps = 30.0
         self._bit_depth = 16
         self._negotiated_raw = False  # True once open() confirms Y16 actually negotiated
+        self._last_frame = None
 
     def open(self) -> bool:
         """
@@ -217,6 +218,7 @@ class Tau2Camera:
             scale = 0.04 if self.high_res else 0.40
             frame = np.clip(frame.astype(np.float32) * scale * 100.0, 0, 65535).astype(np.uint16)
 
+        self._last_frame = frame
         return True, frame
 
     def _sanitize_frame(self, raw_frame: np.ndarray) -> np.ndarray:
@@ -320,12 +322,18 @@ class Tau2Camera:
 
         Returns:
             float32 2D numpy array of temperatures in Celsius, or None.
+
+        Uses the already-captured last frame rather than calling read()
+        again - a caller on the main thread doing that would race
+        ThreadedCameraCapture's own background-thread reads on the same
+        cv2.VideoCapture (the same class of bug found live on the Boson
+        flirpy path - see flirpy_thermal_backend.py's get_spot_temperature()).
         """
         if not self.tlinear:
             return None
 
-        success, frame = self.read()
-        if not success or frame is None or frame.dtype != np.uint16:
+        frame = self._last_frame
+        if frame is None or frame.dtype != np.uint16:
             return None
 
         # read() already rescaled to Kelvin x100 when tlinear is enabled.

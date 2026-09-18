@@ -120,9 +120,6 @@ class ThermalInspectionApp:
         from .core.calibration_manager import CalibrationManager
         self.calibration_manager = CalibrationManager()
 
-        # Fusion color mode ("color" or "grayscale")
-        self._fusion_color_mode = "color"
-
         # Central event bus for GUI ↔ backend communication
         self.event_bus = AppEventBus()
 
@@ -198,6 +195,14 @@ class ThermalInspectionApp:
         self._3d_contour_interval_m = 0.5
         self._3d_gradient_style = "color"  # "color" or "grayscale" - see fusion_3d_panel.GRADIENT_STYLES
         self._3d_fog_fade_metric = "distance"  # "distance" or "motion" - see fusion_3d_panel.FOG_FADE_METRICS
+
+        # Parallax panel's "Show Alignment Overlay" - a visual aid for
+        # manually tuning shift/zoom (or the camera mount itself), not a
+        # debug view of the correction pipeline's own internals the way
+        # show_depth_map/show_displacement are. Purely a display-time
+        # substitution when on, same zero-cost-when-off contract as those
+        # two - see render_alignment_overlay's use in _process_frame_loop.
+        self._show_parallax_alignment_overlay = False
 
         # Throttle for pushing parallax perf metrics to the GUI - a display
         # metric, not something that needs updating every single frame.
@@ -378,10 +383,24 @@ class ThermalInspectionApp:
         bus.edge_strength_changed.connect(self.set_edge_strength)
         bus.edge_fuzziness_changed.connect(self.set_edge_fuzziness)
         bus.edge_color_changed.connect(self.set_edge_color)
+        bus.edge_line_size_changed.connect(self.set_edge_line_size)
+        bus.contour_line_size_changed.connect(self.set_contour_line_size)
+        bus.contour_level_count_changed.connect(self.set_contour_level_count)
+        bus.contour_labels_changed.connect(self.set_contour_labels_enabled)
+        bus.contour_fill_changed.connect(self.set_contour_fill_enabled)
+        bus.adaptive_canny_changed.connect(self.set_adaptive_canny_enabled)
+        bus.edge_direction_changed.connect(self.set_edge_direction)
+        bus.sobel_alpha_changed.connect(self.set_sobel_alpha_enabled)
+        bus.edge_color_mode_changed.connect(self.set_edge_color_mode)
+        bus.detail_balance_changed.connect(self.set_detail_balance)
         bus.detail_strength_changed.connect(self.set_detail_strength)
         bus.detail_quality_changed.connect(self.set_detail_quality)
         bus.laplacian_gpu_changed.connect(self.set_laplacian_gpu)
         bus.laplacian_cpu_scale_changed.connect(self.set_laplacian_cpu_scale)
+        bus.relief_light_direction_changed.connect(self.set_relief_light_direction)
+        bus.overlay_hot_percentile_changed.connect(self.set_overlay_hot_percentile)
+        bus.pip_size_changed.connect(self.set_pip_size)
+        bus.pip_position_changed.connect(self.set_pip_position)
         bus.fusion_3d_strength_changed.connect(self.set_3d_relief_strength)
         bus.fusion_3d_mode_changed.connect(self.set_3d_mode)
         bus.fusion_3d_data_source_changed.connect(self.set_3d_data_source)
@@ -463,6 +482,9 @@ class ThermalInspectionApp:
             lambda dx, dy: self.set_parallax_shift(dx, dy) if hasattr(self, 'set_parallax_shift') else None
         )
         bus.parallax_auto_alignment_requested.connect(self._bus_parallax_auto_alignment_requested)
+        bus.parallax_auto_crop_requested.connect(self._bus_parallax_auto_crop_requested)
+        bus.parallax_crop_reset_requested.connect(self._bus_parallax_crop_reset_requested)
+        bus.parallax_show_alignment_overlay_toggled.connect(self._bus_parallax_show_alignment_overlay_toggled)
         bus.parallax_geometry_optics_changed.connect(
             lambda optics: self.set_parallax_camera_optics(optics) if hasattr(self, 'set_parallax_camera_optics') else None
         )
@@ -893,6 +915,18 @@ class ThermalInspectionApp:
 
             self.roi_manager = ROIManager()
             self.palette_manager = PaletteManager({'default_palette': self.config.palette})
+            # thermal_contours' contour-line colors should track whatever
+            # palette the thermal image itself is colorized with - sync the
+            # startup default now; set_palette() below keeps it in sync on
+            # every later change.
+            self.fusion_processor.set_palette_lut(self.palette_manager.get_current_palette_lut())
+            # Same idea for thermal_contours' isotherm-label unit - sync
+            # the startup default now; set_temperature_unit() keeps it in
+            # sync on every later change.
+            _unit_code = {'CELSIUS': 'C', 'FAHRENHEIT': 'F', 'KELVIN': 'K'}.get(
+                self.radiometric_controller.state.temperature_unit.name, 'C'
+            )
+            self.fusion_processor.set_contour_temp_unit(_unit_code)
 
             from .processing.gradient_processor import GradientProcessor
             self.gradient_processor = GradientProcessor()
@@ -908,6 +942,7 @@ class ThermalInspectionApp:
         try:
             from .processing.parallax_compensator import ParallaxCompensator
             self.parallax_compensator = ParallaxCompensator()
+            self._load_parallax_alignment_from_config()
             logger.info("ParallaxCompensator initialized")
         except ImportError as e:
             logger.warning(f"ParallaxCompensator not available: {e}")
@@ -1158,6 +1193,13 @@ class ThermalInspectionApp:
     def set_temperature_unit(self, unit: str):
         """Set temperature display unit."""
         self.radiometric_controller.set_temperature_unit(unit)
+        # thermal_contours' isotherm labels previously stayed hardcoded to
+        # Celsius regardless of this app-wide setting - pushed through the
+        # same explicit-call pattern radiometric_controller already uses
+        # for thermal_analyzer, rather than fusion_processor polling
+        # radiometric_controller's state itself every frame.
+        if self.fusion_processor:
+            self.fusion_processor.set_contour_temp_unit(unit)
 
     def enable_radiometric(self, enable: bool) -> bool:
         """
@@ -1703,6 +1745,26 @@ class ThermalInspectionApp:
                 and _preview is not None and _preview.isVisible()
                 and (_thermal_aligned_realsense or not _preview.needs_thermal_alignment())
             )
+
+            # Anomaly-priority colorization, the isotherm overlay, and the
+            # threshold VISUALIZATION (not its detection - see below) all
+            # exist purely to paint colorized_thermal, and every view mode
+            # except RGB_ONLY actually shows colorized_thermal's content
+            # (THERMAL_ONLY directly; FUSION/THREE_D/SIDE_BY_SIDE/
+            # PICTURE_IN_PICTURE blend or place it alongside RGB).
+            # RGB_ONLY replaces display_frame with rgb_frame outright, so
+            # colorized_thermal there is a value nothing on screen reads -
+            # confirmed live: skipping this painting cost ~27ms/frame with
+            # isotherm+threshold both enabled. The one exception is the 3D
+            # Fusion settings tab's point-cloud preview (_preview_ready,
+            # just above), which is independent of the main viewport's
+            # view mode and CAN still read the main colorized_thermal
+            # directly further below - only when no parallax correction is
+            # active for it to use its own separately-corrected frame
+            # instead (see _corrected_thermal_for_preview's use below).
+            _needs_colorized_overlays = (
+                self.view_mode != ViewMode.RGB_ONLY or _preview_ready
+            )
             if (_rs_backend and _preview_ready
                     and rgb_frame is not None and rgb_frame is not self.rgb_placeholder):
                 _now_3d = time.time()
@@ -1852,7 +1914,8 @@ class ThermalInspectionApp:
                     self.gui.update_roi_stats(roi_stats)
 
             # Apply anomaly priority if enabled
-            if self.thermal_processor and self.thermal_processor.anomaly_priority_enabled:
+            if (_needs_colorized_overlays and self.thermal_processor
+                    and self.thermal_processor.anomaly_priority_enabled):
                 _anomprio_anomalies = self._collect_priority_anomalies(analysis_results)
                 _anomprio_t0 = time.perf_counter()
                 colorized_thermal = self.thermal_processor.apply_anomaly_priority_colorization(
@@ -1867,7 +1930,7 @@ class ThermalInspectionApp:
                     )
 
             # 3b. Apply isotherm overlay via IsothermManager
-            if thermal_16bit is not None:
+            if _needs_colorized_overlays and thermal_16bit is not None:
                 _iso_t0 = time.perf_counter()
                 colorized_thermal = self.isotherm_manager.apply_overlay(colorized_thermal, thermal_16bit)
                 if self.frame_count % 30 == 0:
@@ -1902,9 +1965,16 @@ class ThermalInspectionApp:
                         use_raw_values=ts.use_raw,
                     )
                     _thresh_t1 = time.perf_counter()
-                    colorized_thermal = self.thermal_analyzer.apply_threshold_visualization(
-                        source, colorized_thermal, detection, v_mode
-                    )
+                    # detect_threshold_anomalies above always runs - the
+                    # stats panel below needs a fresh detection every frame
+                    # regardless of what's on screen - but painting
+                    # colorized_thermal is pure display work, skipped
+                    # whenever nothing this frame will show it (see
+                    # _needs_colorized_overlays above).
+                    if _needs_colorized_overlays:
+                        colorized_thermal = self.thermal_analyzer.apply_threshold_visualization(
+                            source, colorized_thermal, detection, v_mode
+                        )
                     _thresh_t2 = time.perf_counter()
                     # Proactive feedback via event bus
                     self.event_bus.threshold_stats_updated.emit(
@@ -1920,6 +1990,7 @@ class ThermalInspectionApp:
                             viz=v_mode.value,
                             source_shape=source.shape,
                             colorized_shape=colorized_thermal.shape,
+                            viz_applied=_needs_colorized_overlays,
                             detect_ms=f"{(_thresh_t1 - _thresh_t0) * 1000:.2f}",
                             viz_ms=f"{(_thresh_t2 - _thresh_t1) * 1000:.2f}",
                             emit_ms=f"{(_thresh_t3 - _thresh_t2) * 1000:.2f}",
@@ -1940,20 +2011,27 @@ class ThermalInspectionApp:
                     display_frame = self.rgb_placeholder if self.rgb_placeholder is not None else colorized_thermal
             elif self.view_mode == ViewMode.FUSION:
                 if self.fusion_processor and rgb_frame is not None:
-                    # Apply fusion color mode (grayscale RGB if requested)
-                    fusion_rgb = rgb_frame
-                    if self._fusion_color_mode == "grayscale" and rgb_frame is not None:
-                        gray = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2GRAY)
-                        fusion_rgb = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+                    # fusion_color_mode's grayscale conversion (if any) now
+                    # happens inside process() itself, AFTER RGB is aligned/
+                    # downscaled to thermal resolution - see
+                    # FusionProcessor._apply_fusion_color_mode. Pass the raw
+                    # frame straight through rather than pre-converting it
+                    # here at the RGB camera's own (larger) native resolution.
                     _fus_t0 = time.perf_counter()
-                    display_frame = self.fusion_processor.process(colorized_thermal, fusion_rgb)
+                    _temp_map_c, _temp_map_estimated = self._get_contour_temperature_map(
+                        colorized_thermal, thermal_16bit
+                    )
+                    display_frame = self.fusion_processor.process(
+                        colorized_thermal, rgb_frame,
+                        temperature_map_c=_temp_map_c, temp_map_is_estimated=_temp_map_estimated
+                    )
                     _fus_ms = (time.perf_counter() - _fus_t0) * 1000
                     if self.frame_count % 30 == 0:
                         profile_log(
                             "FUSION2",
                             mode=self.fusion_processor.fusion_mode,
                             thermal_shape=colorized_thermal.shape,
-                            rgb_in_shape=fusion_rgb.shape,
+                            rgb_in_shape=rgb_frame.shape,
                             fusion_ms=f"{_fus_ms:.2f}",
                         )
                 else:
@@ -2024,18 +2102,56 @@ class ThermalInspectionApp:
                                 self._3d_data_source == "fusion"
                                 or (self._3d_data_source == "auto" and _thermal_aligned_realsense)
                             )
-                            depth_map = _rs_backend.get_depth_frame()
+                            # Request get_depth_frame() pre-resized to
+                            # whichever resolution the result will actually
+                            # be displayed at - thermal's, in every case
+                            # except "RGB depth-shaded, no thermal at all"
+                            # (rgb_frame's own native resolution). Mirrors
+                            # the branching below that picks base_2d's
+                            # shape, evaluated ahead of the fetch instead of
+                            # after it. get_depth_frame's own resize_to
+                            # parameter exists specifically so this resize
+                            # happens on the small raw uint16 array BEFORE
+                            # the expensive per-pixel float32 conversion,
+                            # not after - the parallax compensator's own
+                            # hardware depth source already uses it this
+                            # way; this call site previously didn't, doing
+                            # the conversion at RealSense's full native
+                            # resolution (e.g. 1280x800) only to immediately
+                            # downscale the result to thermal's (e.g.
+                            # 640x512) a few lines below - measured
+                            # 6.23ms -> 1.97ms for that conversion+resize at
+                            # these resolutions.
+                            _depth_wants_rgb_native_res = (
+                                self._3d_data_source != "thermal_only"
+                                and not (want_fusion and _thermal_aligned_realsense
+                                        and self.fusion_processor and rgb_frame is not None)
+                                and rgb_frame is not None and rgb_frame is not self.rgb_placeholder
+                            )
+                            if _depth_wants_rgb_native_res:
+                                _depth_target_h, _depth_target_w = rgb_frame.shape[:2]
+                            else:
+                                _depth_target_h, _depth_target_w = colorized_thermal.shape[:2]
+                            depth_map = _rs_backend.get_depth_frame(
+                                resize_to=(_depth_target_w, _depth_target_h)
+                            )
 
                             if (want_fusion and _thermal_aligned_realsense
                                     and self.fusion_processor and rgb_frame is not None
                                     and depth_map is not None):
-                                fusion_rgb = rgb_frame
-                                if self._fusion_color_mode == "grayscale":
-                                    gray = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2GRAY)
-                                    fusion_rgb = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-                                bh, bw = colorized_thermal.shape[:2]
-                                if depth_map.shape[:2] != (bh, bw):
-                                    depth_map = cv2.resize(depth_map, (bw, bh), interpolation=cv2.INTER_NEAREST)
+                                # fusion_color_mode's grayscale conversion
+                                # (if any) happens inside
+                                # apply_3d_visualization_fused's own
+                                # align_rgb_to_thermal/process() calls, AFTER
+                                # RGB is aligned to thermal resolution - see
+                                # FusionProcessor._apply_fusion_color_mode.
+                                # Pass the raw frame straight through rather
+                                # than pre-converting it here at the RGB
+                                # camera's own (larger) native resolution.
+                                #
+                                # depth_map is already at colorized_thermal's
+                                # resolution (see resize_to above) - no
+                                # further resize needed here.
                                 # Chains the 2D fusion blend straight into
                                 # the depth-shading pass on the GPU without
                                 # downloading the intermediate result to
@@ -2045,7 +2161,7 @@ class ThermalInspectionApp:
                                 # two-call sequence below when either GPU
                                 # path isn't available.
                                 self._last_3d_display_frame = apply_3d_visualization_fused(
-                                    self._3d_mode, colorized_thermal, fusion_rgb, depth_map,
+                                    self._3d_mode, colorized_thermal, rgb_frame, depth_map,
                                     self.fusion_processor, strength=self._3d_relief_strength,
                                     near_m=self._3d_fog_near_m, far_m=self._3d_fog_far_m,
                                     interval_m=self._3d_contour_interval_m,
@@ -2074,11 +2190,16 @@ class ThermalInspectionApp:
                                     # below regardless of source.
                                     base_2d = colorized_thermal
                                 elif want_fusion and _thermal_aligned_realsense and self.fusion_processor and rgb_frame is not None:
-                                    fusion_rgb = rgb_frame
-                                    if self._fusion_color_mode == "grayscale":
-                                        gray = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2GRAY)
-                                        fusion_rgb = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-                                    base_2d = self.fusion_processor.process(colorized_thermal, fusion_rgb)
+                                    # See the fused branch above - process()
+                                    # applies fusion_color_mode itself, after
+                                    # aligning rgb_frame to thermal resolution.
+                                    _temp_map_c, _temp_map_estimated = self._get_contour_temperature_map(
+                                        colorized_thermal, thermal_16bit
+                                    )
+                                    base_2d = self.fusion_processor.process(
+                                        colorized_thermal, rgb_frame,
+                                        temperature_map_c=_temp_map_c, temp_map_is_estimated=_temp_map_estimated
+                                    )
                                 elif rgb_frame is not None and rgb_frame is not self.rgb_placeholder:
                                     base_2d = rgb_frame
                                     _3d_rgb_only_no_thermal = True
@@ -2087,6 +2208,13 @@ class ThermalInspectionApp:
 
                                 if depth_map is not None:
                                     bh, bw = base_2d.shape[:2]
+                                    # Expected to already match - the fetch
+                                    # above requested resize_to=(bw, bh) by
+                                    # mirroring this same branching ahead of
+                                    # time. Left as a defensive check rather
+                                    # than removed outright, in case a
+                                    # future backend's get_depth_frame ever
+                                    # doesn't honor resize_to exactly.
                                     if depth_map.shape[:2] != (bh, bw):
                                         depth_map = cv2.resize(depth_map, (bw, bh), interpolation=cv2.INTER_NEAREST)
                                     # apply_3d_visualization runs full-resolution
@@ -2128,6 +2256,26 @@ class ThermalInspectionApp:
                     )
                 else:
                     display_frame = colorized_thermal
+
+            # Alignment overlay - a visual aid for manually tuning
+            # shift/zoom (Parallax panel's "Show Alignment Overlay"), not
+            # tied to any particular view mode. Overrides display_frame
+            # AFTER the normal view-mode dispatch above rather than being
+            # its own view mode, so a user can flip it on/off without
+            # losing whatever view mode they were already on. Built from
+            # colorized_thermal/rgb_frame as they stand at this point in
+            # the loop - i.e. already parallax-corrected upstream (see
+            # "1b. Parallax correction" above) when that correction is
+            # active, so the overlay reflects the SAME alignment the rest
+            # of the display would show, not a separate computation of it.
+            if (self._show_parallax_alignment_overlay and self.fusion_processor
+                    and rgb_frame is not None and rgb_frame is not self.rgb_placeholder):
+                try:
+                    display_frame = self.fusion_processor.render_alignment_overlay(
+                        colorized_thermal, rgb_frame
+                    )
+                except Exception as _overlay_err:
+                    logger.debug(f"Alignment overlay render failed: {_overlay_err}")
 
             _prof_t_fusion = time.time()
 
@@ -2229,7 +2377,13 @@ class ThermalInspectionApp:
                         unit = "°C"
                         cam = self.thermal_camera
                         if cam and hasattr(cam, 'get_spot_temperature'):
-                            temp = cam.get_spot_temperature(point.x, point.y)
+                            temp_c = cam.get_spot_temperature(point.x, point.y)
+                            # get_spot_temperature always returns Celsius - convert
+                            # to whatever unit the user picked. Previously only the
+                            # 'unit' label below was updated on selection change,
+                            # leaving the displayed number stuck in Celsius while
+                            # its suffix claimed otherwise - confirmed live.
+                            temp = self.radiometric_controller.convert_temperature(temp_c) if temp_c is not None else None
 
                         # Fallback: true radiometric conversion isn't available. If the
                         # user has opted into 8-bit estimation, use the FPA-referenced
@@ -2493,8 +2647,17 @@ class ThermalInspectionApp:
             self.fusion_processor.set_edge_blur(kernel_size)
 
     def set_fusion_color_mode(self, mode: str):
-        """Set fusion color mode ('color' or 'grayscale')."""
-        self._fusion_color_mode = mode
+        """Set fusion color mode ('color' or 'grayscale').
+
+        FusionProcessor.fusion_color_mode is the sole source of truth (see
+        FusionProcessor._apply_fusion_color_mode) - app.py used to keep its
+        own separate _fusion_color_mode copy and apply the conversion
+        itself at each of 3 call sites, which is what let those sites drift
+        out of sync with where alignment actually happens; delegate instead
+        of duplicating the state.
+        """
+        if self.fusion_processor:
+            self.fusion_processor.set_fusion_color_mode(mode)
         logger.info(f"Fusion color mode set to: {mode}")
 
     def set_edge_strength(self, strength: float):
@@ -2526,6 +2689,116 @@ class ThermalInspectionApp:
         }
         if self.fusion_processor and color_name in colors:
             self.fusion_processor.set_edge_color(colors[color_name])
+
+    def set_edge_line_size(self, line_size: float):
+        """Set edge_enhanced's line thickness, independent of edge strength/alpha."""
+        if self.fusion_processor:
+            self.fusion_processor.set_edge_line_size(line_size)
+
+    def set_contour_line_size(self, line_size: float):
+        """Set thermal_contours' line thickness, independent of edge_line_size."""
+        if self.fusion_processor:
+            self.fusion_processor.set_contour_line_size(line_size)
+
+    def set_contour_level_count(self, count: int):
+        """Set thermal_contours' number of threshold levels (clamped 3-12)."""
+        if self.fusion_processor:
+            self.fusion_processor.set_contour_level_count(count)
+
+    def set_contour_labels_enabled(self, enabled: bool):
+        """Enable thermal_contours' isotherm value labels."""
+        if self.fusion_processor:
+            self.fusion_processor.set_contour_labels_enabled(enabled)
+
+    def set_contour_fill_enabled(self, enabled: bool):
+        """Enable thermal_contours' translucent per-level fill, highlighting each isotherm's own region."""
+        if self.fusion_processor:
+            self.fusion_processor.set_contour_fill_enabled(enabled)
+
+    def set_sobel_alpha_enabled(self, enabled: bool):
+        """Enable Sobel-magnitude-modulated edge opacity (edge_enhanced)."""
+        if self.fusion_processor:
+            self.fusion_processor.set_sobel_alpha_enabled(enabled)
+
+    def set_adaptive_canny_enabled(self, enabled: bool):
+        """Enable per-frame median-based (throttled) Canny thresholds."""
+        if self.fusion_processor:
+            self.fusion_processor.set_adaptive_canny_enabled(enabled)
+
+    def set_edge_color_mode(self, mode: str):
+        """Set edge coloring mode: 'fixed' or 'palette'."""
+        if self.fusion_processor:
+            self.fusion_processor.set_edge_color_mode(mode)
+
+    def set_edge_direction(self, direction: str):
+        """Set edge detection direction: 'all', 'horizontal', or 'vertical'."""
+        if self.fusion_processor:
+            self.fusion_processor.set_edge_direction(direction)
+
+    def set_detail_balance(self, balance: float):
+        """Set edge_enhanced's optional multi-scale consensus strictness (0.0-1.0, default 0.0/off)."""
+        if self.fusion_processor:
+            self.fusion_processor.set_detail_balance(balance)
+
+    def set_relief_light_direction(self, direction: str):
+        """Set relief_fusion's apparent light-source corner."""
+        if self.fusion_processor:
+            self.fusion_processor.set_relief_light_direction(direction)
+
+    def set_overlay_hot_percentile(self, percentile: float):
+        """Set thermal_overlay's hot/bright-mask percentile threshold."""
+        if self.fusion_processor:
+            self.fusion_processor.set_overlay_hot_percentile(percentile)
+
+    def set_pip_size(self, size: float):
+        """Set picture_in_picture's inset size."""
+        if self.fusion_processor:
+            self.fusion_processor.set_pip_size(size)
+
+    def set_pip_position(self, position: str):
+        """Set picture_in_picture's inset corner."""
+        if self.fusion_processor:
+            self.fusion_processor.set_pip_position(position)
+
+    def _get_contour_temperature_map(self, colorized_thermal, thermal_16bit):
+        """
+        Real Celsius map for thermal_contours' isotherm labels, or (None,
+        False) if none is available - FusionProcessor never fabricates a
+        temperature on its own, so this decides which real source (if any)
+        to hand it, and skips the work entirely when labels are off or the
+        mode isn't thermal_contours (this is a real per-frame cost, not
+        worth paying unconditionally).
+
+        Prefers true 16-bit radiometric (exact Kelvin/100 - 273.15) when
+        the camera actually is radiometric; falls back to the existing
+        8-bit AGC estimation path (ThermalTemperatureEstimator, already
+        used elsewhere in this app, documented +/-5-10C accuracy) when the
+        camera reports estimation is enabled instead. Neither path is new
+        math invented for this feature - both already exist in this
+        codebase for exactly this purpose.
+        """
+        if (not self.fusion_processor
+                or not self.fusion_processor.contour_labels_enabled
+                or self.fusion_processor.fusion_mode != 'thermal_contours'):
+            return None, False
+
+        is_radiometric = getattr(self.camera_state, 'is_radiometric', False)
+        if is_radiometric and thermal_16bit is not None and thermal_16bit.dtype == np.uint16:
+            temp_map = thermal_16bit.astype(np.float32) / 100.0 - 273.15
+            if temp_map.shape[:2] != colorized_thermal.shape[:2]:
+                temp_map = cv2.resize(
+                    temp_map, (colorized_thermal.shape[1], colorized_thermal.shape[0]),
+                    interpolation=cv2.INTER_NEAREST
+                )
+            return temp_map, False
+
+        estimation_enabled = self.radiometric_controller.state.estimation_enabled
+        if estimation_enabled and self.thermal_estimator is not None and self._last_fpa_temp_c is not None:
+            gray = cv2.cvtColor(colorized_thermal, cv2.COLOR_BGR2GRAY)
+            temp_map = self.thermal_estimator.estimate_temperature_map(gray, self._last_fpa_temp_c)
+            return temp_map, True
+
+        return None, False
 
     def set_detail_strength(self, strength: float):
         """Set detail injection strength."""
@@ -2665,6 +2938,8 @@ class ThermalInspectionApp:
                 clean_name = palette_name.strip().lower().replace(' ', '_').replace('-', '_')
                 palette_type = PaletteType(clean_name)
                 self.palette_manager.set_global_palette(palette_type)
+                if self.fusion_processor:
+                    self.fusion_processor.set_palette_lut(self.palette_manager.get_current_palette_lut())
                 logger.info(f"Global palette set to: {palette_name.strip()}")
             except ValueError:
                 logger.warning(f"Unknown palette: {palette_name!r}")
@@ -2995,24 +3270,33 @@ class ThermalInspectionApp:
 
     def set_device(self, device_name: str):
         """
-        Set the compute device ('cpu' or 'cuda') for GPU-capable processing:
-        thermal_processor's VPI backend (Jetson, or Linux with VPI
-        installed - VPI has no Windows build at all), parallax_compensator's
-        depth-estimation model (CUDA via PyTorch, works on any platform
-        with a CUDA-enabled torch install), and fusion_processor's
-        laplacian_pyramid mode (also CUDA via PyTorch - see
-        FusionProcessor._laplacian_pyramid_gpu; every other fusion mode
-        still has no GPU-accelerated code path, see has_cuda's comment in
-        FusionProcessor.__init__).
+        Set the compute device ('cpu', 'cuda', or 'directml') for
+        GPU-capable processing: thermal_processor's VPI backend (Jetson,
+        or Linux with VPI installed - VPI has no Windows build at all,
+        and no DirectML backend either - CUDA or CPU only regardless of
+        what's requested here, see ThermalProcessor.set_device's own
+        validation), parallax_compensator's depth-estimation model (CUDA
+        via PyTorch; DirectML falls back to CPU specifically for the
+        HF-pipeline-based methods - MiDaS/DepthAnything - since HF's
+        pipeline(device=...) only accepts a CUDA index or -1/CPU, not a
+        DirectML device object - see DepthEstimator's own comment), and
+        fusion_processor's laplacian_pyramid mode plus feature_weighted
+        (both CUDA or DirectML via torch - see
+        FusionProcessor._laplacian_pyramid_gpu/_feature_weighted_gpu and
+        utils/gpu_device.py; every other fusion mode still has no
+        GPU-accelerated code path, see has_cuda's comment in
+        FusionProcessor.__init__). DirectML (Intel/AMD, via the
+        torch-directml package) is unverified on real hardware in this
+        project as of 2026-09 - see utils/gpu_device.py's own docstring.
 
-        Settings panel combo emits "CPU"/"CUDA" (uppercase); normalize
-        once here rather than relying on every downstream consumer to
-        handle case, since thermal_processor.set_device()'s own validation
-        is case-sensitive.
+        Settings panel combo emits "CPU"/"CUDA"/"DirectML" (mixed case);
+        normalize once here rather than relying on every downstream
+        consumer to handle case, since thermal_processor.set_device()'s
+        own validation is case-sensitive.
         """
         device = device_name.strip().lower()
-        if device not in ('cpu', 'cuda'):
-            logger.warning(f"Invalid device '{device_name}' (expected 'cpu' or 'cuda')")
+        if device not in ('cpu', 'cuda', 'directml'):
+            logger.warning(f"Invalid device '{device_name}' (expected 'cpu', 'cuda', or 'directml')")
             return
 
         logger.info(f"Compute device set to: {device}")
@@ -3066,6 +3350,8 @@ class ThermalInspectionApp:
         """Set the camera-pair baseline distance in millimetres."""
         if self.parallax_compensator:
             self.parallax_compensator.set_baseline(baseline_mm)
+            from thermal_inspection.utils.config import get_config
+            get_config().set('parallax_baseline_mm', baseline_mm, save=True)
         else:
             logger.warning("ParallaxCompensator not available")
 
@@ -3073,6 +3359,7 @@ class ThermalInspectionApp:
         """Set a constant manual alignment shift (pixels) for a fixed mounting offset."""
         if self.parallax_compensator:
             self.parallax_compensator.set_manual_shift(dx, dy)
+            self._save_parallax_alignment_to_config()
         else:
             logger.warning("ParallaxCompensator not available")
 
@@ -3099,6 +3386,8 @@ class ThermalInspectionApp:
         """Set the manual crop-in zoom factor (1.0 = none) directly, independent of auto-alignment."""
         if self.parallax_compensator:
             self.parallax_compensator.set_fov_zoom_factor(zoom_factor)
+            from thermal_inspection.utils.config import get_config
+            get_config().set('parallax_fov_zoom_factor', zoom_factor, save=True)
         else:
             logger.warning("ParallaxCompensator not available")
 
@@ -3161,23 +3450,169 @@ class ThermalInspectionApp:
         else:
             logger.warning("ParallaxCompensator not available for displacement overlay toggle")
 
-    def _bus_parallax_auto_alignment_requested(self, working_distance_m: float, refine_with_depth: bool):
+    def _bus_parallax_show_alignment_overlay_toggled(self, show: bool):
+        """Handle event bus signal to toggle the thermal/RGB edge-overlay
+        alignment visualization - see its use in _process_frame_loop."""
+        self._show_parallax_alignment_overlay = bool(show)
+        logger.info(f"Parallax alignment overlay display set to: {show}")
+
+    def _bus_parallax_auto_alignment_requested(self, working_distance_m: float,
+                                               refine_with_depth: bool, refine_from_image: bool):
         """
         Handle a one-time auto-alignment request from the Parallax panel:
-        compute a static shift + FOV crop-zoom from camera geometry (and
-        optionally one depth-estimation call), then report the result back
-        so the panel can display it. Runs once on request, not per frame -
-        the computed values become a plain manual shift afterward, costing
-        nothing further until recalculated.
+        compute a static shift + FOV crop-zoom - from direct image
+        registration against the live thermal+RGB frames when
+        refine_from_image is on and both are available (see
+        compute_auto_alignment's own priority order), from camera geometry
+        (optionally refined by one depth-estimation call) otherwise - then
+        report the result back so the panel can display it. Runs once on
+        request, not per frame - the computed values become a plain manual
+        shift afterward, costing nothing further until recalculated.
         """
         if not self.parallax_compensator:
             logger.warning("ParallaxCompensator not available for auto-alignment")
             return
-        rgb_frame = getattr(self, '_last_rgb_frame', None) if refine_with_depth else None
-        dx, zoom = self.parallax_compensator.compute_auto_alignment(working_distance_m, rgb_frame)
+        rgb_frame = getattr(self, '_last_rgb_frame', None) if (refine_with_depth or refine_from_image) else None
+        thermal_frame = getattr(self, '_last_thermal_frame', None) if refine_from_image else None
+
+        thermal_frame_samples = None
+        rgb_frame_samples = None
+        if refine_from_image and self.threaded_capture:
+            thermal_frame_samples, rgb_frame_samples = self._collect_alignment_samples()
+
+        dx, zoom = self.parallax_compensator.compute_auto_alignment(
+            working_distance_m, rgb_frame, thermal_frame,
+            thermal_frame_samples=thermal_frame_samples,
+            rgb_frame_samples=rgb_frame_samples,
+        )
         dy = self.parallax_compensator.manual_shift_y
+        self._save_parallax_alignment_to_config()
         if self.event_bus:
             self.event_bus.parallax_auto_alignment_result.emit(dx, dy, zoom)
+
+    def _collect_alignment_samples(self, n: int = 5, interval_s: float = 0.15):
+        """
+        Grab N independently-captured thermal/RGB frame pairs a short
+        real interval apart, for ParallaxCompensator.compute_auto_alignment's
+        multi-sample consensus path.
+
+        A single real frame's phaseCorrelate confidence was found (via
+        direct testing against real hardware) NOT to reliably separate a
+        correct registration from an incorrect one - several independent
+        samples combined via cross-sample agreement are needed instead
+        (see _estimate_shift_and_scale_from_samples's own docstring).
+
+        Reads threaded_capture.get_frames() directly rather than waiting
+        on _last_thermal_frame/_last_rgb_frame to update - those only
+        refresh when _process_frame_loop's own QTimer tick runs, which
+        this (GUI-thread, button-click-triggered) method blocking on
+        time.sleep() would otherwise prevent from ever firing.
+        threaded_capture's background read thread is a genuinely
+        separate OS thread, so it keeps producing fresh frames
+        regardless of what the GUI thread is doing.
+
+        A brief (~n * interval_s, under a second by default) blocking
+        pause on the GUI thread is an accepted tradeoff for a one-time,
+        user-clicked action - not a per-frame cost.
+        """
+        import time
+        thermal_samples = []
+        rgb_samples = []
+        for _ in range(n):
+            _, thermal_raw, rgb_f = self.threaded_capture.get_frames()
+            if (thermal_raw is not None and rgb_f is not None
+                    and rgb_f is not self.rgb_placeholder):
+                thermal_samples.append(thermal_raw)
+                rgb_samples.append(rgb_f)
+            time.sleep(interval_s)
+        return thermal_samples, rgb_samples
+
+    def _bus_parallax_auto_crop_requested(self):
+        """
+        Handle a one-time Auto-Crop request: compute and fix the border-
+        blank extent from whatever shift/zoom is currently in effect (see
+        ParallaxCompensator.compute_auto_crop's own docstring for why this
+        is a genuine simplification of _remap_thermal's existing per-frame
+        cost, not an addition to it), then report the result back so the
+        panel can display it.
+        """
+        if not self.parallax_compensator:
+            logger.warning("ParallaxCompensator not available for Auto-Crop")
+            return
+        rect = self.parallax_compensator.compute_auto_crop()
+        self._save_parallax_alignment_to_config()
+        if self.event_bus:
+            self.event_bus.parallax_auto_crop_result.emit(rect)
+
+    def _bus_parallax_crop_reset_requested(self):
+        """Discard a fixed crop, reverting to the live per-frame computation."""
+        if not self.parallax_compensator:
+            logger.warning("ParallaxCompensator not available for crop reset")
+            return
+        self.parallax_compensator.clear_crop_rect()
+        self._save_parallax_alignment_to_config()
+        if self.event_bus:
+            self.event_bus.parallax_auto_crop_result.emit(None)
+
+    def _save_parallax_alignment_to_config(self):
+        """
+        Persist the current shift/zoom/crop so a one-time Auto-Align/
+        Auto-Crop result survives an app restart instead of resetting to
+        ParallaxCompensator's own code defaults every time - see
+        thermal_inspection/utils/config.py's parallax_* keys.
+        """
+        if not self.parallax_compensator:
+            return
+        from thermal_inspection.utils.config import get_config
+        cfg = get_config()
+        cfg.set('parallax_shift_x', self.parallax_compensator.manual_shift_x, save=False)
+        cfg.set('parallax_shift_y', self.parallax_compensator.manual_shift_y, save=False)
+        cfg.set('parallax_fov_zoom_factor', self.parallax_compensator.fov_zoom_factor, save=False)
+        cfg.set('parallax_crop_rect', self.parallax_compensator.get_crop_rect(), save=True)
+
+    def _load_parallax_alignment_from_config(self):
+        """
+        Restore a previously-saved shift/zoom/crop (and baseline) at
+        startup, via the SAME public setters a user's own manual edit
+        would go through - mirrors the existing palette-LUT/temperature-
+        unit startup-sync precedent elsewhere in this method.
+
+        Deliberately does NOT touch ParallaxCompensator's own constructor
+        or default values - every key here is None until something has
+        actually been saved (see config.py's DEFAULT_CONFIG), so an app
+        with no history behaves exactly as it always has, and every
+        existing test that constructs a bare ParallaxCompensator() is
+        unaffected.
+        """
+        from thermal_inspection.utils.config import get_config
+        cfg = get_config()
+
+        baseline_mm = cfg.get('parallax_baseline_mm')
+        if baseline_mm is not None:
+            self.parallax_compensator.set_baseline(baseline_mm)
+
+        shift_x = cfg.get('parallax_shift_x')
+        shift_y = cfg.get('parallax_shift_y')
+        if shift_x is not None and shift_y is not None:
+            self.parallax_compensator.set_manual_shift(shift_x, shift_y)
+
+        zoom = cfg.get('parallax_fov_zoom_factor')
+        if zoom is not None:
+            self.parallax_compensator.set_fov_zoom_factor(zoom)
+
+        # crop_rect is restored AFTER shift/zoom above, since both of
+        # those calls invalidate crop_rect (it would be stale for a
+        # different shift/zoom otherwise) - see set_manual_shift's own
+        # comment on why. JSON round-trips the tuple as a list.
+        crop_rect = cfg.get('parallax_crop_rect')
+        if crop_rect is not None:
+            self.parallax_compensator.set_crop_rect(*crop_rect)
+
+        if any(v is not None for v in (baseline_mm, shift_x, zoom, crop_rect)):
+            logger.info(
+                f"Parallax alignment restored from config: baseline={baseline_mm}mm "
+                f"shift=({shift_x}, {shift_y}) zoom={zoom} crop={crop_rect}"
+            )
 
     # =========================================================================
     # Baseline & Misc Methods

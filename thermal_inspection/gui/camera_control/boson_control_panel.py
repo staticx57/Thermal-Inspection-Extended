@@ -129,7 +129,7 @@ class BosonControlPanel(QWidget):
         simple_tab_layout.setContentsMargins(0, 0, 0, 0)
         simple_tab_layout.addWidget(simple_scroll)
 
-        self.boson_tabs.addTab(simple_tab, "Simple Controls")
+        self.boson_tabs.addTab(simple_tab, "Controls")
 
     def _create_advanced_controls_tab(self):
         """Create advanced controls tab."""
@@ -153,7 +153,7 @@ class BosonControlPanel(QWidget):
         advanced_tab_layout.setContentsMargins(0, 0, 0, 0)
         advanced_tab_layout.addWidget(advanced_scroll)
 
-        self.boson_tabs.addTab(advanced_tab, "Advanced Controls")
+        self.boson_tabs.addTab(advanced_tab, "Image Enhancement")
 
     def _create_environment_tab(self):
         """Create environmental compensation tab."""
@@ -168,7 +168,7 @@ class BosonControlPanel(QWidget):
         env_layout.setSpacing(8)
         env_layout.setContentsMargins(6, 6, 6, 6)
 
-        env_group = QGroupBox("ENVIRONMENTAL COMPENSATION")
+        env_group = QGroupBox("Environmental Compensation")
         env_group_layout = QGridLayout(env_group)
         env_group_layout.setSpacing(6)
 
@@ -213,11 +213,11 @@ class BosonControlPanel(QWidget):
         self.atm_trans_value.setFixedWidth(38)
         env_group_layout.addWidget(self.atm_trans_value, 3, 2)
 
-        # Apply button
+        # Apply button - set_button_state (not setStyleSheet) to avoid
+        # discarding the active theme's border-radius/padding/border, same
+        # reasoning as connect_button above.
         self.env_apply_button = QPushButton("Apply to Camera")
-        self.env_apply_button.setStyleSheet(
-            "background: #2b7; color: white; font-weight: bold; padding: 4px 8px;"
-        )
+        set_button_state(self.env_apply_button, "accent", "primary")
         env_group_layout.addWidget(self.env_apply_button, 4, 0, 1, 3)
 
         env_layout.addWidget(env_group)
@@ -244,7 +244,7 @@ class BosonControlPanel(QWidget):
         radiometric_layout.setContentsMargins(6, 6, 6, 6)
 
         # Unified control notice
-        unified_notice = QGroupBox("UNIFIED RADIOMETRIC CONTROL")
+        unified_notice = QGroupBox("Unified Radiometric Control")
         unified_layout = QVBoxLayout(unified_notice)
         notice_text = QLabel(
             "<b>Radiometric settings are controlled from:</b><br>"
@@ -257,7 +257,7 @@ class BosonControlPanel(QWidget):
         radiometric_layout.addWidget(unified_notice)
 
         # Camera Mode Status
-        status_group = QGroupBox("CURRENT CAMERA OUTPUT MODE (Read-Only)")
+        status_group = QGroupBox("Current Camera Output Mode (Read-Only)")
         status_layout = QVBoxLayout(status_group)
 
         self.radiometric_mode_status = QLabel("Current Mode: UVC Post-Colorized (8-bit)")
@@ -299,7 +299,7 @@ class BosonControlPanel(QWidget):
         diagnostics_layout.setContentsMargins(6, 6, 6, 6)
 
         # System Status
-        system_group = QGroupBox("SYSTEM STATUS")
+        system_group = QGroupBox("System Status")
         system_layout = QVBoxLayout(system_group)
 
         frame_layout = QHBoxLayout()
@@ -329,7 +329,7 @@ class BosonControlPanel(QWidget):
         diagnostics_layout.addWidget(system_group)
 
         # FFC Status
-        ffc_status_group = QGroupBox("FFC STATUS")
+        ffc_status_group = QGroupBox("FFC Status")
         ffc_status_layout = QVBoxLayout(ffc_status_group)
 
         last_ffc_frame_layout = QHBoxLayout()
@@ -380,8 +380,7 @@ class BosonControlPanel(QWidget):
 
     def _create_connection_status(self, layout):
         """Create SDK connection status display and controls."""
-        status_group = QGroupBox("SDK CONNECTION")
-        status_group.setMaximumWidth(400)
+        status_group = QGroupBox("Serial Connection")
         status_layout = QVBoxLayout(status_group)
 
         status_label_layout = QHBoxLayout()
@@ -442,8 +441,7 @@ class BosonControlPanel(QWidget):
 
     def _create_camera_info(self, layout):
         """Create camera info display."""
-        info_group = QGroupBox("CAMERA INFORMATION")
-        info_group.setMaximumWidth(400)
+        info_group = QGroupBox("Camera Information")
         info_layout = QVBoxLayout(info_group)
 
         self.info_labels = {}
@@ -476,7 +474,7 @@ class BosonControlPanel(QWidget):
 
     def _create_ffc_controls(self, layout):
         """Create FFC control buttons."""
-        ffc_group = QGroupBox("FLAT FIELD CORRECTION (FFC)")
+        ffc_group = QGroupBox("Flat Field Correction (FFC)")
         ffc_layout = QVBoxLayout(ffc_group)
 
         self.ffc_button = QPushButton("Trigger FFC")
@@ -507,7 +505,7 @@ class BosonControlPanel(QWidget):
 
     def _create_shutter_controls(self, layout):
         """Create shutter position control buttons."""
-        shutter_group = QGroupBox("SHUTTER CONTROL")
+        shutter_group = QGroupBox("Shutter Control")
         shutter_layout = QVBoxLayout(shutter_group)
 
         button_layout = QHBoxLayout()
@@ -547,7 +545,7 @@ class BosonControlPanel(QWidget):
 
     def _create_gain_controls(self, layout):
         """Create gain mode controls."""
-        gain_group = QGroupBox("GAIN MODE")
+        gain_group = QGroupBox("Gain Mode")
         gain_layout = QVBoxLayout(gain_group)
 
         combo_layout = QHBoxLayout()
@@ -568,7 +566,7 @@ class BosonControlPanel(QWidget):
 
     def _create_color_lut_controls(self, layout):
         """Create color LUT controls."""
-        lut_group = QGroupBox("COLOR LOOKUP TABLE (LUT)")
+        lut_group = QGroupBox("Color Lookup Table (LUT)")
         lut_layout = QVBoxLayout(lut_group)
 
         combo_layout = QHBoxLayout()
@@ -594,7 +592,7 @@ class BosonControlPanel(QWidget):
 
     def _create_agc_controls(self, layout):
         """Create AGC (Automatic Gain Control) controls."""
-        agc_group = QGroupBox("IMAGE ENHANCEMENT (AGC)")
+        agc_group = QGroupBox("AGC Settings")
         agc_layout = QVBoxLayout(agc_group)
 
         info_label = QLabel("Works on ALL Boson cameras (radiometric and non-radiometric)")
@@ -732,7 +730,7 @@ class BosonControlPanel(QWidget):
 
     def _create_temperature_display(self, layout):
         """Create FPA temperature display."""
-        temp_group = QGroupBox("FPA TEMPERATURE")
+        temp_group = QGroupBox("FPA Temperature")
         temp_layout = QVBoxLayout(temp_group)
 
         self.fpa_temp_label = QLabel("N/A")

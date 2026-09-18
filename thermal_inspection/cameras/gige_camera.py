@@ -41,6 +41,7 @@ class GigECamera:
 
         self._consecutive_failures = 0
         self._MAX_FAILURES = 10
+        self._last_frame = None
 
     def open(self) -> bool:
         """Open camera stream."""
@@ -106,6 +107,7 @@ class GigECamera:
                             gray = frame
                         # Convert 8-bit visual proxy to 16-bit radiometric count range
                         frame = (gray.astype(np.uint16) * 100) + 20000
+                self._last_frame = frame
                 return True, frame
             else:
                 self._consecutive_failures += 1
@@ -120,15 +122,24 @@ class GigECamera:
         else:
             frame = np.zeros((self.height, self.width, 3), dtype=np.uint8)
 
+        self._last_frame = frame
         return True, frame
 
     def read_temperature_map(self) -> Optional[np.ndarray]:
-        """Convert 16-bit counts to Celsius temperature map if thermal."""
+        """
+        Convert 16-bit counts to Celsius temperature map if thermal.
+
+        Uses the already-captured last frame rather than calling read()
+        again - a caller on the main thread doing that would race
+        ThreadedCameraCapture's own background-thread reads on the same
+        cv2.VideoCapture (the same class of bug found live on the Boson
+        flirpy path - see flirpy_thermal_backend.py's get_spot_temperature()).
+        """
         if not self.is_thermal:
             return None
 
-        ret, frame = self.read()
-        if not ret or frame is None:
+        frame = self._last_frame
+        if frame is None:
             return None
 
         # Standard GenICam radiometric conversion (Kelvin * 100 or Kelvin * 10)

@@ -239,6 +239,10 @@ pip install PyQt6
 
 # Install flirpy for 16-bit radiometric mode (optional)
 pip install flirpy
+# flirpy imports pkg_resources, which setuptools 81+ no longer ships -
+# if you hit `ModuleNotFoundError: No module named 'pkg_resources'` on
+# startup, pin setuptools below that:
+pip install "setuptools<81"
 
 # Install PySpin for FLIR Firefly support (optional)
 # Download from: https://www.flir.com/products/spinnaker-sdk/
@@ -248,25 +252,25 @@ pip install flirpy
 
 ```bash
 # Run with default settings (auto-detect cameras)
-python inspection_main.py
+python -m thermal_inspection
 
 # Enable Boson SDK for radiometric mode
-python inspection_main.py --enable-boson-sdk --boson-com-port COM7
+python -m thermal_inspection --enable-boson-sdk --boson-com-port COM7
 
 # Specify thermal camera device ID
-python inspection_main.py --thermal-device 2
+python -m thermal_inspection --thermal-device 2
 
 # Use 16-bit radiometric backend (requires flirpy)
 # Select "Flirpy 16-bit" in Settings > Backend Selector
 
 # Run with specific fusion mode and palette
-python inspection_main.py --fusion-mode detail_inject --palette ironbow
+python -m thermal_inspection --fusion-mode detail_inject --palette ironbow
 
 # Enable automatic ROI detection
-python inspection_main.py --auto-roi
+python -m thermal_inspection --auto-roi
 
 # Disable RGB camera (thermal-only mode)
-python inspection_main.py --disable-rgb
+python -m thermal_inspection --disable-rgb
 ```
 
 ### First Run Tips
@@ -299,7 +303,7 @@ python inspection_main.py --disable-rgb
 ## Command-Line Options
 
 ```
-usage: inspection_main.py [-h] [--thermal-device THERMAL_DEVICE]
+usage: python -m thermal_inspection [-h] [--thermal-device THERMAL_DEVICE]
                           [--width WIDTH] [--height HEIGHT]
                           [--disable-rgb] [--enable-boson-sdk]
                           [--boson-com-port BOSON_COM_PORT]
@@ -587,13 +591,15 @@ Export temperature measurements for external analysis.
 
 **Problem**: Startup log shows `Boson SDK not found` and the camera runs in video-only mode (image works, but FFC/AGC/palette-LUT/radiometric SDK control don't).
 
-**Solution**: The Boson SDK is FLIR's proprietary software and isn't bundled with this repo — download it from FLIR and extract it into `boson_sdk/` at the project root. See [`boson_sdk/README.md`](boson_sdk/README.md) for exactly where to get it and what the extracted folder should look like.
+**Solution**: This only applies to a **non-radiometric** Boson (no `-R` in the part number, 8-bit AGC path). A **radiometric (-R)** Boson doesn't need the vendor SDK at all for control - `thermal_inspection/sdk/boson_flirpy_ext.py` implements FFC, gain mode, palette, T-Linear mode, and environmental compensation natively over the same connection flirpy already uses for video. For a non-radiometric unit, the vendor SDK is FLIR's proprietary software and isn't bundled with this repo — download it from FLIR and extract it into `boson_sdk/` at the project root. See [`boson_sdk/README.md`](boson_sdk/README.md) for exactly where to get it and what the extracted folder should look like.
 
 ### Boson SDK Connection Failed
 
 **Problem**: SDK connection fails with error 255 or "Cannot connect to camera" (the SDK files ARE present, but the camera itself won't connect).
 
-**Solutions**:
+If this is a **radiometric (-R)** Boson: as of v3.7.0 this shouldn't happen anymore - the control panel now shares the same connection flirpy uses for video instead of opening a second, competing one (which is what error 255 meant: the port was already open elsewhere). If you still see it, that's a regression, not a known limitation.
+
+**Solutions** (non-radiometric Boson, or anything else still hitting this):
 1. **Check COM Port**: Open Device Manager > Ports, find "FLIR Control" device. The app auto-detects this port at startup — `--boson-com-port` only needs to be passed to override it.
 2. Verify no other application is using the COM port (close FLIR tools)
 3. Try unplugging/replugging USB cable

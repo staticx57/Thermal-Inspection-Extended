@@ -58,7 +58,7 @@ class InspectionAppWindow(QMainWindow):
         self.event_bus = getattr(app_instance, 'event_bus', None)
 
         # Window setup
-        self.setWindowTitle("Thermal Inspection Fusion Tool v3.6.0")
+        self.setWindowTitle("Thermal Inspection Fusion Tool v3.7.0")
         self.setMinimumSize(1280, 720)
         self.resize(1280, 720)
 
@@ -359,22 +359,50 @@ class InspectionAppWindow(QMainWindow):
             logger.info("[OK] Detection tab added to right panel")
 
             # Tab 3: Cameras
+            #
+            # Camera device panels are grouped into "Thermal"/"RGB"
+            # top-level sub-tabs instead of one flat row of 7 - per direct
+            # user request ("break out into sub-tabs if you find good
+            # reason") after the flat layout overflowed the tab bar.
+            # Grouping uses each plugin's own authoritative camera_role
+            # (not a hand-maintained id list) - GigE Vision's camera_role
+            # is fixed to RGB even though a connected device can itself be
+            # a thermal GigE camera (see camera_plugin_host.py's own
+            # comment on this), so it lands in RGB here too, matching the
+            # plugin architecture's own classification rather than
+            # inventing a third bucket for it. Calibration and Parallax
+            # stay as their OWN separate top-level tabs, not grouped
+            # together - despite both sounding like "alignment", Calibration
+            # here is TEMPERATURE/radiometric calibration (a reference-point
+            # correction curve for absolute temperature accuracy), not
+            # spatial registration; only Parallax does the latter. Grouping
+            # them under one "Alignment" tab was tried and reverted after
+            # actually opening Calibration's panel and finding this out -
+            # don't repeat that mistake without re-checking the panel first.
             logger.info("Creating Cameras tab...")
             self.cameras_tabs = QTabWidget()
             self.camera_panels = {}
+            self.thermal_cameras_tabs = QTabWidget()
+            self.rgb_cameras_tabs = QTabWidget()
 
             # Populate registered camera plugins
-            from thermal_inspection.cameras.plugin import get_registry
+            from thermal_inspection.cameras.plugin import get_registry, CameraRole
             for plugin in get_registry().get_all_plugins():
                 try:
                     panel = plugin.create_control_panel()
                     if panel:
                         self.camera_panels[plugin.plugin_id] = panel
-                        self.cameras_tabs.addTab(panel, plugin.display_name)
+                        container = (self.thermal_cameras_tabs
+                                   if plugin.camera_role == CameraRole.THERMAL
+                                   else self.rgb_cameras_tabs)
+                        container.addTab(panel, plugin.display_name)
                         self._wire_plugin_panel(plugin, panel)
                         logger.info(f"  [OK] {plugin.display_name} panel added")
                 except Exception as e:
                     logger.warning(f"Failed to create panel for {plugin.plugin_id}: {e}")
+
+            self.cameras_tabs.addTab(self.thermal_cameras_tabs, "Thermal")
+            self.cameras_tabs.addTab(self.rgb_cameras_tabs, "RGB")
 
             # Keep convenient attributes for backwards compatibility
             self.boson_panel = self.camera_panels.get("flir_boson")
@@ -534,10 +562,24 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("fusion_panel", "edge_strength_changed", self._on_edge_strength_changed, "(fusion)")
         self._safe_connect("fusion_panel", "edge_fuzziness_changed", self._on_edge_fuzziness_changed, "(fusion)")
         self._safe_connect("fusion_panel", "edge_color_changed", self._on_edge_color_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "edge_line_size_changed", self._on_edge_line_size_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "contour_line_size_changed", self._on_contour_line_size_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "contour_level_count_changed", self._on_contour_level_count_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "contour_labels_changed", self._on_contour_labels_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "contour_fill_changed", self._on_contour_fill_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "adaptive_canny_changed", self._on_adaptive_canny_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "edge_direction_changed", self._on_edge_direction_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "sobel_alpha_changed", self._on_sobel_alpha_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "edge_color_mode_changed", self._on_edge_color_mode_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "detail_balance_changed", self._on_detail_balance_changed, "(fusion)")
         self._safe_connect("fusion_panel", "detail_strength_changed", self._on_detail_strength_changed, "(fusion)")
         self._safe_connect("fusion_panel", "detail_quality_changed", self._on_detail_quality_changed, "(fusion)")
         self._safe_connect("fusion_panel", "laplacian_gpu_changed", self._on_laplacian_gpu_changed, "(fusion)")
         self._safe_connect("fusion_panel", "laplacian_cpu_scale_changed", self._on_laplacian_cpu_scale_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "relief_light_direction_changed", self._on_relief_light_direction_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "overlay_hot_percentile_changed", self._on_overlay_hot_percentile_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "pip_size_changed", self._on_pip_size_changed, "(fusion)")
+        self._safe_connect("fusion_panel", "pip_position_changed", self._on_pip_position_changed, "(fusion)")
         self._safe_connect("fusion_3d_panel", "strength_changed", self._on_3d_relief_strength_changed, "(3d fusion)")
         self._safe_connect("fusion_3d_panel", "mode_changed", self._on_3d_mode_changed, "(3d fusion)")
         self._safe_connect("fusion_3d_panel", "data_source_changed", self._on_3d_data_source_changed, "(3d fusion)")
@@ -648,6 +690,9 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("parallax_panel", "zoom_changed", self._on_parallax_zoom_changed, "(parallax zoom)")
         self._safe_connect("parallax_panel", "correction_target_changed", self._on_parallax_correction_target_changed, "(parallax target)")
         self._safe_connect("parallax_panel", "rgb_target_max_width_changed", self._on_parallax_rgb_target_max_width_changed, "(parallax rgb cap)")
+        self._safe_connect("parallax_panel", "auto_crop_requested", self._on_parallax_auto_crop_requested, "(parallax auto-crop)")
+        self._safe_connect("parallax_panel", "crop_reset_requested", self._on_parallax_crop_reset_requested, "(parallax crop reset)")
+        self._safe_connect("parallax_panel", "show_alignment_overlay_toggled", self._on_parallax_show_alignment_overlay_toggled, "(parallax overlay)")
 
         # === GRADIENT OVERLAY PANEL ===
         self._safe_connect("gradient_panel", "gradient_enabled", self._on_gradient_enabled, "(gradient)")
@@ -745,6 +790,7 @@ class InspectionAppWindow(QMainWindow):
         bus.calibration_import_result.connect(self._on_bus_calibration_import_result)
         bus.calibration_gui_update_requested.connect(self._on_bus_calibration_gui_update)
         bus.parallax_auto_alignment_result.connect(self._on_bus_parallax_auto_alignment_result)
+        bus.parallax_auto_crop_result.connect(self._on_bus_parallax_auto_crop_result)
 
         # --- Manual Threshold Anomaly Detection ---
         bus.threshold_stats_updated.connect(self._on_bus_threshold_stats_updated)
@@ -862,6 +908,11 @@ class InspectionAppWindow(QMainWindow):
                     (lambda p: lambda val: self._emit_camera_command(role, 'set_agc', {p: val}))(param)
                 )
 
+        if hasattr(panel, 'agc_type_changed'):
+            panel.agc_type_changed.connect(
+                lambda t: self._emit_camera_command(role, 'set_agc_type', {'agc_type': str(t)})
+            )
+
         if hasattr(panel, 'exposure_mode_changed'):
             panel.exposure_mode_changed.connect(
                 lambda mode: self._emit_camera_command(role, 'set_exposure_mode', {'mode': str(mode)})
@@ -920,6 +971,37 @@ class InspectionAppWindow(QMainWindow):
                 lambda: self._emit_camera_command(role, 'ffc', {})
             )
 
+    def _container_for_plugin_id(self, plugin_id):
+        """Which QTabWidget a camera plugin's control panel lives in, now
+        that thermal_cameras_tabs/rgb_cameras_tabs nest one level under
+        cameras_tabs - grouped by the plugin's own authoritative
+        camera_role, not a hand-maintained id list (see the Cameras-tab
+        construction comment in _init_ui for why GigE Vision lands in RGB
+        here). Falls back to cameras_tabs directly for an unrecognized or
+        no-longer-registered plugin id, matching this method's only
+        caller's own pre-nesting fallback behavior.
+        """
+        from thermal_inspection.cameras.plugin import get_registry, CameraRole
+        plugin = get_registry().get_plugin(plugin_id) if plugin_id else None
+        if plugin is None:
+            return self.cameras_tabs
+        return (self.thermal_cameras_tabs if plugin.camera_role == CameraRole.THERMAL
+                else self.rgb_cameras_tabs)
+
+    def _select_camera_panel_tab(self, panel):
+        """Select panel's own tab, switching to its Thermal/RGB group tab
+        first if it lives in one of the nested sub-tab-widgets - plain
+        cameras_tabs.setCurrentWidget(panel) alone only reaches a direct
+        child (a panel that doesn't belong to a fixed camera_role bucket,
+        if any is ever added directly to cameras_tabs again)."""
+        for container in (self.thermal_cameras_tabs, self.rgb_cameras_tabs):
+            for i in range(container.count()):
+                if container.widget(i) == panel:
+                    self.cameras_tabs.setCurrentWidget(container)
+                    container.setCurrentWidget(panel)
+                    return
+        self.cameras_tabs.setCurrentWidget(panel)
+
     # --- Generic Camera feedback handlers ---
 
     def _on_bus_camera_command_result(self, role: str, command: str, result: dict):
@@ -952,6 +1034,8 @@ class InspectionAppWindow(QMainWindow):
                     panel.update_ports(result['ports'])
                 elif hasattr(panel, 'update_ports_list'):
                     panel.update_ports_list(result['ports'])
+            elif command == 'get_housing_temp' and success and hasattr(panel, 'update_housing_temp'):
+                panel.update_housing_temp(result.get('celsius', 0.0))
             elif command in ('get_fpa_temp', 'get_housing_temp', 'get_camera_info') and hasattr(panel, 'update_camera_info'):
                 panel.update_camera_info(result)
 
@@ -1030,7 +1114,7 @@ class InspectionAppWindow(QMainWindow):
                     target_panel = p; break
 
         if target_panel and hasattr(self, 'cameras_tabs'):
-            self.cameras_tabs.setCurrentWidget(target_panel)
+            self._select_camera_panel_tab(target_panel)
 
         cam_name = capabilities.get('model') or f"{role.capitalize()} Camera"
         msg = f"📷 {cam_name} connected and active"
@@ -1068,10 +1152,11 @@ class InspectionAppWindow(QMainWindow):
         if not hasattr(self, 'cameras_tabs') or not panel:
             return
 
-        for i in range(self.cameras_tabs.count()):
-            if self.cameras_tabs.widget(i) == panel:
-                self.cameras_tabs.setCurrentWidget(panel)
-                return
+        for container in (self.thermal_cameras_tabs, self.rgb_cameras_tabs, self.cameras_tabs):
+            for i in range(container.count()):
+                if container.widget(i) == panel:
+                    self._select_camera_panel_tab(panel)
+                    return
 
         active = None
         if self.app and hasattr(self.app, 'plugin_host'):
@@ -1079,12 +1164,17 @@ class InspectionAppWindow(QMainWindow):
         plugin_id = active.plugin.plugin_id if active else None
 
         old_panel = getattr(self, 'camera_panels', {}).get(plugin_id) if plugin_id else None
+        # Thermal/RGB grouping means the old and new panel for the SAME
+        # plugin_id always belong in the SAME container (a plugin's
+        # camera_role never changes at runtime) - one lookup covers both
+        # the removeTab/insertTab swap below and the addTab fallback.
+        container = self._container_for_plugin_id(plugin_id)
         replaced = False
         if old_panel is not None:
-            for i in range(self.cameras_tabs.count()):
-                if self.cameras_tabs.widget(i) == old_panel:
-                    title = self.cameras_tabs.tabText(i)
-                    self.cameras_tabs.removeTab(i)
+            for i in range(container.count()):
+                if container.widget(i) == old_panel:
+                    title = container.tabText(i)
+                    container.removeTab(i)
                     # QTabWidget.removeTab() does NOT destroy the removed
                     # widget - it's left as a live, still-parented,
                     # still-wired-to-_wire_plugin_panel's connections
@@ -1092,12 +1182,12 @@ class InspectionAppWindow(QMainWindow):
                     # would otherwise add another one, none ever freed for
                     # the life of the process.
                     old_panel.deleteLater()
-                    self.cameras_tabs.insertTab(i, panel, title)
+                    container.insertTab(i, panel, title)
                     replaced = True
                     break
 
         if not replaced:
-            self.cameras_tabs.addTab(panel, f"{role.capitalize()}")
+            container.addTab(panel, f"{role.capitalize()}")
 
         if plugin_id:
             self.camera_panels[plugin_id] = panel
@@ -1113,7 +1203,7 @@ class InspectionAppWindow(QMainWindow):
             if convenience_attr:
                 setattr(self, convenience_attr, panel)
 
-        self.cameras_tabs.setCurrentWidget(panel)
+        self._select_camera_panel_tab(panel)
 
     def _on_bus_ports_scan_result(self, ports: list):
         """Update port list from scan result."""
@@ -1499,9 +1589,12 @@ class InspectionAppWindow(QMainWindow):
             self.app.set_fusion_alpha(val)
 
     def _on_fusion_priority_changed(self, val: str):
+        # "Balanced" was removed from the combo (2026-09-06) - it was never
+        # a real third option, FusionProcessor.set_priority() only ever
+        # accepted 'thermal'/'rgb' and this method silently mapped
+        # 'balanced' to 'thermal', so selecting it was indistinguishable
+        # from selecting "Thermal" in every single fusion mode.
         priority = val.lower()
-        if priority == 'balanced':
-            priority = 'thermal'
 
         if self.event_bus:
             self.event_bus.fusion_priority_changed.emit(priority)
@@ -1549,6 +1642,90 @@ class InspectionAppWindow(QMainWindow):
             self.event_bus.edge_color_changed.emit(val)
         elif self.app and hasattr(self.app, 'set_edge_color'):
             self.app.set_edge_color(val)
+
+    def _on_edge_line_size_changed(self, val: float):
+        if self.event_bus:
+            self.event_bus.edge_line_size_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_edge_line_size'):
+            self.app.set_edge_line_size(val)
+
+    def _on_contour_line_size_changed(self, val: float):
+        if self.event_bus:
+            self.event_bus.contour_line_size_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_contour_line_size'):
+            self.app.set_contour_line_size(val)
+
+    def _on_contour_level_count_changed(self, val: int):
+        if self.event_bus:
+            self.event_bus.contour_level_count_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_contour_level_count'):
+            self.app.set_contour_level_count(val)
+
+    def _on_contour_labels_changed(self, val: bool):
+        if self.event_bus:
+            self.event_bus.contour_labels_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_contour_labels_enabled'):
+            self.app.set_contour_labels_enabled(val)
+
+    def _on_contour_fill_changed(self, val: bool):
+        if self.event_bus:
+            self.event_bus.contour_fill_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_contour_fill_enabled'):
+            self.app.set_contour_fill_enabled(val)
+
+    def _on_adaptive_canny_changed(self, val: bool):
+        if self.event_bus:
+            self.event_bus.adaptive_canny_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_adaptive_canny_enabled'):
+            self.app.set_adaptive_canny_enabled(val)
+
+    def _on_edge_direction_changed(self, val: str):
+        if self.event_bus:
+            self.event_bus.edge_direction_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_edge_direction'):
+            self.app.set_edge_direction(val)
+
+    def _on_sobel_alpha_changed(self, val: bool):
+        if self.event_bus:
+            self.event_bus.sobel_alpha_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_sobel_alpha_enabled'):
+            self.app.set_sobel_alpha_enabled(val)
+
+    def _on_edge_color_mode_changed(self, val: str):
+        if self.event_bus:
+            self.event_bus.edge_color_mode_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_edge_color_mode'):
+            self.app.set_edge_color_mode(val)
+
+    def _on_detail_balance_changed(self, val: float):
+        if self.event_bus:
+            self.event_bus.detail_balance_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_detail_balance'):
+            self.app.set_detail_balance(val)
+
+    def _on_relief_light_direction_changed(self, val: str):
+        if self.event_bus:
+            self.event_bus.relief_light_direction_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_relief_light_direction'):
+            self.app.set_relief_light_direction(val)
+
+    def _on_overlay_hot_percentile_changed(self, val: float):
+        if self.event_bus:
+            self.event_bus.overlay_hot_percentile_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_overlay_hot_percentile'):
+            self.app.set_overlay_hot_percentile(val)
+
+    def _on_pip_size_changed(self, val: float):
+        if self.event_bus:
+            self.event_bus.pip_size_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_pip_size'):
+            self.app.set_pip_size(val)
+
+    def _on_pip_position_changed(self, val: str):
+        if self.event_bus:
+            self.event_bus.pip_position_changed.emit(val)
+        elif self.app and hasattr(self.app, 'set_pip_position'):
+            self.app.set_pip_position(val)
 
     def _on_detail_strength_changed(self, val: float):
         if self.event_bus:
@@ -2437,15 +2614,40 @@ class InspectionAppWindow(QMainWindow):
         elif self.app and hasattr(self.app, 'set_parallax_shift'):
             self.app.set_parallax_shift(dx, dy)
 
-    def _on_parallax_auto_alignment_requested(self, working_distance_m: float, refine_with_depth: bool):
-        """Request a one-time auto-alignment calculation from camera geometry."""
+    def _on_parallax_auto_alignment_requested(self, working_distance_m: float,
+                                              refine_with_depth: bool, refine_from_image: bool):
+        """Request a one-time auto-alignment calculation (image-based if
+        requested and possible, camera geometry otherwise)."""
         if self.event_bus:
-            self.event_bus.parallax_auto_alignment_requested.emit(working_distance_m, refine_with_depth)
+            self.event_bus.parallax_auto_alignment_requested.emit(
+                working_distance_m, refine_with_depth, refine_from_image
+            )
 
     def _on_bus_parallax_auto_alignment_result(self, dx: int, dy: int, fov_zoom_factor: float):
         """Reflect a completed auto-alignment calculation in the panel."""
         if hasattr(self, 'parallax_panel'):
             self.parallax_panel.set_auto_alignment_result(dx, dy, fov_zoom_factor)
+
+    def _on_parallax_auto_crop_requested(self):
+        """Request a one-time Auto-Crop calculation from whatever
+        shift/zoom is currently in effect."""
+        if self.event_bus:
+            self.event_bus.parallax_auto_crop_requested.emit()
+
+    def _on_parallax_crop_reset_requested(self):
+        """Discard a fixed crop, reverting to _remap_thermal's live per-frame computation."""
+        if self.event_bus:
+            self.event_bus.parallax_crop_reset_requested.emit()
+
+    def _on_bus_parallax_auto_crop_result(self, rect: object):
+        """Reflect a completed Auto-Crop (or Reset Crop) action in the panel."""
+        if hasattr(self, 'parallax_panel'):
+            self.parallax_panel.set_auto_crop_result(rect)
+
+    def _on_parallax_show_alignment_overlay_toggled(self, show: bool):
+        """Toggle the thermal/RGB edge-overlay alignment visualization."""
+        if self.event_bus:
+            self.event_bus.parallax_show_alignment_overlay_toggled.emit(show)
 
     # ========================================================================
     # Gradient Overlay Handlers
@@ -2728,11 +2930,11 @@ class InspectionAppWindow(QMainWindow):
 
             # Auto-focus the active camera tab if connected
             if getattr(state, 'is_flir_boson', False) and getattr(self, 'boson_panel', None):
-                self.cameras_tabs.setCurrentWidget(self.boson_panel)
+                self._select_camera_panel_tab(self.boson_panel)
             elif getattr(state, 'is_lepton', False) and getattr(self, 'lepton_panel', None):
-                self.cameras_tabs.setCurrentWidget(self.lepton_panel)
+                self._select_camera_panel_tab(self.lepton_panel)
             elif getattr(state, 'is_tau2', False) and getattr(self, 'tau2_panel', None):
-                self.cameras_tabs.setCurrentWidget(self.tau2_panel)
+                self._select_camera_panel_tab(self.tau2_panel)
 
 
     def show_camera_lost_notification(self, role: str):

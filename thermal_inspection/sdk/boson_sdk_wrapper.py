@@ -625,9 +625,12 @@ class BosonSDK:
             return None
 
         try:
+            # Unlike bosonlookupFPATempDegKx10 (explicitly Kelvin*10), this
+            # getter returns plain Kelvin - confirmed live, dividing by 10
+            # here produced a ~-243C reading next to a 33C FPA.
             result, temp_k = self.camera.radiometryGetTempLensHousing()
             if result.value == 0:
-                return (temp_k / 10.0) - 273.15
+                return temp_k - 273.15
             return None
         except Exception as e:
             logger.error(f"Failed to get lens temperature: {e}")
@@ -641,7 +644,7 @@ class BosonSDK:
         try:
             result, temp_k = self.camera.radiometryGetTempShutterHousing()
             if result.value == 0:
-                return (temp_k / 10.0) - 273.15
+                return temp_k - 273.15
             return None
         except Exception as e:
             logger.error(f"Failed to get shutter temperature: {e}")
@@ -691,14 +694,18 @@ class BosonSDK:
             if result.value == 0:
                 info['global_offset'] = offset
 
-            # Lens parameters
+            # Lens parameters. radiometrySetFNumberLens0/SetTauLens0 (above,
+            # in set_lens_parameters) take pre-scaled ints (*100 / *8192),
+            # but the getters return already-real-world values - confirmed
+            # live, dividing by the same factors here produced f/0.011 and
+            # a transmission of 0.00012 next to a working lens.
             result, f_num = self.camera.radiometryGetFNumberLens0()
             if result.value == 0:
-                info['f_number'] = f_num / 100.0
+                info['f_number'] = f_num
 
             result, tau = self.camera.radiometryGetTauLens0()
             if result.value == 0:
-                info['transmission'] = tau / 8192.0
+                info['transmission'] = tau
 
             # Temperatures
             info['lens_temp_c'] = self.get_lens_temperature()
@@ -738,7 +745,11 @@ class BosonSDK:
         emissivity = max(0.01, min(1.0, emissivity))
 
         try:
-            result = self.camera.radiometrySetEmissivityTarget(emissivity)
+            # radiometrySetEmissivityTarget takes percent (0-100), not the
+            # 0.0-1.0 fraction this wrapper's callers use - confirmed live,
+            # the fraction is rejected outright with SDK result 515 while
+            # the percent-scaled value succeeds.
+            result = self.camera.radiometrySetEmissivityTarget(emissivity * 100.0)
             if result.value == 0:
                 logger.info(f"✓ Target emissivity set to {emissivity:.2f}")
                 return True
@@ -760,9 +771,11 @@ class BosonSDK:
             return None
 
         try:
+            # radiometryGetEmissivityTarget returns percent (0-100); see
+            # set_emissivity for why this is converted back to a fraction.
             result, emissivity = self.camera.radiometryGetEmissivityTarget()
             if result.value == 0:
-                return emissivity
+                return emissivity / 100.0
             return None
         except Exception as e:
             logger.error(f"Error getting emissivity: {e}")
@@ -843,7 +856,9 @@ class BosonSDK:
         transmission = max(0.7, min(1.0, transmission))
 
         try:
-            result = self.camera.radiometrySetTransmissionWindow(transmission)
+            # Same percent-vs-fraction mismatch as set_emissivity, confirmed
+            # live the same way (fraction -> SDK result 515, percent -> OK).
+            result = self.camera.radiometrySetTransmissionWindow(transmission * 100.0)
             if result.value == 0:
                 logger.info(f"✓ Atmospheric transmission set to {transmission:.2f}")
                 return True
@@ -867,7 +882,7 @@ class BosonSDK:
         try:
             result, transmission = self.camera.radiometryGetTransmissionWindow()
             if result.value == 0:
-                return transmission
+                return transmission / 100.0
             return None
         except Exception as e:
             logger.error(f"Error getting atmospheric transmission: {e}")

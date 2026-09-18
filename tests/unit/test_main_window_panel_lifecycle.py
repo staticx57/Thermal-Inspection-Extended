@@ -25,11 +25,24 @@ from thermal_inspection.gui.main_window import InspectionAppWindow
 
 
 def _fake_main_window(plugin_id="flir_boson"):
-    """A duck-typed stand-in carrying only what _on_bus_panel_ready reads/writes."""
+    """A duck-typed stand-in carrying only what _on_bus_panel_ready reads/writes.
+
+    thermal_cameras_tabs/rgb_cameras_tabs nest one level under cameras_tabs
+    (2026-09-09 Cameras-tab regroup) - _on_bus_panel_ready routes a panel
+    into one of these via _container_for_plugin_id's real (unmocked)
+    lookup against the real plugin registry, so a fake plugin_id here must
+    be one the registry actually knows, and the test must add its panel
+    to the SAME container that lookup will resolve to (flir_boson ->
+    thermal_cameras_tabs).
+    """
     fake = SimpleNamespace()
     fake.cameras_tabs = QTabWidget()
+    fake.thermal_cameras_tabs = QTabWidget()
+    fake.rgb_cameras_tabs = QTabWidget()
     fake.camera_panels = {}
     fake._wire_plugin_panel = MagicMock()
+    fake._container_for_plugin_id = InspectionAppWindow._container_for_plugin_id.__get__(fake)
+    fake._select_camera_panel_tab = InspectionAppWindow._select_camera_panel_tab.__get__(fake)
 
     active_camera = SimpleNamespace(plugin=SimpleNamespace(plugin_id=plugin_id))
     plugin_host = SimpleNamespace(get_active_camera=lambda role: active_camera)
@@ -43,7 +56,7 @@ class TestPanelReadySwap:
     def test_old_panel_scheduled_for_deletion_on_reconnect(self, qapp):
         fake = _fake_main_window()
         old_panel = QWidget()
-        fake.cameras_tabs.addTab(old_panel, "FLIR Boson")
+        fake.thermal_cameras_tabs.addTab(old_panel, "FLIR Boson")
         fake.camera_panels["flir_boson"] = old_panel
 
         new_panel = QWidget()
@@ -57,7 +70,7 @@ class TestPanelReadySwap:
     def test_tab_count_does_not_grow_across_repeated_reconnects(self, qapp):
         fake = _fake_main_window()
         panel = QWidget()
-        fake.cameras_tabs.addTab(panel, "FLIR Boson")
+        fake.thermal_cameras_tabs.addTab(panel, "FLIR Boson")
         fake.camera_panels["flir_boson"] = panel
 
         for _ in range(5):
@@ -65,4 +78,4 @@ class TestPanelReadySwap:
             InspectionAppWindow._on_bus_panel_ready(fake, "thermal", new_panel)
             panel = new_panel
 
-        assert fake.cameras_tabs.count() == 1
+        assert fake.thermal_cameras_tabs.count() == 1

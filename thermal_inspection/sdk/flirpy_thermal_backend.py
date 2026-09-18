@@ -1,14 +1,34 @@
 """
-flirpy-based Thermal Backend with Dual-Path SDK Control
+flirpy-based Thermal Backend, Single Native Connection
 
-Provides 16-bit Y16 radiometric capture from FLIR Boson using the flirpy library,
-with simultaneous SDK control via COM port for T-Linear mode and FFC.
+Provides 16-bit Y16 radiometric capture from FLIR Boson using the flirpy
+library, and drives all camera control (T-Linear mode, FFC, gain, palette,
+emissivity, atmospheric compensation) over that SAME connection.
 
-Architecture:
-- flirpy (UVC) → 16-bit Y16 frame capture
-- BosonSDK (COM port) → Camera control (T-Linear, FFC, settings)
+This used to be a dual-path design: flirpy for video, plus a second,
+independent connection to the proprietary vendor BosonSDK for control -
+opened briefly at startup to configure T-Linear mode, then closed so
+flirpy could have the port, per the "Sequential Access Pattern" the old
+open() used. That pattern only covered startup; anything opening a
+*second* SDK connection later (the plugin's own control-panel SDK, or
+this class's own control methods once self._sdk was discarded) collided
+with flirpy's connection - confirmed live: flirpy.camera.core.Core.
+connect() opens serial.Serial() in Boson.__init__ and holds it
+exclusively for the object's whole life, so a second connection to the
+same COM port always failed with "Failed to open port #6 with error
+255!" for as long as this backend was streaming.
 
-Both paths can operate simultaneously as they use different interfaces.
+flirpy's own Boson class only implements a subset of the Boson CCI
+command set (FFC, basic info, FPA temp, averager) - not gain mode,
+palette, or radiometric/environmental compensation. Rather than keep
+the vendor SDK around as a second connection for those,
+BosonNative (thermal_inspection.sdk.boson_flirpy_ext) extends flirpy's
+Boson with the missing commands using the exact same _send_packet/
+_decode_packet primitives flirpy already uses - so ONE connection now
+does everything, and there is no second owner of the COM port to
+conflict with the control panel (see BosonPlugin.create_sdk(), which
+delegates to this backend's own methods instead of opening its own
+connection when this backend is active).
 """
 
 import logging
@@ -16,66 +36,43 @@ import numpy as np
 from typing import Optional, Tuple
 
 from thermal_inspection.cameras.camera_backends import ThermalBackend
+from thermal_inspection.sdk.boson_flirpy_ext import BosonNative
 
 logger = logging.getLogger(__name__)
 
-from flirpy.camera.boson import Boson
 try:
     import flirpy
     FLIRPY_AVAILABLE = True
 except ImportError:
     FLIRPY_AVAILABLE = False
 
-# Import BosonSDK for T-Linear control via COM port.
-# GainMode/FFCMode/ColorLUT are the enums the SDK setters expect.
-try:
-    from thermal_inspection.sdk.boson_sdk_wrapper import (
-        BosonSDK, GainMode, FFCMode, ColorLUT
-    )
-    SDK_AVAILABLE = True
-except ImportError:
-    BosonSDK = None
-    GainMode = None
-    FFCMode = None
-    ColorLUT = None
-    SDK_AVAILABLE = False
-    logger.warning("BosonSDK not available - T-Linear mode may not work")
-
-logger = logging.getLogger(__name__)
-
 
 class FlirpyThermalBackend(ThermalBackend):
     """
-    flirpy-based backend for FLIR Boson thermal camera with dual-path SDK control.
+    flirpy-based backend for FLIR Boson thermal camera, single native connection.
 
     Features:
     - 16-bit Y16 radiometric capture via flirpy (UVC)
-    - SDK control via COM port (T-Linear, FFC, settings)
+    - Full camera control (T-Linear, FFC, gain, palette, environmental
+      compensation) over that same connection - see module docstring.
     - True absolute temperatures (±2°C accuracy when T-Linear enabled)
-    - Dual-path architecture allows simultaneous capture and control
-
-    The SDK connection is REQUIRED for proper T-Linear (radiometric) output.
-    Without SDK: raw 14-bit sensor data (~-80°C readings)
-    With SDK: true T-Linear data (~ambient temperature readings)
     """
 
     def __init__(self, com_port: str = 'COM7', auto_configure: bool = True):
         """
-        Initialize flirpy backend with optional SDK control.
+        Initialize flirpy backend.
 
         Args:
-            com_port: COM port for SDK control (e.g., 'COM7')
+            com_port: COM port for the camera (e.g., 'COM7')
             auto_configure: If True, automatically configure T-Linear mode on open
         """
-        self.camera = None
+        self.camera: Optional[BosonNative] = None
         self._is_opened = False
         self._frame_count = 0
         self._last_frame = None  # Store last captured frame
 
-        # SDK control (dual-path)
         self._com_port = com_port
         self._auto_configure = auto_configure
-        self._sdk: Optional[BosonSDK] = None
         self._sdk_connected = False
         self._tlinear_enabled = False
 
@@ -92,7 +89,7 @@ class FlirpyThermalBackend(ThermalBackend):
 
         try:
             # Try to create camera instance (quick check)
-            test_cam = Boson()
+            test_cam = BosonNative()
             test_cam.close()
             return True
         except Exception as e:
@@ -101,14 +98,13 @@ class FlirpyThermalBackend(ThermalBackend):
 
     def open(self) -> bool:
         """
-        Open FLIR Boson camera via flirpy (Sequential Access Pattern).
+        Open FLIR Boson camera via flirpy, single native connection.
 
-        This method:
-        1. FIRST: Connects BosonSDK to configure T-Linear mode
-        2. THEN: Closes SDK to release COM port
-        3. FINALLY: Opens flirpy for 16-bit Y16 video capture
-
-        This sequential pattern avoids COM port conflicts between SDK and flirpy.
+        flirpy's Boson.__init__ opens the serial connection but does not
+        touch video (setup_video()/grab() are separate, lazy calls) - so
+        T-Linear mode is configured here, on the one connection, strictly
+        before the first grab() triggers video setup. See module docstring
+        for why this replaced the old two-connection open/close dance.
 
         Returns:
             bool: True if successful
@@ -120,15 +116,9 @@ class FlirpyThermalBackend(ThermalBackend):
         try:
             logger.info(f"Opening Boson camera via flirpy (Port: {self._com_port})...")
 
-            # STEP 1: Configure T-Linear mode via SDK FIRST (before flirpy takes the port)
-            if self._auto_configure and SDK_AVAILABLE:
-                self._configure_tlinear_before_flirpy()
+            self.camera = BosonNative(port=self._com_port)
 
-            # STEP 2: Initialize flirpy Boson for video capture
-            # flirpy will now use the COM port (SDK released it above)
-            self.camera = Boson(port=self._com_port)
-
-            # Verify serial connection via flirpy
+            # Verify serial connection
             try:
                 temp = self.camera.get_fpa_temperature()
                 logger.info(f"✓ Serial connection established (FPA Temp: {temp:.1f}°C)")
@@ -136,6 +126,10 @@ class FlirpyThermalBackend(ThermalBackend):
             except Exception as e:
                 logger.warning(f"⚠ Serial connection issue: {e}")
                 self._sdk_connected = False
+
+            # Configure T-Linear mode before any frame is grabbed.
+            if self._auto_configure and self._sdk_connected:
+                self._configure_tlinear_native()
 
             self._is_opened = True
             self._frame_count = 0
@@ -166,57 +160,29 @@ class FlirpyThermalBackend(ThermalBackend):
             self._is_opened = False
             return False
 
-    def _configure_tlinear_before_flirpy(self):
+    def _configure_tlinear_native(self):
         """
-        Configure camera for T-Linear radiometric output via SDK.
-
-        IMPORTANT: This must be called BEFORE flirpy opens the camera,
-        because both SDK and flirpy need exclusive access to the COM port.
-        The SDK will be closed after configuration to release the port for flirpy.
+        Configure camera for T-Linear radiometric output, on the connection
+        flirpy already has open. Must run before the first grab() (which
+        lazily calls setup_video()) - open() guarantees that ordering.
         """
         try:
-            logger.info("Configuring T-Linear mode via SDK (before flirpy)...")
-
-            # Create temporary SDK connection
-            sdk = BosonSDK(com_port=self._com_port)
-            if not sdk.open():
-                logger.warning("Failed to connect BosonSDK - T-Linear may not be enabled")
-                self._tlinear_enabled = False
-                return
-
-            logger.info(f"✓ BosonSDK connected on {self._com_port}")
-
-            # Enable T-Linear mode (USB Video IR16 Mode = 2)
-            try:
-                if sdk.set_usb_video_ir16_mode(2):
-                    logger.info("✓ T-Linear mode enabled (USB IR16 Mode = 2)")
-                    self._tlinear_enabled = True
-                else:
-                    logger.warning("Failed to set USB IR16 mode to T-Linear")
-                    self._tlinear_enabled = False
-            except Exception as e:
-                logger.error(f"Error setting T-Linear mode: {e}")
-                self._tlinear_enabled = False
-
-            # Also enable T-Linear control if available
-            try:
-                sdk.enable_tlinear_control()
-            except Exception as e:
-                logger.debug(f"T-Linear control enable failed (may not be supported): {e}")
-
-            # CRITICAL: Close SDK to release COM port for flirpy
-            sdk.close()
-            logger.info("✓ SDK closed, COM port released for flirpy")
-            self._sdk = None  # Don't keep SDK reference - flirpy will own the port
-
+            self.camera.set_usb_video_ir16_mode(2)
+            logger.info("✓ T-Linear mode enabled (USB IR16 Mode = 2)")
+            self._tlinear_enabled = True
         except Exception as e:
-            logger.error(f"Failed to configure T-Linear: {e}")
+            logger.error(f"Error setting T-Linear mode: {e}")
             self._tlinear_enabled = False
+
+        try:
+            self.camera.set_radiometry_enable(True)
+        except Exception as e:
+            logger.debug(f"Radiometry enable failed (may not be supported): {e}")
 
     def _configure_tlinear(self):
         """Legacy method - now just logs warning if called directly."""
         logger.warning("_configure_tlinear called but flirpy already owns COM port")
-        logger.warning("T-Linear should be configured via _configure_tlinear_before_flirpy()")
+        logger.warning("T-Linear should be configured via _configure_tlinear_native()")
 
     def _verify_tlinear(self) -> bool:
         """Verify T-Linear mode is active by checking frame properties.
@@ -361,12 +327,12 @@ class FlirpyThermalBackend(ThermalBackend):
         """
         info = {
             'backend': 'flirpy',
-            'library': 'flirpy (dual-path with SDK)',
+            'library': 'flirpy (native, single connection)',
             'bit_depth': 16,
             'radiometric': True,
             'resolution': self.get_resolution(),
             'format': 'Y16 (uint16)',
-            'driver': 'UVC (flirpy) + COM (SDK)',
+            'driver': 'UVC + COM, one flirpy connection',
             'sdk_connected': self._sdk_connected,
             'tlinear_enabled': self._tlinear_enabled,
             'com_port': self._com_port,
@@ -374,21 +340,27 @@ class FlirpyThermalBackend(ThermalBackend):
                 '16-bit Y16',
                 'True radiometric',
                 'UVC driver',
-                'SDK control via COM',
+                'Native control via same connection',
                 'FFC trigger',
                 'T-Linear mode'
             ]
         }
 
-        # Add SDK info if connected
-        if self._sdk_connected and self._sdk is not None and self._sdk.info:
-            sdk_info = self._sdk.info
-            if sdk_info.serial_number:
-                info['serial_number'] = sdk_info.serial_number
-            if sdk_info.gain_mode:
-                info['gain_mode'] = sdk_info.gain_mode.name
-            if sdk_info.software_version:
-                info['firmware_version'] = sdk_info.software_version
+        if self._sdk_connected and self.camera is not None:
+            try:
+                info['serial_number'] = self.camera.get_camera_serial()
+            except Exception as e:
+                logger.debug(f"Could not read camera serial for get_info(): {e}")
+            try:
+                gain_mode = self.camera.get_gain_mode()
+                if gain_mode is not None:
+                    info['gain_mode'] = gain_mode
+            except Exception as e:
+                logger.debug(f"Could not read gain mode for get_info(): {e}")
+            try:
+                info['firmware_version'] = self.camera.get_firmware_revision()
+            except Exception as e:
+                logger.debug(f"Could not read firmware version for get_info(): {e}")
 
         return info
 
@@ -399,9 +371,14 @@ class FlirpyThermalBackend(ThermalBackend):
         Returns:
             tuple: (width, height)
         """
+        # Prefer the already-captured frame over a fresh read() - see
+        # get_spot_temperature() for why a second grab() here would race
+        # the background capture thread.
+        if self._last_frame is not None:
+            return (self._last_frame.shape[1], self._last_frame.shape[0])
+
         if self._is_opened and self.camera:
             try:
-                # Try to get actual resolution from a frame
                 ret, frame = self.read()
                 if ret and frame is not None:
                     return (frame.shape[1], frame.shape[0])  # (width, height)
@@ -431,10 +408,13 @@ class FlirpyThermalBackend(ThermalBackend):
 
         Returns:
             np.ndarray: Temperature map in Celsius (float32), or None on error
-        """
-        ret, frame = self.read()
 
-        if not ret or frame is None:
+        Uses the already-captured last frame - see get_spot_temperature()
+        for why calling read() again here is wrong.
+        """
+        frame = self._last_frame
+
+        if frame is None:
             return None
 
         try:
@@ -452,11 +432,8 @@ class FlirpyThermalBackend(ThermalBackend):
         Check if SDK control is supported.
 
         Returns:
-            bool: True (via separate BosonSDK wrapper using COM port)
-
-        Note: SDK control should be done via BosonSDK wrapper when
-        camera is not actively capturing, as both cannot access
-        the camera simultaneously.
+            bool: True (control methods on this class use the same native
+                connection as video capture - see module docstring)
         """
         return True
 
@@ -493,12 +470,21 @@ class FlirpyThermalBackend(ThermalBackend):
 
         Returns:
             Temperature in Celsius, or None if not available
+
+        Uses the already-captured last frame rather than calling read()
+        again - this is called from the main-thread frame loop once a spot
+        meter exists, and a second grab() there raced the background
+        ThreadedCameraCapture thread's own continuous grab() calls on the
+        same cv2.VideoCapture, blocking the GUI thread for up to a full
+        camera period (confirmed live: placing a spot meter on the 9Hz
+        radiometric Boson visibly coupled the whole UI to that rate;
+        removing it restored normal responsiveness).
         """
         if not self._is_opened:
             return None
 
-        ret, frame = self.read()
-        if not ret or frame is None:
+        frame = self._last_frame
+        if frame is None:
             return None
 
         try:
@@ -543,12 +529,15 @@ class FlirpyThermalBackend(ThermalBackend):
 
         Returns:
             Dictionary with temperature statistics, or None if not available
+
+        Uses the already-captured last frame - see get_spot_temperature()
+        for why calling read() again here is wrong.
         """
         if not self._is_opened:
             return None
 
-        ret, frame = self.read()
-        if not ret or frame is None:
+        frame = self._last_frame
+        if frame is None:
             return None
 
         try:
@@ -688,16 +677,15 @@ class FlirpyThermalBackend(ThermalBackend):
     @property
     def sdk(self):
         """
-        Get the SDK object for direct camera control.
+        Get the native camera connection for direct control.
 
-        Returns the connected BosonSDK instance, allowing full COM control
-        (FFC, gain, emissivity, LUT, etc.) while still capturing via flirpy.
+        There is only one connection now (see module docstring) - this
+        returns the same BosonNative instance backing video capture.
         """
-        return self._sdk
+        return self.camera
 
     # =========================================================================
-    # SDK CAMERA CONTROL (Full COM port access)
-    # These methods proxy to the BosonSDK when connected
+    # CAMERA CONTROL - all over the one native flirpy connection
     # =========================================================================
 
     def trigger_ffc(self) -> bool:
@@ -736,9 +724,19 @@ class FlirpyThermalBackend(ThermalBackend):
         self._com_port = com_port
         return self.reconnect_sdk(com_port)
 
+    def get_gain_mode(self) -> Optional[int]:
+        """Get gain mode: 0=HIGH, 1=LOW, 2=AUTO, or None if unavailable."""
+        if not self._sdk_connected or self.camera is None:
+            return None
+        try:
+            return self.camera.get_gain_mode()
+        except Exception as e:
+            logger.error(f"Error getting gain mode: {e}")
+            return None
+
     def set_gain_mode(self, mode: int) -> bool:
         """
-        Set gain mode via SDK.
+        Set gain mode.
 
         Args:
             mode: 0=HIGH (-40 to 120°C), 1=LOW (up to 400°C), 2=AUTO
@@ -746,20 +744,20 @@ class FlirpyThermalBackend(ThermalBackend):
         Returns:
             bool: True if successful
         """
-        if not self._sdk_connected or self._sdk is None:
-            logger.warning("Cannot set gain mode: SDK not connected")
+        if not self._sdk_connected or self.camera is None:
+            logger.warning("Cannot set gain mode: camera not connected")
             return False
 
         try:
-            gain_mode = GainMode(mode)
-            return self._sdk.set_gain_mode(gain_mode)
+            self.camera.set_gain_mode(mode)
+            return True
         except Exception as e:
             logger.error(f"Error setting gain mode: {e}")
             return False
 
     def set_ffc_mode(self, mode: int) -> bool:
         """
-        Set FFC mode via SDK.
+        Set FFC mode.
 
         Args:
             mode: 0=MANUAL, 1=AUTO, 2=EXTERNAL
@@ -767,13 +765,13 @@ class FlirpyThermalBackend(ThermalBackend):
         Returns:
             bool: True if successful
         """
-        if not self._sdk_connected or self._sdk is None:
-            logger.warning("Cannot set FFC mode: SDK not connected")
+        if not self._sdk_connected or self.camera is None:
+            logger.warning("Cannot set FFC mode: camera not connected")
             return False
 
         try:
-            ffc_mode = FFCMode(mode)
-            return self._sdk.set_ffc_mode(ffc_mode)
+            self.camera.set_ffc_mode(mode)
+            return True
         except Exception as e:
             logger.error(f"Error setting FFC mode: {e}")
             return False
@@ -781,10 +779,6 @@ class FlirpyThermalBackend(ThermalBackend):
     def get_fpa_temperature(self) -> Optional[float]:
         """
         Get FPA (Focal Plane Array) temperature in Celsius.
-
-        Prefers flirpy, which reads the value over the same handle it already
-        holds and so works while streaming. Falls back to the SDK's COM
-        channel, which is only reachable when a separate connection is up.
 
         Returns:
             float: FPA temperature in Celsius, or None if unavailable
@@ -797,39 +791,26 @@ class FlirpyThermalBackend(ThermalBackend):
             except Exception as e:
                 logger.debug(f"flirpy FPA temperature read failed: {e}")
 
-        if self._sdk_connected and self._sdk is not None:
-            try:
-                result = self._sdk.get_fpa_temperature()
-                if result:
-                    return result[1]  # (kelvin, celsius)
-            except Exception as e:
-                logger.debug(f"SDK FPA temperature read failed: {e}")
-
         return None
 
     def get_lens_temperature(self) -> Optional[float]:
         """
-        Get lens housing temperature via SDK.
+        Get lens housing temperature.
 
-        Returns:
-            float: Lens temperature in Celsius, or None if unavailable
+        Not yet implemented natively (see module docstring) - the CCI
+        commands for this exist but weren't ported when the vendor SDK's
+        second connection was removed. Returns None rather than a stale
+        or fabricated reading.
         """
-        if not self._sdk_connected or self._sdk is None:
-            return None
-
-        return self._sdk.get_lens_temperature()
+        return None
 
     def get_shutter_temperature(self) -> Optional[float]:
         """
-        Get shutter housing temperature via SDK.
+        Get shutter housing temperature.
 
-        Returns:
-            float: Shutter temperature in Celsius, or None if unavailable
+        Not yet implemented natively - see get_lens_temperature().
         """
-        if not self._sdk_connected or self._sdk is None:
-            return None
-
-        return self._sdk.get_shutter_temperature()
+        return None
 
     def get_board_temperature(self) -> Optional[float]:
         """
@@ -844,21 +825,22 @@ class FlirpyThermalBackend(ThermalBackend):
 
     def set_color_lut(self, lut: int) -> bool:
         """
-        Set color lookup table via SDK.
+        Set color lookup table (palette).
 
         Args:
             lut: 0=WHITE_HOT, 1=BLACK_HOT, 2=RAINBOW, 4=IRONBOW, etc.
+                 (FLR_COLORLUT_ID_E value)
 
         Returns:
             bool: True if successful
         """
-        if not self._sdk_connected or self._sdk is None:
-            logger.warning("Cannot set color LUT: SDK not connected")
+        if not self._sdk_connected or self.camera is None:
+            logger.warning("Cannot set color LUT: camera not connected")
             return False
 
         try:
-            color_lut = ColorLUT(lut)
-            return self._sdk.set_color_lut(color_lut)
+            self.camera.set_color_lut_id(lut)
+            return True
         except Exception as e:
             logger.error(f"Error setting color LUT: {e}")
             return False
@@ -868,7 +850,9 @@ class FlirpyThermalBackend(ThermalBackend):
         Set target emissivity for accurate temperature measurement.
 
         Args:
-            emissivity: 0.01-1.0 (1.0 = perfect blackbody)
+            emissivity: 0.01-1.0 (1.0 = perfect blackbody) - converted to
+                the percent (0-100) the camera actually expects; see
+                boson_flirpy_ext.py.
 
         Returns:
             bool: True if successful
@@ -878,13 +862,8 @@ class FlirpyThermalBackend(ThermalBackend):
             return False
 
         try:
-            # Try flirpy method first
-            if hasattr(self.camera, 'set_emissivity'):
-                self.camera.set_emissivity(emissivity)
-                return True
-            else:
-                logger.warning("flirpy Boson driver does not support set_emissivity")
-                return False
+            self.camera.set_emissivity_pct(max(0.01, min(1.0, emissivity)) * 100.0)
+            return True
         except Exception as e:
             logger.error(f"Error setting emissivity: {e}")
             return False
@@ -900,9 +879,8 @@ class FlirpyThermalBackend(ThermalBackend):
             return None
 
         try:
-            if hasattr(self.camera, 'get_emissivity'):
-                return self.camera.get_emissivity()
-            return None
+            pct = self.camera.get_emissivity_pct()
+            return pct / 100.0 if pct is not None else None
         except Exception as e:
             logger.error(f"Error getting emissivity: {e}")
             return None
@@ -921,10 +899,8 @@ class FlirpyThermalBackend(ThermalBackend):
             return False
 
         try:
-            if hasattr(self.camera, 'set_atmospheric_temperature'):
-                self.camera.set_atmospheric_temperature(temp_celsius)
-                return True
-            return False
+            self.camera.set_atmospheric_temperature_k(temp_celsius + 273.15)
+            return True
         except Exception as e:
             logger.error(f"Error setting atmospheric temp: {e}")
             return False
@@ -934,7 +910,7 @@ class FlirpyThermalBackend(ThermalBackend):
         Set atmospheric transmission coefficient.
 
         Args:
-            transmission: 0.01-1.0
+            transmission: 0.01-1.0 - converted to percent; see set_emissivity.
 
         Returns:
             bool: True if successful
@@ -943,10 +919,8 @@ class FlirpyThermalBackend(ThermalBackend):
             return False
 
         try:
-            if hasattr(self.camera, 'set_atmospheric_transmission'):
-                self.camera.set_atmospheric_transmission(transmission)
-                return True
-            return False
+            self.camera.set_atmospheric_transmission_pct(max(0.01, min(1.0, transmission)) * 100.0)
+            return True
         except Exception as e:
             logger.error(f"Error setting atmospheric transmission: {e}")
             return False
@@ -955,13 +929,11 @@ class FlirpyThermalBackend(ThermalBackend):
         """
         Get all radiometric calibration parameters.
 
-        Returns:
-            dict: Calibration info (gain, offset, lens params, temps)
+        Not yet implemented natively (global gain/offset, lens F-number/
+        transmission aren't ported - see module docstring). Returns {}
+        rather than a fabricated result.
         """
-        if not self._sdk_connected or self._sdk is None:
-            return {}
-
-        return self._sdk.get_calibration_info()
+        return {}
 
     def spotmeter_enable(self, enabled: bool) -> bool:
         """

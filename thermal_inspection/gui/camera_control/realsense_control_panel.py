@@ -13,7 +13,7 @@ from typing import Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QGridLayout, QGroupBox, QLabel, QScrollArea, QFrame,
-    QSlider, QCheckBox
+    QSlider, QCheckBox, QComboBox
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt, pyqtSignal
@@ -30,6 +30,7 @@ class RealSenseControlPanel(QWidget):
         super().__init__(parent)
         self._block_signals = False
         self._option_widgets: dict = {}  # option_name -> (widget, kind)
+        self._color_option_widgets: dict = {}  # option_name -> (widget, kind)
         self._build_ui()
 
     def _build_ui(self):
@@ -78,10 +79,11 @@ class RealSenseControlPanel(QWidget):
 
         layout.addWidget(info_grp)
 
-        # Built dynamically in update_depth_sensor_options() from whatever
-        # the connected device actually reports supporting via
-        # get_supported_options() - never a hardcoded list, so no control
-        # here can offer a setting the attached device doesn't really have.
+        # Built dynamically in update_depth_sensor_options()/
+        # update_color_sensor_options() from whatever the connected device
+        # actually reports supporting via get_supported_options() - never a
+        # hardcoded list, so no control here can offer a setting the
+        # attached device doesn't really have.
         self.options_grp = QGroupBox("Depth Sensor Options")
         self.options_layout = QGridLayout(self.options_grp)
         self.options_layout.setContentsMargins(10, 10, 10, 10)
@@ -90,6 +92,33 @@ class RealSenseControlPanel(QWidget):
         self._options_empty_label.setStyleSheet("color: #888888; font-size: 9pt;")
         self.options_layout.addWidget(self._options_empty_label, 0, 0, 1, 3)
         layout.addWidget(self.options_grp)
+
+        self.color_options_grp = QGroupBox("Color Sensor Options")
+        self.color_options_layout = QGridLayout(self.color_options_grp)
+        self.color_options_layout.setContentsMargins(10, 10, 10, 10)
+        self.color_options_layout.setSpacing(6)
+        self._color_options_empty_label = QLabel("No options reported yet - connect a device.")
+        self._color_options_empty_label.setStyleSheet("color: #888888; font-size: 9pt;")
+        self.color_options_layout.addWidget(self._color_options_empty_label, 0, 0, 1, 3)
+        layout.addWidget(self.color_options_grp)
+
+        # Depth post-processing: all off by default (matches the device's
+        # own out-of-the-box state) - spatial/temporal smoothing and
+        # hole-filling trade a small amount of edge sharpness/latency for
+        # less noisy depth, which parallax correction and 3D Fusion both
+        # consume directly.
+        filter_grp = QGroupBox("Depth Post-Processing")
+        filter_layout = QVBoxLayout(filter_grp)
+        self.spatial_filter_chk = QCheckBox("Spatial Filter (edge-preserving smoothing)")
+        self.spatial_filter_chk.toggled.connect(lambda c: self._on_depth_filter_toggled("spatial", c))
+        filter_layout.addWidget(self.spatial_filter_chk)
+        self.temporal_filter_chk = QCheckBox("Temporal Filter (reduces frame-to-frame flicker)")
+        self.temporal_filter_chk.toggled.connect(lambda c: self._on_depth_filter_toggled("temporal", c))
+        filter_layout.addWidget(self.temporal_filter_chk)
+        self.hole_filling_filter_chk = QCheckBox("Hole Filling (fills invalid/occluded depth pixels)")
+        self.hole_filling_filter_chk.toggled.connect(lambda c: self._on_depth_filter_toggled("hole_filling", c))
+        filter_layout.addWidget(self.hole_filling_filter_chk)
+        layout.addWidget(filter_grp)
 
         note = QLabel(
             "Real depth from this device feeds parallax correction "
@@ -134,38 +163,73 @@ class RealSenseControlPanel(QWidget):
             self.lbl_fov.setText(fov_text)
 
     def update_depth_sensor_options(self, options: dict):
+        """(Re)build the Depth Sensor Options section - see _populate_option_grid()."""
+        self._populate_option_grid(
+            self.options_layout, self._option_widgets, options,
+            self._options_empty_label, "set_depth_sensor_option"
+        )
+
+    def update_color_sensor_options(self, options: dict):
+        """(Re)build the Color Sensor Options section - see _populate_option_grid()."""
+        self._populate_option_grid(
+            self.color_options_layout, self._color_option_widgets, options,
+            self._color_options_empty_label, "set_color_sensor_option"
+        )
+
+    def _populate_option_grid(self, grid_layout: QGridLayout, widgets_dict: dict,
+                               options: dict, empty_label: QLabel, command: str):
         """
-        (Re)build the Depth Sensor Options section from the device's
-        actually-supported options - each entry is
-        {'value','min','max','step','default'}. Bool-like ranges (0-1,
-        step 1) get a checkbox; everything else gets a slider.
+        (Re)build one options section from the device's actually-supported
+        options - each entry is {'value','min','max','step','default'} plus
+        an optional 'enum_names' ({int: display name}) for options like
+        visual_preset that are really a small named set, not a continuum.
+        Bool-like ranges (0-1, step 1) get a checkbox; an entry with
+        enum_names gets a named dropdown; everything else gets a slider.
         """
         if not options:
             return
 
         # Clear any previous controls (e.g. a different device reconnected
         # with a different option set) before rebuilding.
-        while self.options_layout.count():
-            item = self.options_layout.takeAt(0)
+        while grid_layout.count():
+            item = grid_layout.takeAt(0)
             w = item.widget()
             if w:
                 w.deleteLater()
-        self._option_widgets.clear()
+        widgets_dict.clear()
+        empty_label.setParent(None)
 
         self._block_signals = True
         try:
             for row, (name, spec) in enumerate(sorted(options.items())):
                 label_text = name.replace('_', ' ').title()
                 is_bool_like = (spec['min'] == 0 and spec['max'] == 1 and spec['step'] == 1)
+                enum_names = spec.get('enum_names')
 
-                if is_bool_like:
+                if enum_names:
+                    grid_layout.addWidget(QLabel(f"{label_text}:"), row, 0)
+                    combo = QComboBox()
+                    current_index = 0
+                    for i, (enum_val, enum_label) in enumerate(sorted(enum_names.items())):
+                        combo.addItem(enum_label, enum_val)
+                        if enum_val == int(spec['value']):
+                            current_index = i
+                    combo.setCurrentIndex(current_index)
+                    combo.currentIndexChanged.connect(
+                        lambda idx, n=name, c=combo, cmd=command: self._on_option_changed(n, float(c.itemData(idx)), cmd)
+                    )
+                    grid_layout.addWidget(combo, row, 1, 1, 2)
+                    widgets_dict[name] = (combo, 'enum')
+                elif is_bool_like:
                     chk = QCheckBox(label_text)
                     chk.setChecked(bool(spec['value']))
-                    chk.toggled.connect(lambda checked, n=name: self._on_option_changed(n, 1.0 if checked else 0.0))
-                    self.options_layout.addWidget(chk, row, 0, 1, 3)
-                    self._option_widgets[name] = (chk, 'bool')
+                    chk.toggled.connect(
+                        lambda checked, n=name, cmd=command: self._on_option_changed(n, 1.0 if checked else 0.0, cmd)
+                    )
+                    grid_layout.addWidget(chk, row, 0, 1, 3)
+                    widgets_dict[name] = (chk, 'bool')
                 else:
-                    self.options_layout.addWidget(QLabel(f"{label_text}:"), row, 0)
+                    grid_layout.addWidget(QLabel(f"{label_text}:"), row, 0)
                     slider = QSlider(Qt.Orientation.Horizontal)
                     step = spec['step'] if spec['step'] > 0 else 1
                     slider.setRange(int(spec['min'] / step), int(spec['max'] / step))
@@ -173,21 +237,21 @@ class RealSenseControlPanel(QWidget):
                     val_label = QLabel(str(spec['value']))
                     val_label.setFixedWidth(48)
                     slider.valueChanged.connect(
-                        lambda idx, n=name, s=step, lbl=val_label: self._on_slider_changed(n, s, idx, lbl)
+                        lambda idx, n=name, s=step, lbl=val_label, cmd=command: self._on_slider_changed(n, s, idx, lbl, cmd)
                     )
-                    self.options_layout.addWidget(slider, row, 1)
-                    self.options_layout.addWidget(val_label, row, 2)
-                    self._option_widgets[name] = (slider, 'range')
+                    grid_layout.addWidget(slider, row, 1)
+                    grid_layout.addWidget(val_label, row, 2)
+                    widgets_dict[name] = (slider, 'range')
         finally:
             self._block_signals = False
 
-    def _on_slider_changed(self, name: str, step: float, index: int, label: QLabel):
+    def _on_slider_changed(self, name: str, step: float, index: int, label: QLabel, command: str):
         value = index * step
         label.setText(str(value))
         if not self._block_signals:
-            self._on_option_changed(name, value)
+            self._on_option_changed(name, value, command)
 
-    def _on_option_changed(self, option_name: str, value: float):
+    def _on_option_changed(self, option_name: str, value: float, command: str):
         if self._block_signals:
             return
         # Found during a general audit: this panel had no
@@ -200,5 +264,25 @@ class RealSenseControlPanel(QWidget):
         # 'command_requested')) for whichever role this plugin actually
         # has, so no wiring change was needed there.
         self.command_requested.emit(
-            "set_depth_sensor_option", {"option": option_name, "value": value}
+            command, {"option": option_name, "value": value}
+        )
+
+    def update_depth_filter_state(self, filters: dict):
+        """Sync the post-processing checkboxes to the backend's current state."""
+        self._block_signals = True
+        try:
+            if 'spatial' in filters:
+                self.spatial_filter_chk.setChecked(bool(filters['spatial']))
+            if 'temporal' in filters:
+                self.temporal_filter_chk.setChecked(bool(filters['temporal']))
+            if 'hole_filling' in filters:
+                self.hole_filling_filter_chk.setChecked(bool(filters['hole_filling']))
+        finally:
+            self._block_signals = False
+
+    def _on_depth_filter_toggled(self, filter_name: str, checked: bool):
+        if self._block_signals:
+            return
+        self.command_requested.emit(
+            "set_depth_filter_enabled", {"filter": filter_name, "enabled": checked}
         )

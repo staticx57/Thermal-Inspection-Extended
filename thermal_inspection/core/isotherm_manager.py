@@ -144,13 +144,29 @@ class IsothermManager(QObject):
             return frame
 
         try:
+            # Both paths compare against band/threshold values that are
+            # always Celsius, so both need the same conversion up front -
+            # celsius_approx is computed once and shared rather than
+            # duplicated per-branch.
+            celsius_approx = self._to_celsius(temp_frame)
+
             # Multiband path — delegate to the band manager
             if self._multiband_mode and self._band_manager is not None:
-                return self._band_manager.apply_bands_to_frame(frame, temp_frame)
+                # IsothermBandManager.apply_bands_to_frame's own docstring
+                # says its temp_map argument is "Temperature map in
+                # Celsius" - this used to hand it temp_frame RAW (uint16
+                # Y16, Kelvin x 100 on a real radiometric camera) instead,
+                # so every band's low/high Celsius threshold was compared
+                # against a value on a completely different scale. Every
+                # band mask came back empty - confirmed directly: 0 of
+                # 327,680 pixels changed on a real Y16 test frame, vs
+                # 327,680 once handed the same frame correctly converted.
+                # Silent - no error, no warning, just an overlay that never
+                # rendered anything regardless of settings.
+                return self._band_manager.apply_bands_to_frame(frame, celsius_approx)
 
             # Single-threshold path — highlight pixels within [low, high]
             out = frame.copy()
-            celsius_approx = self._to_celsius(temp_frame)
 
             mask = (
                 (celsius_approx >= self._low_threshold) &

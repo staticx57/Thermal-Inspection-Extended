@@ -12,7 +12,7 @@ from thermal_inspection.cameras.plugin.camera_plugin import (
 from thermal_inspection.cameras.device_scanner import find_devices_by_resolution
 from thermal_inspection.cameras.tau2_backend import Tau2Backend
 from thermal_inspection.cameras.tau2_camera import TAU2_RESOLUTIONS
-from thermal_inspection.sdk.tau2_serial import Tau2Serial, scan_tau2_ports, GainMode, FFCMode, ColorLUT
+from thermal_inspection.sdk.tau2_serial import Tau2Serial, scan_tau2_ports, GainMode, FFCMode, ColorLUT, AGCType
 from thermal_inspection.utils.config import get_serial_port, get_serial_baud
 
 if TYPE_CHECKING:
@@ -134,6 +134,24 @@ class Tau2CameraSDK(CameraSDK):
                 temp = self.serial.get_fpa_temperature()
                 return {"success": True, "celsius": temp}
 
+            elif command == "get_housing_temp":
+                temp = self.serial.get_housing_temperature()
+                return {"success": True, "celsius": temp}
+
+            elif command == "set_agc_type":
+                type_str = params.get("agc_type", "plateau").upper().replace(" ", "_").replace("-", "_")
+                type_val = getattr(AGCType, type_str, AGCType.PLATEAU)
+                ok = self.serial.set_agc_type(int(type_val))
+                return {"success": ok}
+
+            elif command == "get_agc_type":
+                type_int = self.serial.get_agc_type()
+                try:
+                    name = AGCType(type_int).name.lower()
+                except ValueError:
+                    name = "unknown"
+                return {"success": True, "agc_type": name}
+
             elif command == "get_camera_info":
                 cam_sn, sensor_sn = self.serial.get_serial_number()
                 rev = self.serial.get_revision()
@@ -165,7 +183,8 @@ class Tau2CameraSDK(CameraSDK):
             "connect", "disconnect", "scan_ports", "ffc", "set_gain_mode",
             "get_gain_mode", "set_ffc_mode", "set_palette", "set_tlinear",
             "set_radiometric_mode", "get_tlinear", "get_fpa_temp",
-            "get_camera_info", "set_shutter_position"
+            "get_housing_temp", "get_camera_info", "set_shutter_position",
+            "set_agc_type", "get_agc_type"
         ]
 
 

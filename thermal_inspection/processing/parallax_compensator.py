@@ -25,7 +25,7 @@ import numpy as np
 import cv2
 import logging
 import time
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,12 @@ MIN_VALID_DEPTH_M = 0.05
 # They will be imported lazily when actually needed
 DEPTH_ESTIMATION_AVAILABLE = False
 TRANSFORMERS_AVAILABLE = False
+# Latches True once the remap GPU path is proven unusable, so _resolve_remap_gpu
+# probes at most once per process rather than once per frame. A failed `import
+# torch` is never cached by Python (the partially-initialized module is dropped
+# from sys.modules), so an un-latched retry re-runs the whole native-library
+# load every call - measured in seconds on a machine with broken torch DLLs.
+_REMAP_GPU_UNAVAILABLE = False
 
 # Check if torch/transformers are importable (without actually importing them
 # at module level - both are optional, and probing for real costs seconds).
@@ -90,12 +96,29 @@ class CameraGeometry:
         thermal_resolution: (width, height) in pixels
         rgb_resolution: (width, height) in pixels
     """
+    # Thermal defaults match the actual owned hardware: Boson 320 (320x256)
+    # with a 4.5mm lens - confirmed against Teledyne FLIR's own product
+    # listing (320x256, 4.5mm, rated 50 deg HFOV) and pixel pitch (FLIR's
+    # official Boson datasheet: 12um for both the 320 and 640 array
+    # formats). The previous defaults (9.0mm focal length, 640x512, and a
+    # 10.88mm sensor width derived from an incorrect 17um pixel pitch
+    # assumption) matched neither this camera nor FLIR's real pixel pitch
+    # for any Boson variant - thermal_half_fov/focal_px math in this module
+    # (e.g. apply_correction, get_depth_intrinsics-adjacent calcs) reads
+    # these fields directly, so a wrong default silently skewed real
+    # parallax-correction/3D-fusion geometry, not just a label.
+    #
+    # RGB defaults are still unverified against the actual paired RGB
+    # camera (Firefly and a RealSense D455 are both in use - see debt
+    # ledger) and only feed the 'simplified' geometric-heuristic depth
+    # path, not the 'realsense' depth method (which reads real intrinsics
+    # from the device instead of this dataclass).
     baseline_mm: float = 50.0  # Default: 50mm baseline (5cm separation)
-    thermal_focal_length_mm: float = 9.0  # Boson 640 typical
-    rgb_focal_length_mm: float = 6.0  # Firefly typical
-    thermal_sensor_width_mm: float = 10.88  # Boson 640 (17μm × 640px)
-    rgb_sensor_width_mm: float = 6.784  # IMX290 (2.9μm × 2336px)
-    thermal_resolution: Tuple[int, int] = (640, 512)
+    thermal_focal_length_mm: float = 4.5  # Owned hardware: Boson 320, 4.5mm lens
+    rgb_focal_length_mm: float = 6.0  # Firefly typical - unverified against actual RGB camera
+    thermal_sensor_width_mm: float = 3.84  # Boson 320 (12um x 320px, FLIR datasheet)
+    rgb_sensor_width_mm: float = 6.784  # IMX290 (2.9μm × 2336px) - unverified against actual RGB camera
+    thermal_resolution: Tuple[int, int] = (320, 256)
     rgb_resolution: Tuple[int, int] = (1920, 1200)
 
 
@@ -253,10 +276,12 @@ class DepthEstimator:
         on auto-detection.
 
         Args:
-            device: 'cpu', 'cuda', or 'auto' (re-run auto-detection next access)
+            device: 'cpu', 'cuda', 'directml' (Intel/AMD - see
+                utils/gpu_device.py), or 'auto' (re-run auto-detection
+                next access)
         """
         device = device.lower()
-        if device not in ('cpu', 'cuda', 'auto'):
+        if device not in ('cpu', 'cuda', 'directml', 'auto'):
             logger.warning(f"Unknown depth-estimation device '{device}', ignoring")
             return
 
@@ -458,6 +483,62 @@ class DepthEstimator:
 
         if depth_m.shape[:2] != (h, w):
             depth_m = cv2.resize(depth_m, (w, h), interpolation=cv2.INTER_NEAREST)
+
+        # Live-reported: "parallax correction for realsense... visually
+        # looks like two rgb images superimposed" - the other 3 depth
+        # methods (simplified/depthanything/midas) never behave that way.
+        # Root cause, confirmed by direct reproduction: real depth sensors
+        # report 0 = "no valid reading" (occlusion, out-of-range, a
+        # reflective surface), most visibly as a thin ring of invalid
+        # pixels right at an object's own edge - the well-known "flying
+        # pixels" artifact real depth sensors produce that synthetic/
+        # model-estimated depth never does. compute_disparity/
+        # compute_disparity_rgb treat any invalid pixel as "far away"
+        # (5m, negligible disparity) rather than crash on the divide - a
+        # safe fallback for the rare/scattered invalid pixel, but at a
+        # real object's edge ring, EVERY pixel in that thin strip gets
+        # this "far away" treatment while the real object one pixel
+        # further in correctly gets a large disparity. The result: the
+        # object's body shifts correctly, but its own edge ring stays
+        # almost exactly where it started - visually splitting the
+        # object into a correctly-shifted body plus a thin "ghost" strip
+        # left behind at the old position, which reads as "two images
+        # superimposed" wherever this happens (every real object edge in
+        # the scene). Reproduced directly with a synthetic depth map
+        # matching this exact real-sensor edge-hole shape before fixing.
+        # Filling those holes from their real neighboring depth instead of
+        # fabricating a "far away" value removes the ghost strip - a no-op
+        # when there are no invalid pixels (the common case once the
+        # RealSense SDK's own hole-filling filter is also enabled).
+        #
+        # This fill was originally cv2.inpaint(..., INPAINT_NS), which was
+        # correct but far too expensive for a per-frame path: measured
+        # 47.5ms of a 53ms depth stage at 640x512 with 6% invalid pixels,
+        # and ~120ms/frame live on a real D455 (whose dropout count is
+        # higher) - the dominant cost in the whole render loop and the
+        # source of the 70-130ms spikes that showed up as loop jitter.
+        # Navier-Stokes inpainting solves a PDE to synthesize plausible
+        # *texture* across a hole; a depth map needs no such thing, only a
+        # real neighbouring measurement.
+        #
+        # distanceTransformWithLabels gives exactly that in one pass: each
+        # invalid pixel takes the value of its nearest VALID pixel
+        # (DIST_LABEL_PIXEL numbers the zero-pixels - here the valid ones -
+        # in raster order, so the label is an index into the valid set).
+        # Unbiased between the near and far side of an edge ring, unlike a
+        # dilate/erode fill which would systematically pull holes toward
+        # the background or the foreground. Measured ~11ms vs inpaint's
+        # ~47ms on the same frame, and verified against the inpainted
+        # result: same hole coverage, max deviation 2.4mm.
+        invalid = depth_m <= MIN_VALID_DEPTH_M
+        if invalid.any() and not invalid.all():
+            _, labels = cv2.distanceTransformWithLabels(
+                invalid.astype(np.uint8), cv2.DIST_L2, 5,
+                labelType=cv2.DIST_LABEL_PIXEL,
+            )
+            valid_values = depth_m[~invalid]
+            depth_m = depth_m.copy()
+            depth_m[invalid] = valid_values[labels[invalid] - 1]
 
         return depth_m
 
@@ -670,6 +751,15 @@ class ParallaxCompensator:
         # compute_fov_crop_factor()/compute_auto_alignment(), 1.0 = no crop.
         self.fov_zoom_factor = 1.0
 
+        # Fixed border-blank extent (top, bottom, left, right px), set once
+        # by compute_auto_crop() (a GUI-triggered, on-demand action - see
+        # its own docstring) rather than recomputed from the live
+        # displacement map on every frame the way _remap_thermal's
+        # fallback does. None means "no fixed crop yet" - _remap_thermal
+        # falls back to its original per-frame computation in that case,
+        # so behavior is unchanged until a user actually runs Auto-Crop.
+        self.crop_rect: Optional[Tuple[int, int, int, int]] = None
+
         # Cache
         self.last_depth_map = None
         self.last_displacement_map = None
@@ -722,8 +812,10 @@ class ParallaxCompensator:
         # A flow map cached from before a disable/re-enable cycle could be
         # arbitrarily stale (the scene, camera position, or settings may
         # have changed while correction was off) - force a fresh compute
-        # rather than reuse it.
+        # rather than reuse it. A fixed crop_rect (see compute_auto_crop)
+        # is invalidated the same way, for the same reason.
         self.last_displacement_map = None
+        self.crop_rect = None
 
     def is_enabled(self) -> bool:
         """Check if parallax compensation is enabled."""
@@ -756,6 +848,7 @@ class ParallaxCompensator:
         self.geometry.baseline_mm = baseline_mm
         logger.info(f"Parallax baseline set to {baseline_mm}mm")
         self.last_displacement_map = None
+        self.crop_rect = None
 
     def set_device(self, device: str):
         """Force the compute device ('cpu', 'cuda', or 'auto') used for depth estimation."""
@@ -814,8 +907,10 @@ class ParallaxCompensator:
                 )
             # A cached flow map is in the OLD target's pixel space/resolution
             # entirely - the exact same class of bug as the earlier "frame
-            # cut in half on target switch" issue if reused here.
+            # cut in half on target switch" issue if reused here. A fixed
+            # crop_rect is in the same OLD pixel space too.
             self.last_displacement_map = None
+            self.crop_rect = None
         self.correction_target = target
 
     def get_correction_target(self) -> str:
@@ -834,6 +929,9 @@ class ParallaxCompensator:
         self.manual_shift_y = int(dy)
         logger.info(f"Manual alignment shift set to ({self.manual_shift_x}, {self.manual_shift_y}) px")
         self.last_displacement_map = None
+        # A fixed crop_rect was sized for the OLD shift - re-run Auto-Crop
+        # after this (compute_auto_crop's own docstring covers why).
+        self.crop_rect = None
 
     def get_manual_shift(self) -> Tuple[int, int]:
         """Get the current manual alignment shift (dx, dy) in pixels."""
@@ -861,6 +959,7 @@ class ParallaxCompensator:
         # _flow_map_needs_recompute would catch this too, but being
         # explicit costs nothing and matches set_baseline/set_manual_shift.
         self.last_displacement_map = None
+        self.crop_rect = None
 
     def get_rgb_target_max_width(self) -> Optional[int]:
         """Get the current correction_target=="rgb" working-resolution cap (None = unlimited)."""
@@ -937,31 +1036,414 @@ class ParallaxCompensator:
         disparity_px = (self.geometry.baseline_mm * focal_px) / (working_distance_m * 1000.0)
         return int(round(sign * disparity_px))
 
-    def compute_auto_alignment(self, working_distance_m: float = 2.0,
-                              rgb_frame: Optional[np.ndarray] = None) -> Tuple[int, float]:
+    # Candidate FOV crop-zoom factors tried when searching for the scale
+    # that best registers the two cameras' real images (see
+    # _estimate_shift_and_scale_from_images) - a coarse pass across a wide
+    # range most real thermal/RGB lens pairings fall within, refined by a
+    # finer pass centered on the coarse winner. Deliberately NOT derived
+    # from compute_fov_crop_factor()/lens geometry at all: the whole point
+    # is to find scale from what the cameras actually see, since entered
+    # focal-length/sensor-width specs don't capture real manufacturing
+    # tolerance, actual (vs. datasheet-nominal) mounting distance, or lens
+    # distortion - see the "real world variances between cameras" note
+    # that prompted this.
+    _FOV_SCALE_COARSE_CANDIDATES = np.linspace(0.15, 3.0, 58)
+    _FOV_SCALE_FINE_HALF_RANGE = 0.05
+    _FOV_SCALE_FINE_STEPS = 11
+
+    @staticmethod
+    def _edge_magnitude(frame: np.ndarray) -> np.ndarray:
+        """Sobel gradient-magnitude map - the shared structure a thermal
+        and RGB frame of the same scene actually agree on (see
+        _estimate_shift_and_scale_from_images)."""
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if frame.ndim == 3 else frame
+        gray = cv2.GaussianBlur(gray, (5, 5), 0)
+        gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
+        gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
+        return cv2.magnitude(gx, gy)
+
+    @staticmethod
+    def _scale_edge_map(edges: np.ndarray, factor: float) -> np.ndarray:
+        """Apply the same crop-in-and-resize (factor>=1) / shrink-and-pad
+        (factor<1) transform _apply_fov_zoom performs on a real frame at
+        render time, to an edge map instead - so a scale found here by
+        phase-correlation confidence produces, at render time, exactly the
+        alignment observed during the search that picked it."""
+        h, w = edges.shape[:2]
+        if abs(factor - 1.0) < 1e-3:
+            return edges
+        if factor >= 1.0:
+            crop_w = max(1, min(w, int(round(w / factor))))
+            crop_h = max(1, min(h, int(round(h / factor))))
+            x0, y0 = (w - crop_w) // 2, (h - crop_h) // 2
+            cropped = edges[y0:y0 + crop_h, x0:x0 + crop_w]
+            return cv2.resize(cropped, (w, h), interpolation=cv2.INTER_LINEAR)
+        new_w = max(1, min(w, int(round(w * factor))))
+        new_h = max(1, min(h, int(round(h * factor))))
+        shrunk = cv2.resize(edges, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        canvas = np.zeros_like(edges)
+        x0, y0 = (w - new_w) // 2, (h - new_h) // 2
+        canvas[y0:y0 + new_h, x0:x0 + new_w] = shrunk
+        return canvas
+
+    def _best_shift_for_scale(self, moving_edges: np.ndarray, fixed_edges: np.ndarray,
+                              window: np.ndarray, scale: float) -> Tuple[float, float, float]:
+        """One phaseCorrelate at a given candidate scale. Returns (dx, dy, confidence)."""
+        scaled = self._scale_edge_map(moving_edges, scale)
+        (dx, dy), confidence = cv2.phaseCorrelate(scaled, fixed_edges, window)
+        return dx, dy, confidence
+
+    def _estimate_shift_and_scale_from_images(self, thermal_frame: np.ndarray,
+                                              rgb_frame: np.ndarray) -> Optional[Tuple[int, int, float]]:
         """
-        One-time alignment calculation from camera geometry, optionally
-        refined by a single depth-estimation call - meant to be triggered
-        on demand (e.g. a GUI button), not run every frame. The result is
-        stored as a static manual shift + FOV crop-zoom factor, which then
-        costs nothing further per frame (see _apply_manual_shift_only) -
-        unlike leaving depth-based correction continuously enabled.
+        Measure the actual current misalignment - horizontal shift,
+        vertical shift, AND FOV crop-zoom scale - directly from what the
+        two cameras see, via cv2.phaseCorrelate. Used by
+        compute_auto_alignment() in preference to the geometry-only
+        formula (compute_geometric_shift_px + compute_fov_crop_factor)
+        whenever both frames are available: a lens datasheet's nominal
+        focal length/sensor width doesn't capture real per-unit
+        manufacturing tolerance or actual (vs. assumed) mounting geometry,
+        so a scale found from what the cameras actually see is the more
+        trustworthy number, not a secondary refinement of it.
+
+        Registers each frame's own Sobel gradient-MAGNITUDE map, not raw
+        grayscale intensity: a thermal and RGB image's raw brightness at
+        "the same" real-world point are unrelated across modalities
+        (thermal reflects temperature, RGB reflects lighting/color/
+        material), so phase correlation on raw intensity has no shared
+        signal to lock onto. A real object boundary, though, produces a
+        local gradient in BOTH modalities - that shared edge structure is
+        what phase correlation can actually find a meaningful peak on.
+
+        Scale is found by a coarse-then-fine search: correction_target's
+        own edge map is scaled by each candidate factor with the SAME
+        crop/resize transform _apply_fov_zoom applies to a real frame,
+        then phase-correlated against the other (fixed) camera's edge
+        map. The candidate with the highest correlation confidence wins,
+        and its own (dx, dy) is returned alongside it - a single
+        self-consistent (shift, scale) pair from one measurement, not
+        shift from one method and scale from another that may disagree.
+
+        Returns None (caller falls back to the geometry-based estimate)
+        when the winning candidate's confidence is too low to trust (e.g.
+        a flat/textureless scene), or on any processing error - never
+        raises, matching every other "refinement" path in this class.
+        """
+        result = self._search_shift_and_scale(thermal_frame, rgb_frame)
+        if result is None:
+            return None
+        raw_dx, raw_dy, scale, conf = result
+
+        if conf < self._MIN_PHASE_CORRELATION_CONFIDENCE:
+            logger.info(
+                f"Auto-alignment: image-based shift/scale estimate too low-confidence "
+                f"({conf:.2f} < {self._MIN_PHASE_CORRELATION_CONFIDENCE}) to trust"
+            )
+            return None
+
+        shift_x = int(round(raw_dx))
+        shift_y = int(round(raw_dy))
+        logger.info(
+            f"Auto-alignment: image-based registration found shift "
+            f"({shift_x}, {shift_y})px, FOV crop-zoom={scale:.4f}, confidence={conf:.2f}"
+        )
+        return shift_x, shift_y, float(scale)
+
+    def _search_shift_and_scale(self, thermal_frame: np.ndarray,
+                                rgb_frame: np.ndarray) -> Optional[Tuple[float, float, float, float]]:
+        """
+        Core single-sample coarse-then-fine phase-correlation search
+        across candidate FOV scales - shared by both
+        _estimate_shift_and_scale_from_images (single-sample, gated on
+        THIS sample's own confidence) and
+        _estimate_shift_and_scale_from_samples (multi-sample consensus,
+        gated on cross-sample AGREEMENT instead - see that method's own
+        docstring for why: a single real frame's confidence score was
+        found NOT to reliably separate a correct registration from an
+        incorrect one on real hardware).
+
+        Returns (dx, dy, scale, confidence) - dx/dy already sign-
+        corrected for correction_target's own convention (not yet
+        rounded to int - callers that average across samples need the
+        float precision) - or None on a degenerate boundary-artifact
+        result (see below) or any processing error, never raising.
+        """
+        try:
+            thermal_h, thermal_w = thermal_frame.shape[:2]
+            rgb_for_reg = rgb_frame
+            if rgb_frame.shape[:2] != (thermal_h, thermal_w):
+                rgb_for_reg = cv2.resize(rgb_frame, (thermal_w, thermal_h),
+                                        interpolation=cv2.INTER_LINEAR)
+
+            thermal_edges = self._edge_magnitude(thermal_frame)
+            rgb_edges = self._edge_magnitude(rgb_for_reg)
+
+            # correction_target is whichever frame actually gets shifted +
+            # zoomed at render time (_apply_manual_shift_only/
+            # _apply_fov_zoom) - that's the "moving" edge map scale search
+            # scales; the other camera is the fixed reference it's
+            # registered against.
+            if self.correction_target == "rgb":
+                moving_edges, fixed_edges, sign = rgb_edges, thermal_edges, self._rgb_target_sign
+            else:
+                moving_edges, fixed_edges, sign = thermal_edges, rgb_edges, 1.0
+
+            # A Hanning window is the standard pre-multiply for
+            # cv2.phaseCorrelate - without it, the abrupt frame boundary
+            # itself acts like a strong edge and dominates the frequency
+            # spectrum, drowning out the real shift signal.
+            window = cv2.createHanningWindow((thermal_w, thermal_h), cv2.CV_32F)
+
+            coarse_lo = float(self._FOV_SCALE_COARSE_CANDIDATES[0])
+            coarse_hi = float(self._FOV_SCALE_COARSE_CANDIDATES[-1])
+            coarse_step = float(self._FOV_SCALE_COARSE_CANDIDATES[1] - self._FOV_SCALE_COARSE_CANDIDATES[0])
+
+            best_scale, best_dx, best_dy, best_conf = 1.0, 0.0, 0.0, -1.0
+            for scale in self._FOV_SCALE_COARSE_CANDIDATES:
+                dx, dy, conf = self._best_shift_for_scale(moving_edges, fixed_edges, window, scale)
+                if conf > best_conf:
+                    best_scale, best_dx, best_dy, best_conf = scale, dx, dy, conf
+
+            # A winner sitting right at the edge of the searched range is
+            # NOT a genuine correlation peak - it's the classic phase-
+            # correlate degenerate case: at an extreme shrink-and-pad
+            # factor, most of the "moving" edge map is literal black
+            # padding, which can spuriously report a sharp-looking
+            # correlation peak against almost anything. A real optical
+            # FOV-scale match shows as an interior peak, not a value that
+            # keeps "improving" all the way to the search boundary -
+            # confirmed live: on a real thermal/RGB frame pair, confidence
+            # was noise-level (<0.09) at every physically-plausible
+            # interior scale and only exceeded threshold at the boundary.
+            if best_scale <= coarse_lo + coarse_step or best_scale >= coarse_hi - coarse_step:
+                logger.info(
+                    f"Auto-alignment: image-based scale search's best candidate "
+                    f"({best_scale:.2f}) sits at the edge of the searched range "
+                    f"[{coarse_lo:.2f}, {coarse_hi:.2f}] - treating as a degenerate "
+                    f"boundary artifact, not a genuine match"
+                )
+                return None
+
+            fine_candidates = np.linspace(
+                max(0.1, best_scale - self._FOV_SCALE_FINE_HALF_RANGE),
+                best_scale + self._FOV_SCALE_FINE_HALF_RANGE,
+                self._FOV_SCALE_FINE_STEPS,
+            )
+            for scale in fine_candidates:
+                dx, dy, conf = self._best_shift_for_scale(moving_edges, fixed_edges, window, scale)
+                if conf > best_conf:
+                    best_scale, best_dx, best_dy, best_conf = scale, dx, dy, conf
+
+            # Sign verified directly against manual_shift_x's own
+            # convention for correction_target=="thermal" (not assumed
+            # from cv2.phaseCorrelate's docs alone): a synthetic
+            # thermal/rgb pair with a KNOWN injected shift, round-tripped
+            # through _apply_correction_thermal_target and checked by
+            # actual edge-map agreement before/after, confirmed +dx (not
+            # -dx, which was tried first and measured WORSE alignment,
+            # not better) is what actually brings them into agreement
+            # when passed as manual_shift_x here. See
+            # TestImageBasedAutoAlign in tests/unit/test_parallax_fixes.py.
+            # The "rgb" target case reuses self._rgb_target_sign, the same
+            # flip already applied to the geometry-based estimate in
+            # compute_geometric_shift_px for the same target switch - not
+            # independently re-verified against a live image pair, since
+            # no hardware with correction_target=="rgb" was available to
+            # confirm against.
+            return sign * best_dx, sign * best_dy, float(best_scale), float(best_conf)
+        except Exception as e:
+            logger.warning(f"Auto-alignment: image-based shift/scale estimation failed ({e})")
+            return None
+
+    # Multi-sample consensus: how close (in px) two samples' dx/dy must
+    # land to count as "agreeing" - loose enough to tolerate normal
+    # per-sample measurement noise, tight enough that a wildly different
+    # (wrong) sample doesn't get counted as agreeing with a correct one.
+    _SAMPLE_AGREEMENT_PX_TOLERANCE = 15.0
+    # A consensus is only trusted if at least this fraction of samples
+    # agree with the median - found necessary via direct testing against
+    # real hardware: a single real frame's phaseCorrelate confidence
+    # does NOT reliably separate a correct registration from an
+    # incorrect one (both landed in the same ~0.08-0.10 range on real
+    # sensor data), so cross-sample agreement is the trust signal here,
+    # not any individual sample's own confidence score.
+    _SAMPLE_AGREEMENT_MIN_FRACTION = 0.5
+    _MIN_CONSENSUS_SAMPLES = 3
+
+    def _estimate_shift_and_scale_from_samples(
+        self, frame_pairs: List[Tuple[np.ndarray, np.ndarray]]
+    ) -> Optional[Tuple[int, int, float]]:
+        """
+        Multi-sample consensus version of _estimate_shift_and_scale_from_images -
+        takes several independently-captured thermal/RGB frame pairs
+        (e.g. a handful of frames a fraction of a second apart) instead
+        of trusting any single frame's phase-correlation result.
+
+        Found necessary via direct testing against real hardware (not a
+        theoretical concern): repeated real thermal/RGB frame pairs of
+        the SAME real misalignment measured phaseCorrelate confidence in
+        the same ~0.08-0.10 range for both a consistent, clearly-correct
+        result (4 of 5 independent samples agreeing closely on a large
+        real vertical mounting offset the geometry-only fallback cannot
+        see at all) AND one wild outlier sample - confidence alone could
+        not tell them apart. Averaging (median) across several samples
+        and requiring a MAJORITY of them to agree with that median is
+        robust to a minority of bad samples in a way a single frame's
+        own confidence score is not.
+
+        Returns None if fewer than _MIN_CONSENSUS_SAMPLES samples
+        produced a usable (non-degenerate) result, or if fewer than
+        _SAMPLE_AGREEMENT_MIN_FRACTION of them agree with the median -
+        "no confident consensus" rather than trusting a possibly-wrong
+        lone result.
+        """
+        raw_results = []
+        for thermal_frame, rgb_frame in frame_pairs:
+            result = self._search_shift_and_scale(thermal_frame, rgb_frame)
+            if result is not None:
+                raw_results.append(result)
+
+        if len(raw_results) < self._MIN_CONSENSUS_SAMPLES:
+            logger.info(
+                f"Auto-alignment: only {len(raw_results)}/{len(frame_pairs)} image samples "
+                f"produced a usable result - not enough for a consensus"
+            )
+            return None
+
+        dxs = np.array([r[0] for r in raw_results])
+        dys = np.array([r[1] for r in raw_results])
+        scales = np.array([r[2] for r in raw_results])
+
+        median_dx = float(np.median(dxs))
+        median_dy = float(np.median(dys))
+        median_scale = float(np.median(scales))
+
+        # Agreement check: a sample "agrees" with the consensus if its
+        # own shift is within a small tolerance of the median - the SAME
+        # real misalignment measured twice should land close to the
+        # same pixel offset; a wildly different sample is measuring
+        # noise, not signal.
+        agree = ((np.abs(dxs - median_dx) <= self._SAMPLE_AGREEMENT_PX_TOLERANCE) &
+                (np.abs(dys - median_dy) <= self._SAMPLE_AGREEMENT_PX_TOLERANCE))
+        agreement_fraction = float(np.mean(agree))
+
+        if agreement_fraction < self._SAMPLE_AGREEMENT_MIN_FRACTION:
+            logger.info(
+                f"Auto-alignment: only {agreement_fraction:.0%} of {len(raw_results)} image "
+                f"samples agreed with each other - no confident consensus, declining"
+            )
+            return None
+
+        shift_x = int(round(median_dx))
+        shift_y = int(round(median_dy))
+        logger.info(
+            f"Auto-alignment: image-based registration (multi-sample consensus, "
+            f"{len(raw_results)} samples, {agreement_fraction:.0%} agreement) found "
+            f"shift ({shift_x}, {shift_y})px, FOV crop-zoom={median_scale:.4f}"
+        )
+        return shift_x, shift_y, float(median_scale)
+
+    # cv2.phaseCorrelate's own confidence/response value (0-1, roughly "how
+    # sharp and unambiguous the correlation peak was") below which an
+    # image-based shift estimate is rejected rather than trusted - a
+    # low-confidence result on a flat/textureless scene (nothing for the
+    # two edge maps to actually agree on) is worse than falling back to
+    # the geometry-only estimate, not better.
+    _MIN_PHASE_CORRELATION_CONFIDENCE = 0.15
+
+    def compute_auto_alignment(self, working_distance_m: float = 2.0,
+                              rgb_frame: Optional[np.ndarray] = None,
+                              thermal_frame: Optional[np.ndarray] = None,
+                              thermal_frame_samples: Optional[List[np.ndarray]] = None,
+                              rgb_frame_samples: Optional[List[np.ndarray]] = None) -> Tuple[int, float]:
+        """
+        One-time alignment calculation, meant to be triggered on demand
+        (e.g. a GUI button), not run every frame. The result is stored as
+        a static manual shift + FOV crop-zoom factor, which then costs
+        nothing further per frame (see _apply_manual_shift_only) - unlike
+        leaving depth-based correction continuously enabled.
+
+        Shift AND FOV crop-zoom scale both come from one of two sources,
+        in priority order:
+          1. Image-based registration (thermal_frame AND rgb_frame both
+             given): measures the actual current shift and scale directly
+             from what the two cameras really see (via
+             _estimate_shift_and_scale_from_images), rather than trusting
+             entered lens focal-length/sensor-width specs and an assumed
+             baseline/working-distance formula. This is the preferred,
+             default path - real cameras vary from their datasheet
+             nominal values (manufacturing tolerance, actual mounting
+             geometry, lens distortion), so a scale measured from the
+             live images is more trustworthy than one computed from
+             specs, not merely a refinement of it. Confirmed by direct
+             testing to recover a known injected shift (see tests), not
+             assumed correct from cv2.phaseCorrelate's docs alone. Falls
+             through to geometry-based below if the match confidence is
+             too low to trust (e.g. a flat scene with no shared edge
+             structure to register against).
+          2. Geometry-based (rgb_frame only, or image registration didn't
+             produce a confident result): the original formula from
+             baseline_mm + working_distance_m for shift, and
+             compute_fov_crop_factor() (entered lens specs) for scale -
+             a fallback for when no live frame pair is available to
+             measure from at all, not the normal path.
 
         Args:
             working_distance_m: Assumed subject distance in meters, used
-                directly unless rgb_frame is provided.
-            rgb_frame: If given, runs the currently-selected depth
-                estimation method (whatever depth_estimator.method is set
-                to - simplified/midas/depthanything/realsense) ONCE to
-                measure/estimate the actual scene distance instead of
-                trusting the assumed working_distance_m - this is the
-                "depth estimation enhances this" refinement. Ignored if
-                None (pure geometric calculation, no ML/hardware call).
+                for the geometry-based shift unless refined by depth
+                estimation below, or superseded entirely by image-based
+                registration.
+            rgb_frame: If given (with thermal_frame also given), used for
+                image-based registration. If given alone, runs the
+                currently-selected depth estimation method once to
+                measure/estimate the actual scene distance for the
+                geometry-based formula instead. Ignored (pure geometric
+                calculation) if None.
+            thermal_frame: If given together with rgb_frame, enables
+                image-based registration (source 1 above).
+            thermal_frame_samples/rgb_frame_samples: If both given (equal
+                length, >= _MIN_CONSENSUS_SAMPLES), used INSTEAD of the
+                single thermal_frame/rgb_frame pair for image-based
+                registration - several independently-captured frame
+                pairs combined via _estimate_shift_and_scale_from_samples's
+                cross-sample agreement check, more robust than trusting
+                any one frame's own phaseCorrelate confidence (found
+                necessary via direct testing against real hardware - see
+                that method's docstring).
 
         Returns:
             (dx_px, fov_zoom_factor) - the values that were applied.
         """
         resolved_distance_m = working_distance_m
+
+        has_multi_samples = (thermal_frame_samples and rgb_frame_samples
+                            and len(thermal_frame_samples) == len(rgb_frame_samples)
+                            and len(thermal_frame_samples) >= self._MIN_CONSENSUS_SAMPLES)
+        has_single_pair = thermal_frame is not None and rgb_frame is not None
+
+        if has_multi_samples or has_single_pair:
+            if has_multi_samples:
+                image_result = self._estimate_shift_and_scale_from_samples(
+                    list(zip(thermal_frame_samples, rgb_frame_samples))
+                )
+            else:
+                image_result = self._estimate_shift_and_scale_from_images(thermal_frame, rgb_frame)
+
+            if image_result is not None:
+                image_dx, image_dy, zoom = image_result
+                self.manual_shift_x = image_dx
+                self.manual_shift_y = image_dy
+                self.fov_zoom_factor = zoom
+                self.last_displacement_map = None
+                self.crop_rect = None
+                logger.info(
+                    f"Auto-alignment computed from image content: shift="
+                    f"({image_dx}, {image_dy})px, FOV crop-zoom={zoom:.4f}"
+                )
+                return image_dx, zoom
+            logger.info("Auto-alignment: image-based registration inconclusive, "
+                       "falling back to geometry-based calculation")
 
         if rgb_frame is not None:
             try:
@@ -1006,12 +1488,89 @@ class ParallaxCompensator:
 
         self.manual_shift_x = dx
         self.fov_zoom_factor = zoom
+        # Sets manual_shift_x/fov_zoom_factor directly rather than through
+        # set_manual_shift()/set_fov_zoom_factor(), so their own cache
+        # invalidation doesn't run automatically here - a stale crop_rect
+        # sized for the PRE-auto-align shift would blank the wrong border
+        # region once this new shift takes effect.
+        self.last_displacement_map = None
+        self.crop_rect = None
 
         logger.info(
             f"Auto-alignment computed: shift=({dx}, {self.manual_shift_y})px "
             f"at {resolved_distance_m:.2f}m, FOV crop-zoom={zoom:.4f}"
         )
         return dx, zoom
+
+    def compute_auto_crop(self) -> Optional[Tuple[int, int, int, int]]:
+        """
+        One-time computation of a FIXED border-blank extent from whatever
+        correction is currently in effect, meant to be triggered on demand
+        (e.g. a GUI "Auto-Crop" button) - not run every frame. Once set,
+        _remap_thermal uses the stored rect directly instead of re-deriving
+        it from the live displacement map on every call (see crop_rect's
+        own __init__ comment and _remap_thermal's use of it) - a genuine
+        simplification of that per-frame cost, not an addition to it.
+
+        Reads self.last_displacement_map - whatever apply_correction() most
+        recently computed, either the constant manual-shift-only map or a
+        real depth-based per-pixel one - rather than requiring a fresh
+        frame to be passed in, since apply_correction() already keeps this
+        cache current for exactly this kind of on-demand query.
+
+        For a manual-shift-only setup (no depth-based correction), the
+        flow map is a uniform constant across the whole frame, so the
+        computed crop is fully deterministic and exact - not an
+        approximation of a moving target. With depth-based correction
+        active, this is necessarily a snapshot of the CURRENT scene's
+        depth distribution; if the scene's depth range changes
+        substantially afterward (a much closer or farther subject moves
+        into frame), the fixed crop may under- or over-cover the border
+        until Auto-Crop is run again - the same one-time/on-demand
+        tradeoff compute_auto_alignment() already accepts for shift/zoom.
+
+        Returns:
+            The computed (top, bottom, left, right) rect, or None if no
+            correction has run yet (last_displacement_map is still empty)
+            - nothing to crop in that case.
+        """
+        flow_map = self.last_displacement_map
+        if flow_map is None:
+            logger.warning("Auto-Crop: no correction has run yet, nothing to crop")
+            return None
+
+        h, w = flow_map.shape[:2]
+        shift_x = flow_map[:, :, 0]
+        shift_y = flow_map[:, :, 1]
+
+        # Identical bound to _remap_thermal's own live computation - see
+        # its comment for why a real depth source can legitimately demand
+        # a crop this large, and why it's still capped rather than left
+        # unbounded.
+        max_crop_w = int(w * self._MAX_CROP_FRACTION)
+        max_crop_h = int(h * self._MAX_CROP_FRACTION)
+        left_crop = max(0, min(max_crop_w, int(np.ceil(shift_x.max()))))
+        right_crop = max(0, min(max_crop_w, int(np.ceil(-shift_x.min()))))
+        top_crop = max(0, min(max_crop_h, int(np.ceil(shift_y.max()))))
+        bottom_crop = max(0, min(max_crop_h, int(np.ceil(-shift_y.min()))))
+
+        self.crop_rect = (top_crop, bottom_crop, left_crop, right_crop)
+        logger.info(f"Auto-Crop computed: (top={top_crop}, bottom={bottom_crop}, "
+                   f"left={left_crop}, right={right_crop})px")
+        return self.crop_rect
+
+    def set_crop_rect(self, top: int, bottom: int, left: int, right: int):
+        """Set a fixed border-blank extent directly (e.g. restoring a persisted value)."""
+        self.crop_rect = (int(top), int(bottom), int(left), int(right))
+
+    def get_crop_rect(self) -> Optional[Tuple[int, int, int, int]]:
+        """Current fixed crop rect, or None if Auto-Crop has never run (or was reset)."""
+        return self.crop_rect
+
+    def clear_crop_rect(self):
+        """Reset to _remap_thermal's original per-frame live computation."""
+        self.crop_rect = None
+        logger.info("Auto-Crop reset - border blanking will be recomputed live each frame again")
 
     def has_correction(self) -> bool:
         """
@@ -1117,6 +1676,7 @@ class ParallaxCompensator:
         on this class).
         """
         self.last_displacement_map = None
+        self.crop_rect = None
 
     def apply_correction(self, thermal_frame: np.ndarray,
                         rgb_frame: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -1476,23 +2036,38 @@ class ParallaxCompensator:
 
     def _resolve_remap_gpu(self) -> bool:
         """
-        Lazily resolve whether a CUDA GPU is usable for the remap step.
-        Never raises - returns False (CPU fallback) on any failure.
+        Lazily resolve whether a torch GPU (CUDA, or DirectML on
+        Intel/AMD - see utils/gpu_device.py) is usable for the remap
+        step. Never raises - returns False (CPU fallback) on any failure.
         """
+        global _REMAP_GPU_UNAVAILABLE
         if self._remap_gpu_ready:
             return True
-        if not DEPTH_ESTIMATION_AVAILABLE:  # torch importable - see module-level check
+        # DEPTH_ESTIMATION_AVAILABLE reflects a real module-level `import
+        # torch`, so unlike fusion_processor/fusion_3d_panel's find_spec-based
+        # guards this one already latches False when torch can't load at all.
+        # The negative latch below still matters for the other failure mode:
+        # torch imports fine but CUDA is absent or device setup raises, which
+        # would otherwise re-probe on every frame the remap runs.
+        if not DEPTH_ESTIMATION_AVAILABLE or _REMAP_GPU_UNAVAILABLE:
             return False
         try:
             import torch
-            if not torch.cuda.is_available():
+            from thermal_inspection.utils.gpu_device import resolve_torch_gpu_device
+            device, device_name = resolve_torch_gpu_device("auto", "Parallax remap")
+            if device is None:
+                _REMAP_GPU_UNAVAILABLE = True
                 return False
-            self._remap_gpu_device = "cuda"
+            self._remap_gpu_device = device
             self._remap_gpu_ready = True
-            logger.info(f"Parallax remap: GPU acceleration active ({torch.cuda.get_device_name(0)})")
+            logger.info(f"Parallax remap: GPU acceleration active ({device_name})")
             return True
         except Exception as e:
-            logger.warning(f"Parallax remap: failed to initialize GPU path, falling back to CPU: {e}")
+            _REMAP_GPU_UNAVAILABLE = True
+            logger.warning(
+                f"Parallax remap: failed to initialize GPU path, falling back "
+                f"to CPU (will not retry this process): {e}"
+            )
             return False
 
     def _remap_thermal_gpu(self, thermal_frame: np.ndarray, flow_map: np.ndarray,
@@ -1586,33 +2161,54 @@ class ParallaxCompensator:
         # measured (same "no fake data" reasoning as the depth-map
         # watermark: don't manufacture pixel values, even by interpolation,
         # where there's no real aligned data).
-        shift_x = flow_map[:, :, 0]
-        shift_y = flow_map[:, :, 1]
+        # A fixed crop from a prior compute_auto_crop() call (see its own
+        # docstring) skips the live reduction below entirely - 4 cheap
+        # slice-assignments from plain ints instead of 4 numpy min/max
+        # reductions over the full flow_map, every frame this correction
+        # path runs. This is a genuine simplification of the existing
+        # per-frame cost, not a new one: the crop rect was already being
+        # recomputed from scratch every call before Auto-Crop existed.
+        if self.crop_rect is not None:
+            # Re-clamped against the CURRENT frame size, not just trusted
+            # as-is - a stored crop_rect could in principle predate a
+            # camera resolution change (a different camera reconnected,
+            # or a mode switch), and this same _MAX_CROP_FRACTION bound
+            # already protects the live path below from ever blanking an
+            # entire frame.
+            max_crop_w = int(w * self._MAX_CROP_FRACTION)
+            max_crop_h = int(h * self._MAX_CROP_FRACTION)
+            top_crop = max(0, min(max_crop_h, self.crop_rect[0]))
+            bottom_crop = max(0, min(max_crop_h, self.crop_rect[1]))
+            left_crop = max(0, min(max_crop_w, self.crop_rect[2]))
+            right_crop = max(0, min(max_crop_w, self.crop_rect[3]))
+        else:
+            shift_x = flow_map[:, :, 0]
+            shift_y = flow_map[:, :, 1]
 
-        # map_x = x - shift_x goes out of [0, w) on the LEFT wherever
-        # shift_x is large positive (small x - large shift < 0), and out on
-        # the RIGHT wherever shift_x is large negative (x near w-1 + |shift|
-        # exceeds w-1) - blank only the actual max magnitude present on each
-        # side, not a blanket worst case, so a small shift doesn't blank
-        # more field of view than it has to.
-        #
-        # Capped at _MAX_CROP_FRACTION per side (not just min(w, ...)/
-        # min(h, ...)) - a real depth source (e.g. RealSense) can
-        # legitimately report a very close object, producing a disparity
-        # far larger than the frame is wide. Capping only at the frame's
-        # own dimension still let left_crop (or any side) reach the full
-        # width/height, and corrected[:, :w] = 0 blanks the ENTIRE frame
-        # to black - confirmed live: "turning on Intel RealSense parallax
-        # compensation turns the RGB feed black" (synthetic depth methods
-        # never report distances close enough to trigger this). Some
-        # residual smeared border can remain visible in this extreme case
-        # instead - a real but far lesser problem than an all-black frame.
-        max_crop_w = int(w * self._MAX_CROP_FRACTION)
-        max_crop_h = int(h * self._MAX_CROP_FRACTION)
-        left_crop = max(0, min(max_crop_w, int(np.ceil(shift_x.max()))))
-        right_crop = max(0, min(max_crop_w, int(np.ceil(-shift_x.min()))))
-        top_crop = max(0, min(max_crop_h, int(np.ceil(shift_y.max()))))
-        bottom_crop = max(0, min(max_crop_h, int(np.ceil(-shift_y.min()))))
+            # map_x = x - shift_x goes out of [0, w) on the LEFT wherever
+            # shift_x is large positive (small x - large shift < 0), and out on
+            # the RIGHT wherever shift_x is large negative (x near w-1 + |shift|
+            # exceeds w-1) - blank only the actual max magnitude present on each
+            # side, not a blanket worst case, so a small shift doesn't blank
+            # more field of view than it has to.
+            #
+            # Capped at _MAX_CROP_FRACTION per side (not just min(w, ...)/
+            # min(h, ...)) - a real depth source (e.g. RealSense) can
+            # legitimately report a very close object, producing a disparity
+            # far larger than the frame is wide. Capping only at the frame's
+            # own dimension still let left_crop (or any side) reach the full
+            # width/height, and corrected[:, :w] = 0 blanks the ENTIRE frame
+            # to black - confirmed live: "turning on Intel RealSense parallax
+            # compensation turns the RGB feed black" (synthetic depth methods
+            # never report distances close enough to trigger this). Some
+            # residual smeared border can remain visible in this extreme case
+            # instead - a real but far lesser problem than an all-black frame.
+            max_crop_w = int(w * self._MAX_CROP_FRACTION)
+            max_crop_h = int(h * self._MAX_CROP_FRACTION)
+            left_crop = max(0, min(max_crop_w, int(np.ceil(shift_x.max()))))
+            right_crop = max(0, min(max_crop_w, int(np.ceil(-shift_x.min()))))
+            top_crop = max(0, min(max_crop_h, int(np.ceil(shift_y.max()))))
+            bottom_crop = max(0, min(max_crop_h, int(np.ceil(-shift_y.min()))))
 
         if top_crop:
             corrected[:top_crop, :] = 0

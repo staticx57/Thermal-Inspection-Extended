@@ -266,6 +266,18 @@ class Tau2Serial:
             return struct.unpack(">H", data[:2])[0]
         return 0
 
+    def set_agc_type(self, agc_type: int) -> bool:
+        """Set AGC algorithm type (0=Plateau, 1=Linear, 2=Auto Dynamic, 3=Once Bright, 4=Info-Based)."""
+        status, _ = self.send_command(CMD_AGC_TYPE, struct.pack(">H", agc_type))
+        return status == STATUS_CAM_OK
+
+    def get_agc_type(self) -> int:
+        """Query active AGC algorithm type."""
+        _, data = self.send_command(CMD_AGC_TYPE)
+        if len(data) >= 2:
+            return struct.unpack(">H", data[:2])[0]
+        return 0
+
     def set_color_lut(self, lut_id: int) -> bool:
         """Set hardware palette / Color LUT."""
         status, _ = self.send_command(CMD_COLOR_LUT, struct.pack(">H", lut_id))

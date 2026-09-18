@@ -47,6 +47,21 @@ logger = logging.getLogger(__name__)
 # pattern as fusion_processor.py's laplacian_pyramid GPU path.
 _TORCH_SPEC_AVAILABLE = importlib.util.find_spec("torch") is not None
 _torch_gpu_ready = False
+# Latches True once the GPU path has been proven unusable, so the probe below
+# runs at most once per process.
+#
+# _TORCH_SPEC_AVAILABLE only proves torch is INSTALLED (find_spec inspects the
+# filesystem); it does not prove `import torch` succeeds. When the package is
+# present but its native libraries fail to load - exactly this machine's
+# broken c10.dll - the import raises, and Python does NOT cache a failed
+# import (the partially-initialized module is removed from sys.modules), so
+# every retry re-runs the full DLL load from scratch. Without this latch,
+# _resolve_3d_gpu() re-attempted that failing load on EVERY frame: measured
+# 4.3s per call with PyQt6 resident (i.e. the real app), against ~18ms for
+# apply_depth_relief's actual work - a ~240x per-frame overhead that has
+# nothing to do with the visualization itself. CUDA availability cannot
+# change within a process, so a negative result is safe to cache forever.
+_torch_gpu_unavailable = False
 _torch_device = None
 _torch_kernels = None  # (sobel_x, sobel_y, gauss_kx, gauss_ky) tensors, built once per process
 # Diagnostic only - counts apply_3d_visualization's GPU-path calls so
@@ -74,7 +89,16 @@ except ImportError:
 # confirmed live on a D455: depth ranged 0-65.5m with a mean of ~1.5m in an
 # ordinary room. Left unfiltered, those dominate both the relief-shading
 # gradient computation and the point-cloud preview's framing.
-MAX_VALID_DEPTH_M = 6.0
+#
+# Shared across every RealSense model this app supports (no per-model
+# lookup) - raised from an earlier 6.0m, which was tuned purely from the
+# D455's own noise floor and silently clipped genuine readings from an
+# L515 (whose real usable range extends to ~9m, and whose solid-state
+# LiDAR is actually MORE accurate than a D455's stereo depth at that
+# distance, not less). A D455 loses nothing from the looser ceiling - its
+# own noise already dominates well before 9m - so one shared constant
+# stays correct for both rather than needing product_line-based branching.
+MAX_VALID_DEPTH_M = 9.0
 # MIN_VALID_DEPTH_M is imported (see top of file) rather than redefined
 # here - it used to be an independent copy of the same value, which only
 # stayed in sync by coincidence.
@@ -513,27 +537,31 @@ def apply_depth_colorize(image_bgr: np.ndarray, depth_m: np.ndarray, strength: f
 
 def _resolve_3d_gpu() -> bool:
     """
-    Lazily resolve whether a CUDA GPU is usable for 3D Fusion's depth
+    Lazily resolve whether a torch GPU (CUDA, or DirectML on Intel/AMD -
+    see utils/gpu_device.py) is usable for 3D Fusion's depth
     visualizations. Unlike the CPU path (which must downscale to stay
     inside the frame-time budget - confirmed live: 40-68ms/frame at
     RealSense's native 1280x800, close to or exceeding the throttle
-    interval itself), a torch/CUDA pipeline keeps every intermediate
+    interval itself), a torch GPU pipeline keeps every intermediate
     tensor GPU-resident across the whole computation instead of round-
     tripping per call, and runs at full resolution: measured ~5ms/frame
-    (~190 FPS) for relief shading at 1280x800 on an RTX 4000 Ada, output
+    (~190 FPS) for relief shading at 1280x800 on an RTX 4000 Ada (CUDA;
+    DirectML throughput unverified - see module docstring), output
     within ~2/255 mean of the CPU version (kernel-shape differences, not a
     quality loss) - full resolution and full speed, no downscaling needed.
     """
-    global _torch_gpu_ready, _torch_device, _torch_kernels
+    global _torch_gpu_ready, _torch_device, _torch_kernels, _torch_gpu_unavailable
     if _torch_gpu_ready:
         return True
-    if not _TORCH_SPEC_AVAILABLE:
+    if not _TORCH_SPEC_AVAILABLE or _torch_gpu_unavailable:
         return False
     try:
         import torch
-        if not torch.cuda.is_available():
+        from thermal_inspection.utils.gpu_device import resolve_torch_gpu_device
+        device, device_name = resolve_torch_gpu_device("auto", "3D Fusion")
+        if device is None:
+            _torch_gpu_unavailable = True
             return False
-        device = "cuda"
         # cv2.getGaussianKernel's own coefficients for ksize=5, sigma=1.0 -
         # matches apply_depth_relief's cv2.GaussianBlur(depth, (5,5), 1.0)
         # exactly, rather than the binomial [1,4,6,4,1]/16 approximation
@@ -553,10 +581,14 @@ def _resolve_3d_gpu() -> bool:
         _torch_device = device
         _torch_kernels = (sobel_x, sobel_y, kx, ky)
         _torch_gpu_ready = True
-        logger.info(f"3D Fusion: GPU acceleration active ({torch.cuda.get_device_name(0)})")
+        logger.info(f"3D Fusion: GPU acceleration active ({device_name})")
         return True
     except Exception as e:
-        logger.warning(f"3D Fusion: failed to initialize GPU path, falling back to CPU: {e}")
+        _torch_gpu_unavailable = True
+        logger.warning(
+            f"3D Fusion: failed to initialize GPU path, falling back to CPU "
+            f"(will not retry this process): {e}"
+        )
         return False
 
 
@@ -952,7 +984,7 @@ def apply_3d_visualization_fused(mode: str, thermal_colorized: np.ndarray, rgb_f
             # always was in the two-step path - only the two GPU stages
             # are being fused, not this.
             rgb_aligned = fusion_processor.align_rgb_to_thermal(
-                rgb_frame, thermal_colorized.shape[:2]
+                rgb_frame, thermal_colorized.shape[:2], apply_color_mode=True
             )
 
             def to_tensor_chw(img):

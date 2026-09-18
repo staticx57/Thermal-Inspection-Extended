@@ -39,6 +39,45 @@ except ImportError:
 # RGBCameraUVC's WARMUP_TIMEOUT_S.
 WARMUP_FRAMES = 10
 
+# rs.rs400_visual_preset's real int values (confirmed live against a
+# connected D455: custom=0, default=1, hand=2, high_accuracy=3,
+# high_density=4, medium_density=5, remove_ir_pattern=6) - a device's own
+# visual_preset option range may not reach every value here (this D455
+# reports max=5, so remove_ir_pattern is a valid preset name on other
+# firmware/models but not selectable on this one); get_depth_sensor_options()
+# attaches this map only to the visual_preset entry so a control panel can
+# render it as a named dropdown instead of a bare numeric slider.
+_VISUAL_PRESET_NAMES = {
+    0: 'Custom',
+    1: 'Default',
+    2: 'Hand',
+    3: 'High Accuracy',
+    4: 'High Density',
+    5: 'Medium Density',
+    6: 'Remove IR Pattern',
+}
+
+# rs.l500_visual_preset's real int values (queried directly from
+# pyrealsense2 - rs.l500_visual_preset.custom/default/no_ambient_light/
+# low_ambient_light/max_range/short_range/automatic - confirmed 0-6
+# respectively). The L515 (an L500-line solid-state LiDAR, not a D400-
+# family stereo camera) exposes an option ALSO named 'visual_preset', but
+# with these completely different int-to-meaning mappings - the previous
+# code attached _VISUAL_PRESET_NAMES (the D400 map) to ANY device's
+# visual_preset unconditionally, which would have mislabeled e.g. an
+# L515's preset value 3 ("Low Ambient Light") as "High Accuracy" in the
+# control panel dropdown. See get_depth_sensor_options()'s product_line
+# check for how this map is selected instead.
+_L500_VISUAL_PRESET_NAMES = {
+    0: 'Custom',
+    1: 'Default',
+    2: 'No Ambient Light',
+    3: 'Low Ambient Light',
+    4: 'Max Range',
+    5: 'Short Range',
+    6: 'Automatic',
+}
+
 
 class RGBCameraRealSense:
     """
@@ -76,7 +115,22 @@ class RGBCameraRealSense:
         self._last_depth_frame = None  # rs.depth_frame, kept for point-cloud calc
         self._last_color_image = None
         self._depth_sensor: Optional["rs.sensor"] = None  # cached on open() for option get/set
+        self._color_sensor: Optional["rs.sensor"] = None  # cached on open() for option get/set
         self._device: Optional["rs.device"] = None  # cached on open() for get_info() diagnostics
+
+        # Depth post-processing (spatial/temporal/hole-filling) - all off by
+        # default, matching every other opt-in enhancement in this codebase.
+        # Decimation is deliberately not offered: it changes the depth
+        # frame's resolution, which would need to happen before align() to
+        # avoid a resolution mismatch, and that reordering is a bigger,
+        # riskier change than this pass's scope - see get_depth_frame()'s
+        # "aligned to color" contract, which decimation would break.
+        self._spatial_filter: Optional["rs.spatial_filter"] = None
+        self._temporal_filter: Optional["rs.temporal_filter"] = None
+        self._hole_filling_filter: Optional["rs.hole_filling_filter"] = None
+        self._depth_filters_enabled: Dict[str, bool] = {
+            'spatial': False, 'temporal': False, 'hole_filling': False
+        }
 
     def is_available(self) -> bool:
         """Whether pyrealsense2 is importable on this system."""
@@ -108,8 +162,23 @@ class RGBCameraRealSense:
             self._depth_sensor = depth_sensor
             self._device = device
 
+            # Not every RealSense model exposes a distinct color sensor
+            # object under this name (D4xx/D455 do; some do not) - absence
+            # here just means get_color_sensor_options() reports nothing,
+            # same "never guessed" contract as the depth-sensor options.
+            for sensor in device.query_sensors():
+                try:
+                    if sensor.get_info(rs.camera_info.name) == "RGB Camera":
+                        self._color_sensor = sensor
+                        break
+                except Exception:
+                    continue
+
             self.align = rs.align(rs.stream.color)
             self.pointcloud = rs.pointcloud()
+            self._spatial_filter = rs.spatial_filter()
+            self._temporal_filter = rs.temporal_filter()
+            self._hole_filling_filter = rs.hole_filling_filter()
 
             # Warm up - discard frames while auto-exposure settles, same
             # pattern as RGBCameraFirefly's warm-up loop.
@@ -157,6 +226,17 @@ class RGBCameraRealSense:
             # RGBCameraFirefly.read()'s GetNDArray() copy.
             color_image = np.asanyarray(color_frame.get_data()).copy()
             self._last_color_image = color_image
+
+            # Optional denoising, applied after alignment so get_depth_frame()'s
+            # "aligned to color" contract is unaffected either way - these
+            # filters smooth depth values in place, they don't touch geometry.
+            if self._depth_filters_enabled['spatial'] and self._spatial_filter is not None:
+                depth_frame = self._spatial_filter.process(depth_frame)
+            if self._depth_filters_enabled['temporal'] and self._temporal_filter is not None:
+                depth_frame = self._temporal_filter.process(depth_frame)
+            if self._depth_filters_enabled['hole_filling'] and self._hole_filling_filter is not None:
+                depth_frame = self._hole_filling_filter.process(depth_frame)
+
             self._last_depth_frame = depth_frame
 
             return True, color_image
@@ -257,6 +337,10 @@ class RGBCameraRealSense:
         self._last_depth_frame = None
         self._last_color_image = None
         self._depth_sensor = None
+        self._color_sensor = None
+        self._spatial_filter = None
+        self._temporal_filter = None
+        self._hole_filling_filter = None
         self._device = None
 
     def is_opened(self) -> bool:
@@ -317,6 +401,21 @@ class RGBCameraRealSense:
         if self._depth_sensor is None:
             return {}
 
+        # D400-family and L500-family devices both expose an option named
+        # 'visual_preset', but with entirely different int-to-meaning
+        # mappings (rs.rs400_visual_preset vs rs.l500_visual_preset - see
+        # _L500_VISUAL_PRESET_NAMES's own comment). Deciding by
+        # product_line (already read the same way in get_info()) rather
+        # than assuming D400 unconditionally is what makes this correct
+        # for an L515.
+        is_l500 = False
+        if self._device is not None:
+            try:
+                is_l500 = self._device.get_info(rs.camera_info.product_line).upper().startswith('L5')
+            except Exception:
+                pass
+        preset_names = _L500_VISUAL_PRESET_NAMES if is_l500 else _VISUAL_PRESET_NAMES
+
         options: Dict[str, Dict[str, float]] = {}
         try:
             for opt in self._depth_sensor.get_supported_options():
@@ -324,19 +423,89 @@ class RGBCameraRealSense:
                     if not self._depth_sensor.supports(opt):
                         continue
                     rng = self._depth_sensor.get_option_range(opt)
-                    options[opt.name] = {
+                    entry = {
                         'value': self._depth_sensor.get_option(opt),
                         'min': rng.min,
                         'max': rng.max,
                         'step': rng.step,
                         'default': rng.default,
                     }
+                    if opt.name == 'visual_preset':
+                        entry['enum_names'] = preset_names
+                    options[opt.name] = entry
                 except Exception as e:
                     logger.debug(f"RealSense: could not query option {opt}: {e}")
         except Exception as e:
             logger.debug(f"RealSense: could not enumerate depth sensor options: {e}")
 
         return options
+
+    def get_color_sensor_options(self) -> Dict[str, Dict[str, float]]:
+        """
+        Same generic, device-reported pattern as get_depth_sensor_options()
+        but for the color sensor (e.g. 'brightness', 'contrast', 'gamma',
+        'white_balance', 'enable_auto_white_balance') - empty if this
+        device/firmware doesn't expose a distinct color sensor object.
+        """
+        if self._color_sensor is None:
+            return {}
+
+        options: Dict[str, Dict[str, float]] = {}
+        try:
+            for opt in self._color_sensor.get_supported_options():
+                try:
+                    if not self._color_sensor.supports(opt):
+                        continue
+                    rng = self._color_sensor.get_option_range(opt)
+                    options[opt.name] = {
+                        'value': self._color_sensor.get_option(opt),
+                        'min': rng.min,
+                        'max': rng.max,
+                        'step': rng.step,
+                        'default': rng.default,
+                    }
+                except Exception as e:
+                    logger.debug(f"RealSense: could not query color option {opt}: {e}")
+        except Exception as e:
+            logger.debug(f"RealSense: could not enumerate color sensor options: {e}")
+
+        return options
+
+    def set_color_sensor_option(self, option_name: str, value: float) -> bool:
+        """Set a color-sensor option by name - same contract as set_depth_sensor_option()."""
+        if self._color_sensor is None:
+            return False
+        opt = getattr(rs.option, option_name, None)
+        if opt is None:
+            logger.warning(f"RealSense: unknown color sensor option '{option_name}'")
+            return False
+        try:
+            if not self._color_sensor.supports(opt):
+                logger.warning(f"RealSense: device does not support color option '{option_name}'")
+                return False
+            self._color_sensor.set_option(opt, value)
+            logger.info(f"RealSense color sensor option '{option_name}' set to {value}")
+            return True
+        except Exception as e:
+            logger.error(f"RealSense: failed to set color option '{option_name}' to {value}: {e}")
+            return False
+
+    def get_depth_filter_state(self) -> Dict[str, bool]:
+        """Current on/off state of the opt-in depth post-processing filters."""
+        return dict(self._depth_filters_enabled)
+
+    def set_depth_filter_enabled(self, filter_name: str, enabled: bool) -> bool:
+        """
+        Toggle one depth post-processing filter ('spatial', 'temporal', or
+        'hole_filling'). All default off; read()'s filter chain checks this
+        dict every frame, so toggling takes effect on the next frame with
+        no reconnect needed.
+        """
+        if filter_name not in self._depth_filters_enabled:
+            logger.warning(f"RealSense: unknown depth filter '{filter_name}'")
+            return False
+        self._depth_filters_enabled[filter_name] = bool(enabled)
+        return True
 
     def set_depth_sensor_option(self, option_name: str, value: float) -> bool:
         """

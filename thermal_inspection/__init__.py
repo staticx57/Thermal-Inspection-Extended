@@ -11,7 +11,7 @@ This package provides:
 - Video recording and snapshot capture
 """
 
-__version__ = "3.6.0"
+__version__ = "3.7.0"
 
 import os
 os.environ["OPENCV_VIDEOIO_PRIORITY_OBSENSOR"] = "0"

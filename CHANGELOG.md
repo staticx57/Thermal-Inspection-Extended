@@ -1,5 +1,39 @@
 # Thermal Inspection Fusion Tool - Changelog
 
+## [3.7.0] - 2026-09-11 - Radiometric Boson: Native Flirpy Architecture & Live-Verified Bug Fixes 🔥
+
+### 🎯 Overview
+Live hardware validation of a connected radiometric (-R) Boson surfaced a cluster of real bugs - some purely in software, one architectural. All were confirmed against real hardware (not just plausible-looking fixes) before being trusted, and the dual-connection architecture problem turned out to be responsible for more than just a broken control panel.
+
+**Project Status**: radiometric Boson control panel fully functional with no vendor-SDK dependency; unrelated GPU/torch test-collection failures in this environment are pre-existing (see DirectML backlog notes) and untouched by this release.
+
+---
+
+### ✅ ADDED - Native Flirpy Radiometry (`thermal_inspection/sdk/boson_flirpy_ext.py`)
+- New `BosonNative` class extends flirpy's own `Boson` with the CCI commands it doesn't implement - gain mode, color LUT/palette, T-Linear mode, radiometry enable, emissivity, atmospheric temperature/transmission - using the exact same `_send_packet`/`_decode_packet` primitives flirpy already uses for FFC.
+- Every FunctionID sourced from FLIR's own Boson Software IDD (local copy, rev300) and verified live against a real -R unit before being trusted: read-only GETs matched the proprietary vendor SDK's own readings exactly, and a SET/restore round-trip on emissivity and T-Linear mode confirmed the payload encoding actually writes correctly.
+- The IDD confirms emissivity and atmospheric/window transmission are genuinely percent (0-100) at the firmware level, not the 0.0-1.0 fraction the rest of the app uses internally - `BosonNative` exposes raw device units, the backend converts.
+
+### 🔧 FIXED - Dual COM-Connection Architecture (root cause of two separate live symptoms)
+- `FlirpyThermalBackend` used to open a *second*, independent connection to the proprietary vendor `BosonSDK` at startup (closed right after configuring T-Linear mode), and the control panel opened a *third*, independent connection whenever used. flirpy's own `Boson` class holds its serial connection exclusively for its whole life, so every one of those competing opens failed with `"Failed to open port #6 with error 255!"` - the control panel could never actually connect while the camera streamed.
+- `BosonPlugin.create_sdk()` now delegates to the already-open `FlirpyThermalBackend` instance instead of opening a second connection - there is exactly one connection now, for both video and control.
+- Surprise second symptom, confirmed live: this dual-connection contention was also silently degrading the whole application's frame rate, not just breaking the control panel - the FPS counter measurably improved once the second connection was removed.
+
+### 🔧 FIXED - Spot-Meter / ROI / Temperature-Map Blocking Reads (same bug, four places)
+- `FlirpyThermalBackend.get_spot_temperature()`, `get_roi_temperature_stats()`, and `get_temperature_map()` each called `self.read()` to get a frame instead of using the one already captured - a second, synchronous `cv2.VideoCapture.read()` issued from the **main GUI thread**, racing `ThreadedCameraCapture`'s own continuous background-thread reads on the identical capture handle. Confirmed live: placing a spot meter on the radiometric Boson (a 9 Hz camera in T-Linear mode) visibly coupled the whole UI's responsiveness to that rate; removing the spot meter restored normal responsiveness.
+- The same pattern (a "compute-from-current-frame" helper written against `self.read()` instead of a cached last-frame attribute) was found by code inspection in three more places and fixed the same way, though not yet live-verified since only the Boson is connected this session: `Tau2Camera.read_temperature_map()` (also fixes `Tau2Backend`'s spot/ROI methods, which route through it), `PyUSBThermalBackend.get_temperature_map()` (Lepton path - worse case, its `read()` has a 1000ms USB timeout), and `GigECamera.read_temperature_map()`.
+
+### 🔧 FIXED - Radiometric Correctness Bugs (`boson_sdk_wrapper.py`)
+- `set_emissivity()`/`set_atmospheric_transmission()` sent the app's 0.0-1.0 fraction straight to the SDK, which actually expects 0-100 percent at this firmware version - confirmed live, the fraction was rejected outright with SDK error 515 while the percent-scaled value succeeded. Every attempt to change these from the UI silently no-opped.
+- `get_calibration_info()`'s `f_number`/`transmission` readback double-scaled already-real-world SDK values (displaying f/0.011 and a transmission of 0.00012 next to a working lens).
+- `get_lens_temperature()`/`get_shutter_temperature()` divided by 10 assuming a Kelvin×10 format that only the FPA getter actually uses, producing ~-243°C readings next to a 33°C sensor.
+- The spot-meter temperature display ignored the unit selector (C/F/K) for the true radiometric read path - switching units changed the displayed suffix but not the number, since only the label was re-derived, not the value (`app.py`'s spot-meter update loop). The 8-bit-estimation fallback path already converted correctly; only the primary radiometric path had this gap.
+
+### 🔧 FIXED - Environment
+- `flirpy` (and therefore the radiometric Boson path) imports `pkg_resources`, which `setuptools` 81+ no longer ships - pinned to `setuptools<81` to restore it. Affects any environment with a recent standalone setuptools upgrade, not just this one.
+
+---
+
 ## [3.6.0] - 2026-09-02 - Camera Plugin Architecture & Technical Debt Cleanup 🔌
 
 ### 🎯 Overview

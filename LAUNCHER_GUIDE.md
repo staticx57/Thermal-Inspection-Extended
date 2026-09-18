@@ -231,14 +231,14 @@ launch.bat
 
 ### 5. Remote/Automated Operation
 ```bat
-python inspection_main.py --headless --thermal-device 2 --rgb-device 0
+python -m thermal_inspection --headless --thermal-device 2 --rgb-device 0
 ```
 
 ---
 
 ### 6. Custom PIP Configuration
 ```bat
-python inspection_main.py --fusion-mode picture_in_picture --thermal-backend flirpy
+python -m thermal_inspection --fusion-mode picture_in_picture --thermal-backend flirpy
 ```
 Then use fusion priority toggle in GUI to swap main/PIP views
 
@@ -276,7 +276,7 @@ You can still use the traditional command-line approach:
 launch.bat --thermal-backend flirpy --enable-boson-sdk
 
 # Or call Python directly
-python inspection_main.py [arguments]
+python -m thermal_inspection [arguments]
 ```
 
 The launcher will detect direct arguments and bypass the menu.
@@ -301,7 +301,7 @@ Copy any `scripts/quick-*.bat` file and modify the arguments:
 ```bat
 @echo off
 echo My Custom Configuration...
-python "%~dp0inspection_main.py" --your-custom-args
+python -m thermal_inspection --your-custom-args
 pause
 ```
 
@@ -312,7 +312,7 @@ Use batch scripting to create workflows:
 @echo off
 echo Processing multiple files...
 for %%f in (*.mp4) do (
-    python inspection_main.py --mode playback --playback-file "%%f" --headless
+    python -m thermal_inspection --mode playback --playback-file "%%f" --headless
 )
 pause
 ```

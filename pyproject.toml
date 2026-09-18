@@ -1,6 +1,6 @@
 [project]
 name = "thermal-inspection"
-version = "3.6.0"
+version = "3.7.0"
 description = "Thermal Inspection Fusion Tool - FLIR thermal/RGB fusion and radiometric analysis"
 requires-python = ">=3.10"
 

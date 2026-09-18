@@ -78,6 +78,28 @@ class RealSenseSDK(CameraSDK):
                 ok = cam.set_depth_sensor_option(option, value)
                 return {"success": ok}
 
+            elif command == "get_color_sensor_options":
+                return {"success": True, "options": cam.get_color_sensor_options()}
+
+            elif command == "set_color_sensor_option":
+                option = params.get("option")
+                value = params.get("value")
+                if option is None or value is None:
+                    return {"success": False, "error": "Missing 'option' or 'value' param"}
+                ok = cam.set_color_sensor_option(option, value)
+                return {"success": ok}
+
+            elif command == "get_depth_filter_state":
+                return {"success": True, "filters": cam.get_depth_filter_state()}
+
+            elif command == "set_depth_filter_enabled":
+                filter_name = params.get("filter")
+                enabled = params.get("enabled")
+                if filter_name is None or enabled is None:
+                    return {"success": False, "error": "Missing 'filter' or 'enabled' param"}
+                ok = cam.set_depth_filter_enabled(filter_name, bool(enabled))
+                return {"success": ok}
+
             else:
                 return {"success": False, "error": f"Unknown RealSense command '{command}'"}
 
@@ -86,7 +108,9 @@ class RealSenseSDK(CameraSDK):
 
     def get_supported_commands(self) -> List[str]:
         return ["get_camera_info", "get_depth_frame", "get_point_cloud", "get_depth_intrinsics",
-                "get_depth_sensor_options", "set_depth_sensor_option"]
+                "get_depth_sensor_options", "set_depth_sensor_option",
+                "get_color_sensor_options", "set_color_sensor_option",
+                "get_depth_filter_state", "set_depth_filter_enabled"]
 
 
 class RealSensePlugin(CameraPlugin):
@@ -161,3 +185,11 @@ class RealSensePlugin(CameraPlugin):
             res = sdk.execute("get_depth_sensor_options")
             if res.get("success"):
                 panel.update_depth_sensor_options(res.get("options", {}))
+        if panel and hasattr(panel, "update_color_sensor_options"):
+            res = sdk.execute("get_color_sensor_options")
+            if res.get("success"):
+                panel.update_color_sensor_options(res.get("options", {}))
+        if panel and hasattr(panel, "update_depth_filter_state"):
+            res = sdk.execute("get_depth_filter_state")
+            if res.get("success"):
+                panel.update_depth_filter_state(res.get("filters", {}))

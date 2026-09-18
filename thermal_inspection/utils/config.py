@@ -60,7 +60,7 @@ class Config:
         # Performance Settings
         'buffer_flush_enabled': False,
         'frame_skip_value': 1,
-        'device': 'cuda',  # 'cuda' or 'cpu'
+        'device': 'cuda',  # 'cuda', 'cpu', or 'directml' (Intel/AMD - see utils/gpu_device.py)
 
         # Camera Settings
         'rgb_camera_type': 'auto',  # 'auto', 'firefly', 'uvc'
@@ -84,6 +84,23 @@ class Config:
             'flir_boson': {'port': 'COM7', 'linux_port': '/dev/ttyACM0', 'baud': 921600},
             'flir_tau2': {'port': 'COM5', 'linux_port': '/dev/ttyUSB0', 'baud': 57600},
         },
+
+        # Parallax correction alignment - a fixed mounting offset, once
+        # found (by hand, or via Auto-Detect/Auto-Crop), shouldn't need
+        # re-tuning on every app restart. None of these persisted before
+        # 2026-09-08; ParallaxCompensator's own constructor defaults
+        # (CameraGeometry's baseline_mm=50.0, manual_shift=(0,0),
+        # fov_zoom_factor=1.0) are used whenever no saved value exists,
+        # so this is purely additive - an app with no history behaves
+        # exactly as before.
+        'parallax_baseline_mm': None,
+        'parallax_shift_x': None,
+        'parallax_shift_y': None,
+        'parallax_fov_zoom_factor': None,
+        # (top, bottom, left, right) pixel counts from a one-time
+        # Auto-Crop, or None if never run - see
+        # ParallaxCompensator.set_crop_rect()/compute_auto_crop().
+        'parallax_crop_rect': None,
     }
 
     def __init__(self, config_file: str = 'config.json'):

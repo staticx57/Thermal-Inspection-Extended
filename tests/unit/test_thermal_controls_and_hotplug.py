@@ -111,15 +111,22 @@ class TestThermalPanelSignalsAndWiring:
         assert "generic_uvc" in win.camera_panels
         assert "gige_vision" in win.camera_panels
 
-        # Test hotplug auto-focus
+        # Test hotplug auto-focus - Boson/Tau2/Lepton/Firefly/UVC/RealSense
+        # now nest one level under cameras_tabs (2026-09-09 Cameras-tab
+        # regroup into Thermal/RGB/Alignment sub-tabs) - a correct focus
+        # switches BOTH the top-level group tab and the panel's own tab
+        # within it.
         win._on_bus_camera_connected("thermal", {"model": "FLIR Tau 2 640", "plugin_id": "flir_tau2"})
-        assert win.cameras_tabs.currentWidget() == win.tau2_panel
+        assert win.cameras_tabs.currentWidget() == win.thermal_cameras_tabs
+        assert win.thermal_cameras_tabs.currentWidget() == win.tau2_panel
 
         win._on_bus_camera_connected("rgb", {"model": "Logitech BRIO", "plugin_id": "generic_uvc"})
-        assert win.cameras_tabs.currentWidget() == win.uvc_panel
+        assert win.cameras_tabs.currentWidget() == win.rgb_cameras_tabs
+        assert win.rgb_cameras_tabs.currentWidget() == win.uvc_panel
 
         win._on_bus_camera_connected("thermal", {"model": "FLIR Boson 640", "plugin_id": "flir_boson"})
-        assert win.cameras_tabs.currentWidget() == win.boson_panel
+        assert win.cameras_tabs.currentWidget() == win.thermal_cameras_tabs
+        assert win.thermal_cameras_tabs.currentWidget() == win.boson_panel
 
     def test_update_thermal_resolution_reaches_the_overlay(self, qapp):
         """

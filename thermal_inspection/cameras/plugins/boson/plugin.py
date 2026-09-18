@@ -173,6 +173,127 @@ class BosonCameraSDK(CameraSDK):
         ]
 
 
+class BosonFlirpyNativeSDK(CameraSDK):
+    """
+    CameraSDK adapter for a radiometric Boson already active via
+    FlirpyThermalBackend.
+
+    Delegates every command to that backend's own control methods (which
+    run over its one native flirpy connection - see
+    flirpy_thermal_backend.py's module docstring) instead of opening a
+    second, independent connection, which always lost the COM port race:
+    confirmed live, a plain BosonCameraSDK here failed every time with
+    "Failed to open port #6 with error 255!" while the backend streamed.
+    """
+
+    _GAIN_MODE_MAP = {"high": 0, "low": 1, "auto": 2}
+    _FFC_MODE_MAP = {"manual": 0, "auto": 1, "external": 2}
+    _PALETTE_MAP = {
+        "white_hot": 0, "black_hot": 1, "rainbow": 2, "rainbow_hc": 3,
+        "ironbow": 4, "lava": 5, "arctic": 6, "globow": 7,
+        "gradedfire": 8, "hottest": 9,
+    }
+    _GAIN_MODE_NAMES = {0: "HIGH", 1: "LOW", 2: "AUTO"}
+
+    def __init__(self, backend):
+        self._backend = backend
+
+    def connect(self) -> bool:
+        return self._backend.is_opened()
+
+    def disconnect(self):
+        # The connection's lifecycle belongs to the video backend
+        # (camera_plugin_host releases it on deactivate) - closing it
+        # here would also kill the live video feed, so this is a no-op.
+        pass
+
+    def is_connected(self) -> bool:
+        return self._backend.is_opened()
+
+    def get_supported_commands(self) -> List[str]:
+        return [
+            "connect", "disconnect", "scan_ports", "ffc", "set_gain_mode",
+            "set_ffc_mode", "set_palette", "get_fpa_temp", "get_camera_info",
+            "set_radiometric_mode", "set_environmental",
+        ]
+
+    def execute(self, command: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        params = params or {}
+        try:
+            if command == "connect":
+                return {"success": self.connect(), "info": self.execute("get_camera_info")}
+
+            elif command == "disconnect":
+                self.disconnect()
+                return {"success": True}
+
+            elif command == "scan_ports":
+                from thermal_inspection.sdk.boson_serial import scan_boson_ports
+                return {"success": True, "ports": scan_boson_ports()}
+
+            elif command == "ffc":
+                return {"success": self._backend.trigger_ffc()}
+
+            elif command == "set_gain_mode":
+                mode = self._GAIN_MODE_MAP.get(str(params.get("mode", "auto")).lower(), 2)
+                return {"success": self._backend.set_gain_mode(mode)}
+
+            elif command == "set_ffc_mode":
+                mode = self._FFC_MODE_MAP.get(str(params.get("mode", "manual")).lower(), 0)
+                return {"success": self._backend.set_ffc_mode(mode)}
+
+            elif command == "set_palette":
+                lut = self._PALETTE_MAP.get(str(params.get("palette", "white_hot")).lower(), 0)
+                return {"success": self._backend.set_color_lut(lut)}
+
+            elif command == "get_fpa_temp":
+                temp = self._backend.get_fpa_temperature()
+                return {"success": temp is not None, "celsius": temp if temp is not None else 0.0}
+
+            elif command == "get_camera_info":
+                cam = self._backend.camera
+                info = {"success": True, "model": "FLIR Boson", "radiometric_capable": True}
+                for key, getter in (
+                    ("serial", "get_camera_serial"),
+                    ("firmware", "get_firmware_revision"),
+                    ("part_number", "get_part_number"),
+                    ("lens_number", "get_lens_number"),
+                    ("table_number", "get_table_number"),
+                ):
+                    try:
+                        info[key] = getattr(cam, getter)()
+                    except Exception as e:
+                        logger.debug(f"get_camera_info: {getter} failed: {e}")
+                gain_mode = self._backend.get_gain_mode()
+                if gain_mode is not None:
+                    info["gain_mode"] = self._GAIN_MODE_NAMES.get(gain_mode)
+                return info
+
+            elif command == "set_radiometric_mode":
+                enabled = params.get("enabled", True)
+                if not enabled:
+                    return {"success": False, "error": "Boson cannot disable radiometry once enabled"}
+                self._backend.camera.set_radiometry_enable(True)
+                return {"success": True}
+
+            elif command == "set_environmental":
+                ok = True
+                if "emissivity" in params:
+                    ok = self._backend.set_emissivity(params["emissivity"]) and ok
+                if "atm_temp" in params:
+                    ok = self._backend.set_atmospheric_temperature(params["atm_temp"]) and ok
+                if "atm_transmission" in params:
+                    ok = self._backend.set_atmospheric_transmission(params["atm_transmission"]) and ok
+                return {"success": bool(ok)}
+
+            else:
+                return {"success": False, "error": f"Unknown command '{command}'"}
+
+        except Exception as e:
+            logger.error(f"Boson native SDK execute '{command}' failed: {e}")
+            return {"success": False, "error": str(e)}
+
+
 class BosonPlugin(CameraPlugin):
     """CameraPlugin for FLIR Boson thermal cameras."""
 
@@ -275,11 +396,18 @@ class BosonPlugin(CameraPlugin):
         # Cached for get_capabilities(), which the host calls right after
         # this for the same match/activation — avoids probing twice.
         self._last_probed_radiometric = self._probe_radiometric_capable(com_port)
+        # Cached for create_sdk(), called right after this in the same
+        # activation (see camera_plugin_host.activate_camera) - lets the
+        # control-panel SDK delegate to this exact backend instead of
+        # opening its own independent connection to the same COM port.
+        self._last_backend = None
 
         if self._last_probed_radiometric:
             from thermal_inspection.sdk.flirpy_thermal_backend import FlirpyThermalBackend
             logger.info(f"Boson on {com_port} is a radiometric (-R) unit — using flirpy 16-bit backend")
-            return FlirpyThermalBackend(com_port=com_port, auto_configure=True)
+            backend = FlirpyThermalBackend(com_port=com_port, auto_configure=True)
+            self._last_backend = backend
+            return backend
 
         # Non-radiometric (or undetermined): 8-bit AGC via OpenCV.
         # enable_sdk=False: the video backend must not open its own serial
@@ -293,7 +421,18 @@ class BosonPlugin(CameraPlugin):
             enable_sdk=False
         )
 
-    def create_sdk(self, match: CameraPluginMatch) -> BosonCameraSDK:
+    def create_sdk(self, match: CameraPluginMatch):
+        # The radiometric path already has an open connection (the flirpy
+        # backend created above, in the same activation) - flirpy holds
+        # the COM port exclusively for its whole life (see
+        # flirpy_thermal_backend.py's module docstring), so a second,
+        # independent BosonCameraSDK here would just fail to open it.
+        # Delegate to the live backend instead of opening another one.
+        from thermal_inspection.sdk.flirpy_thermal_backend import FlirpyThermalBackend
+        backend = getattr(self, '_last_backend', None)
+        if isinstance(backend, FlirpyThermalBackend):
+            return BosonFlirpyNativeSDK(backend)
+
         return BosonCameraSDK(
             com_port=match.com_port or self._resolve_com_port()
         )

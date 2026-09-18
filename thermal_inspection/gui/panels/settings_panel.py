@@ -45,7 +45,15 @@ class SettingsPanel(QGroupBox):
         device_layout.addWidget(QLabel("Device:"))
         self.device_combo = QComboBox()
         self.device_combo.setMinimumHeight(28)
-        self.device_combo.addItems(["CPU", "CUDA"])
+        self.device_combo.addItems(["CPU", "CUDA", "DirectML"])
+        self.device_combo.setToolTip(
+            "CUDA: NVIDIA GPU acceleration.\n"
+            "DirectML: Intel/AMD GPU acceleration via the torch-directml "
+            "package - requires torch-directml installed for this Python "
+            "environment (it pins a specific torch version - see "
+            "requirements.txt); silently falls back to CPU per-path if "
+            "unavailable, same as CUDA does."
+        )
         self.device_combo.currentTextChanged.connect(self.device_changed.emit)
         device_layout.addWidget(self.device_combo)
         proc_layout.addLayout(device_layout)

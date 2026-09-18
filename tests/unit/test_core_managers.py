@@ -12,6 +12,7 @@ import pytest
 from thermal_inspection.core.camera_state import CameraConfig, CameraState
 from thermal_inspection.core.event_bus import AppEventBus
 from thermal_inspection.core.isotherm_manager import IsothermManager, IsothermState
+from thermal_inspection.processing.isotherm_bands import IsothermBandManager, load_preset
 from thermal_inspection.core.threshold_manager import ThresholdManager, ThresholdState
 
 
@@ -207,6 +208,71 @@ class TestIsothermManager:
         result = mgr.apply_overlay(frame, temps)
 
         assert result.shape == frame.shape
+
+    def test_multiband_actually_renders_on_a_real_radiometric_frame(self):
+        """Regression for a real bug found during the 2026-09-07 pipeline
+        characterization: the multiband path handed IsothermBandManager
+        the raw Y16 frame (Kelvin x 100, e.g. ~29315 for 20C) instead of
+        converting it to Celsius first, the way the single-threshold path
+        below already did. IsothermBand thresholds are always Celsius, so
+        every band's low/high compare was against a value on a completely
+        different scale - every mask came back empty and the overlay
+        silently rendered nothing, regardless of settings. Verified
+        directly before fixing: 0 of 81920 pixels changed on this exact
+        frame; this test pins the fixed behavior.
+        """
+        bands = IsothermBandManager()
+        load_preset(bands, "temperature_zones")
+
+        mgr = IsothermManager()
+        mgr.set_band_manager(bands)
+        mgr.set_enabled(True)
+        mgr.set_multiband_mode(True)
+
+        h, w = 256, 320
+        # Y16 = Kelvin x 100. 20C -> 29315 (falls in the "Normal" 20-30C
+        # band); 70C -> 34315 (falls in "Very Hot" 60-100C).
+        thermal_16 = np.full((h, w), 29315, dtype=np.uint16)
+        thermal_16[50:150, 50:200] = 34315
+        colorized = np.zeros((h, w, 3), dtype=np.uint8)
+
+        result = mgr.apply_overlay(colorized, thermal_16)
+
+        assert not np.array_equal(result, colorized), (
+            "multiband overlay rendered nothing on a real Y16 radiometric "
+            "frame - the raw-value/Celsius unit mismatch regressed"
+        )
+        # Every pixel is inside SOME band (Normal or Very Hot both cover
+        # this frame's two regions), so the whole frame should be tinted.
+        changed = np.count_nonzero(np.any(result != colorized, axis=2))
+        assert changed == h * w
+
+    def test_multiband_and_single_threshold_use_the_same_conversion(self):
+        """Both paths must classify the identical Y16 value identically -
+        multiband isn't allowed to have its own, different idea of what
+        temperature a given raw value represents."""
+        h, w = 8, 8
+        # 25C -> 29815, safely inside both a single-threshold [20,30] band
+        # and the multiband "Normal" 20-30C band.
+        temps = np.full((h, w), 29815, dtype=np.uint16)
+        colorized = np.zeros((h, w, 3), dtype=np.uint8)
+
+        single = IsothermManager()
+        single.set_enabled(True)
+        single.set_low_threshold(20.0)
+        single.set_high_threshold(30.0)
+        single_result = single.apply_overlay(colorized, temps)
+
+        bands = IsothermBandManager()
+        load_preset(bands, "temperature_zones")
+        multi = IsothermManager()
+        multi.set_band_manager(bands)
+        multi.set_enabled(True)
+        multi.set_multiband_mode(True)
+        multi_result = multi.apply_overlay(colorized, temps)
+
+        assert not np.array_equal(single_result, colorized)
+        assert not np.array_equal(multi_result, colorized)
 
 
 # =====================================================================

@@ -32,7 +32,10 @@ class ParallaxPanel(QWidget):
     show_depth_map_toggled = pyqtSignal(bool)
     show_displacement_toggled = pyqtSignal(bool)
     shift_changed = pyqtSignal(int, int)  # (dx, dy) pixels
-    auto_alignment_requested = pyqtSignal(float, bool)  # working_distance_m, refine_with_depth
+    auto_alignment_requested = pyqtSignal(float, bool, bool)  # working_distance_m, refine_with_depth, refine_from_image
+    auto_crop_requested = pyqtSignal()
+    crop_reset_requested = pyqtSignal()
+    show_alignment_overlay_toggled = pyqtSignal(bool)
     zoom_changed = pyqtSignal(float)  # crop-in zoom factor, 1.0 = none
     geometry_optics_changed = pyqtSignal(dict)  # thermal/rgb focal_length_mm + sensor_width_mm
     correction_target_changed = pyqtSignal(str)  # "thermal" or "rgb"
@@ -272,15 +275,64 @@ class ParallaxPanel(QWidget):
         self._update_fov_display()
 
         # ====================================================================
-        # Manual Alignment Shift
+        # Depth Estimation Configuration
+        # ====================================================================
+        # Placed before Manual/Auto Alignment below (not after, as it used
+        # to be) - "Refine using depth estimation" in the Auto-Detect group
+        # references this method selection, so it should be defined before
+        # it's referenced, not scrolled past afterward.
+        depth_group = QGroupBox("Depth Estimation")
+        depth_layout = QVBoxLayout()
+        depth_layout.setSpacing(6)
+        depth_layout.setContentsMargins(8, 8, 8, 8)
+
+        # Method selection
+        method_layout = QHBoxLayout()
+        method_layout.setContentsMargins(0, 0, 0, 0)
+        method_layout.addWidget(QLabel("Method:"))
+        self.depth_method_combo = QComboBox()
+        self.depth_method_combo.addItems([
+            "Simplified (Fast)",
+            "MiDaS (Accurate)",
+            "DepthAnything (Best)",
+            "Intel RealSense (Real Depth)",
+        ])
+        self.depth_method_combo.setCurrentIndex(0)
+        self.depth_method_combo.setToolTip(
+            "Simplified: Fast geometric heuristics (no ML)\n"
+            "MiDaS: Deep learning model (moderate accuracy)\n"
+            "DepthAnything: Latest model (best accuracy, slowest)\n"
+            "Intel RealSense: Real measured depth from an active RealSense "
+            "camera (most accurate - not an estimate - but requires the "
+            "RealSense camera to be connected and active as the RGB source)"
+        )
+        self.depth_method_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.depth_method_combo.currentIndexChanged.connect(self._on_method_changed)
+        method_layout.addWidget(self.depth_method_combo)
+        depth_layout.addLayout(method_layout)
+
+        # Method status
+        self.method_status_label = QLabel("Status: Ready")
+        self.method_status_label.setStyleSheet("color: #4CAF50; font-size: 9pt;")
+        depth_layout.addWidget(self.method_status_label)
+
+        depth_group.setLayout(depth_layout)
+        layout.addWidget(depth_group)
+
+        # ====================================================================
+        # Manual Alignment
         # ====================================================================
         # A fixed mounting offset between the two cameras doesn't vary with
         # distance, so depth-based correction (which only handles the X-axis
         # baseline disparity) can't and shouldn't try to correct for it -
         # this is a plain constant translation, independent of and additive
         # to whatever depth-based correction does. Works even when
-        # depth-based correction (above) is disabled.
-        shift_group = QGroupBox("Manual Alignment Shift")
+        # depth-based correction (above) is disabled. Just the manual
+        # shift/zoom controls here - the automatic Auto-Calculate
+        # Alignment/Auto-Crop actions get their OWN group below, since
+        # calling both "Manual Alignment Shift" was misleading about what
+        # was actually inside it.
+        shift_group = QGroupBox("Manual Alignment")
         shift_layout = QVBoxLayout()
         shift_layout.setSpacing(6)
         shift_layout.setContentsMargins(8, 8, 8, 8)
@@ -362,20 +414,36 @@ class ParallaxPanel(QWidget):
         self.reset_zoom_btn.clicked.connect(lambda: self.zoom_spin.setValue(1.0))
         shift_layout.addWidget(self.reset_zoom_btn)
 
-        # ----------------------------------------------------------------
-        # Auto-Calculate Alignment - a one-time calculation from camera
-        # baseline + FOV difference (not a per-frame process), optionally
-        # refined by a single depth-estimation call. Sets the shift/zoom
-        # above rather than replacing them - the manual controls stay
-        # available for further fine-tuning afterward.
-        # ----------------------------------------------------------------
+        shift_group.setLayout(shift_layout)
+        layout.addWidget(shift_group)
+
+        # ====================================================================
+        # Auto-Detect Alignment & Crop
+        # ====================================================================
+        # Both actions here are one-time/on-demand (not run every frame) -
+        # Auto-Calculate Alignment computes shift + FOV crop-zoom from the
+        # live image (if the checkbox below is on and a confident match is
+        # found) or camera geometry otherwise, writing into the SAME
+        # shift/zoom fields the Manual Alignment group above shows -
+        # manual fine-tuning stays available afterward, this doesn't
+        # replace it. Auto-Crop is a second, independent one-time action
+        # (not tied to Auto-Calculate Alignment - a purely manual
+        # shift/zoom also leaves a border to crop): computes and stores a
+        # FIXED border-blank extent once, from whatever shift/zoom is
+        # currently in effect - _remap_thermal then uses that fixed value
+        # every frame instead of re-deriving it live.
+        auto_align_group = QGroupBox("Auto-Detect Alignment && Crop")
+        auto_align_layout = QVBoxLayout()
+        auto_align_layout.setSpacing(6)
+        auto_align_layout.setContentsMargins(8, 8, 8, 8)
+
         auto_align_label = QLabel(
             "Or auto-calculate from camera geometry (baseline + FOV) -\n"
             "runs once, not every frame:"
         )
         auto_align_label.setWordWrap(True)
         auto_align_label.setStyleSheet("color: #888888; font-size: 9pt;")
-        shift_layout.addWidget(auto_align_label)
+        auto_align_layout.addWidget(auto_align_label)
 
         distance_layout = QHBoxLayout()
         distance_layout.setContentsMargins(0, 0, 0, 0)
@@ -389,68 +457,74 @@ class ParallaxPanel(QWidget):
         self.working_distance_spin.setToolTip("Assumed subject distance - ignored if refined by depth estimation below")
         self.working_distance_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         distance_layout.addWidget(self.working_distance_spin)
-        shift_layout.addLayout(distance_layout)
+        auto_align_layout.addLayout(distance_layout)
 
         self.refine_with_depth_checkbox = QCheckBox("Refine using depth estimation")
         self.refine_with_depth_checkbox.setToolTip(
             "Run the selected depth estimation method once on the current frame "
             "to measure the actual scene distance instead of the assumed value above"
         )
-        shift_layout.addWidget(self.refine_with_depth_checkbox)
+        auto_align_layout.addWidget(self.refine_with_depth_checkbox)
+
+        self.refine_from_image_checkbox = QCheckBox("Refine from image content")
+        self.refine_from_image_checkbox.setChecked(True)
+        self.refine_from_image_checkbox.setToolTip(
+            "Measure the actual current shift directly from the live thermal and "
+            "RGB frames (image registration) instead of trusting the geometry "
+            "formula above - takes priority over it when both frames are "
+            "available and the match is confident enough to trust. This is "
+            "what \"align based on crop and shift settings in the image\" means: "
+            "get the two cameras' physical mounting as good as you can by hand "
+            "first, THEN run this to fine-tune the remaining offset from what "
+            "the cameras actually see, not from an assumed distance."
+        )
+        auto_align_layout.addWidget(self.refine_from_image_checkbox)
 
         self.auto_align_btn = QPushButton("Auto-Calculate Alignment")
-        self.auto_align_btn.setToolTip("Compute shift + FOV crop-zoom once from camera geometry")
+        self.auto_align_btn.setToolTip(
+            "Compute shift + FOV crop-zoom once from the live image (if the "
+            "checkbox above is on and a confident match is found) or camera "
+            "geometry otherwise - not run every frame"
+        )
         self.auto_align_btn.clicked.connect(self._on_auto_align_clicked)
-        shift_layout.addWidget(self.auto_align_btn)
+        auto_align_layout.addWidget(self.auto_align_btn)
 
         self.auto_align_result_label = QLabel("")
         self.auto_align_result_label.setWordWrap(True)
         self.auto_align_result_label.setStyleSheet("color: #4CAF50; font-size: 9pt;")
-        shift_layout.addWidget(self.auto_align_result_label)
+        auto_align_layout.addWidget(self.auto_align_result_label)
 
-        shift_group.setLayout(shift_layout)
-        layout.addWidget(shift_group)
-
-        # ====================================================================
-        # Depth Estimation Configuration
-        # ====================================================================
-        depth_group = QGroupBox("Depth Estimation")
-        depth_layout = QVBoxLayout()
-        depth_layout.setSpacing(6)
-        depth_layout.setContentsMargins(8, 8, 8, 8)
-
-        # Method selection
-        method_layout = QHBoxLayout()
-        method_layout.setContentsMargins(0, 0, 0, 0)
-        method_layout.addWidget(QLabel("Method:"))
-        self.depth_method_combo = QComboBox()
-        self.depth_method_combo.addItems([
-            "Simplified (Fast)",
-            "MiDaS (Accurate)",
-            "DepthAnything (Best)",
-            "Intel RealSense (Real Depth)",
-        ])
-        self.depth_method_combo.setCurrentIndex(0)
-        self.depth_method_combo.setToolTip(
-            "Simplified: Fast geometric heuristics (no ML)\n"
-            "MiDaS: Deep learning model (moderate accuracy)\n"
-            "DepthAnything: Latest model (best accuracy, slowest)\n"
-            "Intel RealSense: Real measured depth from an active RealSense "
-            "camera (most accurate - not an estimate - but requires the "
-            "RealSense camera to be connected and active as the RGB source)"
+        autocrop_label = QLabel(
+            "Once alignment looks right, remove the leftover border -\n"
+            "also a one-time action, not recomputed every frame:"
         )
-        self.depth_method_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.depth_method_combo.currentIndexChanged.connect(self._on_method_changed)
-        method_layout.addWidget(self.depth_method_combo)
-        depth_layout.addLayout(method_layout)
+        autocrop_label.setWordWrap(True)
+        autocrop_label.setStyleSheet("color: #888888; font-size: 9pt;")
+        auto_align_layout.addWidget(autocrop_label)
 
-        # Method status
-        self.method_status_label = QLabel("Status: Ready")
-        self.method_status_label.setStyleSheet("color: #4CAF50; font-size: 9pt;")
-        depth_layout.addWidget(self.method_status_label)
+        autocrop_btn_layout = QHBoxLayout()
+        autocrop_btn_layout.setContentsMargins(0, 0, 0, 0)
+        self.auto_crop_btn = QPushButton("Auto-Crop")
+        self.auto_crop_btn.setToolTip(
+            "Compute and fix the border-blank extent once from the current "
+            "shift/zoom, replacing the per-frame live computation"
+        )
+        self.auto_crop_btn.clicked.connect(self.auto_crop_requested.emit)
+        autocrop_btn_layout.addWidget(self.auto_crop_btn)
 
-        depth_group.setLayout(depth_layout)
-        layout.addWidget(depth_group)
+        self.reset_crop_btn = QPushButton("Reset Crop")
+        self.reset_crop_btn.setToolTip("Discard the fixed crop - recompute the border live every frame again")
+        self.reset_crop_btn.clicked.connect(self.crop_reset_requested.emit)
+        autocrop_btn_layout.addWidget(self.reset_crop_btn)
+        auto_align_layout.addLayout(autocrop_btn_layout)
+
+        self.auto_crop_result_label = QLabel("")
+        self.auto_crop_result_label.setWordWrap(True)
+        self.auto_crop_result_label.setStyleSheet("color: #4CAF50; font-size: 9pt;")
+        auto_align_layout.addWidget(self.auto_crop_result_label)
+
+        auto_align_group.setLayout(auto_align_layout)
+        layout.addWidget(auto_align_group)
 
         # ====================================================================
         # Visualization Options
@@ -473,6 +547,25 @@ class ParallaxPanel(QWidget):
         self.show_displacement_checkbox.setEnabled(False)
         self.show_displacement_checkbox.stateChanged.connect(self._on_show_displacement_changed)
         viz_layout.addWidget(self.show_displacement_checkbox)
+
+        # Show alignment overlay checkbox - a visual aid for the manual
+        # tuning process itself (thermal edges vs RGB edges, in
+        # contrasting colors, on the CURRENTLY-corrected frames). Not
+        # gated on parallax being enabled the way the two debug views
+        # above are - a manual-shift-only setup (or even no correction at
+        # all yet) is exactly when this is most useful, since it's meant
+        # to help GET the shift/zoom right, not just verify a working
+        # depth-based correction.
+        self.show_alignment_overlay_checkbox = QCheckBox("Show Alignment Overlay")
+        self.show_alignment_overlay_checkbox.setToolTip(
+            "Thermal edges (cyan) and RGB edges (magenta) overlaid on the "
+            "currently-corrected frames - perfectly aligned edges land on top "
+            "of each other; misalignment shows as color-fringed double-edges. "
+            "Use this while adjusting Shift/Zoom above, or the camera mount "
+            "itself, to see alignment quality directly instead of guessing."
+        )
+        self.show_alignment_overlay_checkbox.stateChanged.connect(self._on_show_alignment_overlay_changed)
+        viz_layout.addWidget(self.show_alignment_overlay_checkbox)
 
         viz_group.setLayout(viz_layout)
         layout.addWidget(viz_group)
@@ -603,8 +696,14 @@ class ParallaxPanel(QWidget):
         """Request a one-time auto-alignment calculation."""
         self.auto_alignment_requested.emit(
             self.working_distance_spin.value(),
-            self.refine_with_depth_checkbox.isChecked()
+            self.refine_with_depth_checkbox.isChecked(),
+            self.refine_from_image_checkbox.isChecked(),
         )
+
+    def _on_show_alignment_overlay_changed(self, state: int):
+        """Handle Show Alignment Overlay checkbox change."""
+        enabled = (state == Qt.CheckState.Checked.value)
+        self.show_alignment_overlay_toggled.emit(enabled)
 
     # ========================================================================
     # Public Methods - Called by main GUI
@@ -717,6 +816,22 @@ class ParallaxPanel(QWidget):
         self.auto_align_result_label.setText(
             f"Applied: shift ({dx}, {dy})px{zoom_note}"
         )
+
+    def set_auto_crop_result(self, rect: object):
+        """
+        Reflect a completed Auto-Crop (or Reset Crop) action.
+
+        Args:
+            rect: (top, bottom, left, right) px tuple, or None if the crop
+                was reset (or Auto-Crop had nothing to crop yet).
+        """
+        if rect is None:
+            self.auto_crop_result_label.setText("No fixed crop (recomputed live each frame)")
+        else:
+            top, bottom, left, right = rect
+            self.auto_crop_result_label.setText(
+                f"Applied: crop (top={top}, bottom={bottom}, left={left}, right={right})px"
+            )
 
 
 # ============================================================================

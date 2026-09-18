@@ -33,10 +33,25 @@ class TestRealSenseControlPanelCommandWiring:
         received = []
         panel.command_requested.connect(lambda cmd, params: received.append((cmd, params)))
 
-        panel._on_option_changed("laser_power", 150.0)
+        panel._on_option_changed("laser_power", 150.0, "set_depth_sensor_option")
 
         assert received == [
             ("set_depth_sensor_option", {"option": "laser_power", "value": 150.0})
+        ]
+
+    def test_color_option_change_emits_set_color_sensor_option(self, qapp):
+        """Color Sensor Options (added alongside Depth Post-Processing during
+        the RealSense UX pass) shares _on_option_changed with the depth
+        options grid - confirms the two are actually routed to different
+        commands, not both silently hitting set_depth_sensor_option."""
+        panel = RealSenseControlPanel()
+        received = []
+        panel.command_requested.connect(lambda cmd, params: received.append((cmd, params)))
+
+        panel._on_option_changed("brightness", 10.0, "set_color_sensor_option")
+
+        assert received == [
+            ("set_color_sensor_option", {"option": "brightness", "value": 10.0})
         ]
 
     def test_no_leftover_event_bus_attribute(self, qapp):

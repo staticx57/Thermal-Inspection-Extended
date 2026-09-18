@@ -54,8 +54,16 @@ class FakeRealSenseRgbBackend:
         uv = self._rng.uniform(0, 1, size=(n, 2)).astype(np.float32)
         return vertices, uv
 
-    def get_depth_frame(self):
-        return self._rng.uniform(0.3, 4.0, size=(self.height, self.width)).astype(np.float32)
+    def get_depth_frame(self, resize_to=None):
+        """resize_to is (width, height), matching cv2.resize's convention
+        and RGBCameraRealSense.get_depth_frame's real signature - app.py's
+        3D display path relies on this parameter to avoid converting at
+        full native resolution only to immediately downscale the result."""
+        depth = self._rng.uniform(0.3, 4.0, size=(self.height, self.width)).astype(np.float32)
+        if resize_to is not None and resize_to != (self.width, self.height):
+            import cv2
+            depth = cv2.resize(depth, resize_to, interpolation=cv2.INTER_NEAREST)
+        return depth
 
 
 class _FakePluginRef:
@@ -70,7 +78,7 @@ class _FakeActiveCamera:
 
 
 @pytest.fixture
-def headless_app_with_fake_cameras(qapp, monkeypatch):
+def headless_app_with_fake_cameras(qapp, monkeypatch, tmp_path):
     """
     A fully-initialized, headless ThermalInspectionApp (real
     FusionProcessor/ThermalAnalyzer/ParallaxCompensator/PaletteManager,
@@ -85,7 +93,22 @@ def headless_app_with_fake_cameras(qapp, monkeypatch):
     assignment: a raw `app.plugin_host.get_active_camera = ...` broke
     an unrelated, later-running unit test in the same pytest session by
     permanently replacing the singleton's method underneath it.
+
+    get_config() is patched to a tmp_path-backed Config BEFORE
+    ThermalInspectionApp is even constructed - app.initialize() calls
+    _load_parallax_alignment_from_config() (and any test driving
+    set_parallax_shift/zoom/baseline or the Auto-Align/Auto-Crop bus
+    handlers writes back via _save_parallax_alignment_to_config()), and
+    without this, EVERY such test call would read/write this project's
+    real config.json on disk - confirmed live: an early version of the
+    Auto-Crop smoke test below genuinely overwrote the real file's
+    parallax_shift_x/fov_zoom_factor with test values before this fixture
+    patch existed.
     """
+    from thermal_inspection.utils.config import Config
+    test_config = Config(config_file=str(tmp_path / "test_config.json"))
+    monkeypatch.setattr("thermal_inspection.utils.config.get_config", lambda: test_config)
+
     app = ThermalInspectionApp(AppConfig(headless=True, enable_boson_sdk=False))
     assert app.initialize() is True
     # run() (never called here - it also starts the real QTimer/GUI event
