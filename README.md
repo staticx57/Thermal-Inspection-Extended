@@ -139,6 +139,7 @@ The application features a modular, role-based camera plugin architecture with a
 | **FLIR Firefly RGB** | RGB | Spinnaker SDK / GenICam USB3 Vision | 1440×1080, 1920×1080 | Microsecond Exposure, Gain (dB), White Balance R/B Ratios, Software/Hardware Trigger, Gamma |
 | **Generic USB Webcam** | RGB | DirectShow (Windows) / V4L2 (Linux) | 640×480, 720p, 1080p, 2K, 4K | Dedicated Webcam Panel: Resolution Presets, Brightness, Contrast, Saturation, Sharpness, Auto/Manual Exposure, Focus |
 | **GigE Vision** | RGB / Thermal | GVCP UDP Port 3956 Broadcast + GenICam / RTSP | 1920×1080, 640×512, Custom | Pure-Python GVCP Discovery across all NICs, ForceIP Subnet Rescue Tool, MTU Jumbo Frames (9000), Software Trigger |
+| **Intel RealSense** | RGB + Depth | `pyrealsense2` (librealsense) over USB3 | Device-native (e.g. 1920×1080 on L515, generic across D415/D435/D435i/D455/D457/L515) | Real (not estimated) hardware depth for Parallax Compensation and the 3D Fusion tab's live point-cloud view, depth post-processing filters (spatial/temporal/hole-filling), auto visual-preset naming per product line (D400 vs L500). **L515 note:** see [Troubleshooting](#realsense-l515-not-detected) - `pip install pyrealsense2` alone will NOT work for an L515. |
 
 #### Core Architecture Highlights:
 - **`CameraPluginHost`**: Unified runtime host managing active cameras per role (`thermal`, `rgb`) with synchronized dual-threaded capture.
@@ -148,18 +149,12 @@ The application features a modular, role-based camera plugin architecture with a
 
 ### 🧮 Parallax Compensation
 
-**ML-Powered Depth Estimation**:
-- **DepthAnything V2** integration for monocular depth estimation
-- 3 model sizes: Small (CPU-friendly), Base (balanced), Large (GPU-optimized)
-- Depth-based pixel displacement calculation for accurate thermal-RGB alignment
-- Adaptive alignment for objects at varying distances
-- Configurable camera baseline distance (separation between thermal and RGB cameras)
-- Lazy model loading (downloads on first use, ~100-350MB cached)
-- Depth map visualization for debugging
+**Three depth methods, selectable per session**:
+- **Intel RealSense (hardware depth)** - real per-pixel depth from a connected RealSense camera (D400 or L500/L515 series), hardware-aligned to RealSense's own color stream - the most accurate option when the hardware is present, and what also powers the 3D Fusion tab's live point-cloud/relief view
+- **ML-powered monocular depth** - **DepthAnything V2** depth estimation from the RGB image alone, no depth camera required. 3 model sizes: Small (CPU-friendly), Base (balanced), Large (GPU-optimized). Lazy model loading (downloads on first use, ~100-350MB cached)
+- **Simplified geometric** - fast, dependency-free heuristic fallback; manual offset adjustment (X/Y pixel shifts) and image-based auto-alignment (phase-correlation shift/scale search across sampled frame pairs)
 
-**Geometric Fallback**:
-- Simple geometric parallax compensation (no ML dependencies)
-- Manual offset adjustment (X/Y pixel shifts)
+**Shared features**: depth-based pixel displacement calculation for accurate thermal-RGB alignment, adaptive alignment for objects at varying distances, configurable camera baseline distance (separation between thermal and RGB cameras), depth map visualization for debugging.
 
 ### ⚙️ Environmental Compensation
 
@@ -223,6 +218,7 @@ Emissivity, atmospheric temperature, and transmission are applied directly to di
 - Qt6 (PyQt6)
 - FLIR Boson or Lepton thermal camera
 - (Optional) FLIR Firefly RGB camera with Spinnaker SDK
+- (Optional) Intel RealSense D400 or L500/L515-series camera for hardware depth
 
 #### Install Dependencies
 
@@ -246,6 +242,16 @@ pip install "setuptools<81"
 
 # Install PySpin for FLIR Firefly support (optional)
 # Download from: https://www.flir.com/products/spinnaker-sdk/
+
+# Intel RealSense support (optional) - D400-series (D415/D435/D435i/D455/D457):
+pip install pyrealsense2>=2.54.0
+# Intel RealSense L515 specifically: the plain pip install above does NOT
+# work - librealsense dropped L515 support upstream in pyrealsense2 v2.55+
+# and PyPI no longer publishes any older wheel. Use the build-from-source
+# script instead (Windows):
+scripts\install_windows.bat --with-realsense-l515
+# See requirements.txt's RealSense section and
+# scripts/install_realsense_l515.ps1 for details.
 ```
 
 ### Basic Usage
@@ -375,6 +381,11 @@ GUI Settings:
 - **Windows 10** (x86-64) - Fully supported
 - **Ubuntu 22.04 LTS** (x86-64) - Tested
 - **NVIDIA Jetson Orin Nano** - Hardware-accelerated fusion and VPI support
+
+### Tested Hardware
+- **FLIR Boson 640** (radiometric -R and non-radiometric) and **FLIR Tau 2** (video-only so far)
+- **Intel RealSense D455** and **L515** - both confirmed live end-to-end (color + real metric depth)
+- Generic UVC webcams, GigE Vision cameras
 
 ---
 
@@ -640,6 +651,19 @@ If this is a **radiometric (-R)** Boson: as of v3.7.0 this shouldn't happen anym
 5. **GPU Acceleration**: Ensure CUDA is installed and detected (`--device cuda`)
 6. **Close Other Apps**: Free up system resources
 
+### Intel RealSense L515 Not Detected
+<a id="realsense-l515-not-detected"></a>
+
+**Problem**: An L515 shows up fine in Windows Device Manager and Intel's own RealSense Viewer, but the app never lists it (or `pyrealsense2.context().query_devices()` returns an empty list in a Python shell).
+
+**Cause**: librealsense/pyrealsense2 permanently dropped L515 (L500-series) enumeration on Windows starting at v2.55.0 - this is an upstream EOL removal by Intel/realsenseai, not a bug that will be fixed in a later release, and PyPI does not publish any pre-2.55 wheel for any Python version. A plain `pip install pyrealsense2` (any version you ask for) simply cannot see an L515, ever.
+
+**Solution**: build pyrealsense2 from source at the last L515-supporting release (v2.54.2) for your exact Python interpreter. Automated via:
+```bash
+scripts\install_windows.bat --with-realsense-l515
+```
+This needs git, CMake, and a Visual Studio install with the C++ ATL component (`atlcomcli.h`) - the script checks for all three and tells you what's missing. Takes 10-30+ minutes (it's compiling librealsense's full C++ core). D400-series cameras are unaffected by any of this - use the normal `pip install pyrealsense2` for those.
+
 ### Temperature Readings Incorrect
 
 **Problem**: Temperature measurements don't match handheld thermal camera or expected values.
@@ -719,7 +743,7 @@ def _my_fusion(self, thermal: np.ndarray, rgb: np.ndarray) -> np.ndarray:
 ### Running Tests
 
 ```bash
-# Run full unit test suite (199 tests)
+# Run full test suite (600+ tests)
 pytest tests/ -v
 
 # Run camera plugin and driver tests
@@ -771,10 +795,10 @@ MIT License - See LICENSE file for details.
 
 ## Version
 
-**Version**: 3.4.0
-**Status**: Production-ready with full radiometric support, runtime mode switching, ML depth estimation
-**Last Updated**: 2025-12-08
-**Tested**: Windows 11, FLIR Boson 640, FLIR Firefly RGB
+**Version**: 3.7.0
+**Status**: Production-ready with full radiometric support, runtime mode switching, ML + hardware depth estimation, universal camera plugin architecture
+**Last Updated**: 2026-09-18
+**Tested**: Windows 11, FLIR Boson 640 (radiometric + non-radiometric), Intel RealSense D455 & L515, FLIR Firefly RGB
 
 ---
 
