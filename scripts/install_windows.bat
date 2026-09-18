@@ -9,8 +9,9 @@ REM - UVC webcam support (built-in to Windows)
 REM - OPTIONAL: FLIR Firefly Spinnaker SDK (for RGB camera)
 REM
 REM Usage (run from repo root):
-REM   scripts\install_windows.bat                 Install base system (UVC webcams)
-REM   scripts\install_windows.bat --with-firefly  Install base + FLIR Firefly support
+REM   scripts\install_windows.bat                       Install base system (UVC webcams)
+REM   scripts\install_windows.bat --with-firefly        Install base + FLIR Firefly support
+REM   scripts\install_windows.bat --with-realsense-l515 Install base + build pyrealsense2 for L515
 REM
 
 setlocal enabledelayedexpansion
@@ -68,13 +69,20 @@ if errorlevel 1 (
 
 REM Parse command-line arguments
 set INSTALL_FIREFLY=false
-if "%1"=="--with-firefly" set INSTALL_FIREFLY=true
+set INSTALL_REALSENSE_L515=false
+for %%A in (%*) do (
+    if "%%A"=="--with-firefly" set INSTALL_FIREFLY=true
+    if "%%A"=="--with-realsense-l515" set INSTALL_REALSENSE_L515=true
+)
 if "%1"=="--help" (
     echo Usage: %0 [OPTIONS]
     echo.
     echo Options:
-    echo   --with-firefly    Install FLIR Firefly Spinnaker SDK (optional)
-    echo   --help            Show this help message
+    echo   --with-firefly          Install FLIR Firefly Spinnaker SDK (optional)
+    echo   --with-realsense-l515   Build pyrealsense2 from source for an Intel
+    echo                           RealSense L515 (pip's pyrealsense2 dropped
+    echo                           L515 support upstream - see requirements.txt)
+    echo   --help                  Show this help message
     echo.
     exit /b 0
 )
@@ -106,7 +114,7 @@ if errorlevel 1 (
 
 REM Step 4: OPTIONAL - Install FLIR Firefly Spinnaker SDK
 if "%INSTALL_FIREFLY%"=="true" (
-    echo %BLUE%[4/5] Installing FLIR Firefly Spinnaker SDK...%NC%
+    echo %BLUE%[4/6] Installing FLIR Firefly Spinnaker SDK...%NC%
     echo.
     echo %YELLOW%========================================%NC%
     echo %YELLOW%FLIR Spinnaker SDK Installation%NC%
@@ -144,11 +152,43 @@ if "%INSTALL_FIREFLY%"=="true" (
         echo %GREEN%FLIR Firefly cameras are now supported.%NC%
     )
 ) else (
-    echo %BLUE%[4/5] Skipping FLIR Firefly support (use --with-firefly to enable)%NC%
+    echo %BLUE%[4/6] Skipping FLIR Firefly support (use --with-firefly to enable)%NC%
 )
 
-REM Step 5: Verify installation
-echo %BLUE%[5/5] Verifying installation...%NC%
+REM Step 5: OPTIONAL - Build pyrealsense2 from source for L515 support
+if "%INSTALL_REALSENSE_L515%"=="true" (
+    echo %BLUE%[5/6] Building pyrealsense2 from source for Intel RealSense L515...%NC%
+    echo.
+    echo %YELLOW%========================================%NC%
+    echo %YELLOW%Intel RealSense L515 Support%NC%
+    echo %YELLOW%========================================%NC%
+    echo.
+    echo %YELLOW%pip's pyrealsense2 dropped L515 support upstream in v2.55+ - the%NC%
+    echo %YELLOW%only working path is building it from source. This needs git, CMake,%NC%
+    echo %YELLOW%and a Visual Studio install with the C++ ATL component. Can take%NC%
+    echo %YELLOW%10-30+ minutes. See requirements.txt for details.%NC%
+    echo.
+    echo %YELLOW%D400-series cameras (D415/D435/D455/etc.) do NOT need this - use the%NC%
+    echo %YELLOW%plain pyrealsense2 pip pin in requirements.txt instead.%NC%
+    echo.
+
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install_realsense_l515.ps1"
+    if errorlevel 1 (
+        echo.
+        echo %RED%ERROR: pyrealsense2 build failed - see errors above.%NC%
+        echo %YELLOW%You can retry directly with more control:%NC%
+        echo   powershell -File scripts\install_realsense_l515.ps1 -Clean
+        echo.
+        echo %YELLOW%You can still use the app without RealSense support.%NC%
+    ) else (
+        echo %GREEN%SUCCESS: pyrealsense2 built and installed for L515!%NC%
+    )
+) else (
+    echo %BLUE%[5/6] Skipping RealSense L515 build (use --with-realsense-l515 to enable)%NC%
+)
+
+REM Step 6: Verify installation
+echo %BLUE%[6/6] Verifying installation...%NC%
 echo.
 
 echo %BLUE%Testing Python modules...%NC%
@@ -157,6 +197,9 @@ python -c "import cv2; print('  ✓ OpenCV')" 2>nul || echo   ✗ OpenCV - FAILE
 python -c "import PyQt6.QtWidgets; print('  ✓ PyQt6')" 2>nul || echo   ✗ PyQt6 - FAILED
 python -c "import serial; print('  ✓ PySerial')" 2>nul || echo   ✗ PySerial - FAILED
 python -c "import psutil; print('  ✓ psutil')" 2>nul || echo   ✗ psutil - FAILED
+if "%INSTALL_REALSENSE_L515%"=="true" (
+    python -c "import pyrealsense2; print('  ✓ pyrealsense2 (L515 build)')" 2>nul || echo   ✗ pyrealsense2 - FAILED
+)
 
 echo.
 echo %BLUE%Checking project files...%NC%
@@ -185,6 +228,12 @@ if "%INSTALL_FIREFLY%"=="true" (
     echo   ✓ FLIR Firefly support (check above for status)
 ) else (
     echo   ⚠ FLIR Firefly support: Not installed (use --with-firefly)
+)
+if "%INSTALL_REALSENSE_L515%"=="true" (
+    echo   ✓ Intel RealSense L515 support (check above for status)
+) else (
+    echo   ⚠ Intel RealSense L515 support: Not installed (use --with-realsense-l515)
+    echo     ^(D400-series RealSense cameras just need the plain pip pin in requirements.txt^)
 )
 echo.
 echo %BLUE%Key Features:%NC%

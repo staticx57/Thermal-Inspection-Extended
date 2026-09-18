@@ -107,13 +107,31 @@ comtypes>=1.1.7             # DirectShow COM interface (required by pygrabber)
 # there too.
 #
 # AMD/Intel GPUs on Windows have no CUDA path. The realistic route is
-# DirectML (`pip install torch-directml`), which parallax_compensator.py
-# already detects (logs its presence) but does not yet route depth
-# estimation through - HuggingFace's pipeline(device=...) only accepts a
-# CUDA device index or -1/CPU, not a DirectML device object, so using one
-# means loading the model manually and moving it with .to() instead. Not
-# implemented: no AMD/DirectML hardware available to verify it actually
-# produces correct output that way.
+# DirectML (`pip install torch-directml`) - as of 2026-09, thermal_inspection
+# has a full "directml" device option wired end to end (settings panel ->
+# app.set_device() -> every torch GPU resolver, see
+# thermal_inspection/utils/gpu_device.py) for the 4 raw-torch-tensor GPU
+# paths (fusion_processor.py's feature_weighted/laplacian_pyramid,
+# fusion_3d_panel.py's relief/normals, parallax_compensator.py's remap) -
+# this code is UNVERIFIED on real Intel/AMD hardware (none available in
+# the environment it was built in) and NOT ACTIVE until torch-directml is
+# actually installed, which is not done automatically because of a real
+# version conflict: torch-directml's latest published release (checked
+# 2026-09-09 via PyPI) hard-pins torch==2.4.1/torchvision==0.19.1 exactly,
+# and this project's CUDA-verified environment runs a newer torch -
+# installing it as-is would downgrade torch and risk every existing CUDA
+# path. Confirm current torch-directml/torch compatibility before
+# installing, on a machine that actually has an Intel/AMD GPU to verify
+# against.
+#
+# parallax_compensator.py's depth-estimation model (MiDaS/DepthAnything,
+# via HuggingFace's pipeline()) is the ONE path DirectML does NOT cover -
+# pipeline(device=...) only accepts a CUDA device index or -1/CPU, not a
+# DirectML device object, so a "directml" device request there silently
+# falls back to CPU (same as an explicit "cpu" request) rather than
+# raising. Using DirectML there for real would mean loading the model
+# manually and moving it with .to() instead of the pipeline() convenience
+# API - not implemented, still no AMD/DirectML hardware to verify against.
 #
 # Model Downloads (automatic on first use):
 #   - Small model: ~100MB (good for CPU, 24.8M params)
@@ -132,7 +150,19 @@ comtypes>=1.1.7             # DirectShow COM interface (required by pygrabber)
 # one model. T265 (tracking-only, no depth/color stream) is detected but
 # reported unsupported - nothing in this app uses pose/SLAM data.
 #
-# pyrealsense2>=2.54.0        # Intel librealsense Python bindings
+# pyrealsense2>=2.54.0        # Intel librealsense Python bindings - D400 series ONLY
+#
+# L515 (L500-series LiDAR) users: DO NOT use the pin above. Confirmed live
+# 2026-09-18: librealsense/pyrealsense2 v2.55.0+ permanently dropped L515
+# enumeration on Windows (upstream EOL removal, not a bug - see
+# https://github.com/realsenseai/librealsense/issues/12960) and PyPI no
+# longer publishes any pre-2.55 wheel at all, for any Python version. The
+# only working path is building pyrealsense2 from source at the last
+# L515-supporting tag (v2.54.2) against your own Python - automated by
+# scripts/install_realsense_l515.ps1 (Windows; run
+# `scripts\install_windows.bat --with-realsense-l515`, or the script
+# directly). D400-series cameras are unaffected either way and should just
+# use the pip pin above.
 #
 # The 3D Fusion tab additionally needs PyOpenGL for pyqtgraph's GLViewWidget
 # (real-time rotatable point-cloud rendering) - without it, the 3D Fusion
