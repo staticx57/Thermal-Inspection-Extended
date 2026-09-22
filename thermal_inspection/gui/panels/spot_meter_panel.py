@@ -156,6 +156,7 @@ class SpotMeterData:
     y: int                               # Frame Y coordinate
     temperature: Optional[float] = None  # Current temperature
     unit: str = "°C"                     # Temperature unit
+    distance_m: Optional[float] = None   # Real depth-camera distance to this point, meters; None if no RealSense
     color: Tuple[int, int, int] = (255, 255, 0)  # Marker color (BGR)
     visible: bool = True                 # Visibility toggle
     locked: bool = False                 # Position lock
@@ -293,8 +294,13 @@ class SpotMeterListItem(QListWidgetItem):
         trend = data.get_trend()
         trend_icon = {"rising": " ↑", "falling": " ↓", "stable": ""}.get(trend, "")
 
+        # Distance (real depth-camera reading, RealSense only - resize-only
+        # approximation, not parallax-shift-corrected, see app.py's
+        # spot-meter loop for why)
+        dist_str = f" @ {data.distance_m:.2f}m" if data.distance_m is not None else ""
+
         # Build display text
-        display_text = f"{indicators}{data.label}: {temp_str}{trend_icon}  ({data.x}, {data.y})"
+        display_text = f"{indicators}{data.label}: {temp_str}{trend_icon}{dist_str}  ({data.x}, {data.y})"
         self.setText(display_text)
 
         # Set color indicator as icon, keep text color default for readability
@@ -626,7 +632,8 @@ class SpotMeterPanel(QWidget):
         self._update_statistics()
         self._update_graph()
 
-    def _apply_temperature(self, spot_id: str, temperature: float, unit: str = "°C") -> bool:
+    def _apply_temperature(self, spot_id: str, temperature: float, unit: str = "°C",
+                            distance_m: Optional[float] = None) -> bool:
         """Store a new reading and refresh just this spot's own list item -
         the aggregate stats/graph refresh is the caller's job (a single
         call after every spot in a batch is done, not once per spot)."""
@@ -636,6 +643,7 @@ class SpotMeterPanel(QWidget):
         data = self.spots[spot_id]
         data.temperature = temperature
         data.unit = unit
+        data.distance_m = distance_m
         data.updated_at = time.time()
         data.add_history(temperature)
 
@@ -669,7 +677,8 @@ class SpotMeterPanel(QWidget):
                     if self._apply_temperature(
                         spot_id,
                         val.get('temperature'),
-                        val.get('unit', '°C')
+                        val.get('unit', '°C'),
+                        distance_m=val.get('distance_m')
                     ):
                         any_updated = True
                     break
