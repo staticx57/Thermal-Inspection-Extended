@@ -35,25 +35,32 @@ from .utils.profiling import profile_log
 logger = logging.getLogger(__name__)
 
 
-def _compute_spot_distance_m(rs_backend, point_x: int, point_y: int,
+def _compute_spot_distance_m(depth_map, point_x: int, point_y: int,
                               thermal_w: int, thermal_h: int) -> Optional[float]:
     """
     Real depth-camera distance (meters) at a thermal-frame point, or None if
     unavailable/out of range.
 
-    This is a resize-only lookup - RealSense depth is resized to thermal's
-    resolution (RGBCameraRealSense.get_depth_frame's own resize_to param, on
-    the small raw array before the float32 conversion, same as every other
-    call site) with no parallax shift/zoom correction applied. Full
-    alignment-corrected distance would need parallax_compensator.apply_correction()
-    to run unconditionally regardless of view mode - an added per-frame cost
-    this rough reading doesn't need to pay. Known limitation, not a bug: at
-    typical mounting offsets this can be off by a handful of pixels.
+    depth_map is expected to already be a RealSense depth frame resized to
+    thermal's resolution (RGBCameraRealSense.get_depth_frame's own
+    resize_to param, on the small raw array before the float32 conversion,
+    same as every other call site) with no parallax shift/zoom correction
+    applied. Full alignment-corrected distance would need
+    parallax_compensator.apply_correction() to run unconditionally
+    regardless of view mode - an added per-frame cost this rough reading
+    doesn't need to pay. Known limitation, not a bug: at typical mounting
+    offsets this can be off by a handful of pixels.
+
+    The caller fetches depth_map exactly once per frame (via
+    rs_backend.get_depth_frame(resize_to=...)) and passes the same array to
+    every spot-meter point - that fetch does a real numpy conversion +
+    cv2.resize over the whole depth frame, so redoing it per-point here
+    would waste ~2ms per additional active spot meter for an identical
+    result every time.
     """
-    if not (0 <= point_x < thermal_w and 0 <= point_y < thermal_h):
-        return None
-    depth_map = rs_backend.get_depth_frame(resize_to=(thermal_w, thermal_h))
     if depth_map is None:
+        return None
+    if not (0 <= point_x < thermal_w and 0 <= point_y < thermal_h):
         return None
     d = float(depth_map[point_y, point_x])
     if not (MIN_VALID_DEPTH_M <= d <= MAX_VALID_DEPTH_M):
@@ -2410,6 +2417,19 @@ class ThermalInspectionApp:
                     # (not per point), matching that precedent.
                     active_rgb_for_depth = self.plugin_host.get_active_camera('rgb') if self.plugin_host else None
                     rs_backend = active_rgb_for_depth.backend if active_rgb_for_depth else None
+                    # Fetched once per frame, not once per spot meter point -
+                    # get_depth_frame() does a real numpy conversion + resize
+                    # over the whole depth frame and would return the
+                    # identical array for every point (see the ~2ms cost
+                    # noted at the 3D Fusion get_depth_frame call above).
+                    spot_depth_map = None
+                    spot_depth_th = spot_depth_tw = 0
+                    if (rs_backend is not None and hasattr(rs_backend, 'get_depth_frame')
+                            and self._last_thermal_frame is not None):
+                        spot_depth_th, spot_depth_tw = self._last_thermal_frame.shape[:2]
+                        spot_depth_map = rs_backend.get_depth_frame(
+                            resize_to=(spot_depth_tw, spot_depth_th)
+                        )
                     for point in self.gui.measurement_points:
                         temp = None
                         unit = "°C"
@@ -2446,10 +2466,10 @@ class ThermalInspectionApp:
                                     temp, unit = self.thermal_analyzer.calculate_spot_temperature(raw_pixel)
 
                         distance_m = None
-                        if (rs_backend and hasattr(rs_backend, 'get_depth_frame')
-                                and self._last_thermal_frame is not None):
-                            th, tw = self._last_thermal_frame.shape[:2]
-                            distance_m = _compute_spot_distance_m(rs_backend, point.x, point.y, tw, th)
+                        if spot_depth_map is not None:
+                            distance_m = _compute_spot_distance_m(
+                                spot_depth_map, point.x, point.y, spot_depth_tw, spot_depth_th
+                            )
 
                         if temp is not None:
                             # Use radiometric unit symbol if available
