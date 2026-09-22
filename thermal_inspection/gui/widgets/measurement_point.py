@@ -15,3 +15,4 @@ class MeasurementPoint:
     color: tuple = (255, 255, 0)  # RGB
     temperature: Optional[float] = None
     unit: str = "°C"
+    distance_m: Optional[float] = None  # Real depth-camera distance to this point, meters; None if no RealSense
