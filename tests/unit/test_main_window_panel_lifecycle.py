@@ -79,3 +79,46 @@ class TestPanelReadySwap:
             panel = new_panel
 
         assert fake.thermal_cameras_tabs.count() == 1
+
+
+def _fake_main_window_for_spot_values():
+    """Duck-typed stand-in carrying only what update_spot_meter_values reads/writes.
+
+    No video_widget/analysis_panel attrs are set - the method's hasattr()
+    guards make those branches no-ops, which is fine since this test only
+    cares about the MeasurementPoint mutation.
+    """
+    fake = SimpleNamespace()
+    fake.measurement_points = []
+    fake.update_spot_meter_values = InspectionAppWindow.update_spot_meter_values.__get__(fake)
+    return fake
+
+
+@pytest.mark.unit
+class TestUpdateSpotMeterValuesDistance:
+
+    def test_update_spot_meter_values_forwards_distance(self, qapp):
+        from thermal_inspection.gui.widgets.measurement_point import MeasurementPoint
+
+        fake = _fake_main_window_for_spot_values()
+        point = MeasurementPoint(x=10, y=20, label="Spot 1")
+        fake.measurement_points = [point]
+
+        fake.update_spot_meter_values([
+            {'label': 'Spot 1', 'temperature': 42.0, 'unit': '°C', 'distance_m': 1.42}
+        ])
+
+        assert point.distance_m == 1.42
+
+    def test_update_spot_meter_values_defaults_distance_none_when_absent(self, qapp):
+        from thermal_inspection.gui.widgets.measurement_point import MeasurementPoint
+
+        fake = _fake_main_window_for_spot_values()
+        point = MeasurementPoint(x=10, y=20, label="Spot 1")
+        fake.measurement_points = [point]
+
+        fake.update_spot_meter_values([
+            {'label': 'Spot 1', 'temperature': 42.0, 'unit': '°C'}
+        ])
+
+        assert point.distance_m is None

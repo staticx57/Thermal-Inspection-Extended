@@ -2272,6 +2272,7 @@ class InspectionAppWindow(QMainWindow):
                 data = val_map[point.label]
                 point.temperature = data['temperature']
                 point.unit = data['unit']
+                point.distance_m = data.get('distance_m')
                 updated = True
 
         if updated:
