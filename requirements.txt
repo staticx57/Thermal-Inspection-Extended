@@ -172,6 +172,17 @@ comtypes>=1.1.7             # DirectShow COM interface (required by pygrabber)
 # PyOpenGL_accelerate>=3.1.0  # optional, faster PyOpenGL - needs a C compiler to build
 
 # ============================================================================
+# Optional: Open3D (3D Mapping Fusion - persistent world point cloud)
+# ============================================================================
+# Uncomment to enable 3D Mapping Fusion (build-world-once + live-texture
+# view mode, separate from the existing 3D Fusion per-frame shading).
+# Needs an Intel RealSense camera (see the RealSense section above) - Open3D
+# itself has no camera dependency, it just does the RGB-D odometry/point-
+# cloud math.
+#
+# open3d>=0.18.0
+
+# ============================================================================
 # Removed Dependencies (No Longer Needed)
 # ============================================================================
 
