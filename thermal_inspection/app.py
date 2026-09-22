@@ -28,9 +28,37 @@ from .core.event_bus import AppEventBus
 from .cameras.plugin import get_host
 from .processing.thermal_analyzer import ThresholdMode, ThresholdVisualization
 from .processing.palette_manager import is_camera_native_colorized
+from .processing.parallax_compensator import MIN_VALID_DEPTH_M
+from .gui.panels.fusion_3d_panel import MAX_VALID_DEPTH_M
 from .utils.profiling import profile_log
 
 logger = logging.getLogger(__name__)
+
+
+def _compute_spot_distance_m(rs_backend, point_x: int, point_y: int,
+                              thermal_w: int, thermal_h: int) -> Optional[float]:
+    """
+    Real depth-camera distance (meters) at a thermal-frame point, or None if
+    unavailable/out of range.
+
+    This is a resize-only lookup - RealSense depth is resized to thermal's
+    resolution (RGBCameraRealSense.get_depth_frame's own resize_to param, on
+    the small raw array before the float32 conversion, same as every other
+    call site) with no parallax shift/zoom correction applied. Full
+    alignment-corrected distance would need parallax_compensator.apply_correction()
+    to run unconditionally regardless of view mode - an added per-frame cost
+    this rough reading doesn't need to pay. Known limitation, not a bug: at
+    typical mounting offsets this can be off by a handful of pixels.
+    """
+    if not (0 <= point_x < thermal_w and 0 <= point_y < thermal_h):
+        return None
+    depth_map = rs_backend.get_depth_frame(resize_to=(thermal_w, thermal_h))
+    if depth_map is None:
+        return None
+    d = float(depth_map[point_y, point_x])
+    if not (MIN_VALID_DEPTH_M <= d <= MAX_VALID_DEPTH_M):
+        return None
+    return d
 
 
 @dataclass
@@ -2372,6 +2400,16 @@ class ThermalInspectionApp:
                 # Update spot meters (measurement points) in the GUI
                 if hasattr(self.gui, 'measurement_points') and self.gui.measurement_points:
                     spot_values = []
+                    # Distance-to-point: RealSense is wired as the RGB-role
+                    # camera in this app's plugin architecture, never the
+                    # thermal-role camera (`cam` below) - so the depth
+                    # source has to come from the active RGB-role plugin,
+                    # same pattern as `_rs_backend` in the 3D Fusion block
+                    # above (plugin_host.get_active_camera('rgb')), not
+                    # from self.thermal_camera. Looked up once per frame
+                    # (not per point), matching that precedent.
+                    active_rgb_for_depth = self.plugin_host.get_active_camera('rgb') if self.plugin_host else None
+                    rs_backend = active_rgb_for_depth.backend if active_rgb_for_depth else None
                     for point in self.gui.measurement_points:
                         temp = None
                         unit = "°C"
@@ -2407,6 +2445,12 @@ class ThermalInspectionApp:
                                     raw_pixel = float(self._last_thermal_frame[point.y, point.x])
                                     temp, unit = self.thermal_analyzer.calculate_spot_temperature(raw_pixel)
 
+                        distance_m = None
+                        if (rs_backend and hasattr(rs_backend, 'get_depth_frame')
+                                and self._last_thermal_frame is not None):
+                            th, tw = self._last_thermal_frame.shape[:2]
+                            distance_m = _compute_spot_distance_m(rs_backend, point.x, point.y, tw, th)
+
                         if temp is not None:
                             # Use radiometric unit symbol if available
                             if self.radiometric_controller and cam and hasattr(cam, 'is_radiometric_capable') and cam.is_radiometric_capable():
@@ -2414,7 +2458,8 @@ class ThermalInspectionApp:
                             spot_values.append({
                                 'label': point.label,
                                 'temperature': temp,
-                                'unit': unit
+                                'unit': unit,
+                                'distance_m': distance_m
                             })
                     self.gui.update_spot_meter_values(spot_values)
 
