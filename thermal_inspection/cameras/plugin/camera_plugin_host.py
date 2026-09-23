@@ -40,21 +40,46 @@ def _open_with_timeout(backend: Any, timeout_seconds: float, plugin_id: str) -> 
     thread is simply abandoned (daemon=True, so it won't block process exit)
     and this returns False — matching the old CameraInitializer's behavior
     that this replaces.
+
+    An abandoned open() that eventually DOES succeed (a slow driver, not a
+    dead one) releases the backend itself. Before, nothing ever released it:
+    the caller had already given up on that backend object, so the device
+    stayed opened by an orphan handle for the rest of the process's life.
+    That showed up as the camera being "in use" to every later open attempt,
+    including the user's own retry and other apps.
     """
     result: Dict[str, Any] = {}
+    state_lock = threading.Lock()
+    abandoned = [False]
 
     def _worker():
         try:
-            result['ok'] = backend.open()
+            ok = backend.open()
         except Exception as exc:
-            result['ok'] = False
+            ok = False
             result['error'] = exc
+        with state_lock:
+            result['ok'] = ok
+            late = abandoned[0]
+        if late and ok:
+            logger.warning(
+                f"backend.open() for plugin '{plugin_id}' completed after its "
+                f"{timeout_seconds}s timeout — releasing the orphaned handle"
+            )
+            try:
+                backend.release()
+            except Exception as exc:
+                logger.debug(f"Error releasing late-opened backend '{plugin_id}': {exc}")
 
     thread = threading.Thread(target=_worker, name=f"OpenBackend-{plugin_id}", daemon=True)
     thread.start()
     thread.join(timeout=timeout_seconds)
 
-    if thread.is_alive():
+    with state_lock:
+        finished = 'ok' in result
+        if not finished:
+            abandoned[0] = True
+    if not finished:
         logger.error(
             f"backend.open() for plugin '{plugin_id}' did not return within "
             f"{timeout_seconds}s — treating as failed open (driver may be hung)"
@@ -63,9 +88,19 @@ def _open_with_timeout(backend: Any, timeout_seconds: float, plugin_id: str) -> 
 
     if 'error' in result:
         logger.error(f"backend.open() for plugin '{plugin_id}' raised: {result['error']}")
-        return False
-
-    return bool(result.get('ok', False))
+    ok = bool(result.get('ok', False))
+    if not ok:
+        # open() returned (so nothing is still running inside it) but failed
+        # - release whatever it partially acquired. Deliberately NOT done on
+        # the timeout path above: open() may still be running there, and
+        # releasing concurrently with it is exactly the kind of cross-thread
+        # driver call that crashes native capture libraries. The worker
+        # handles that case itself once open() actually returns.
+        try:
+            backend.release()
+        except Exception as exc:
+            logger.debug(f"Error releasing backend for plugin '{plugin_id}' after failed open: {exc}")
+    return ok
 
 
 @dataclass
@@ -165,12 +200,10 @@ class CameraPluginHost(QObject):
                 return False
 
             # 2. Open backend (bounded — see _open_with_timeout)
+            # A failed open is released inside _open_with_timeout (only once
+            # open() has actually returned - see its docstring).
             if not _open_with_timeout(backend, BACKEND_OPEN_TIMEOUT_S, plugin.plugin_id):
                 logger.error(f"Failed to open backend for plugin '{plugin.plugin_id}'")
-                try:
-                    backend.release()
-                except Exception as e:
-                    logger.debug(f"Error releasing backend for plugin '{plugin.plugin_id}' after failed open: {e}")
                 return False
 
             # 3. Instantiate SDK & Control Panel

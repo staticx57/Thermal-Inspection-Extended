@@ -74,17 +74,12 @@ class ThreadedCameraCapture:
                     ret, frame = self.camera.read()
 
                 if ret and frame is not None:
-                    # Build a display-safe 8-bit BGR copy when the raw
-                    # frame is 16-bit (radiometric T-Linear data).
-                    if frame.dtype == np.uint16:
-                        # Normalise to 8-bit for display; keep raw for analysis
-                        display = cv2.normalize(
-                            frame, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U
-                        )
-                        if len(display.shape) == 2:
-                            display = cv2.cvtColor(display, cv2.COLOR_GRAY2BGR)
-                    else:
-                        display = frame
+                    # A 16-bit (radiometric) frame's 8-bit display version
+                    # is built lazily in get_frame(), not here: the app
+                    # reads only the raw frame (it colorizes 16-bit data
+                    # itself), so normalizing + GRAY2BGR-ing every captured
+                    # frame on this thread was full-frame work nothing read.
+                    display = None if frame.dtype == np.uint16 else frame
 
                     # No .copy() here. This was tried once before and
                     # reverted out of caution (a live detail-loss report
@@ -122,7 +117,7 @@ class ThreadedCameraCapture:
                     # microseconds regardless of frame size.
                     with self.frame_lock:
                         self.latest_raw_frame = frame   # 16-bit or 8-bit original
-                        self.latest_frame = display     # always 8-bit BGR
+                        self.latest_frame = display     # 8-bit BGR, or None until get_frame() builds it
                         self.latest_timestamp = time.time()
                         self.frame_count += 1
 
@@ -167,20 +162,39 @@ class ThreadedCameraCapture:
         Returns:
             (success, frame, timestamp) tuple
 
-        No copy here: the capture loop above already does `display.copy()`
-        before publishing to self.latest_frame, so what's published is
-        never mutated in place afterward - only ever replaced wholesale on
-        the next captured frame. A second defensive copy on every read was
-        pure redundant memcpy that scaled with resolution: at 4K (~25MB/
-        frame) and a ~100Hz main-loop poll rate, that's ~2.5GB/s of memcpy
-        for a copy nothing needed, measured as the dominant cause of FPS
-        dropping with RGB resolution independent of fusion mode.
+        No copy here: published frames are never mutated in place, only
+        replaced wholesale by the next capture (see _capture_loop). A
+        defensive copy on every read was pure redundant memcpy that scaled
+        with resolution: at 4K (~25MB/frame) and a ~100Hz main-loop poll
+        rate, that's ~2.5GB/s of memcpy nothing needed, measured as the
+        dominant cause of FPS dropping with RGB resolution independent of
+        fusion mode.
+
+        For a 16-bit frame the 8-bit display version is built here on first
+        request and cached against that frame (see _capture_loop for why).
         """
         with self.frame_lock:
-            if self.latest_frame is not None:
-                return True, self.latest_frame, self.latest_timestamp
-            else:
+            raw = self.latest_raw_frame
+            if raw is None:
                 return False, None, 0
+            display = self.latest_frame
+            timestamp = self.latest_timestamp
+        if display is None:
+            display = cv2.normalize(raw, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+            if display.ndim == 2:
+                display = cv2.cvtColor(display, cv2.COLOR_GRAY2BGR)
+            with self.frame_lock:
+                if self.latest_raw_frame is raw:  # still the current frame - cache it
+                    self.latest_frame = display
+        return True, display, timestamp
+
+    def get_raw_and_count(self) -> Tuple[Optional[np.ndarray], int]:
+        """Latest raw frame and the capture counter it was published with,
+        read atomically - frame_count only changes when a new frame is
+        published, so callers can tell a new frame from a re-poll of the
+        same one without comparing arrays."""
+        with self.frame_lock:
+            return self.latest_raw_frame, self.frame_count
 
     def get_raw_frame(self) -> Tuple[bool, Optional[np.ndarray], float]:
         """
@@ -196,18 +210,36 @@ class ThreadedCameraCapture:
             else:
                 return False, None, 0
 
-    def stop(self):
-        """Stop background capture thread."""
-        if not self.running:
-            return
+    def stop(self, timeout: float = 2.0) -> bool:
+        """
+        Stop the background capture thread.
 
-        logger.info(f"{self.name}: Stopping background thread...")
-        self.running = False
+        Returns True once the thread has exited (or never ran), False if it
+        is still blocked inside a camera read() after `timeout`. Callers
+        about to RELEASE the camera must know the difference: releasing a
+        capture handle while another thread is mid-read() is a cross-thread
+        driver call that native capture libraries can crash on.
+
+        Safe to call again after a False return - it just waits longer.
+        """
+        was_running = self.running
+        if was_running:
+            logger.info(f"{self.name}: Stopping background thread...")
+            self.running = False
 
         if self.thread and self.thread.is_alive():
-            self.thread.join(timeout=2.0)
+            self.thread.join(timeout=timeout)
 
-        logger.info(f"{self.name}: Stopped (captured {self.frame_count} frames, {self.error_count} errors)")
+        exited = not (self.thread and self.thread.is_alive())
+        if exited:
+            if was_running:
+                logger.info(f"{self.name}: Stopped (captured {self.frame_count} frames, {self.error_count} errors)")
+        else:
+            logger.warning(
+                f"{self.name}: capture thread still blocked in read() after {timeout}s - "
+                "camera release may race it"
+            )
+        return exited
 
     def get_stats(self) -> dict:
         """Get capture statistics."""
@@ -267,12 +299,27 @@ class DualThreadedCameraCapture:
 
         return thermal_frame, thermal_raw, rgb_frame
 
-    def stop(self):
-        """Stop both camera capture threads."""
-        self.thermal_capture.stop()
+    def get_raw_frames(self) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Tuple[int, int]]:
+        """
+        (thermal_raw, rgb_frame, (thermal_count, rgb_count)) - the frames
+        the render loop actually uses, without building get_frames()'s
+        8-bit thermal display copy (which it discards), plus each camera's
+        capture counter so the loop can skip re-processing a frame it has
+        already rendered.
+        """
+        thermal_raw, thermal_count = self.thermal_capture.get_raw_and_count()
+        rgb_frame, rgb_count = (self.rgb_capture.get_raw_and_count()
+                                if self.rgb_capture else (None, 0))
+        return thermal_raw, rgb_frame, (thermal_count, rgb_count)
+
+    def stop(self, timeout: float = 2.0) -> bool:
+        """Stop both camera capture threads. True if both threads exited
+        (see ThreadedCameraCapture.stop)."""
+        exited = self.thermal_capture.stop(timeout)
         if self.rgb_capture:
-            self.rgb_capture.stop()
+            exited = self.rgb_capture.stop(timeout) and exited
         logger.info("Dual camera threaded capture stopped")
+        return exited
 
     def get_stats(self) -> dict:
         """Get capture statistics for both cameras."""

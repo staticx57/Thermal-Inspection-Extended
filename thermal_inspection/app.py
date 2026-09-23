@@ -318,6 +318,27 @@ class ThermalInspectionApp:
         # happens, after both roles have settled.
         self._suppress_capture_restart = False
 
+        # Serializes every camera open/close path: startup autodiscover,
+        # hot-plug assign (its own daemon thread), hot-plug disconnect (the
+        # monitor's thread), manual reassign/swap (another daemon thread),
+        # and cleanup. Each of these stops/rebuilds the capture threads and
+        # opens/releases backends, and nothing previously stopped two of
+        # them from interleaving - e.g. a hot-plug assign opening a device
+        # while a swap was mid-way through releasing and reopening the
+        # same one, which leaves one of the two opens failing with the
+        # device "in use". Reentrant: reassign_cameras() calls
+        # _init_cameras_sync() while holding it.
+        self._camera_lifecycle_lock = threading.RLock()
+
+        # Render-loop frame dedupe - see _process_frame_loop. The loop polls
+        # every 8ms, faster than any camera here delivers frames.
+        self._last_processed_capture_counts = None
+        self._last_full_process_time = 0.0
+        # Re-render an unchanged frame at least this often, so setting
+        # changes (palette, view mode, overlays) still show promptly when a
+        # stream stalls or runs slower than this (e.g. a 9Hz Lepton).
+        self._max_duplicate_frame_interval_s = 0.1
+
     def _init_controllers(self):
         """Initialize all controllers."""
         self.camera_state = CameraState()
@@ -605,6 +626,7 @@ class ThermalInspectionApp:
                     if hasattr(backend, 'get_point_cloud'):
                         self._gui_invoke("set_fusion_3d_hardware_available", True)
 
+            self._sync_realsense_monitor_skips()
             self._restart_threaded_capture()
 
         self._gui_invoke("update_camera_status", self.camera_state)
@@ -632,6 +654,7 @@ class ThermalInspectionApp:
             if self.parallax_compensator:
                 self.parallax_compensator.set_hardware_depth_source(None)
             self._gui_invoke("set_fusion_3d_hardware_available", False)
+            self._sync_realsense_monitor_skips()
             self._restart_threaded_capture()
 
         self._gui_invoke("show_camera_lost_notification", role)
@@ -648,13 +671,89 @@ class ThermalInspectionApp:
             callback=self._on_monitor_event,
         )
         # Mark currently active devices so the monitor skips re-probing them
-        state = self.camera_state
-        if state.thermal_device_id is not None:
-            self._camera_monitor.mark_device_active(state.thermal_device_id)
-        if state.rgb_device_id is not None:
-            self._camera_monitor.mark_device_active(state.rgb_device_id)
+        for dev_id in self._active_os_video_indices():
+            self._camera_monitor.mark_device_active(dev_id)
+        # Synchronous here: the monitor's first scan starts immediately and
+        # would otherwise race the lookup.
+        self._sync_realsense_monitor_skips(blocking=True)
         self._camera_monitor.start()
         logger.info("Camera hot-plug monitor started")
+
+    def _publish_active_device_indices(self):
+        """Tell device_scanner which video indices the app has open (both
+        roles' device indices plus any RealSense-owned nodes), so a
+        re-probe during hot-plug assign never opens them - see
+        device_scanner.set_active_indices."""
+        try:
+            from thermal_inspection.cameras.device_scanner import set_active_indices
+            set_active_indices(self._active_os_video_indices()
+                               | set(getattr(self, '_realsense_monitor_skip_ids', set())))
+        except Exception as exc:
+            logger.debug(f"Could not publish active device indices: {exc}")
+
+    def _active_os_video_indices(self) -> set:
+        """OS video-device (DirectShow/V4L2) indices of the active cameras.
+        GigE/Firefly/RealSense match.device_index values index their own
+        SDK's device list, not the OS one, so they're excluded - treating a
+        Firefly's Spinnaker index 0 as video device 0 would hide an
+        unrelated camera from the hot-plug monitor and the scanner."""
+        indices = set()
+        for role in ('thermal', 'rgb'):
+            active = self.plugin_host.get_active_camera(role) if self.plugin_host else None
+            if (active is not None and active.match is not None
+                    and active.plugin.plugin_id not in ('gige_vision', 'flir_firefly', 'intel_realsense')
+                    and active.match.device_index is not None and active.match.device_index >= 0):
+                indices.add(active.match.device_index)
+        return indices
+
+    def _sync_realsense_monitor_skips(self, blocking: bool = False):
+        """
+        Keep the hot-plug monitor from probing a RealSense camera's own
+        DirectShow video nodes while librealsense is streaming from it.
+
+        RealSense is opened through librealsense, not a DirectShow index -
+        its match's device_index is -1 - so the "active device" skip list
+        never covered the Windows video nodes it exposes (its RGB/depth/IR
+        streams enumerate as ordinary DirectShow devices). The monitor's
+        scans (always at startup, then on every device-list change) then
+        cv2-opened those nodes, with a resolution change and frame reads,
+        on the very device librealsense had open - either failing because
+        it's in use or disturbing the live stream. Marked "active" by name
+        here, so the monitor skips them exactly like any other in-use
+        camera, and unmarked when RealSense stops being the RGB source.
+
+        The name enumeration runs a short COM worker (see device_scanner),
+        so by default this runs off the calling thread.
+        """
+        monitor = self._camera_monitor
+        if monitor is None:
+            return
+        active_rgb = self.plugin_host.get_active_camera('rgb') if self.plugin_host else None
+        realsense_active = bool(active_rgb and active_rgb.plugin.plugin_id == 'intel_realsense')
+
+        def _worker():
+            wanted = set()
+            if realsense_active:
+                try:
+                    from thermal_inspection.cameras.device_scanner import _list_device_names
+                    wanted = {i for i, name in enumerate(_list_device_names())
+                              if 'realsense' in name.lower()}
+                except Exception as exc:
+                    logger.debug(f"RealSense DirectShow node lookup failed: {exc}")
+            previous = getattr(self, '_realsense_monitor_skip_ids', set())
+            for dev_id in previous - wanted:
+                monitor.mark_device_inactive(dev_id)
+            for dev_id in wanted:
+                monitor.mark_device_active(dev_id)
+            self._realsense_monitor_skip_ids = wanted
+            self._publish_active_device_indices()
+            if wanted:
+                logger.info(f"Hot-plug monitor: skipping RealSense-owned video nodes {sorted(wanted)}")
+
+        if blocking:
+            _worker()
+        else:
+            threading.Thread(target=_worker, daemon=True, name="RealSenseMonitorSkips").start()
 
     def _on_monitor_event(self, event):
         """
@@ -730,7 +829,20 @@ class ThermalInspectionApp:
                 role = 'rgb'
 
             if role:
-                self.plugin_host.deactivate_camera(role)
+                # Stop the capture threads BEFORE releasing: this used to
+                # call deactivate_camera() straight from the monitor thread
+                # while the capture thread was still inside read() on the
+                # same backend - a cross-thread release during a read. The
+                # capture rebuild afterwards picks up whichever role is
+                # still active.
+                with self._camera_lifecycle_lock:
+                    self._stop_threaded_capture()
+                    self._suppress_capture_restart = True
+                    try:
+                        self.plugin_host.deactivate_camera(role)
+                    finally:
+                        self._suppress_capture_restart = False
+                    self._restart_threaded_capture()
 
             # Remove from monitor's active set so it can re-detect it later
             if self._camera_monitor:
@@ -796,6 +908,10 @@ class ThermalInspectionApp:
             logger.debug(f"_gui_invoke {method_name} failed: {exc}")
 
     def assign_camera_to_slot(self, device_id: int, role: str) -> bool:
+        with self._camera_lifecycle_lock:
+            return self._assign_camera_to_slot_locked(device_id, role)
+
+    def _assign_camera_to_slot_locked(self, device_id: int, role: str) -> bool:
         logger.info(f"Assigning device {device_id} to slot '{role}'")
         self._loop_idle_event.clear()
         self.loop_pause_event.set()
@@ -1103,14 +1219,34 @@ class ThermalInspectionApp:
         self._init_cameras_sync()
 
     def _stop_threaded_capture(self):
-        if getattr(self, 'threaded_capture', None):
-            self.threaded_capture.stop()
+        capture = getattr(self, 'threaded_capture', None)
+        if capture:
+            # Detach first so the render loop stops polling it, then wait
+            # for the read threads to actually exit before anything goes on
+            # to release the camera handles they read from. The old
+            # stop() waited 2s and carried on regardless.
             self.threaded_capture = None
+            if not capture.stop() and not capture.stop(timeout=3.0):
+                logger.warning("Capture thread(s) still blocked in read() - proceeding with camera release anyway")
 
     def _restart_threaded_capture(self):
         if self._suppress_capture_restart:
             logger.debug("Threaded capture restart suppressed (mid-autodiscover)")
             return
+        # Non-blocking: if another thread is mid-way through a camera
+        # lifecycle operation (see _camera_lifecycle_lock), that operation
+        # rebuilds capture itself when it finishes - and this is commonly
+        # called from a camera_connected/disconnected handler running on
+        # the GUI thread, which must not block for a multi-second open.
+        if not self._camera_lifecycle_lock.acquire(blocking=False):
+            logger.debug("Threaded capture restart skipped - a camera lifecycle operation is in progress")
+            return
+        try:
+            self._restart_threaded_capture_locked()
+        finally:
+            self._camera_lifecycle_lock.release()
+
+    def _restart_threaded_capture_locked(self):
         self._stop_threaded_capture()
         try:
             from thermal_inspection.cameras.threaded_camera_capture import DualThreadedCameraCapture
@@ -1119,6 +1255,7 @@ class ThermalInspectionApp:
 
             t_backend = thermal_active.backend if thermal_active else None
             r_backend = rgb_active.backend if rgb_active else None
+            self._publish_active_device_indices()
 
             if t_backend or r_backend:
                 self.threaded_capture = DualThreadedCameraCapture(
@@ -1136,15 +1273,16 @@ class ThermalInspectionApp:
         Uses CameraPluginHost to detect and activate cameras.
         """
         logger.info("Background camera detection starting via PluginHost...")
-        self._suppress_capture_restart = True
-        try:
-            self.plugin_host.autodiscover()
-        finally:
-            self._suppress_capture_restart = False
-        # One clean rebuild with both roles already settled, instead of the
-        # per-camera rebuilds autodiscover()'s own connect signals would
-        # have triggered.
-        self._restart_threaded_capture()
+        with self._camera_lifecycle_lock:
+            self._suppress_capture_restart = True
+            try:
+                self.plugin_host.autodiscover()
+            finally:
+                self._suppress_capture_restart = False
+            # One clean rebuild with both roles already settled, instead of the
+            # per-camera rebuilds autodiscover()'s own connect signals would
+            # have triggered.
+            self._restart_threaded_capture()
 
         thermal_ok = self.plugin_host.is_connected('thermal')
         rgb_ok = self.plugin_host.is_connected('rgb')
@@ -1195,12 +1333,24 @@ class ThermalInspectionApp:
         # there is nothing to rebuild for at shutdown, so suppress it.
         if self._camera_monitor is not None:
             self._camera_monitor.stop()
-        self._stop_threaded_capture()
-        self._suppress_capture_restart = True
+        # Wait (bounded) for any in-flight hot-plug assign/reassign to finish
+        # instead of releasing cameras out from under it - it may be inside
+        # a backend open() for up to BACKEND_OPEN_TIMEOUT_S. Proceed anyway
+        # after that: shutdown must not hang on a wedged driver.
+        from thermal_inspection.cameras.plugin.camera_plugin_host import BACKEND_OPEN_TIMEOUT_S
+        got_lock = self._camera_lifecycle_lock.acquire(timeout=BACKEND_OPEN_TIMEOUT_S + 2.0)
+        if not got_lock:
+            logger.warning("Camera lifecycle operation still running at shutdown - releasing cameras anyway")
         try:
-            self.plugin_host.release_all()
+            self._stop_threaded_capture()
+            self._suppress_capture_restart = True
+            try:
+                self.plugin_host.release_all()
+            finally:
+                self._suppress_capture_restart = False
         finally:
-            self._suppress_capture_restart = False
+            if got_lock:
+                self._camera_lifecycle_lock.release()
 
         logger.info("Cleanup complete")
 
@@ -1304,6 +1454,10 @@ class ThermalInspectionApp:
 
     def reassign_cameras(self, thermal_id: int, rgb_id: int):
         """Reassign camera device IDs."""
+        with self._camera_lifecycle_lock:
+            return self._reassign_cameras_locked(thermal_id, rgb_id)
+
+    def _reassign_cameras_locked(self, thermal_id: int, rgb_id: int):
         if self.camera_state.reconfiguring:
             return False
         self.camera_state.reconfiguring = True
@@ -1513,6 +1667,29 @@ class ThermalInspectionApp:
                 except Exception as e:
                     logger.debug(f"FPA temp poll for estimation failed: {e}")
 
+        # Snapshot: a camera lifecycle operation on another thread (hot-plug,
+        # reassign) can swap or clear self.threaded_capture at any moment.
+        capture = self.threaded_capture
+        captured_thermal = captured_rgb = None
+        if capture is not None:
+            captured_thermal, captured_rgb, capture_counts = capture.get_raw_frames()
+            # Skip ticks with no new frame from either camera. This timer
+            # polls every 8ms (~125Hz), faster than any camera here
+            # delivers (9-60Hz), so most ticks used to re-run the entire
+            # pipeline (palette, overlays, fusion, GUI push) on a frame
+            # already rendered - and enqueue that duplicate into an active
+            # recording. Still re-renders an unchanged frame every
+            # _max_duplicate_frame_interval_s so setting changes show
+            # promptly on a stalled or slow stream. Capture counters, not
+            # array identity, decide "new": counters only change when a
+            # frame is actually published.
+            _now_tick = time.time()
+            if (capture_counts == self._last_processed_capture_counts
+                    and _now_tick - self._last_full_process_time < self._max_duplicate_frame_interval_s):
+                return
+            self._last_processed_capture_counts = capture_counts
+            self._last_full_process_time = _now_tick
+
         loop_start = time.time()
         self.frame_count += 1
         _prof_stage_t = loop_start
@@ -1522,14 +1699,12 @@ class ThermalInspectionApp:
             thermal_frame = None
             rgb_frame = None
 
-            if self.threaded_capture:
-                # threaded_capture returns (display_frame, raw_frame, rgb_frame)
-                _, thermal_raw, rgb_f = self.threaded_capture.get_frames()
+            if capture is not None:
                 # Prefer raw (which preserves 16-bit) if available
-                if thermal_raw is not None:
-                    thermal_frame = thermal_raw
-                if rgb_f is not None:
-                    rgb_frame = rgb_f
+                if captured_thermal is not None:
+                    thermal_frame = captured_thermal
+                if captured_rgb is not None:
+                    rgb_frame = captured_rgb
             else:
                 # Synchronous fallback
                 success, t_f = self.plugin_host.read_thermal()
@@ -2604,6 +2779,15 @@ class ThermalInspectionApp:
                         spot_depth_map = rs_backend.get_depth_frame(
                             resize_to=(spot_depth_tw, spot_depth_th)
                         )
+                    # Built at most once per frame, and only if some point
+                    # actually falls through to the 8-bit paths below. The
+                    # frame is 3-channel for 8-bit cameras (the UVC layer
+                    # replicates gray into BGR), where indexing one pixel
+                    # gives 3 values: the raw path's float() on that raised
+                    # TypeError, aborting the rest of the tick every frame a
+                    # spot meter existed on a non-radiometric camera.
+                    spot_gray = None
+                    spot_est_map = None
                     for point in self.gui.measurement_points:
                         temp = None
                         unit = "°C"
@@ -2624,19 +2808,27 @@ class ThermalInspectionApp:
                         if temp is None and self._last_thermal_frame is not None:
                             h, w = self._last_thermal_frame.shape[:2]
                             if 0 <= point.x < w and 0 <= point.y < h:
+                                if spot_gray is None:
+                                    spot_gray = (cv2.cvtColor(self._last_thermal_frame, cv2.COLOR_BGR2GRAY)
+                                                 if self._last_thermal_frame.ndim == 3
+                                                 else self._last_thermal_frame)
                                 if (self.radiometric_controller.state.estimation_enabled
                                         and hasattr(self, 'thermal_estimator')):
-                                    fpa = self._last_fpa_temp_c if self._last_fpa_temp_c is not None else 25.0
-                                    temp_c = self.thermal_estimator.get_pixel_temperature(
-                                        self._last_thermal_frame, point.x, point.y, fpa
-                                    )
-                                    # get_pixel_temperature always returns Celsius -
-                                    # respect whatever unit the user picked instead
-                                    # of hardcoding °C regardless of that choice.
-                                    temp = self.radiometric_controller.convert_temperature(temp_c) if temp_c is not None else None
+                                    if spot_est_map is None:
+                                        # The same estimate map stats/hot spots
+                                        # use (see ThermalTemperatureEstimator.
+                                        # get_pixel_temperature), built once for
+                                        # all points.
+                                        fpa = self._last_fpa_temp_c if self._last_fpa_temp_c is not None else 25.0
+                                        spot_est_map = self.thermal_estimator.estimate_temperature_map(spot_gray, fpa)
+                                    temp_c = float(spot_est_map[point.y, point.x])
+                                    # Estimates are Celsius - respect whatever
+                                    # unit the user picked instead of
+                                    # hardcoding °C regardless of that choice.
+                                    temp = self.radiometric_controller.convert_temperature(temp_c)
                                     unit = f"{self.radiometric_controller.get_unit_symbol()} (est)"
                                 elif self.thermal_analyzer:
-                                    raw_pixel = float(self._last_thermal_frame[point.y, point.x])
+                                    raw_pixel = float(spot_gray[point.y, point.x])
                                     temp, unit = self.thermal_analyzer.calculate_spot_temperature(raw_pixel)
 
                         distance_m = None
@@ -2693,9 +2885,9 @@ class ThermalInspectionApp:
             loop_min_ms = min(self.frame_times) * 1000
             rgb_cap_fps = None
             rgb_cap_err = None
-            if getattr(self, 'threaded_capture', None) and self.threaded_capture.rgb_capture:
-                rgb_cap_fps = self.threaded_capture.rgb_capture.fps
-                rgb_cap_err = self.threaded_capture.rgb_capture.error_count
+            if capture is not None and capture.rgb_capture:
+                rgb_cap_fps = capture.rgb_capture.fps
+                rgb_cap_err = capture.rgb_capture.error_count
             _lv = locals()
             _stage_capture_ms = (_lv.get('_prof_t_capture', loop_start) - loop_start) * 1000
             _stage_preprocess_ms = (_lv.get('_prof_t_preprocess', loop_start) - _lv.get('_prof_t_capture', loop_start)) * 1000
@@ -2737,7 +2929,17 @@ class ThermalInspectionApp:
         """Start or stop video recording."""
         if self.media_manager:
             frame_shape = (self.config.height or 512, self.config.width or 640, 3)
-            fps = max(1, int(self.smoothed_fps)) if self.smoothed_fps > 1 else 30
+            # The render loop now enqueues once per NEW camera frame (see
+            # its frame dedupe), so the writer's rate is the cameras'
+            # delivery rate - not smoothed_fps, which is 1/processing-time
+            # (often 100+) and made recordings play back several times too
+            # fast.
+            capture = self.threaded_capture
+            capture_fps = 0.0
+            if capture is not None:
+                capture_fps = max(capture.thermal_capture.fps,
+                                  capture.rgb_capture.fps if capture.rgb_capture else 0.0)
+            fps = max(1, int(round(capture_fps))) if capture_fps > 1 else 30
             self.media_manager.toggle_recording(enabled, fps=fps, frame_shape=frame_shape)
 
     def cycle_palette(self):
@@ -3446,6 +3648,10 @@ class ThermalInspectionApp:
         if not hasattr(self, 'thermal_estimator') or self._last_thermal_frame is None:
             return
         frame = self._last_thermal_frame
+        if frame.ndim == 3:
+            # 8-bit cameras deliver gray replicated into BGR - int() of a
+            # 3-channel pixel raised TypeError, so calibration never ran.
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         h, w = frame.shape[:2]
         agc_value = int(frame[h // 2, w // 2])
         fpa = self._last_fpa_temp_c if self._last_fpa_temp_c is not None else 25.0
@@ -3763,7 +3969,10 @@ class ThermalInspectionApp:
         thermal_samples = []
         rgb_samples = []
         for _ in range(n):
-            _, thermal_raw, rgb_f = self.threaded_capture.get_frames()
+            capture = self.threaded_capture
+            if capture is None:
+                break
+            thermal_raw, rgb_f, _ = capture.get_raw_frames()
             if (thermal_raw is not None and rgb_f is not None
                     and rgb_f is not self.rgb_placeholder):
                 thermal_samples.append(thermal_raw)

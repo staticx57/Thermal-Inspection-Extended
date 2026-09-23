@@ -632,17 +632,26 @@ class ThermalAnalyzer:
         if self.baseline_value is not None:
             relative_mean = mean_val - self.baseline_value
 
-        # Convert to target unit
-        min_val = self.convert_temperature(min_val, TemperatureUnit.CELSIUS, self.temp_unit)
-        max_val = self.convert_temperature(max_val, TemperatureUnit.CELSIUS, self.temp_unit)
-        mean_val = self.convert_temperature(mean_val, TemperatureUnit.CELSIUS, self.temp_unit)
-        median_val = self.convert_temperature(median_val, TemperatureUnit.CELSIUS, self.temp_unit)
-        p95_val = self.convert_temperature(p95_val, TemperatureUnit.CELSIUS, self.temp_unit)
-        p5_val = self.convert_temperature(p5_val, TemperatureUnit.CELSIUS, self.temp_unit)
+        # Convert to target unit - only values that actually ARE Celsius
+        # (true radiometric, or the 8-bit estimate). Raw AGC counts have no
+        # temperature unit; they used to go through the C->F/K/RAW
+        # conversion too, so with Fahrenheit selected a raw count of 128
+        # displayed as "262.4 (raw)". detect_hot_spots/detect_cold_spots
+        # already gate their conversion this same way.
+        is_celsius = self.is_radiometric or est_map is not None
+        if is_celsius:
+            min_val = self.convert_temperature(min_val, TemperatureUnit.CELSIUS, self.temp_unit)
+            max_val = self.convert_temperature(max_val, TemperatureUnit.CELSIUS, self.temp_unit)
+            mean_val = self.convert_temperature(mean_val, TemperatureUnit.CELSIUS, self.temp_unit)
+            median_val = self.convert_temperature(median_val, TemperatureUnit.CELSIUS, self.temp_unit)
+            p95_val = self.convert_temperature(p95_val, TemperatureUnit.CELSIUS, self.temp_unit)
+            p5_val = self.convert_temperature(p5_val, TemperatureUnit.CELSIUS, self.temp_unit)
 
         # Scale relative values (std dev, range)
         # Note: These are differences, so we only apply scaling factor, not offset
-        if self.temp_unit == TemperatureUnit.FAHRENHEIT:
+        if not is_celsius:
+            pass
+        elif self.temp_unit == TemperatureUnit.FAHRENHEIT:
             std_val = std_val * 1.8
             temp_range = temp_range * 1.8
             if relative_mean is not None:

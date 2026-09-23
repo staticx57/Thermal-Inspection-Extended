@@ -168,17 +168,25 @@ class ThermalTemperatureEstimator:
         if y >= agc_frame.shape[0] or x >= agc_frame.shape[1]:
             return None
 
-        # Get pixel value
-        agc_value = agc_frame[y, x]
+        # Sample the SAME map stats/hot spots/cold spots/contour labels read
+        # (estimate_temperature_map), rather than re-deriving it with a
+        # fixed scene range. This used to ignore use_adaptive_range (on by
+        # default), so a spot meter and a hot-spot marker on the same pixel
+        # disagreed by tens of degrees - measured 88.4C vs 25.7C for one
+        # hot pixel in a narrow-AGC-spread scene. A 3-channel frame (the
+        # UVC layer replicates gray into BGR for 8-bit cameras) used to
+        # return a 3-element array here instead of a number, too.
+        gray = self._to_gray(agc_frame)
+        return float(self.estimate_temperature_map(gray, fpa_temp_c)[y, x])
 
-        # Normalize
-        normalized = agc_value / 255.0
-
-        # Estimate temperature
-        scene_range = self.scene_max_c - self.scene_min_c
-        temp_c = self.scene_min_c + (normalized * scene_range) + self.calibration_offset
-
-        return temp_c
+    @staticmethod
+    def _to_gray(agc_frame: np.ndarray) -> np.ndarray:
+        """Single-channel view of an AGC frame - same BGR2GRAY conversion
+        ThermalAnalyzer.analyze() uses, so both sample identical values."""
+        if agc_frame.ndim == 3:
+            import cv2
+            return cv2.cvtColor(agc_frame, cv2.COLOR_BGR2GRAY)
+        return agc_frame
 
     def get_statistics(
         self,
@@ -240,6 +248,17 @@ class ThermalTemperatureEstimator:
         Updates:
             self.calibration_offset
         """
+        # A calibration fit is only meaningful against a FIXED scene range.
+        # The offset below is derived from the fixed-range formula, but
+        # estimate_temperature_map() recomputed the range from every
+        # frame's AGC spread when use_adaptive_range was on (the default),
+        # so the fitted offset was applied on top of a different mapping
+        # and didn't actually pin the reference to known_temp_c anywhere
+        # except the spot meter's own (inconsistent) fixed-range path.
+        if self.use_adaptive_range:
+            logger.info("Calibration: switching to a fixed scene range so the fit applies to every reading")
+            self.use_adaptive_range = False
+
         # Calculate what we would estimate without calibration
         normalized = agc_value / 255.0
         scene_range = self.scene_max_c - self.scene_min_c
@@ -285,14 +304,22 @@ class ThermalTemperatureEstimator:
             logger.error("Two-point calibration failed: AGC values are identical")
             return
 
-        # Update scene range
-        self.scene_min_c = temp_low_c
-        self.scene_max_c = temp_high_c
+        # See calibrate_single_point - a fit needs a fixed range.
+        if self.use_adaptive_range:
+            logger.info("Calibration: switching to a fixed scene range so the fit applies to every reading")
+            self.use_adaptive_range = False
 
-        # Calculate offset (should be close to 0 with good calibration)
-        normalized_low = agc_low / 255.0
-        estimated_low = self.scene_min_c + (normalized_low * temp_range)
-        self.calibration_offset = temp_low_c - estimated_low
+        # Straight line through both references: temp = temp_low + (agc -
+        # agc_low) * slope, expressed in this class's scene_min + (agc/255)
+        # * range form (offset folded into scene_min). The previous version
+        # set scene_min/max to the two temperatures themselves - mapping AGC
+        # 0 and 255 to them, not agc_low and agc_high - then offset only
+        # the low end, so agc_high landed on temp_high only when the two
+        # references happened to span the entire 0-255 AGC range.
+        slope = temp_range / agc_range
+        self.scene_min_c = temp_low_c - agc_low * slope
+        self.scene_max_c = self.scene_min_c + 255.0 * slope
+        self.calibration_offset = 0.0
 
         logger.info(
             f"Two-point calibration: "

@@ -50,6 +50,24 @@ class VideoDevice:
 _scan_lock = threading.Lock()
 _cached_devices: Optional[List[VideoDevice]] = None
 
+# Device indices the app currently has open (see set_active_indices). A
+# re-probe must never cv2-open these: at best the open fails because the
+# device is in use, which silently dropped the app's own live cameras from
+# the scan, and that incomplete scan was then persisted as the next
+# launch's fast path. At worst a driver lets the probe steal or disturb
+# the live stream.
+_active_indices: frozenset = frozenset()
+# Last successful probe result per index, kept across invalidate_cache() so
+# an in-use device can be carried forward instead of re-opened.
+_last_known: Dict[int, VideoDevice] = {}
+
+
+def set_active_indices(indices) -> None:
+    """Tell the scanner which device indices are currently open by the app
+    (None/negative entries, e.g. RealSense's -1, are ignored)."""
+    global _active_indices
+    _active_indices = frozenset(i for i in indices if i is not None and i >= 0)
+
 
 def _enumerate_dshow_devices() -> List[str]:
     """Build a DirectShow filter graph and read its input device names."""
@@ -249,19 +267,42 @@ def scan_video_devices(force: bool = False) -> List[VideoDevice]:
             fast_path = _load_fast_path(names)
             if fast_path is not None:
                 _cached_devices = fast_path
+                for device in fast_path:
+                    _last_known[device.index] = device
                 return list(fast_path)
 
         # Trust the OS device count when we have one; otherwise sweep a fixed range.
         max_devices = len(names) if names else DEFAULT_MAX_DEVICES
 
         devices: List[VideoDevice] = []
+        complete = True
+        active = _active_indices
         for index in range(max_devices):
+            if index in active:
+                # In use by the app - carry its last probe forward rather
+                # than opening it, as long as the same device still sits
+                # at this index (a hot-plug can renumber DirectShow
+                # indices, and then the old entry would describe the wrong
+                # camera).
+                prev = _last_known.get(index)
+                name_now = names[index] if index < len(names) else None
+                if prev is not None and (name_now is None or name_now == prev.name):
+                    devices.append(prev)
+                else:
+                    complete = False
+                    logger.info(f"Device {index} is in use and has no matching prior probe - not probing it")
+                continue
             device = _probe_device(index, names)
             if device is not None:
                 devices.append(device)
 
+        for device in devices:
+            _last_known[device.index] = device
         _cached_devices = devices
-        _save_fast_path(names, devices)
+        if complete:
+            _save_fast_path(names, devices)
+        else:
+            logger.info("Scan skipped an in-use device it couldn't describe - not persisting it as the fast path")
         logger.info(f"Video device scan complete: {len(devices)} usable device(s) of {max_devices} probed")
         return list(devices)
 
