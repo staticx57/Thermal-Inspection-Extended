@@ -2030,6 +2030,7 @@ class InspectionAppWindow(QMainWindow):
                 ViewMode.SIDE_BY_SIDE: "Side by Side",
                 ViewMode.PICTURE_IN_PICTURE: "PiP",
                 ViewMode.THREE_D: "3D",
+                ViewMode.THREE_D_MAPPING: "3D Mapping",
             }
             label = label_map.get(view_mode, str(view_mode))
             # NOTE: the button is named view_mode_btn, not view_btn - a
@@ -2848,14 +2849,52 @@ class InspectionAppWindow(QMainWindow):
                 self.mapping_fusion_panel.set_status("idle", "n/a", 0)
                 self.mapping_fusion_panel._status_label.setText(str(e))
             logger.warning(f"3D Mapping Fusion: cannot start scan: {e}")
+            return
+        # I7: push the panel's status immediately rather than relying
+        # solely on the next frame-loop tick (which only runs the
+        # THREE_D_MAPPING dispatch branch's status push while that view
+        # mode is actually active) - clicking Start from any OTHER view
+        # mode previously produced no status change at all.
+        if hasattr(self, 'mapping_fusion_panel'):
+            self.mapping_fusion_panel.set_status(
+                self.app.world_mapper.state, self.app.world_mapper.quality_state,
+                self.app.world_mapper.point_count,
+            )
 
     def _on_mapping_finish_scan(self):
-        if self.app and hasattr(self.app, 'world_mapper'):
+        """finish_scan() raises RuntimeError when not currently scanning -
+        MappingFusionPanel's button gating (see set_status()) should
+        normally prevent this click from even being possible, but this is
+        cheap defensive-in-depth against a stale button state or a direct
+        (e.g. test/scripted) call, matching the no-unhandled-exceptions
+        contract _on_mapping_start_scan already has for its own failure
+        mode. Also pushes status immediately - see the comment in
+        _on_mapping_start_scan."""
+        if not (self.app and hasattr(self.app, 'world_mapper')):
+            return
+        try:
             self.app.world_mapper.finish_scan()
+        except RuntimeError as e:
+            logger.warning(f"3D Mapping Fusion: finish_scan failed: {e}")
+        if hasattr(self, 'mapping_fusion_panel'):
+            self.mapping_fusion_panel.set_status(
+                self.app.world_mapper.state, self.app.world_mapper.quality_state,
+                self.app.world_mapper.point_count,
+            )
 
     def _on_mapping_reset(self):
-        if self.app and hasattr(self.app, 'world_mapper'):
-            self.app.world_mapper.reset()
+        """Pushes status immediately - see the comment in
+        _on_mapping_start_scan (this is also what clears the label's stale
+        text/lost-tracking message right away instead of leaving it stuck
+        until the next THREE_D_MAPPING frame-loop tick)."""
+        if not (self.app and hasattr(self.app, 'world_mapper')):
+            return
+        self.app.world_mapper.reset()
+        if hasattr(self, 'mapping_fusion_panel'):
+            self.mapping_fusion_panel.set_status(
+                self.app.world_mapper.state, self.app.world_mapper.quality_state,
+                self.app.world_mapper.point_count,
+            )
 
     def _on_mapping_texture_source_changed(self, source: str):
         if self.app and hasattr(self.app, '_mapping_texture_source'):
@@ -2880,7 +2919,9 @@ class InspectionAppWindow(QMainWindow):
     def _on_mapping_load(self):
         """Load a previously-saved world. Puts WorldMapper straight into
         'mapped' state - the loaded geometry is already frozen (see
-        WorldPointCloud.load(), which sets frozen=True)."""
+        WorldPointCloud.load(), which sets frozen=True). The actual
+        loading logic lives in _load_mapping_world_from_path() (split out
+        so it's testable without driving a real QFileDialog)."""
         if not (self.app and hasattr(self.app, 'world_mapper')):
             return
         import os
@@ -2888,8 +2929,57 @@ class InspectionAppWindow(QMainWindow):
         os.makedirs("world_maps", exist_ok=True)
         path, _ = QFileDialog.getOpenFileName(self, "Load World", "world_maps", "Point Cloud (*.ply)")
         if path:
-            self.app.world_mapper.world.load(path)
-            self.app.world_mapper.state = "mapped"
+            self._load_mapping_world_from_path(path)
+
+    def _load_mapping_world_from_path(self, path: str):
+        """Load a saved world AND construct a working PoseTracker for it
+        (see WorldMapper.load_from_path()) - needs the active RGB camera's
+        depth intrinsics (RealSense only), same as _on_mapping_start_scan.
+
+        Without a real PoseTracker, every live track_and_texture() call
+        after Load hit self._pose_tracker.track_frame_to_model() on None,
+        raising AttributeError silently swallowed at logger.debug - Load
+        looked like it worked but live tracking was always broken. If no
+        RealSense is connected to provide intrinsics, that's surfaced as a
+        clear status message instead of loading into a half-broken state.
+
+        WorldPointCloud.load() (and PoseTracker's own construction) raises
+        ImportError when open3d isn't installed - caught here the same way
+        _on_mapping_start_scan already catches it for start_scan().
+        """
+        if not (self.app and hasattr(self.app, 'world_mapper')):
+            return
+        backend = self.app.rgb_camera
+        intrinsics = (
+            backend.get_depth_intrinsics()
+            if backend is not None and hasattr(backend, 'get_depth_intrinsics')
+            else None
+        )
+        if not intrinsics:
+            if hasattr(self, 'mapping_fusion_panel'):
+                self.mapping_fusion_panel.set_status("idle", "n/a", 0)
+                self.mapping_fusion_panel._status_label.setText(
+                    "No RealSense depth camera available - cannot load world for live tracking."
+                )
+            logger.warning("3D Mapping Fusion: cannot load world, no depth intrinsics available")
+            return
+        try:
+            self.app.world_mapper.load_from_path(
+                path,
+                int(intrinsics['width']), int(intrinsics['height']),
+                intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy'],
+            )
+        except ImportError as e:
+            if hasattr(self, 'mapping_fusion_panel'):
+                self.mapping_fusion_panel.set_status("idle", "n/a", 0)
+                self.mapping_fusion_panel._status_label.setText(str(e))
+            logger.warning(f"3D Mapping Fusion: cannot load world: {e}")
+            return
+        if hasattr(self, 'mapping_fusion_panel'):
+            self.mapping_fusion_panel.set_status(
+                self.app.world_mapper.state, self.app.world_mapper.quality_state,
+                self.app.world_mapper.point_count,
+            )
 
     def set_mapping_fusion_status(self, state: str, quality_state: str, point_count: int):
         if hasattr(self, 'mapping_fusion_panel'):

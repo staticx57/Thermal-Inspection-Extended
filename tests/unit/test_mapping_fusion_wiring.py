@@ -83,7 +83,14 @@ class TestMappingStartScanImportErrorHandling:
     def test_start_scan_succeeds_with_a_working_pose_tracker_factory(self):
         """Sanity check the happy path still works when PoseTracker
         construction succeeds (simulated here since open3d isn't
-        installed) - state must flip to 'scanning'."""
+        installed) - state must flip to 'scanning'.
+
+        I7: the handler must ALSO push a status update immediately (not
+        just rely on the next frame-loop tick, which only runs while
+        THREE_D_MAPPING is the active view mode) - so unlike the failure
+        paths above, set_status IS expected to be called here now, with
+        the fresh post-start_scan state.
+        """
         working_world_mapper = WorldMapper(pose_tracker_factory=MagicMock())
         fake = _FakeMainWindow(_FakeApp(
             rgb_camera=_FakeRealSenseBackend(), world_mapper=working_world_mapper,
@@ -92,7 +99,70 @@ class TestMappingStartScanImportErrorHandling:
         MainWindow._on_mapping_start_scan(fake)
 
         assert fake.app.world_mapper.state == "scanning"
-        fake.mapping_fusion_panel.set_status.assert_not_called()
+        fake.mapping_fusion_panel.set_status.assert_called_once_with("scanning", "n/a", 0)
+
+
+class TestMappingLoadWorld:
+    def test_load_without_open3d_does_not_raise(self):
+        """WorldPointCloud.load() (and PoseTracker construction) raises
+        ImportError when open3d isn't installed - this genuinely-missing
+        environment exercises the real ImportError, not a mock of it."""
+        fake = _FakeMainWindow(_FakeApp(rgb_camera=_FakeRealSenseBackend()))
+
+        MainWindow._load_mapping_world_from_path(fake, "world.ply")  # must not raise
+
+        assert fake.app.world_mapper.state == "idle"
+
+    def test_load_surfaces_import_error_as_status_message(self):
+        fake = _FakeMainWindow(_FakeApp(rgb_camera=_FakeRealSenseBackend()))
+
+        MainWindow._load_mapping_world_from_path(fake, "world.ply")
+
+        fake.mapping_fusion_panel.set_status.assert_called_once_with("idle", "n/a", 0)
+        message = fake.mapping_fusion_panel._status_label.setText.call_args_list[0][0][0]
+        assert "open3d" in message.lower()
+
+    def test_load_with_no_realsense_camera_does_not_raise(self):
+        """No depth intrinsics available - must surface a clear status
+        message instead of loading into a world with no working
+        PoseTracker (live tracking would silently never work)."""
+        fake = _FakeMainWindow(_FakeApp(rgb_camera=None))
+
+        MainWindow._load_mapping_world_from_path(fake, "world.ply")  # must not raise
+
+        assert fake.app.world_mapper.state == "idle"
+        message = fake.mapping_fusion_panel._status_label.setText.call_args_list[0][0][0]
+        assert "realsense" in message.lower()
+
+    def test_load_succeeds_with_a_working_pose_tracker_factory(self):
+        """Happy path: state flips to 'mapped' AND a real PoseTracker gets
+        constructed (the actual C1/I4 regression - without
+        WorldMapper.load_from_path(), _pose_tracker stayed None forever
+        after Load). Stubs world_factory too, since the real
+        WorldPointCloud.load() also needs open3d - not installed here."""
+        class _FakeWorld:
+            def __init__(self, voxel_size=0.01):
+                self.loaded_path = None
+                self.point_count = 0
+
+            def load(self, path):
+                self.loaded_path = path
+
+        working_world_mapper = WorldMapper(pose_tracker_factory=MagicMock(), world_factory=_FakeWorld)
+        fake = _FakeMainWindow(_FakeApp(
+            rgb_camera=_FakeRealSenseBackend(), world_mapper=working_world_mapper,
+        ))
+
+        MainWindow._load_mapping_world_from_path(fake, "world.ply")
+
+        assert fake.app.world_mapper.state == "mapped"
+        assert fake.app.world_mapper._pose_tracker is not None
+        assert fake.app.world_mapper.world.loaded_path == "world.ply"
+        # quality_state buckets a fresh tracking_quality of 0.0 as "lost"
+        # (state is "mapped" now, so quality_state no longer reports
+        # "n/a") - the honest "no live tracking sample yet" state until
+        # the next real tick overwrites it.
+        fake.mapping_fusion_panel.set_status.assert_called_once_with("mapped", "lost", 0)
 
 
 class TestMappingFusionForwardingMethods:
