@@ -6,6 +6,7 @@ Neither of those two knows about the other or about this state machine.
 """
 from __future__ import annotations
 
+import cv2
 import numpy as np
 
 from thermal_inspection.processing.pose_tracker import PoseTracker
@@ -39,10 +40,49 @@ class WorldMapper:
         self.tracking_quality = 0.0
         self.state = "scanning"
 
+    def load_from_path(self, path: str, width: int, height: int,
+                        fx: float, fy: float, cx: float, cy: float):
+        """Load a previously-saved world AND construct a working
+        PoseTracker for it, mirroring what start_scan() does.
+
+        Without this, _pose_tracker stayed None after a Load - every
+        subsequent live track_and_texture() call in the 'mapped' branch
+        called self._pose_tracker.track_frame_to_model(...) on None,
+        raising AttributeError (silently swallowed by the caller's broad
+        except at the app.py call site). Live tracking after Load never
+        actually worked.
+
+        Constructs the PoseTracker BEFORE touching the file, so a missing
+        open3d install (PoseTracker.__init__ raises ImportError - see
+        pose_tracker.py) fails fast without a partial/inconsistent load.
+        world.load() can raise the same ImportError; either way this
+        propagates to the caller uncaught, same contract as start_scan().
+        """
+        self._pose_tracker = self._pose_tracker_factory(width, height, fx, fy, cx, cy)
+        self.world.load(path)
+        self._pose = np.eye(4)
+        self._prev_color = None
+        self._prev_depth = None
+        self.tracking_quality = 0.0
+        self.state = "mapped"
+
     def finish_scan(self):
         if self.state != "scanning":
             raise RuntimeError(f"finish_scan() called in state '{self.state}', expected 'scanning'")
         self.world.freeze()
+        # tracking_quality up to this point is the scan-phase odometry
+        # metric (np.trace of an information matrix - unbounded, typically
+        # in the thousands), an entirely different scale than the live-phase
+        # ICP fitness (0-1) that quality_state compares against the same
+        # thresholds once state == "mapped". Without this reset, the first
+        # read of quality_state right after finish_scan() (before any live
+        # track_and_texture() call has overwritten it) would misreport a
+        # huge stale odometry number as a false-confident "good". Reset to
+        # a neutral 0.0 so there's no stale cross-scale value visible even
+        # momentarily - quality_state's own good/degraded/lost bucketing
+        # then correctly reads this as "lost" (the honest state: no live
+        # tracking sample yet) until the next real tick overwrites it.
+        self.tracking_quality = 0.0
         self.state = "mapped"
 
     def reset(self):
@@ -73,7 +113,29 @@ class WorldMapper:
             if success and quality >= self._quality_degraded:
                 self._pose = transform
                 if texture_frame is not None:
-                    self.world.update_colors(self._pose, texture_frame, self._pose_tracker.intrinsic)
+                    intrinsic = self._pose_tracker.intrinsic
+                    # WorldPointCloud.update_colors() projects world points
+                    # using THIS intrinsic's (fx, fy, cx, cy) - the u, v
+                    # pixel coordinates it computes are only valid in an
+                    # array sized (intrinsic.height, intrinsic.width).
+                    # texture_frame can arrive at a completely different
+                    # resolution (e.g. colorized_thermal at the thermal
+                    # camera's native size vs. this intrinsic captured from
+                    # RealSense's color stream at scan start) - indexing
+                    # into it with those u/v values would silently sample
+                    # the wrong pixels (roughly a scale mismatch, only a
+                    # sub-rectangle ever getting real color) with no error
+                    # at all. Resize here, once, so update_colors' own u/v
+                    # math and the array it indexes always agree on
+                    # resolution, regardless of what the caller passed in.
+                    target_w, target_h = int(intrinsic.width), int(intrinsic.height)
+                    th, tw = texture_frame.shape[:2]
+                    if (tw, th) != (target_w, target_h):
+                        texture_frame = cv2.resize(
+                            texture_frame, (target_w, target_h),
+                            interpolation=cv2.INTER_LINEAR,
+                        )
+                    self.world.update_colors(self._pose, texture_frame, intrinsic)
         else:
             raise RuntimeError(f"track_and_texture() called in state '{self.state}', expected 'scanning' or 'mapped'")
 
