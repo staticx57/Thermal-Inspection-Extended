@@ -983,6 +983,30 @@ class ThermalInspectionApp:
             logger.warning(f"ParallaxCompensator not available: {e}")
             self.parallax_compensator = None
 
+        # 3D Mapping Fusion orchestrator - constructed eagerly and
+        # unconditionally, unlike RGBCameraRealSense (only exists once
+        # hardware is detected). WorldMapper() itself never touches
+        # Open3D - WorldPointCloud (Task 3) deliberately defers its own
+        # get_open3d() call until first real use, precisely so this
+        # eager construction can't crash app startup on a machine
+        # without Open3D installed. PoseTracker (Task 2) DOES call
+        # get_open3d() in its own __init__, but it's only ever
+        # constructed inside WorldMapper.start_scan() - an explicit user
+        # action ("Start Mapping" in the GUI), the right point to fail
+        # loudly and catchably (see main_window.py's
+        # _on_mapping_start_scan) rather than silently here.
+        from .processing.world_mapper import WorldMapper
+        self.world_mapper = WorldMapper()
+        self._mapping_texture_source = "thermal"
+        # Throttle live-phase tracking+recolor the same way the existing
+        # ViewMode.THREE_D block throttles its own relief-shading
+        # recompute (self._3d_fusion_update_interval_s, 15Hz) - per the
+        # spec, 5-10Hz is the starting point; tune against real measured
+        # frame time during the live-hardware pass, don't treat 10Hz as
+        # final.
+        self._mapping_fusion_update_interval_s = 1.0 / 10.0
+        self._last_mapping_fusion_update_time = 0.0
+
         # Media recorder
         try:
             from .core.media_manager import MediaManager
@@ -1600,7 +1624,7 @@ class ThermalInspectionApp:
                 and _preview.needs_thermal_alignment()
             )
             _main_view_needs_thermal_rgb_alignment = self.view_mode in (
-                ViewMode.FUSION, ViewMode.THREE_D,
+                ViewMode.FUSION, ViewMode.THREE_D, ViewMode.THREE_D_MAPPING,
             )
             _corrected_thermal_for_preview = None
             _corrected_rgb_for_preview = None
@@ -2280,6 +2304,45 @@ class ThermalInspectionApp:
                 else:
                     self._last_3d_display_frame = None
                     display_frame = colorized_thermal
+            elif self.view_mode == ViewMode.THREE_D_MAPPING:
+                if _rs_backend is not None and self.world_mapper.state in ("scanning", "mapped"):
+                    # Throttled the same way as the existing ViewMode.THREE_D
+                    # block (self._3d_fusion_update_interval_s / 15Hz) -
+                    # tracking+recolor doesn't need to run faster than a
+                    # human can perceive it changing, and Open3D's odometry/
+                    # ICP calls are real per-frame cost. Tune
+                    # self._mapping_fusion_update_interval_s against real
+                    # hardware during the live-hardware pass, don't treat
+                    # 10Hz as final.
+                    _now_mapping = time.time()
+                    if _now_mapping - self._last_mapping_fusion_update_time >= self._mapping_fusion_update_interval_s:
+                        self._last_mapping_fusion_update_time = _now_mapping
+                        depth_map = (
+                            _rs_backend.get_depth_frame(resize_to=(rgb_frame.shape[1], rgb_frame.shape[0]))
+                            if rgb_frame is not None else None
+                        )
+                        if depth_map is not None and rgb_frame is not None:
+                            texture = colorized_thermal if self._mapping_texture_source == "thermal" else rgb_frame
+                            try:
+                                self.world_mapper.track_and_texture(rgb_frame, depth_map, texture_frame=texture)
+                            except Exception as e:
+                                logger.debug(f"3D Mapping Fusion track_and_texture failed: {e}")
+
+                            self._gui_invoke(
+                                "set_mapping_fusion_status",
+                                self.world_mapper.state, self.world_mapper.quality_state, self.world_mapper.point_count,
+                            )
+                            if self.world_mapper.state == "mapped":
+                                self._gui_invoke(
+                                    "update_mapping_fusion_view",
+                                    self.world_mapper.world.points, self.world_mapper.world.colors,
+                                )
+                # Display: same RGB-only-depth-shaded fallback the existing
+                # THREE_D branch uses when nothing better is available -
+                # this mode's real output is the point-cloud viewport tab,
+                # not the main video widget, but the main widget still needs
+                # SOMETHING to show.
+                display_frame = rgb_frame if rgb_frame is not None else colorized_thermal
             elif self.view_mode == ViewMode.PICTURE_IN_PICTURE:
                 if self.fusion_processor and rgb_frame is not None:
                     # Fix Bug #25: use fusion_processor for proper alignment before PIP

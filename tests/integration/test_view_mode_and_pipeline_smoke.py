@@ -328,6 +328,50 @@ class TestRgbOnlySkipsUnusedColorizedThermalWork:
         )
 
 
+def test_three_d_mapping_view_mode_exists():
+    assert hasattr(ViewMode, "THREE_D_MAPPING")
+
+
+@pytest.mark.integration
+class TestThreeDMappingSmoke:
+    """ViewMode.THREE_D_MAPPING wiring (Task 6) - a wiring smoke test,
+    not a tracking-accuracy test. world_mapper.state defaults to "idle"
+    (no scan started), so the dispatch branch's tracking body is a no-op
+    here - this just proves the new elif branch itself, and its
+    fallback display_frame assignment, never raise."""
+
+    def test_three_d_mapping_dispatch_does_not_crash(self, headless_app_with_fake_cameras):
+        app = headless_app_with_fake_cameras
+        app.view_mode = ViewMode.THREE_D_MAPPING
+
+        _tick_a_few_times(app)  # must not raise
+
+        assert app._last_display_frame is not None
+        assert app._last_display_frame.ndim == 3
+
+    def test_three_d_mapping_dispatch_runs_tracking_while_scanning(self, headless_app_with_fake_cameras):
+        """With world_mapper.state == "scanning" (as if Start Mapping had
+        been clicked and a real PoseTracker were available), the
+        throttled track_and_texture() call path must also run without
+        raising against the fake RealSense RGB backend's depth frames."""
+        app = headless_app_with_fake_cameras
+        app.view_mode = ViewMode.THREE_D_MAPPING
+        # Simulates "Start Mapping" was clicked without going through
+        # WorldMapper.start_scan() itself (which would need a real
+        # PoseTracker/open3d, unavailable in this environment) - just
+        # the state flag the dispatch branch actually checks.
+        # world_mapper._pose_tracker stays None (its __init__ default),
+        # so world.integrate()'s call fails inside the dispatch block's
+        # own try/except Exception - proving that failure path is
+        # swallowed, not propagated, exactly as it must be with real
+        # hardware mid-scan hiccups.
+        app.world_mapper.state = "scanning"
+
+        _tick_a_few_times(app, n=2)  # must not raise
+
+        assert app._last_display_frame is not None
+
+
 @pytest.mark.integration
 class TestTemperatureUnitPropagation:
     """

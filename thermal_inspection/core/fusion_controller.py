@@ -26,6 +26,7 @@ class ViewMode(Enum):
     SIDE_BY_SIDE = auto()
     PICTURE_IN_PICTURE = auto()
     THREE_D = auto()  # Live RGB+thermal+depth point cloud - real hardware depth only, see Fusion3DViewWidget
+    THREE_D_MAPPING = auto()  # Persistent world point cloud, built once then live-textured - see WorldMapper
 
 
 @dataclass

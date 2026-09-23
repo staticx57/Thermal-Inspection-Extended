@@ -443,6 +443,15 @@ class InspectionAppWindow(QMainWindow):
             self.right_panel_tabs.addTab(self.fusion_3d_panel, "3D Fusion")
             logger.info("[OK] 3D Fusion settings tab added to right panel")
 
+            # Tab 4c: 3D Mapping Fusion - persistent world point cloud
+            # (scan once, then live-textured), distinct from the 3D Fusion
+            # tab's per-frame throwaway preview above.
+            logger.info("Creating 3D Mapping Fusion settings tab...")
+            from thermal_inspection.gui.panels.mapping_fusion_panel import MappingFusionPanel
+            self.mapping_fusion_panel = MappingFusionPanel()
+            self.right_panel_tabs.addTab(self.mapping_fusion_panel, "3D Mapping")
+            logger.info("[OK] 3D Mapping Fusion settings tab added to right panel")
+
             # Tab 5: Settings
             logger.info("Creating Settings tab...")
             self.settings_panel = SettingsPanel()
@@ -588,6 +597,12 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("fusion_3d_panel", "contour_interval_changed", self._on_3d_contour_interval_changed, "(3d fusion)")
         self._safe_connect("fusion_3d_panel", "gradient_style_changed", self._on_3d_gradient_style_changed, "(3d fusion)")
         self._safe_connect("fusion_3d_panel", "fog_fade_metric_changed", self._on_3d_fog_fade_metric_changed, "(3d fusion)")
+        self._safe_connect("mapping_fusion_panel", "start_scan_requested", self._on_mapping_start_scan, "(3d mapping)")
+        self._safe_connect("mapping_fusion_panel", "finish_scan_requested", self._on_mapping_finish_scan, "(3d mapping)")
+        self._safe_connect("mapping_fusion_panel", "reset_requested", self._on_mapping_reset, "(3d mapping)")
+        self._safe_connect("mapping_fusion_panel", "texture_source_changed", self._on_mapping_texture_source_changed, "(3d mapping)")
+        self._safe_connect("mapping_fusion_panel", "save_requested", self._on_mapping_save, "(3d mapping)")
+        self._safe_connect("mapping_fusion_panel", "load_requested", self._on_mapping_load, "(3d mapping)")
 
         # === ANALYSIS PANEL ===
         self._safe_connect("analysis_panel", "palette_changed", self._on_global_palette_changed, "(analysis)")
@@ -2795,6 +2810,101 @@ class InspectionAppWindow(QMainWindow):
         """Push a new point cloud to the 3D Fusion settings tab's preview."""
         if hasattr(self, 'fusion_3d_panel'):
             self.fusion_3d_panel.point_cloud_view.update_from_realsense(vertices, uv, rgb_frame, thermal_colorized)
+
+    def _on_mapping_start_scan(self):
+        """Begin a 3D Mapping Fusion scan - needs the active RGB camera's
+        depth intrinsics (RealSense only) to construct WorldMapper's
+        PoseTracker. PoseTracker.__init__ raises ImportError when open3d
+        isn't installed (see thermal_inspection/processing/open3d_support.py)
+        - that must be caught here and surfaced as a status message rather
+        than propagate and crash the app."""
+        if not (self.app and hasattr(self.app, 'world_mapper')):
+            return
+        # self.app.rgb_camera is already the unwrapped hardware backend
+        # (the `rgb_camera` property on ThermalInspectionApp returns
+        # plugin_host.get_active_camera('rgb').backend directly) - not a
+        # wrapper object with its own nested .backend attribute.
+        backend = self.app.rgb_camera
+        intrinsics = (
+            backend.get_depth_intrinsics()
+            if backend is not None and hasattr(backend, 'get_depth_intrinsics')
+            else None
+        )
+        if not intrinsics:
+            if hasattr(self, 'mapping_fusion_panel'):
+                self.mapping_fusion_panel.set_status("idle", "n/a", 0)
+                self.mapping_fusion_panel._status_label.setText(
+                    "No RealSense depth camera available - cannot start mapping."
+                )
+            logger.warning("3D Mapping Fusion: cannot start scan, no depth intrinsics available")
+            return
+        try:
+            self.app.world_mapper.start_scan(
+                int(intrinsics['width']), int(intrinsics['height']),
+                intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy'],
+            )
+        except ImportError as e:
+            if hasattr(self, 'mapping_fusion_panel'):
+                self.mapping_fusion_panel.set_status("idle", "n/a", 0)
+                self.mapping_fusion_panel._status_label.setText(str(e))
+            logger.warning(f"3D Mapping Fusion: cannot start scan: {e}")
+
+    def _on_mapping_finish_scan(self):
+        if self.app and hasattr(self.app, 'world_mapper'):
+            self.app.world_mapper.finish_scan()
+
+    def _on_mapping_reset(self):
+        if self.app and hasattr(self.app, 'world_mapper'):
+            self.app.world_mapper.reset()
+
+    def _on_mapping_texture_source_changed(self, source: str):
+        if self.app and hasattr(self.app, '_mapping_texture_source'):
+            self.app._mapping_texture_source = source
+
+    def _on_mapping_save(self):
+        """Save the frozen world to disk. Follows MediaManager's existing
+        recordings-folder convention (thermal_inspection/core/media_manager.py's
+        config 'output_path' entries, e.g. 'recordings/', 'snapshots/') -
+        a sibling 'world_maps/' folder, created on demand rather than
+        requiring it to pre-exist."""
+        if not (self.app and hasattr(self.app, 'world_mapper')) or self.app.world_mapper.state != "mapped":
+            return
+        import os
+        from PyQt6.QtWidgets import QFileDialog
+        os.makedirs("world_maps", exist_ok=True)
+        default_path = os.path.join("world_maps", "world.ply")
+        path, _ = QFileDialog.getSaveFileName(self, "Save World", default_path, "Point Cloud (*.ply)")
+        if path:
+            self.app.world_mapper.world.save(path)
+
+    def _on_mapping_load(self):
+        """Load a previously-saved world. Puts WorldMapper straight into
+        'mapped' state - the loaded geometry is already frozen (see
+        WorldPointCloud.load(), which sets frozen=True)."""
+        if not (self.app and hasattr(self.app, 'world_mapper')):
+            return
+        import os
+        from PyQt6.QtWidgets import QFileDialog
+        os.makedirs("world_maps", exist_ok=True)
+        path, _ = QFileDialog.getOpenFileName(self, "Load World", "world_maps", "Point Cloud (*.ply)")
+        if path:
+            self.app.world_mapper.world.load(path)
+            self.app.world_mapper.state = "mapped"
+
+    def set_mapping_fusion_status(self, state: str, quality_state: str, point_count: int):
+        if hasattr(self, 'mapping_fusion_panel'):
+            self.mapping_fusion_panel.set_status(state, quality_state, point_count)
+
+    def update_mapping_fusion_view(self, points, colors_rgb):
+        """points: (N,3) float64/float32 XYZ. colors_rgb: (N,3) float64 RGB in [0,1]
+        from WorldPointCloud (Open3D convention) - Fusion3DPointCloudView.update_point_cloud
+        wants (N,4) float32 RGBA in [0,1], so convert here at the GUI boundary."""
+        if hasattr(self, 'mapping_fusion_panel'):
+            import numpy as np
+            n = colors_rgb.shape[0]
+            rgba = np.ones((n, 4), dtype=np.float32)
+            rgba[:, :3] = colors_rgb.astype(np.float32)
+            self.mapping_fusion_panel.update_point_cloud(points.astype(np.float32), rgba)
 
     def update_roi_stats(self, roi_stats: dict):
         """Push per-ROI temperature statistics (roi_id -> stats dict) to the ROI Manager panel."""
