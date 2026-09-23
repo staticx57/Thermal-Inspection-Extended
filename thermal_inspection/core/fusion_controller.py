@@ -252,16 +252,17 @@ class FusionController:
             "side-by-side": ViewMode.SIDE_BY_SIDE,
             "picture-in-picture": ViewMode.PICTURE_IN_PICTURE,
             "3d": ViewMode.THREE_D,
+            "3d mapping": ViewMode.THREE_D_MAPPING,
         }
         view_mode = mode_map.get(mode.lower())
         if view_mode:
             self.state.view_mode = view_mode
 
-            # Map ViewMode to overlay-expected string. 3D has no 2D overlay
-            # of its own (ROI/spot markers don't apply to a GL point-cloud
-            # viewport) - "thermal" is just a harmless fallback in case
-            # anything queries it while the main viewport is showing the
-            # 3D view instead of the overlay widget.
+            # Map ViewMode to overlay-expected string. 3D (and 3D Mapping)
+            # has no 2D overlay of its own (ROI/spot markers don't apply to
+            # a GL point-cloud viewport) - "thermal" is just a harmless
+            # fallback in case anything queries it while the main viewport
+            # is showing the 3D view instead of the overlay widget.
             overlay_mode_map = {
                 ViewMode.THERMAL_ONLY: "thermal",
                 ViewMode.RGB_ONLY: "rgb",
@@ -269,6 +270,7 @@ class FusionController:
                 ViewMode.SIDE_BY_SIDE: "side_by_side",
                 ViewMode.PICTURE_IN_PICTURE: "picture_in_picture",
                 ViewMode.THREE_D: "thermal",
+                ViewMode.THREE_D_MAPPING: "thermal",
             }
             overlay_mode = overlay_mode_map.get(view_mode, "thermal")
 

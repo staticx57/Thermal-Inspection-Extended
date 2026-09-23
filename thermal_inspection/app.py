@@ -29,7 +29,7 @@ from .cameras.plugin import get_host
 from .processing.thermal_analyzer import ThresholdMode, ThresholdVisualization
 from .processing.palette_manager import is_camera_native_colorized
 from .processing.parallax_compensator import MIN_VALID_DEPTH_M
-from .gui.panels.fusion_3d_panel import MAX_VALID_DEPTH_M
+from .gui.panels.fusion_3d_panel import MAX_VALID_DEPTH_M, MAX_PREVIEW_POINTS
 from .utils.profiling import profile_log
 
 logger = logging.getLogger(__name__)
@@ -1006,6 +1006,16 @@ class ThermalInspectionApp:
         # final.
         self._mapping_fusion_update_interval_s = 1.0 / 10.0
         self._last_mapping_fusion_update_time = 0.0
+        # I9: scan-phase tracking+integration gets its OWN interval, kept
+        # at 0.0 (every incoming - throttled) frame, per the design spec's
+        # "every incoming frame... acceptable cost since it's bounded by
+        # Start->Finish" - only the live "mapped" phase above needs the
+        # human-perceptible-rate throttle.
+        self._mapping_scan_update_interval_s = 0.0
+        # I7: counts consecutive track_and_texture() failures so repeated
+        # failures log a warning (rate-limited) instead of vanishing at
+        # debug level on a WARNING-only console - reset to 0 on success.
+        self._mapping_failure_count = 0
 
         # Media recorder
         try:
@@ -1624,11 +1634,34 @@ class ThermalInspectionApp:
                 and _preview.needs_thermal_alignment()
             )
             _main_view_needs_thermal_rgb_alignment = self.view_mode in (
-                ViewMode.FUSION, ViewMode.THREE_D, ViewMode.THREE_D_MAPPING,
+                ViewMode.FUSION, ViewMode.THREE_D,
             )
+            # THREE_D_MAPPING deliberately does NOT join the tuple above.
+            # apply_correction() only actually warps whichever frame is the
+            # active correction_target - the OTHER frame comes back
+            # completely unmodified (see ParallaxCompensator.apply_correction's
+            # own docstring). If THREE_D_MAPPING reassigned the shared
+            # thermal_frame/rgb_frame here the way FUSION/THREE_D do, then
+            # with correction_target=="rgb" (the usually-recommended
+            # setting - see set_correction_target()) rgb_frame would come
+            # back WARPED-to-align-with-thermal, while depth_map (fetched
+            # further below, always raw/native RealSense depth) would not -
+            # corrupting the RGB-depth correspondence WorldMapper's own
+            # pose tracking depends on, for every consumer of rgb_frame in
+            # this mode, not just texturing. RealSense's depth is only ever
+            # valid alongside RealSense's OWN native, unwarped color frame,
+            # regardless of correction_target - so rgb_frame/thermal_frame
+            # must stay raw here. The mapping dispatch branch below instead
+            # reads the independently-tracked _corrected_thermal_for_preview
+            # (computed just below, gated on _mapping_needs_alignment) as
+            # its OWN separate "aligned thermal" candidate for texturing
+            # only, the same decoupled pattern the point-cloud preview
+            # already uses for exactly this reason.
+            _mapping_needs_alignment = self.view_mode == ViewMode.THREE_D_MAPPING
             _corrected_thermal_for_preview = None
             _corrected_rgb_for_preview = None
-            if ((_main_view_needs_thermal_rgb_alignment or _preview_needs_alignment)
+            if ((_main_view_needs_thermal_rgb_alignment or _preview_needs_alignment
+                 or _mapping_needs_alignment)
                     and self.parallax_compensator
                     and self.parallax_compensator.has_correction()
                     and thermal_frame is not None
@@ -2306,36 +2339,114 @@ class ThermalInspectionApp:
                     display_frame = colorized_thermal
             elif self.view_mode == ViewMode.THREE_D_MAPPING:
                 if _rs_backend is not None and self.world_mapper.state in ("scanning", "mapped"):
-                    # Throttled the same way as the existing ViewMode.THREE_D
-                    # block (self._3d_fusion_update_interval_s / 15Hz) -
-                    # tracking+recolor doesn't need to run faster than a
-                    # human can perceive it changing, and Open3D's odometry/
-                    # ICP calls are real per-frame cost. Tune
-                    # self._mapping_fusion_update_interval_s against real
-                    # hardware during the live-hardware pass, don't treat
-                    # 10Hz as final.
+                    # I9: the scan phase needs to integrate geometry every
+                    # incoming frame per the design spec ("acceptable cost
+                    # since it's bounded by Start->Finish") - only the live
+                    # "mapped" phase's tracking+recolor needs the human-
+                    # perceptible-rate throttle (matching the existing
+                    # ViewMode.THREE_D block's own 15Hz relief-shading
+                    # throttle in spirit). Reusing ONE interval for both
+                    # phases meant a scan could silently integrate at 10Hz
+                    # instead of every frame, contradicting the spec.
                     _now_mapping = time.time()
-                    if _now_mapping - self._last_mapping_fusion_update_time >= self._mapping_fusion_update_interval_s:
+                    _mapping_interval = (
+                        self._mapping_scan_update_interval_s
+                        if self.world_mapper.state == "scanning"
+                        else self._mapping_fusion_update_interval_s
+                    )
+                    if _now_mapping - self._last_mapping_fusion_update_time >= _mapping_interval:
                         self._last_mapping_fusion_update_time = _now_mapping
                         depth_map = (
                             _rs_backend.get_depth_frame(resize_to=(rgb_frame.shape[1], rgb_frame.shape[0]))
                             if rgb_frame is not None else None
                         )
                         if depth_map is not None and rgb_frame is not None:
-                            texture = colorized_thermal if self._mapping_texture_source == "thermal" else rgb_frame
+                            # I6: gate thermal texture on _thermal_aligned_realsense
+                            # the same way the existing ViewMode.THREE_D block
+                            # does (see its own comments on the silent-RGB-
+                            # fallback bug class this project has been burned
+                            # by before) - painting unaligned thermal onto the
+                            # world would silently produce wrong colors with
+                            # no indication anything's off. rgb_frame here is
+                            # ALWAYS RealSense's raw/native color (see
+                            # _mapping_needs_alignment above - THREE_D_MAPPING
+                            # is deliberately excluded from
+                            # _main_view_needs_thermal_rgb_alignment), so it
+                            # stays geometrically consistent with depth_map
+                            # (also always raw/native) for pose tracking
+                            # regardless of texture choice.
+                            _aligned_thermal_texture = None
+                            if _thermal_aligned_realsense and _corrected_thermal_for_preview is not None:
+                                if self.palette_manager and not is_camera_native_colorized(_corrected_thermal_for_preview):
+                                    _aligned_thermal_texture = self.palette_manager.apply_composite_palette(
+                                        _corrected_thermal_for_preview, self.roi_controller.roi_manager
+                                    )
+                                else:
+                                    _aligned_thermal_texture = _corrected_thermal_for_preview
+
+                            if self._mapping_texture_source == "thermal":
+                                # No sane thermal to use - RGB Only fallback,
+                                # same fallback spirit as ViewMode.THREE_D's
+                                # own base_2d selection.
+                                texture = _aligned_thermal_texture if _aligned_thermal_texture is not None else rgb_frame
+                            elif self._mapping_texture_source == "blend" and _aligned_thermal_texture is not None:
+                                # I5: a real (if simple) alpha blend - same
+                                # 0.5/0.5 lerp spirit as 2D Fusion's own
+                                # alpha_blend mode - rather than "blend"
+                                # silently behaving identically to "rgb".
+                                _bh, _bw = rgb_frame.shape[:2]
+                                if _aligned_thermal_texture.shape[:2] != (_bh, _bw):
+                                    _aligned_thermal_texture = cv2.resize(_aligned_thermal_texture, (_bw, _bh))
+                                texture = cv2.addWeighted(rgb_frame, 0.5, _aligned_thermal_texture, 0.5, 0)
+                            else:
+                                # "rgb", or "blend" falling back when there's
+                                # no aligned thermal to blend with.
+                                texture = rgb_frame
+
                             try:
                                 self.world_mapper.track_and_texture(rgb_frame, depth_map, texture_frame=texture)
+                                self._mapping_failure_count = 0
                             except Exception as e:
-                                logger.debug(f"3D Mapping Fusion track_and_texture failed: {e}")
+                                # I7: bumped from debug to warning (rate-
+                                # limited - this console is WARNING-only per
+                                # project convention, so debug-level logging
+                                # here was equivalent to no logging at all).
+                                # Logs once at the start of a failure burst
+                                # and then every 50th consecutive failure,
+                                # not every single throttled tick, to avoid
+                                # spamming a sustained failure.
+                                self._mapping_failure_count = getattr(self, '_mapping_failure_count', 0) + 1
+                                if self._mapping_failure_count == 1 or self._mapping_failure_count % 50 == 0:
+                                    logger.warning(
+                                        f"3D Mapping Fusion track_and_texture failed "
+                                        f"({self._mapping_failure_count} consecutive): {e}"
+                                    )
+                                else:
+                                    logger.debug(f"3D Mapping Fusion track_and_texture failed: {e}")
 
                             self._gui_invoke(
                                 "set_mapping_fusion_status",
                                 self.world_mapper.state, self.world_mapper.quality_state, self.world_mapper.point_count,
                             )
                             if self.world_mapper.state == "mapped":
+                                # I10: cap what gets pushed to the GPU every
+                                # tick, the same way the existing 3D Fusion
+                                # preview path stride-subsamples via
+                                # MAX_PREVIEW_POINTS before calling
+                                # update_point_cloud - the world cloud can
+                                # grow to hundreds of thousands of points
+                                # with no cap otherwise, copied several times
+                                # over on its way to the GL view.
+                                _wpoints = self.world_mapper.world.points
+                                _wcolors = self.world_mapper.world.colors
+                                _wn = _wpoints.shape[0]
+                                if _wn > MAX_PREVIEW_POINTS:
+                                    _widx = np.linspace(0, _wn - 1, MAX_PREVIEW_POINTS).astype(np.int64)
+                                    _wpoints = _wpoints[_widx]
+                                    _wcolors = _wcolors[_widx]
                                 self._gui_invoke(
                                     "update_mapping_fusion_view",
-                                    self.world_mapper.world.points, self.world_mapper.world.colors,
+                                    _wpoints, _wcolors,
                                 )
                 # Display: same RGB-only-depth-shaded fallback the existing
                 # THREE_D branch uses when nothing better is available -
@@ -2647,15 +2758,19 @@ class ThermalInspectionApp:
         """
         Cycle view mode.
 
-        THREE_D is always in the cycle, not conditionally added only when a
-        RealSense camera is connected - RealSense availability should make
-        3D usable, not force the mode switch or hide it from manual
-        toggling. Without hardware depth it just shows Fusion3DViewWidget's
-        "no hardware depth sensor" placeholder, the same way RGB_ONLY shows
-        a placeholder with no RGB camera connected.
+        THREE_D (and THREE_D_MAPPING) is always in the cycle, not
+        conditionally added only when a RealSense camera is connected -
+        RealSense availability should make 3D usable, not force the mode
+        switch or hide it from manual toggling. Without hardware depth it
+        just shows Fusion3DViewWidget's "no hardware depth sensor"
+        placeholder, the same way RGB_ONLY shows a placeholder with no RGB
+        camera connected. THREE_D_MAPPING similarly needs no RealSense to
+        be *reachable* from here - it just won't do anything useful without
+        one (see its own dispatch branch's state gate).
         """
         modes = [ViewMode.THERMAL_ONLY, ViewMode.RGB_ONLY, ViewMode.FUSION,
-                 ViewMode.SIDE_BY_SIDE, ViewMode.PICTURE_IN_PICTURE, ViewMode.THREE_D]
+                 ViewMode.SIDE_BY_SIDE, ViewMode.PICTURE_IN_PICTURE, ViewMode.THREE_D,
+                 ViewMode.THREE_D_MAPPING]
         try:
             idx = modes.index(self.view_mode)
             self.view_mode = modes[(idx + 1) % len(modes)]
@@ -2668,6 +2783,7 @@ class ThermalInspectionApp:
                 ViewMode.SIDE_BY_SIDE: "side-by-side",
                 ViewMode.PICTURE_IN_PICTURE: "picture-in-picture",
                 ViewMode.THREE_D: "3d",
+                ViewMode.THREE_D_MAPPING: "3d mapping",
             }
             mode_str = mode_name_map.get(self.view_mode, "thermal only")
             self.fusion_controller.set_view_mode(mode_str)
