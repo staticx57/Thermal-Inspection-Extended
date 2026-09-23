@@ -151,6 +151,18 @@ GRADIENT_STYLE_LABELS = {
 }
 
 
+def _mul_per_channel(image_f32: np.ndarray, weight_2d: np.ndarray) -> None:
+    """
+    image_f32 (H, W, 3) *= weight_2d (H, W), in place, one channel at a
+    time. Same per-element float32 products as broadcasting
+    weight_2d[:, :, np.newaxis], but numpy's (H,W,1)-against-(H,W,3)
+    broadcast misses its SIMD loop (measured ~3.6ms vs ~2.1ms at 640x512) -
+    same finding as FusionProcessor._feature_weighted_cpu's blend.
+    """
+    for c in range(image_f32.shape[2]):
+        image_f32[:, :, c] *= weight_2d
+
+
 def _gradient_colorize_cpu(normalized_01: np.ndarray, gradient_style: str = "color") -> np.ndarray:
     """
     Map a [0,1]-normalized depth-derived array to a float32 BGR image
@@ -304,10 +316,9 @@ def apply_depth_relief(image_bgr: np.ndarray, depth_m: np.ndarray, strength: flo
     shade -= 0.5
     shade *= strength * 2.0
     shade += 1.0
-    factor_3ch = shade[:, :, np.newaxis]
 
     result = image_bgr.astype(np.float32)
-    result *= factor_3ch
+    _mul_per_channel(result, shade)
     np.clip(result, 0, 255, out=result)
 
     # Absolute-depth gradient tint, scaled down (0.35x of strength) so it
@@ -318,7 +329,8 @@ def apply_depth_relief(image_bgr: np.ndarray, depth_m: np.ndarray, strength: flo
     tint = _gradient_colorize_cpu(depth_for_tint, gradient_style)
     tint_amount = strength * 0.35
     result *= (1.0 - tint_amount)
-    result += tint * tint_amount
+    tint *= tint_amount  # tint is a fresh array, not reused after this
+    result += tint
     np.clip(result, 0, 255, out=result)
     return result.astype(np.uint8)
 
@@ -370,10 +382,11 @@ def apply_depth_fog(image_bgr: np.ndarray, depth_m: np.ndarray, strength: float 
     # to light) rather than collapsing to one flat gray.
     target_color = _gradient_colorize_cpu(fade_pos, gradient_style)
 
-    fade_3ch = (fade_pos * max(0.0, min(1.0, strength)))[:, :, np.newaxis]
+    fade = fade_pos * max(0.0, min(1.0, strength))
     result = image_bgr.astype(np.float32)
-    result *= (1.0 - fade_3ch)
-    result += target_color * fade_3ch
+    _mul_per_channel(result, 1.0 - fade)
+    _mul_per_channel(target_color, fade)  # target_color is a fresh array
+    result += target_color
     np.clip(result, 0, 255, out=result)
     return result.astype(np.uint8)
 
@@ -411,11 +424,16 @@ def apply_depth_contours(image_bgr: np.ndarray, depth_m: np.ndarray, strength: f
 
     strength = max(0.0, min(1.0, strength))
     result = image_bgr.copy()
-    depth_normalized = (depth - MIN_VALID_DEPTH_M) / (MAX_VALID_DEPTH_M - MIN_VALID_DEPTH_M)
-    line_colors = _gradient_colorize_cpu(depth_normalized, gradient_style)
+    if not edges.any():
+        return result  # no band boundaries at all (flat depth) - nothing to draw
+    # Line colors are only ever read at edge pixels, so colorize just those
+    # (as a (K, 1) column - the colormap is a per-pixel lookup either way)
+    # instead of building a full-frame float32 (H, W, 3) gradient image.
+    depth_normalized = (depth[edges] - MIN_VALID_DEPTH_M) / (MAX_VALID_DEPTH_M - MIN_VALID_DEPTH_M)
+    line_colors = _gradient_colorize_cpu(depth_normalized[:, np.newaxis], gradient_style).reshape(-1, 3)
     blended = result[edges].astype(np.float32)
     blended *= (1.0 - strength)
-    blended += line_colors[edges] * strength
+    blended += line_colors * strength
     result[edges] = np.clip(blended, 0, 255).astype(np.uint8)
     return result
 
@@ -531,8 +549,13 @@ def apply_depth_colorize(image_bgr: np.ndarray, depth_m: np.ndarray, strength: f
     depth_colored = _gradient_colorize_cpu(normalized, gradient_style)
 
     strength = max(0.0, min(1.0, strength))
-    result = image_bgr.astype(np.float32) * (1.0 - strength) + depth_colored * strength
-    return np.clip(result, 0, 255).astype(np.uint8)
+    # Same arithmetic as image*(1-s) + colored*s, written in place.
+    result = image_bgr.astype(np.float32)
+    result *= (1.0 - strength)
+    depth_colored *= strength  # fresh array from _gradient_colorize_cpu
+    result += depth_colored
+    np.clip(result, 0, 255, out=result)
+    return result.astype(np.uint8)
 
 
 def _resolve_3d_gpu() -> bool:
@@ -682,7 +705,7 @@ def apply_depth_relief_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength:
     """GPU (torch/CUDA) implementation of apply_depth_relief - see its docstring for the algorithm."""
     import torch
 
-    img_t = torch.from_numpy(image_bgr).to(_torch_device, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
+    img_t = torch.from_numpy(image_bgr).to(_torch_device).float().permute(2, 0, 1).unsqueeze(0)
     depth_t = torch.from_numpy(depth_m).to(_torch_device, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
     result = _apply_depth_relief_gpu_tensor(img_t, depth_t, strength, gradient_style)
     return result.squeeze(0).permute(1, 2, 0).contiguous().to(torch.uint8).cpu().numpy()
@@ -694,7 +717,7 @@ def apply_depth_fog_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strength: fl
     """GPU (torch/CUDA) implementation of apply_depth_fog - see its docstring for the algorithm."""
     import torch
 
-    img_t = torch.from_numpy(image_bgr).to(_torch_device, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
+    img_t = torch.from_numpy(image_bgr).to(_torch_device).float().permute(2, 0, 1).unsqueeze(0)
 
     if fade_metric == "motion":
         # Motion itself is computed on CPU (a single grayscale abs-diff -
@@ -722,7 +745,7 @@ def apply_depth_contours_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strengt
     import torch
     import torch.nn.functional as F
 
-    img_t = torch.from_numpy(image_bgr).to(_torch_device, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
+    img_t = torch.from_numpy(image_bgr).to(_torch_device).float().permute(2, 0, 1).unsqueeze(0)
     depth_t = torch.from_numpy(depth_m).to(_torch_device, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
     depth_t = torch.clamp(depth_t, MIN_VALID_DEPTH_M, MAX_VALID_DEPTH_M)
     bands = torch.floor(depth_t / interval_m)
@@ -773,7 +796,7 @@ def apply_depth_anaglyph_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strengt
     import torch.nn.functional as F
 
     h, w = image_bgr.shape[:2]
-    img_t = torch.from_numpy(image_bgr).to(_torch_device, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
+    img_t = torch.from_numpy(image_bgr).to(_torch_device).float().permute(2, 0, 1).unsqueeze(0)
     depth_t = torch.from_numpy(depth_m).to(_torch_device, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
     depth_t = torch.clamp(depth_t, MIN_VALID_DEPTH_M, MAX_VALID_DEPTH_M)
 
@@ -836,7 +859,7 @@ def apply_depth_colorize_gpu(image_bgr: np.ndarray, depth_m: np.ndarray, strengt
         lut = _get_turbo_lut_gpu(_torch_device)
         depth_colored = lut[idx]  # (H, W, 3) BGR, gather via fancy indexing
 
-    img_t = torch.from_numpy(image_bgr).to(_torch_device, dtype=torch.float32)
+    img_t = torch.from_numpy(image_bgr).to(_torch_device).float()
     strength = max(0.0, min(1.0, strength))
     result = img_t * (1.0 - strength) + depth_colored * strength
     result = torch.clamp(result, 0, 255)
@@ -967,7 +990,14 @@ def apply_3d_visualization_fused(mode: str, thermal_colorized: np.ndarray, rgb_f
         it - a strictly more precise input, not a different algorithm.
     """
     tensor_fn = _GPU_MODE_FN_TENSOR.get(mode)
+    # The fused path hardcodes feature_weighted's tensor core as the 2D
+    # blend, so it only applies when feature_weighted IS the selected 2D
+    # Fusion mode. Without this check, any other mode (alpha_blend,
+    # edge_enhanced, ...) silently rendered as feature_weighted in 3D
+    # Fusion whenever the GPU was available, and as the user's real mode
+    # only on the CPU fallback.
     if (tensor_fn is not None
+            and fusion_processor.fusion_mode == 'feature_weighted'
             and fusion_processor._resolve_feature_weighted_gpu()
             and _resolve_3d_gpu()):
         try:
@@ -988,7 +1018,7 @@ def apply_3d_visualization_fused(mode: str, thermal_colorized: np.ndarray, rgb_f
             )
 
             def to_tensor_chw(img):
-                t = torch.from_numpy(img).to(device, dtype=torch.float32)
+                t = torch.from_numpy(img).to(device).float()
                 return t.permute(2, 0, 1).unsqueeze(0)
 
             thermal_t = to_tensor_chw(thermal_colorized)
@@ -1217,11 +1247,16 @@ class Fusion3DPointCloudView(QWidget):
         if rgb_frame is not None and rgb_frame.ndim == 2:
             rgb_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_GRAY2BGR)
 
-        valid = (vertices[:, 2] > 0) & (vertices[:, 2] <= MAX_VALID_DEPTH_M)
-        vertices = vertices[valid]
-        uv = uv[valid]
+        # Resolve the final index set BEFORE gathering anything - boolean-
+        # mask indexing (vertices[valid], uv[valid]) copied every valid
+        # point of a ~1M-point RealSense cloud (measured ~20ms of this
+        # method's ~30ms, on the GUI thread) only for the subsample below
+        # to keep ~2% of them. Indexing the valid positions with the same
+        # linspace selects exactly the same points, bit-identical.
+        z = vertices[:, 2]
+        valid_idx = np.flatnonzero((z > 0) & (z <= MAX_VALID_DEPTH_M))
 
-        n = vertices.shape[0]
+        n = valid_idx.shape[0]
         if n > MAX_PREVIEW_POINTS:
             # A fixed index count (not a stride-based [::stride], whose
             # result length is ceil(n/stride) - drifting by one or more
@@ -1233,9 +1268,9 @@ class Fusion3DPointCloudView(QWidget):
             # exactly - any size drift forces a full allocate() instead,
             # so the previous approach was reallocating the GPU vertex
             # buffer on nearly every update instead of ever reusing it.
-            idx = np.linspace(0, n - 1, MAX_PREVIEW_POINTS).astype(np.int64)
-            vertices = vertices[idx]
-            uv = uv[idx]
+            valid_idx = valid_idx[np.linspace(0, n - 1, MAX_PREVIEW_POINTS).astype(np.int64)]
+        vertices = vertices[valid_idx]
+        uv = uv[valid_idx]
 
         if self.color_mode == "rgb_only":
             rh, rw = rgb_frame.shape[:2]

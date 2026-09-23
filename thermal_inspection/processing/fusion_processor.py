@@ -1337,68 +1337,37 @@ class FusionProcessor:
                 edges_normalized = edges.astype(np.float32) / 255.0
             edges_normalized *= self.fusion_intensity
 
-            # Broadcasting a (H,W,1) alpha against (H,W,3) base/color is a
-            # known slow path in numpy (stride-0 axis + mixed uint8/float32
-            # multiply falls off the SIMD ufunc loop) - np.repeat to a real
-            # (H,W,3) array avoids it. Beyond that, on this hardware these
-            # blends are memory-bandwidth-bound, not compute-bound (confirmed
-            # via isolated benchmark: a bare 1M-element float32 add costs
-            # ~1.3ms even with nothing else running), so the lever is cutting
-            # how many full-frame temporaries get allocated per call - not
-            # swapping numpy for cv2, which is equally bandwidth-bound at
-            # this size and measured no faster. Rewriting the blend as a
-            # single lerp (base + alpha*(color-base)) needs 3 full-frame
-            # arrays total (alpha, base_f, diff) instead of the ~6 the
-            # original two-multiply-plus-add form allocated, and the
-            # constant color image is cached across frames since it never
-            # depends on frame content.
-            alpha = np.repeat(edges_normalized[:, :, np.newaxis], 3, axis=2)
-
-            if self.edge_color_mode == 'palette' and self.palette_lut is not None:
-                color_img = self._get_palette_edge_color_image(edge_source_gray)
-            else:
-                color_img = self._get_edge_color_image(alpha.shape, edge_color)
-
-            base_f = base.astype(np.float32)
-            diff = np.subtract(color_img, base_f)   # color - base
-            diff *= alpha                            # alpha * (color - base)
-            base_f += diff                           # base + alpha * (color - base)
-            result = np.clip(base_f, 0, 255).astype(np.uint8)
+            # Lerp (base + alpha*(color-base)) evaluated ONLY at pixels whose
+            # alpha is nonzero. Everywhere else the float math reduces to
+            # base + 0*(color-base) == base exactly, so those pixels are just
+            # copied from base. Edge masks (even dilated and blurred) cover a
+            # small fraction of the frame, and this blend used to run over
+            # the whole (H,W,3) frame in float32 at ~6.6ms on 640x512 (the
+            # largest cost in this mode). The per-pixel float32 operations
+            # are the same ones, in the same order, as the old full-frame
+            # version, so the output is bit-identical to it (verified).
+            result = base.copy()
+            alpha_flat = edges_normalized.reshape(-1)
+            nz = np.flatnonzero(alpha_flat)
+            if nz.size:
+                result_px = result.reshape(-1, 3)
+                a = alpha_flat[nz][:, np.newaxis]
+                base_f = result_px[nz].astype(np.float32)
+                if self.edge_color_mode == 'palette' and self.palette_lut is not None:
+                    # Per-pixel palette color at each edge pixel's own gray value.
+                    color = self.palette_lut[edge_source_gray.reshape(-1)[nz]].astype(np.float32)
+                else:
+                    color = np.asarray(edge_color, dtype=np.float32)[np.newaxis, :]
+                diff = np.subtract(color, base_f)   # color - base
+                diff *= a                            # alpha * (color - base)
+                base_f += diff                       # base + alpha * (color - base)
+                result_px[nz] = np.clip(base_f, 0, 255).astype(np.uint8)
 
             return result
 
         except Exception as e:
             logger.error(f"Edge enhanced error: {e}")
             return self._alpha_blend(thermal, rgb)
-
-    def _get_edge_color_image(self, shape: Tuple[int, int, int], color: Tuple[int, int, int]) -> np.ndarray:
-        """
-        Cached constant-color (H,W,3) float32 image for edge overlay blending.
-        Rebuilt only when the frame shape or color changes - it never depends
-        on frame content, so recreating it every frame was a wasted full-frame
-        allocation (~4MB at 640x512) on every single call.
-        """
-        cache_key = (shape, color)
-        cached = getattr(self, '_edge_color_cache_key', None)
-        if cached != cache_key:
-            self._edge_color_cache = np.full(shape, color, dtype=np.float32)
-            self._edge_color_cache_key = cache_key
-        return self._edge_color_cache
-
-    def _get_palette_edge_color_image(self, gray: np.ndarray) -> np.ndarray:
-        """
-        Per-pixel (H,W,3) float32 color image for edge_color_mode='palette'
-        - each pixel sampled from palette_lut at that pixel's own gray
-        value, via 3 single-channel cv2.LUT() calls (one per BGR channel;
-        cv2.LUT operates per-channel, not against a (256,3) table directly).
-        Real per-frame cost (a full-frame LUT lookup, unlike the flat
-        color's cached constant image) - only paid when this mode is on.
-        """
-        lut = self.palette_lut
-        b = cv2.LUT(gray, lut[:, 0].reshape(1, 256))
-        g = cv2.LUT(gray, lut[:, 1].reshape(1, 256))
-        r = cv2.LUT(gray, lut[:, 2].reshape(1, 256))
-        return cv2.merge([b, g, r]).astype(np.float32)
 
     def _get_dilation_kernel(self, size: int) -> np.ndarray:
         """
@@ -1712,7 +1681,7 @@ class FusionProcessor:
         device = self._fw_torch_device
 
         def to_tensor(img):
-            t = torch.from_numpy(img).to(device, dtype=torch.float32)
+            t = torch.from_numpy(img).to(device).float()
             return t.permute(2, 0, 1).unsqueeze(0)  # (1, 3, H, W), BGR
 
         thermal_t = to_tensor(thermal)
@@ -1844,15 +1813,17 @@ class FusionProcessor:
             # is neither slow path: measured ~36% faster overall (14.7ms ->
             # 9.4ms mean) and bit-identical, since it's the same arithmetic
             # either way.
-            thermal_f = thermal.astype(np.float32)
-            rgb_f = rgb.astype(np.float32)
-            diff = np.subtract(thermal_f, rgb_f)   # thermal - rgb
+            # uint8->float32 casts happen inside the subtract/add loops
+            # (dtype=) instead of via two separate full-frame astype()
+            # copies - exact casts, and float add is commutative, so this
+            # is bit-identical to astype-then-subtract/add (verified).
+            diff = np.subtract(thermal, rgb, dtype=np.float32)   # thermal - rgb
             diff[:, :, 0] *= thermal_strength
             diff[:, :, 1] *= thermal_strength
             diff[:, :, 2] *= thermal_strength       # diff now holds weight * (thermal - rgb)
-            rgb_f += diff                           # rgb + weight * (thermal - rgb)
-            np.clip(rgb_f, 0, 255, out=rgb_f)
-            result = rgb_f.astype(np.uint8)
+            np.add(diff, rgb, out=diff, dtype=np.float32)  # rgb + weight * (thermal - rgb)
+            np.clip(diff, 0, 255, out=diff)
+            result = diff.astype(np.uint8)
 
             return result
 
@@ -2018,7 +1989,13 @@ class FusionProcessor:
                     bx, by, bw, bh = cv2.boundingRect(np.vstack(contours))
                     roi = result[by:by + bh, bx:bx + bw]
                     mask_roi = thresh[by:by + bh, bx:bx + bw]
-                    color_layer_roi = np.full((bh, bw, 3), color, dtype=np.uint8)
+                    # Same solid-color layer np.full((bh, bw, 3), color)
+                    # builds, filled by broadcasting one precomputed BGR
+                    # row - np.full's per-element tuple fill measured ~0.45ms
+                    # per level (~3.5ms/frame at 8 levels), ~2.5x slower.
+                    color_layer_roi = np.empty((bh, bw * 3), dtype=np.uint8)
+                    color_layer_roi[:] = np.tile(np.asarray(color, dtype=np.uint8), bw)
+                    color_layer_roi = color_layer_roi.reshape(bh, bw, 3)
                     blended_roi = cv2.addWeighted(roi, 0.85, color_layer_roi, 0.15, 0)
                     cv2.copyTo(blended_roi, mask_roi, roi)
 
@@ -2032,7 +2009,11 @@ class FusionProcessor:
                     # whatever AGC/tone-mapping curve actually produced
                     # thermal_gray, since it measures the real
                     # correspondence directly instead of assuming one.
-                    near_level = np.abs(thermal_gray.astype(np.int16) - int(round(threshold_val))) <= 2
+                    # |gray - level| <= 2 on integer gray values, as a single
+                    # cv2.inRange pass rather than an int16 cast + subtract +
+                    # abs + compare over the full frame for every level.
+                    level = int(round(threshold_val))
+                    near_level = cv2.inRange(thermal_gray, max(0, level - 2), min(255, level + 2)) != 0
                     if np.any(near_level):
                         real_c = float(np.median(temperature_map_c[near_level]))
                         label = self._format_contour_label(real_c, temp_map_is_estimated)
@@ -2351,7 +2332,7 @@ class FusionProcessor:
         sobel_x, sobel_y = self._laplacian_sobel_kernels
 
         def to_tensor(img):
-            t = torch.from_numpy(img).to(device, dtype=torch.float32)
+            t = torch.from_numpy(img).to(device).float()
             return t.permute(2, 0, 1).unsqueeze(0)
 
         def pyr_down(t):
@@ -2582,15 +2563,30 @@ class FusionProcessor:
             PCA-weighted blend of thermal and rgb
         """
         try:
-            thermal_gray = cv2.cvtColor(thermal, cv2.COLOR_BGR2GRAY).astype(np.float32)
-            rgb_gray = cv2.cvtColor(rgb, cv2.COLOR_BGR2GRAY).astype(np.float32)
-
-            # 2xN data matrix (one row per source) - np.cov treats each
-            # row as a variable, each column as an observation, giving the
-            # 2x2 covariance matrix between the two sources' intensities
-            # directly, no manual mean-subtraction needed.
-            data = np.vstack([thermal_gray.reshape(-1), rgb_gray.reshape(-1)])
-            cov = np.cov(data)
+            # 2x2 sample covariance (ddof=1, same as np.cov) between the two
+            # sources' grayscale intensities. The gray values are integers
+            # 0-255, so every sum and dot product below is an integer
+            # < 2^53 and exact in float64. The covariance is then formed
+            # with exact Python-int arithmetic and rounded once, instead of
+            # np.cov's vstack + float64 copy + mean-subtraction passes
+            # (~5ms at 640x512 -> ~1ms). It's the same statistic, at least
+            # as precise: output was identical to the np.cov version on
+            # every test frame, but it isn't bit-identical by construction
+            # because the float64 rounding path differs.
+            thermal_gray = cv2.cvtColor(thermal, cv2.COLOR_BGR2GRAY).reshape(-1).astype(np.float64)
+            rgb_gray = cv2.cvtColor(rgb, cv2.COLOR_BGR2GRAY).reshape(-1).astype(np.float64)
+            n = thermal_gray.size
+            s_t = int(thermal_gray.sum())
+            s_r = int(rgb_gray.sum())
+            s_tt = int(thermal_gray @ thermal_gray)
+            s_rr = int(rgb_gray @ rgb_gray)
+            s_tr = int(thermal_gray @ rgb_gray)
+            denom = n * (n - 1)
+            cov_tr = (n * s_tr - s_t * s_r) / denom
+            cov = np.array([
+                [(n * s_tt - s_t * s_t) / denom, cov_tr],
+                [cov_tr, (n * s_rr - s_r * s_r) / denom],
+            ])
             eigenvalues, eigenvectors = np.linalg.eigh(cov)  # ascending order
             principal = eigenvectors[:, -1]  # eigenvector for the largest eigenvalue
 
@@ -2771,11 +2767,15 @@ class FusionProcessor:
                 w_thermal = cv2.resize(w_thermal, full_size, interpolation=cv2.INTER_LINEAR)
                 w_rgb = cv2.resize(w_rgb, full_size, interpolation=cv2.INTER_LINEAR)
 
-            w_thermal_3ch = cv2.merge([w_thermal, w_thermal, w_thermal])
-            w_rgb_3ch = cv2.merge([w_rgb, w_rgb, w_rgb])
-
-            result = thermal.astype(np.float32) * w_thermal_3ch + rgb.astype(np.float32) * w_rgb_3ch
-            return np.clip(result, 0, 255).astype(np.uint8)
+            # Same float32 products and sum as materializing 3-channel
+            # weight maps (cv2.merge) and float copies of both frames, but
+            # the uint8->float32 cast happens inside the multiply and the
+            # (H,W,1) weight broadcasts. Two fewer full-frame (H,W,3)
+            # float32 temporaries, bit-identical output (verified).
+            result = np.multiply(thermal, w_thermal[:, :, np.newaxis], dtype=np.float32)
+            result += np.multiply(rgb, w_rgb[:, :, np.newaxis], dtype=np.float32)
+            np.clip(result, 0, 255, out=result)
+            return result.astype(np.uint8)
 
         except Exception as e:
             logger.error(f"Guided filter fusion error: {e}")

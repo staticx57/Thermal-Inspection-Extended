@@ -784,6 +784,21 @@ class ParallaxCompensator:
         # the ~15.5ms "simple geometric transform" total was this alone.
         self._coord_grid_shape = None
         self._coord_grid_xy = None
+        # Everything _remap_thermal derives from a flow map alone (the
+        # absolute remap coordinates and the live crop extents) is
+        # identical for every frame that reuses that same flow map object.
+        # Between throttled recomputes that's every frame, and for a
+        # manual-shift-only setup it's all of them. Keyed on the flow map
+        # object itself (held by reference, so its id can't be recycled).
+        # Flow maps are never mutated in place: every recompute builds a
+        # new array.
+        self._remap_cache_flow = None
+        self._remap_cache_maps = None    # (map_x, map_y) float32
+        self._remap_cache_crops = None   # (top, bottom, left, right) live crop
+        # Manual-shift-only flow map, reused while (h, w, dx, dy) is unchanged
+        # instead of reallocating and filling an (H, W, 2) array every frame.
+        self._manual_flow_key = None
+        self._manual_flow_map = None
 
         # Last-call timing, in milliseconds - feeds the Parallax panel's
         # "Performance" section (depth_time_label/correction_time_label),
@@ -1938,15 +1953,26 @@ class ParallaxCompensator:
             return thermal_frame
 
         h, w = thermal_frame.shape[:2]
-        flow_map = np.zeros((h, w, 2), dtype=np.float32)
-        flow_map[:, :, 0] = self.manual_shift_x
-        flow_map[:, :, 1] = self.manual_shift_y
+        flow_map = self._get_manual_flow_map(h, w, self.manual_shift_x, self.manual_shift_y)
         self.last_displacement_map = flow_map
 
         corrected = self._remap_thermal(thermal_frame, flow_map)
         if self.show_displacement:
             corrected = self._draw_displacement_vectors(corrected, flow_map)
         return corrected
+
+    def _get_manual_flow_map(self, h: int, w: int, shift_x: float, shift_y: float) -> np.ndarray:
+        """Constant (H, W, 2) flow map for a manual-shift-only correction,
+        cached while its shape and shift values are unchanged (see
+        _manual_flow_key's __init__ comment)."""
+        key = (h, w, shift_x, shift_y)
+        if self._manual_flow_key != key:
+            flow_map = np.zeros((h, w, 2), dtype=np.float32)
+            flow_map[:, :, 0] = shift_x
+            flow_map[:, :, 1] = shift_y
+            self._manual_flow_map = flow_map
+            self._manual_flow_key = key
+        return self._manual_flow_map
 
     def _resolve_rgb_work_size(self, rgb_w: int, rgb_h: int) -> Tuple[int, int]:
         """
@@ -1979,9 +2005,9 @@ class ParallaxCompensator:
         # rgb_target_max_width's __init__ comment).
         scale = work_w / w
         sign = self._rgb_target_sign
-        flow_map = np.zeros((work_h, work_w, 2), dtype=np.float32)
-        flow_map[:, :, 0] = sign * self.manual_shift_x * scale
-        flow_map[:, :, 1] = sign * self.manual_shift_y * scale
+        flow_map = self._get_manual_flow_map(
+            work_h, work_w, sign * self.manual_shift_x * scale, sign * self.manual_shift_y * scale
+        )
         self.last_displacement_map = flow_map
 
         corrected = self._remap_thermal(work_frame, flow_map)
@@ -2101,7 +2127,7 @@ class ParallaxCompensator:
         grid_y = (map_y / max(h - 1, 1)) * 2 - 1
         grid = torch.stack([grid_x, grid_y], dim=-1).unsqueeze(0)
 
-        img_t = torch.from_numpy(thermal_frame).to(device, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
+        img_t = torch.from_numpy(thermal_frame).to(device).float().permute(2, 0, 1).unsqueeze(0)
         out = F.grid_sample(img_t, grid, mode='bilinear', padding_mode='border', align_corners=True)
         out = torch.clamp(out, 0, 255)
         return out.squeeze(0).permute(1, 2, 0).contiguous().to(torch.uint8).cpu().numpy()
@@ -2120,8 +2146,15 @@ class ParallaxCompensator:
             self._coord_grid_shape = (h, w)
         x_coords, y_coords = self._coord_grid_xy
 
-        map_x = x_coords - flow_map[:, :, 0]
-        map_y = y_coords - flow_map[:, :, 1]
+        # Absolute coordinates depend only on the flow map, so they're
+        # reused for as long as the same flow map object is (see
+        # _remap_cache_flow's __init__ comment). Saves two full-frame
+        # float32 subtractions per call: ~0.8ms at 640x512, ~2.5ms at 1280x800.
+        if self._remap_cache_flow is not flow_map or self._remap_cache_maps is None:
+            self._remap_cache_maps = (x_coords - flow_map[:, :, 0], y_coords - flow_map[:, :, 1])
+            self._remap_cache_flow = flow_map
+            self._remap_cache_crops = None
+        map_x, map_y = self._remap_cache_maps
 
         return cv2.remap(thermal_frame, map_x, map_y,
                         interpolation=cv2.INTER_LINEAR,
@@ -2203,12 +2236,21 @@ class ParallaxCompensator:
             # never report distances close enough to trigger this). Some
             # residual smeared border can remain visible in this extreme case
             # instead - a real but far lesser problem than an all-black frame.
-            max_crop_w = int(w * self._MAX_CROP_FRACTION)
-            max_crop_h = int(h * self._MAX_CROP_FRACTION)
-            left_crop = max(0, min(max_crop_w, int(np.ceil(shift_x.max()))))
-            right_crop = max(0, min(max_crop_w, int(np.ceil(-shift_x.min()))))
-            top_crop = max(0, min(max_crop_h, int(np.ceil(shift_y.max()))))
-            bottom_crop = max(0, min(max_crop_h, int(np.ceil(-shift_y.min()))))
+            #
+            # The four reductions depend only on flow_map, so they're
+            # cached alongside the remap coordinates (_remap_thermal_cpu
+            # just ran and set _remap_cache_flow to this same flow_map).
+            if self._remap_cache_flow is flow_map and self._remap_cache_crops is not None:
+                top_crop, bottom_crop, left_crop, right_crop = self._remap_cache_crops
+            else:
+                max_crop_w = int(w * self._MAX_CROP_FRACTION)
+                max_crop_h = int(h * self._MAX_CROP_FRACTION)
+                left_crop = max(0, min(max_crop_w, int(np.ceil(shift_x.max()))))
+                right_crop = max(0, min(max_crop_w, int(np.ceil(-shift_x.min()))))
+                top_crop = max(0, min(max_crop_h, int(np.ceil(shift_y.max()))))
+                bottom_crop = max(0, min(max_crop_h, int(np.ceil(-shift_y.min()))))
+                if self._remap_cache_flow is flow_map:
+                    self._remap_cache_crops = (top_crop, bottom_crop, left_crop, right_crop)
 
         if top_crop:
             corrected[:top_crop, :] = 0
