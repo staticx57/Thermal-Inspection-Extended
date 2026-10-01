@@ -85,7 +85,7 @@ if [ "$IS_JETSON" = true ]; then
 else
     # Generic Linux - install OpenCV via pip
     echo -e "${YELLOW}Installing OpenCV via pip...${NC}"
-    pip3 install --user opencv-python opencv-contrib-python
+    pip3 install --user opencv-python
 fi
 
 # Step 4: Install V4L2 utilities (for UVC webcam debugging)
@@ -102,7 +102,7 @@ if [ -f requirements.txt ]; then
     pip3 install --user -r requirements.txt
 else
     echo -e "${YELLOW}⚠ requirements.txt not found. Installing core packages manually...${NC}"
-    pip3 install --user numpy ultralytics supervision torch torchvision
+    pip3 install --user numpy scipy opencv-python Pillow PyQt6 "pyqtgraph>=0.14" psutil pyserial flirpy "setuptools<81"
 fi
 
 # Step 5.5: Install PyQt6 for Qt GUI
@@ -235,7 +235,9 @@ modules = [
     ('numpy', 'NumPy'),
     ('cv2', 'OpenCV'),
     ('PyQt6.QtWidgets', 'PyQt6'),
-    ('ultralytics', 'Ultralytics YOLO'),
+    ('pyqtgraph', 'pyqtgraph'),
+    ('psutil', 'psutil'),
+    ('serial', 'pyserial'),
 ]
 
 for module, name in modules:

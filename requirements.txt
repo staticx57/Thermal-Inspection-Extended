@@ -1,8 +1,10 @@
 # Thermal Inspection Fusion Tool v3.0 - Python Dependencies
 # Cross-platform: Windows 10/11, Linux (x86-64), Jetson (ARM64)
 #
-# Python Version: 3.8, 3.9, 3.10, 3.11
-# Recommended: Python 3.10 (best compatibility with PySpin and PyQt6)
+# Python Version: 3.10 - 3.12 (pyproject.toml requires >= 3.10; the test suite runs on 3.12)
+# Recommended: Python 3.10-3.12. A PySpin wheel from the Spinnaker SDK must match your Python version.
+#
+# Last audited against the code's imports: 2026-10-01 (tests/unit/test_requirements.py keeps this honest).
 #
 # Installation:
 #   pip install -r requirements.txt
@@ -14,16 +16,20 @@
 # ============================================================================
 # Core Computer Vision
 # ============================================================================
-opencv-python>=4.8.0        # Computer vision library
-opencv-contrib-python>=4.8.0  # Extra OpenCV modules
-numpy>=1.24.0,<2.0.0        # Numerical computing (avoid 2.x for now)
+opencv-python>=4.8.0        # Computer vision library (verified with 4.12)
+# opencv-contrib-python is NOT needed (nothing uses cv2.ximgproc etc.) and must not be installed alongside
+# opencv-python: both provide the same `cv2` module and they overwrite each other.
+numpy>=1.24.0               # Numerical computing (suite verified with numpy 2.2). The Spinnaker PySpin wheel may
+                            # still require numpy<2: if you use a FLIR Firefly/Blackfly, pin numpy<2.
+scipy>=1.10.0               # Line-profile peak detection (scipy.signal.find_peaks; has a plain fallback if absent)
 Pillow>=10.0.0              # Image processing
 
 # ============================================================================
 # GUI Framework
 # ============================================================================
-PyQt6>=6.0.0                # Qt6 bindings for Python (modern, actively developed)
-pyqtgraph>=0.13.0            # Fast plotting widgets - temperature histogram, line profile, spot meter charts, 3D Fusion view
+PyQt6>=6.0.0                # Qt6 bindings for Python (modern, actively developed; verified with 6.10)
+pyqtgraph>=0.14.0           # Plot widgets (histogram, line profile, spot/ROI history) and the OpenGL 3D views.
+                            # 0.14+ is required: the 3D world viewer uses GLViewWidget.projectionMatrix(region, viewport)
 
 # ============================================================================
 # System Monitoring & Performance
@@ -32,6 +38,8 @@ psutil>=5.9.0               # System and process utilities
 # ============================================================================
 # Camera Interfaces & Hardware Communication
 # ============================================================================
+flirpy>=0.3.0               # FLIR Boson support (flirpy.camera.boson, used by thermal_inspection.sdk.boson_flirpy_ext)
+setuptools<81               # flirpy imports pkg_resources, which setuptools 81+ removes
 pyserial>=3.5               # Serial port communication for FLIR Boson (921600 baud) and FLIR Tau 2 (57600 baud) CCI protocols
 pygrabber>=0.2              # Native Windows DirectShow device enumeration & probing
 comtypes>=1.1.7             # DirectShow COM interface (required by pygrabber)
@@ -45,11 +53,21 @@ comtypes>=1.1.7             # DirectShow COM interface (required by pygrabber)
 # 4. FLIR Firefly / Blackfly (RGB): Spinnaker SDK / PySpin (optional, see below)
 # 5. Generic USB / UVC Webcams: DirectShow (Windows) / V4L2 (Linux) - zero extra dependencies
 # 6. GigE Vision (Ethernet): Pure Python GVCP UDP Port 3956 broadcast discovery & ForceIP built-in
+# 7. Tau 2 / other raw-USB thermal sources without a UVC driver: libusb access through PyUSB (optional; Windows also
+#    needs a libusb/WinUSB driver bound to the device, e.g. via Zadig)
+#
+# pyusb>=1.2.1
+#
+# Optional, Jetson only (installed by NVIDIA, not from PyPI): `jtop` (jetson-stats) for the performance monitor and
+# `vpi` (Vision Programming Interface) for GPU image processing. The app runs without either.
 
 # ============================================================================
 # Development & Testing (Optional)
 # ============================================================================
-# pytest>=7.0.0             # Testing framework
+# pytest>=7.0.0             # Testing framework (the suite: `python -m pytest tests/unit`)
+# pytest-timeout>=2.1.0     # Per-test timeouts used by the camera/threading tests
+# pytest-cov>=4.0.0         # Coverage
+# ruff>=0.4.0               # Linter configured in pyproject.toml
 # black>=23.0.0             # Code formatter
 # flake8>=6.0.0             # Code linter
 
@@ -164,9 +182,13 @@ comtypes>=1.1.7             # DirectShow COM interface (required by pygrabber)
 # directly). D400-series cameras are unaffected either way and should just
 # use the pip pin above.
 #
-# The 3D Fusion tab additionally needs PyOpenGL for pyqtgraph's GLViewWidget
-# (real-time rotatable point-cloud rendering) - without it, the 3D Fusion
-# tab shows a "PyOpenGL not installed" placeholder instead of crashing.
+# IMU (gyro + accelerometer): the L515 and D435i/D455/D456 expose one (Bosch BMI085/BMI055, +-4 g, +-1000 deg/s). 3D
+# Mapping uses it as a rotation head-start and a gravity check; cameras without one (plain D435, D415) just skip it.
+# No RealSense camera does ICP/tracking in hardware - that runs in Open3D on the PC.
+#
+# The 3D Fusion tab AND the 3D Mapping world viewer additionally need PyOpenGL for pyqtgraph's GLViewWidget
+# (real-time rotatable point-cloud rendering) - without it they show a "PyOpenGL not installed" placeholder instead of
+# crashing. (Verified with PyOpenGL 3.1.10.)
 #
 # PyOpenGL>=3.1.0
 # PyOpenGL_accelerate>=3.1.0  # optional, faster PyOpenGL - needs a C compiler to build
@@ -177,10 +199,16 @@ comtypes>=1.1.7             # DirectShow COM interface (required by pygrabber)
 # Uncomment to enable 3D Mapping Fusion (build-world-once + live-texture
 # view mode, separate from the existing 3D Fusion per-frame shading).
 # Needs an Intel RealSense camera (see the RealSense section above) - Open3D
-# itself has no camera dependency, it just does the RGB-D odometry/point-
-# cloud math.
+# itself has no camera dependency, it just does the RGB-D odometry, ICP,
+# re-localization and point-cloud math. Verified against Open3D 0.20.0 on
+# Python 3.12 / Windows with a real L515.
 #
 # open3d>=0.18.0
+#
+# IMPORTANT (Windows): Open3D must be imported BEFORE PyQt6 in the same process, or its native module fails with
+# "DLL load failed while importing pybind: A dynamic link library (DLL) initialization routine failed".
+# thermal_inspection/__main__.py (and tests/conftest.py) already preload it first when it is installed - keep that
+# order in any standalone script. Open3D followed by torch is fine.
 
 # ============================================================================
 # Removed Dependencies (No Longer Needed)

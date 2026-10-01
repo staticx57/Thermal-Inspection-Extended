@@ -98,7 +98,7 @@ if exist requirements.txt (
     python -m pip install -r requirements.txt
 ) else (
     echo %YELLOW%requirements.txt not found. Installing core packages manually...%NC%
-    python -m pip install opencv-python opencv-contrib-python numpy Pillow PyQt6 psutil pyserial
+    python -m pip install opencv-python numpy scipy Pillow PyQt6 "pyqtgraph>=0.14" psutil pyserial flirpy "setuptools<81"
 )
 
 REM Step 3: Verify PyQt6

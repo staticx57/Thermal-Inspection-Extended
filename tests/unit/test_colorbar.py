@@ -69,18 +69,19 @@ class TestWidget:
     def test_hot_is_at_the_top_and_cold_at_the_bottom(self, qapp):
         w = self._bar(qapp)
         w.show()
-        img = w.grab().toImage()
-        # sample the middle of the bar column, near its top and bottom
-        x = 8 + w.bar_thickness // 2
-        top_y = 8 + w._header_height() + 4 if hasattr(w, "_header_height") else None
-        # find the bar rows by scanning for the gradient colours rather than depending on private geometry
-        col = [img.pixelColor(x, y) for y in range(img.height())]
-        reds = [c for c in col if c.blue() > 200 and c.red() < 60]            # LUT[255]: hot end
-        blues = [c for c in col if c.red() > 200 and c.blue() < 60]           # LUT[0]: cold end
-        assert reds and blues
-        first_hot = next(y for y, c in enumerate(col) if c.blue() > 200 and c.red() < 60)
-        last_cold = max(y for y, c in enumerate(col) if c.red() > 200 and c.blue() < 60)
-        assert first_hot < last_cold                                           # hot end above cold end
+        qapp.processEvents()
+        img = w.grab().toImage()                                              # device pixels: may be scaled on HiDPI
+        hot, cold = [], []
+        for y in range(img.height()):
+            for x in range(img.width()):
+                c = img.pixelColor(x, y)
+                if c.blue() > 200 and c.red() < 60:
+                    hot.append(y)                                              # LUT[255]: blue-ish end
+                elif c.red() > 200 and c.blue() < 60:
+                    cold.append(y)                                             # LUT[0]: red-ish end
+        assert hot and cold
+        assert sum(hot) / len(hot) < sum(cold) / len(cold)                     # hot end sits above the cold end
+        w.hide()
 
     def test_size_fits_the_widest_label_and_the_header(self, qapp):
         w = self._bar(qapp, lo=-273.15, hi=1234.5, unit="°F (est)")
