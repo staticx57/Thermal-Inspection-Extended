@@ -53,9 +53,13 @@ def normalised(text):
     return re.sub(r"[-_.]", "", text.lower())
 
 
+def active_lines():
+    return [ln.split("#")[0].strip() for ln in REQ.splitlines() if ln.split("#")[0].strip()]
+
+
 def test_every_third_party_import_is_documented():
     missing, unknown = [], []
-    req = normalised(REQ)
+    req = normalised(REQ)       # optional packages (open3d, torch, ...) are documented in comments on purpose
     for module, where in sorted(third_party_imports().items()):
         dist = DISTRIBUTION.get(module)
         if dist is None:
@@ -67,13 +71,10 @@ def test_every_third_party_import_is_documented():
     assert not missing, "not mentioned in requirements.txt: " + ", ".join(missing)
 
 
-def active_lines():
-    return [ln.split("#")[0].strip() for ln in REQ.splitlines() if ln.split("#")[0].strip()]
-
-
 def test_required_core_packages_are_active_not_commented():
     active = " ".join(active_lines()).lower()
-    for pkg in ("opencv-python", "numpy", "pyqt6", "pyqtgraph", "psutil", "pyserial", "flirpy", "scipy", "pillow"):
+    for pkg in ("opencv-python", "numpy", "pyqt6", "pyqtgraph", "psutil", "pyserial", "flirpy", "scipy", "pillow",
+                "pyopengl"):                      # the 3D Fusion / 3D Mapping tabs are dead without it
         assert pkg in active, f"{pkg} should be an active requirement"
 
 

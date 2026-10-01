@@ -127,6 +127,29 @@ def configure_logging(level: str = 'WARNING', log_file: str = None):
 
 
 
+def check_opencv_packages():
+    """flirpy 0.6+ depends on opencv-python-headless, which pip installs next to opencv-python. Both provide the same
+    `cv2` package directory, so whichever was installed last owns the files; with two different versions that is a
+    mixed install (headless lacks imshow, and cv2 5.x vs 4.x differ). Returns a list of problems and warns about them."""
+    from importlib import metadata
+
+    def version(name):
+        try:
+            return metadata.version(name)
+        except metadata.PackageNotFoundError:
+            return None
+
+    full, headless = version("opencv-python"), version("opencv-python-headless")
+    problems = []
+    if full and headless and full != headless:
+        problems.append(f"opencv-python {full} and opencv-python-headless {headless} are both installed (same cv2 "
+                        "package, different versions). Fix: pip uninstall -y opencv-python opencv-python-headless && "
+                        "pip install opencv-python")
+    for p in problems:
+        logger.warning(p)
+    return problems
+
+
 def main():
     """Main entry point for the Thermal Inspection application."""
     args = parse_arguments()
@@ -138,6 +161,7 @@ def main():
 
     # Set logging back to WARNING to prevent hot-plug monitor spam
     configure_logging(args.log_level, args.log_file)
+    check_opencv_packages()
 
     # Initialize Qt app if not using OpenCV GUI
     qt_app = None

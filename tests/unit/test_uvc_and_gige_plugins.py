@@ -119,6 +119,12 @@ class TestGigEPlugin:
         assert plugin.camera_role == CameraRole.RGB
 
     def test_gige_backend_and_camera(self):
+        # no real device may answer: with OpenCV 5 a webcam at index 0 opened and returned real uint8 frames
+        with patch("thermal_inspection.cameras.gige_camera.cv2.VideoCapture") as vc:
+            vc.return_value.isOpened.return_value = False
+            self._gige_backend_and_camera()
+
+    def _gige_backend_and_camera(self):
         cam = GigECamera(ip_address="192.168.1.100", is_thermal=True)
         assert cam.open() is True
         ret, frame = cam.read()
