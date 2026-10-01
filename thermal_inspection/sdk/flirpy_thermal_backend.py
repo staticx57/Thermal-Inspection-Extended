@@ -71,7 +71,8 @@ class FlirpyThermalBackend(ThermalBackend):
         self._frame_count = 0
         self._last_frame = None  # Store last captured frame
 
-        self._com_port = com_port
+        from thermal_inspection.utils.paths import default_serial_port
+        self._com_port = com_port or default_serial_port()
         self._auto_configure = auto_configure
         self._sdk_connected = False
         self._tlinear_enabled = False
