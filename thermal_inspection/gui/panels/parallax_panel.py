@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QComboBox, QScrollArea, QFrame)
 from PyQt6.QtCore import Qt, pyqtSignal
 import logging
+from thermal_inspection.gui.themes import set_role
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,7 @@ class ParallaxPanel(QWidget):
 
         # Status label
         self.status_label = QLabel("Status: DISABLED")
-        self.status_label.setStyleSheet("color: #ffaa00; font-weight: bold;")
+        set_role(self.status_label, "warn-strong")
         status_layout.addWidget(self.status_label)
 
         # Enable/disable toggle
@@ -98,7 +99,7 @@ class ParallaxPanel(QWidget):
             "This correction uses depth estimation to align the views."
         )
         info_label.setWordWrap(True)
-        info_label.setStyleSheet("color: #888888; font-size: 9pt;")
+        set_role(info_label, "hint")
         status_layout.addWidget(info_label)
 
         status_group.setLayout(status_layout)
@@ -127,7 +128,7 @@ class ParallaxPanel(QWidget):
             "spare) and keeps thermal's temperature data completely raw."
         )
         target_info.setWordWrap(True)
-        target_info.setStyleSheet("color: #888888; font-size: 9pt;")
+        set_role(target_info, "hint")
         target_layout.addWidget(target_info)
 
         target_row = QHBoxLayout()
@@ -221,7 +222,7 @@ class ParallaxPanel(QWidget):
             "crop-zoom and geometric auto-alignment to be accurate:"
         )
         optics_note.setWordWrap(True)
-        optics_note.setStyleSheet("color: #888888; font-size: 9pt;")
+        set_role(optics_note, "hint")
         geometry_layout.addWidget(optics_note)
 
         def _make_optics_row(label_text, default_val, tooltip):
@@ -250,7 +251,7 @@ class ParallaxPanel(QWidget):
             "RGB Sensor Width:", 6.784, "RGB sensor physical width (mm)")
 
         self.fov_display_label = QLabel("")
-        self.fov_display_label.setStyleSheet("color: #888888; font-size: 9pt;")
+        set_role(self.fov_display_label, "hint")
         self.fov_display_label.setWordWrap(True)
         geometry_layout.addWidget(self.fov_display_label)
 
@@ -307,7 +308,7 @@ class ParallaxPanel(QWidget):
 
         # Method status
         self.method_status_label = QLabel("Status: Ready")
-        self.method_status_label.setStyleSheet("color: #4CAF50; font-size: 9pt;")
+        set_role(self.method_status_label, "ok")
         depth_layout.addWidget(self.method_status_label)
 
         depth_group.setLayout(depth_layout)
@@ -352,15 +353,15 @@ class ParallaxPanel(QWidget):
         metrics_layout.setContentsMargins(8, 8, 8, 8)
 
         self.depth_time_label = QLabel("Depth estimation: --")
-        self.depth_time_label.setStyleSheet("font-size: 9pt;")
+        set_role(self.depth_time_label, "small")
         metrics_layout.addWidget(self.depth_time_label)
 
         self.correction_time_label = QLabel("Correction: --")
-        self.correction_time_label.setStyleSheet("font-size: 9pt;")
+        set_role(self.correction_time_label, "small")
         metrics_layout.addWidget(self.correction_time_label)
 
         self.total_overhead_label = QLabel("Total overhead: --")
-        self.total_overhead_label.setStyleSheet("font-weight: bold; font-size: 9pt;")
+        set_role(self.total_overhead_label, "emph")
         metrics_layout.addWidget(self.total_overhead_label)
 
         metrics_group.setLayout(metrics_layout)
@@ -384,10 +385,10 @@ class ParallaxPanel(QWidget):
         # Update status label
         if enabled:
             self.status_label.setText("Status: ENABLED")
-            self.status_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
+            set_role(self.status_label, "ok-strong")
         else:
             self.status_label.setText("Status: DISABLED")
-            self.status_label.setStyleSheet("color: #ffaa00; font-weight: bold;")
+            set_role(self.status_label, "warn-strong")
 
         # Enable/disable controls - apply_geometry_btn is deliberately NOT
         # gated on this: baseline/lens optics/zoom feed the manual-shift-
@@ -481,11 +482,11 @@ class ParallaxPanel(QWidget):
 
         # Color-code total overhead
         if total_ms < 10.0:
-            self.total_overhead_label.setStyleSheet("color: #4CAF50; font-weight: bold; font-size: 9pt;")
+            set_role(self.total_overhead_label, "ok-strong")
         elif total_ms < 30.0:
-            self.total_overhead_label.setStyleSheet("color: #ffaa00; font-weight: bold; font-size: 9pt;")
+            set_role(self.total_overhead_label, "warn-strong")
         else:
-            self.total_overhead_label.setStyleSheet("color: #ff4444; font-weight: bold; font-size: 9pt;")
+            set_role(self.total_overhead_label, "error-strong")
 
     def set_method_status(self, status: str, is_error: bool = False):
         """
@@ -497,9 +498,9 @@ class ParallaxPanel(QWidget):
         """
         self.method_status_label.setText(f"Status: {status}")
         if is_error:
-            self.method_status_label.setStyleSheet("color: #ff4444; font-size: 9pt;")
+            set_role(self.method_status_label, "error")
         else:
-            self.method_status_label.setStyleSheet("color: #4CAF50; font-size: 9pt;")
+            set_role(self.method_status_label, "ok")
 
     def get_baseline(self) -> float:
         """Get configured baseline distance in millimeters."""

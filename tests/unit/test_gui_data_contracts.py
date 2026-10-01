@@ -171,8 +171,8 @@ class TestRadiometricModeTranslation:
 
     @pytest.mark.unit
     @pytest.mark.parametrize("controller_mode,expected_banner_mode,expected_accuracy", [
-        ('radiometric', '16bit', '±2°C'),
-        ('estimated', '8bit', '±5-10°C'),
+        ('radiometric', '16bit', 'verify against a reference'),
+        ('estimated', '8bit', 'approximate, ±5-10°C'),
         ('agc', 'none', 'N/A'),
     ])
     def test_active_mode_translation(self, controller_mode, expected_banner_mode, expected_accuracy):

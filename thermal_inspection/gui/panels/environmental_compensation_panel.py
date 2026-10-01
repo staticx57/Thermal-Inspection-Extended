@@ -1,3 +1,4 @@
+from thermal_inspection.gui.themes import set_role
 """
 Environmental Compensation Panel for Radiometric Accuracy.
 
@@ -57,8 +58,10 @@ class EnvironmentalCompensationPanel(QWidget):
         header.setStyleSheet("font-size: 14pt; font-weight: bold;")
         layout.addWidget(header)
 
-        info = QLabel("Adjust parameters for accurate temperature measurement")
-        info.setStyleSheet("color: #888888; font-size: 10pt;")
+        info = QLabel("Emissivity, ambient temperature and transmission are sent to the camera, which applies them to its "
+                      "readings (the Boson's own Environment tab sets the same camera registers).")
+        info.setWordWrap(True)
+        set_role(info, "hint")
         layout.addWidget(info)
 
         layout.addWidget(self._create_separator())
@@ -177,7 +180,7 @@ class EnvironmentalCompensationPanel(QWidget):
         layout.addWidget(self.transmission_slider)
 
         trans_desc = QLabel("1.0 = clear, 0.9 = typical 1-2m, 0.8 = humid/far")
-        trans_desc.setStyleSheet("color: #888888; font-size: 9pt;")
+        set_role(trans_desc, "hint")
         trans_desc.setWordWrap(True)
         layout.addWidget(trans_desc)
 
@@ -196,7 +199,7 @@ class EnvironmentalCompensationPanel(QWidget):
 
         self.accuracy_note = QLabel("")
         self.accuracy_note.setWordWrap(True)
-        self.accuracy_note.setStyleSheet("color: #888888; font-size: 9pt;")
+        set_role(self.accuracy_note, "hint")
         layout.addWidget(self.accuracy_note)
         group.setLayout(layout)
         self._update_accuracy_estimate()

@@ -18,6 +18,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import pyqtSignal
 
+from thermal_inspection.gui.themes import set_role
+
 from thermal_inspection.processing import world_units
 from thermal_inspection.processing.world_thermal import VIEW_MODES, VIEW_MODE_LABELS
 
@@ -90,6 +92,15 @@ class MappingFusionPanel(QWidget):
         view_row.addWidget(self._export_button)
         layout.addLayout(view_row)
 
+        # Shown (instead of leaving a Start button that cannot work) when no depth camera / Open3D is available
+        self._availability_label = QLabel("")
+        self._availability_label.setWordWrap(True)
+        self._availability_label.setVisible(False)
+        set_role(self._availability_label, "warn")
+        layout.addWidget(self._availability_label)
+        self._available = True
+        self._state = "idle"
+
         self._status_label = QLabel("State: idle")
         self._status_label.setWordWrap(True)
         layout.addWidget(self._status_label)
@@ -109,7 +120,7 @@ class MappingFusionPanel(QWidget):
             "to measure between two points."
         )
         self._hint_label.setWordWrap(True)
-        self._hint_label.setStyleSheet("color: gray;")
+        set_role(self._hint_label, "hint")
         layout.addWidget(self._hint_label)
 
         self._hotspot_title = QLabel("Hotspots (click to fly to one)")
@@ -162,13 +173,23 @@ class MappingFusionPanel(QWidget):
         self._message = ""          # guidance from the mapper is per-tick; a fresh status clears any stale one
         self._refresh_status_label()
 
-        self._start_button.setEnabled(state in ("idle", "mapped"))
+        self._state = state
+        self._start_button.setEnabled(state in ("idle", "mapped") and self._available)
         self._finish_button.setEnabled(state == "scanning")
         self._reset_button.setEnabled(state != "idle" or point_count > 0)
         self._export_button.setEnabled(state == "mapped")
         if state != "mapped":
             self.set_thermal_summary("")
             self.set_hotspots([])
+
+    def set_available(self, available: bool, reason: str = ""):
+        """Whether a scan can be started with the current hardware/software (a depth camera and Open3D). When not, Start
+        is disabled and `reason` is shown. Loading and viewing a saved world stay available either way."""
+        self._available = bool(available)
+        self._availability_label.setText(reason if not available else "")
+        self._availability_label.setVisible(not available and bool(reason))
+        self._start_button.setEnabled(self._state in ("idle", "mapped") and self._available)
+        self._start_button.setToolTip("" if available else reason)
 
     def set_message(self, text: str):
         """Guidance line from WorldMapper (e.g. 'Scan tracking lost - slow down...', 'Looking for the camera...').

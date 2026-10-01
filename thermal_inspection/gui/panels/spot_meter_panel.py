@@ -21,6 +21,7 @@ import logging
 import time
 import statistics  # Phase 2 - Feature 6: Multi-point Statistics
 from thermal_inspection.processing.spot_tracking import RATE_TYPES, convert_delta, rate_per_minute
+from thermal_inspection.gui.widgets.empty_hint import HintListWidget, HintTableWidget
 try:
     import pyqtgraph as pg
     HAS_PYQTGRAPH = True
@@ -438,7 +439,7 @@ class SpotMeterPanel(QWidget):
         layout.addWidget(title)
 
         # Spot meter list
-        self.spot_list = QListWidget()
+        self.spot_list = HintListWidget("No spot meters yet. Click Add Spot Meter, then click the video.")
         self.spot_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.spot_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.spot_list.customContextMenuRequested.connect(self._show_context_menu)

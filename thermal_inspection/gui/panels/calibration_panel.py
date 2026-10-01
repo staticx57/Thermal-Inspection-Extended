@@ -12,6 +12,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 import logging
 from thermal_inspection.gui.themes import set_button_state
+from thermal_inspection.gui.widgets.empty_hint import HintListWidget, HintTableWidget
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +120,7 @@ class CalibrationPanel(QWidget):
         table_layout = QVBoxLayout()
         table_layout.setSpacing(6)
 
-        self.points_table = QTableWidget()
+        self.points_table = HintTableWidget(hint="No reference points yet. Enter a known temperature, enable click-to-add, then click the thermal view.")
         self.points_table.setColumnCount(4)
         self.points_table.setHorizontalHeaderLabels(["Reference (°C)", "Measured (°C)", "Error (°C)", "Remove"])
         self.points_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)

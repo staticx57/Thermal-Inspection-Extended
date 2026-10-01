@@ -41,8 +41,11 @@ def _fake_main_window(plugin_id="flir_boson"):
     fake.rgb_cameras_tabs = QTabWidget()
     fake.camera_panels = {}
     fake._wire_plugin_panel = MagicMock()
+    fake._polish_accessibility = MagicMock()
+    fake._refresh_source_banners = MagicMock()
     fake._container_for_plugin_id = InspectionAppWindow._container_for_plugin_id.__get__(fake)
     fake._select_camera_panel_tab = InspectionAppWindow._select_camera_panel_tab.__get__(fake)
+    fake._camera_group_page = InspectionAppWindow._camera_group_page.__get__(fake)
 
     active_camera = SimpleNamespace(plugin=SimpleNamespace(plugin_id=plugin_id))
     plugin_host = SimpleNamespace(get_active_camera=lambda role: active_camera)

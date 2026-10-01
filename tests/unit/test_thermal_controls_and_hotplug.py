@@ -117,15 +117,15 @@ class TestThermalPanelSignalsAndWiring:
         # switches BOTH the top-level group tab and the panel's own tab
         # within it.
         win._on_bus_camera_connected("thermal", {"model": "FLIR Tau 2 640", "plugin_id": "flir_tau2"})
-        assert win.cameras_tabs.currentWidget() == win.thermal_cameras_tabs
+        assert win.cameras_tabs.currentWidget() is win._camera_group_page(win.thermal_cameras_tabs)
         assert win.thermal_cameras_tabs.currentWidget() == win.tau2_panel
 
         win._on_bus_camera_connected("rgb", {"model": "Logitech BRIO", "plugin_id": "generic_uvc"})
-        assert win.cameras_tabs.currentWidget() == win.rgb_cameras_tabs
+        assert win.cameras_tabs.currentWidget() is win._camera_group_page(win.rgb_cameras_tabs)
         assert win.rgb_cameras_tabs.currentWidget() == win.uvc_panel
 
         win._on_bus_camera_connected("thermal", {"model": "FLIR Boson 640", "plugin_id": "flir_boson"})
-        assert win.cameras_tabs.currentWidget() == win.thermal_cameras_tabs
+        assert win.cameras_tabs.currentWidget() is win._camera_group_page(win.thermal_cameras_tabs)
         assert win.thermal_cameras_tabs.currentWidget() == win.boson_panel
 
     def test_update_thermal_resolution_reaches_the_overlay(self, qapp):

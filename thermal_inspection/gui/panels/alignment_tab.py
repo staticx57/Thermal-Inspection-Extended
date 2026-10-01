@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (QCheckBox, QDoubleSpinBox, QFrame, QHBoxLayout, QLa
 
 from thermal_inspection.gui.panels.alignment_panel import AlignmentPanel, make_distance_spin
 from thermal_inspection.gui.panels.parallax_panel import ParallaxPanel
+from thermal_inspection.gui.themes import set_role
 
 logger = logging.getLogger(__name__)
 
@@ -59,13 +60,13 @@ class AlignmentTab(QWidget):
         sv.addLayout(row)
 
         row = QHBoxLayout()
-        self.overlay_checkbox = QCheckBox("Alignment overlay")
+        self.overlay_checkbox = QCheckBox("Alignment Overlay")
         self.overlay_checkbox.setToolTip(
             "Thermal edges (cyan) and RGB edges (magenta) on the corrected frames: aligned edges land on top of each "
             "other, misalignment shows as colour-fringed double edges. Use it while adjusting anything here.")
         self.overlay_checkbox.toggled.connect(self.show_alignment_overlay_toggled.emit)
         row.addWidget(self.overlay_checkbox)
-        self.check_btn = QPushButton("Check alignment")
+        self.check_btn = QPushButton("Check Alignment")
         self.check_btn.setToolTip("Measure the residual misregistration between the live thermal and corrected RGB "
                                   "frames (all corrections applied)")
         self.check_btn.clicked.connect(self.check_alignment_requested.emit)
@@ -74,7 +75,8 @@ class AlignmentTab(QWidget):
         sv.addLayout(row)
         self.check_label = QLabel("")
         self.check_label.setWordWrap(True)
-        self.check_label.setStyleSheet("font-size: 9pt;")
+        set_role(self.check_label, "small")
+        self.check_label.setVisible(False)
         sv.addWidget(self.check_label)
         outer.addWidget(strip)
 
@@ -101,7 +103,7 @@ class AlignmentTab(QWidget):
         note = QLabel("The physical mounting. Parallax correction and the auto-estimate use these numbers; a "
                       "calibration from the live feeds measures the result directly and does not depend on them.")
         note.setWordWrap(True)
-        note.setStyleSheet("color: #888888; font-size: 9pt;")
+        set_role(note, "hint")
         v.addWidget(note)
         v.addWidget(self.parallax_panel.geometry_group)
         v.addStretch()
@@ -124,8 +126,8 @@ class AlignmentTab(QWidget):
 
     def set_check_result(self, result: dict):
         verdict = result.get("verdict", "")
-        colour = {"good": "#66bb6a", "ok": "#d4a017", "poor": "#ff6666"}.get(result.get("level"), "#888888")
-        self.check_label.setStyleSheet(f"font-size: 9pt; color: {colour};")
+        set_role(self.check_label, {"good": "ok", "ok": "warn", "poor": "error"}.get(result.get("level"), "hint"))
+        self.check_label.setVisible(bool(verdict))
         self.check_label.setText(verdict)
 
     # -------------------------------------------------------------- summary strip

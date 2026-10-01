@@ -22,6 +22,7 @@ from thermal_inspection.processing.thermal_analyzer import (
 )
 from thermal_inspection.gui.panels.spot_meter_panel import SpotMeterPanel
 from thermal_inspection.gui.panels.grid_overlay_panel import GridOverlayPanel
+from thermal_inspection.gui.widgets.empty_hint import HintListWidget, HintTableWidget
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +150,7 @@ class ThermalAnalysisPanel(QWidget):
         # === Hot Spots ===
         self.general_layout.addWidget(create_section_header("🔥 Hot Spots"))
 
-        self.hotspot_list = QListWidget()
+        self.hotspot_list = HintListWidget("No hot spots yet. They appear once a thermal frame is streaming.")
         self.hotspot_list.setMaximumHeight(90)  # Increased to show more items
         self.hotspot_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         font = QFont()
@@ -162,7 +163,7 @@ class ThermalAnalysisPanel(QWidget):
         # === Cold Spots ===
         self.general_layout.addWidget(create_section_header("❄️ Cold Spots"))
 
-        self.coldspot_list = QListWidget()
+        self.coldspot_list = HintListWidget("No cold spots yet. They appear once a thermal frame is streaming.")
         self.coldspot_list.setMaximumHeight(90)  # Increased to show more items
         self.coldspot_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         font = QFont()
@@ -175,7 +176,7 @@ class ThermalAnalysisPanel(QWidget):
         # === Thermal Anomalies ===
         self.general_layout.addWidget(create_section_header("⚠️ Thermal Anomalies"))
 
-        self.anomaly_list = QListWidget()
+        self.anomaly_list = HintListWidget("No thermal anomalies detected.")
         self.anomaly_list.setMaximumHeight(90)  # Increased to show more items
         self.anomaly_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         font = QFont()

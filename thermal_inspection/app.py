@@ -1021,7 +1021,9 @@ class ThermalInspectionApp:
             # ('16bit'/'8bit'/'none', accuracy as a literal +/-X C string)
             # were never reconciled - translate between them here.
             mode_map = {'radiometric': '16bit', 'estimated': '8bit', 'agc': 'none'}
-            accuracy_map = {'radiometric': '±2°C', 'estimated': '±5-10°C', 'agc': 'N/A'}
+            # No accuracy figure for 16-bit: it depends on the camera's own calibration and nothing here measures it. The 8-bit
+            # estimate's +-5-10 C is the documented, deliberately wide figure for that approximation.
+            accuracy_map = {'radiometric': 'verify against a reference', 'estimated': 'approximate, ±5-10°C', 'agc': 'N/A'}
             self.gui.radiometric_panel.update_active_mode_status(
                 mode_map.get(active['mode'], 'none'),
                 accuracy_map.get(active['mode'], 'N/A'),
@@ -2797,8 +2799,17 @@ class ThermalInspectionApp:
 
                 # Update metrics
                 state = self.camera_state
+                _cap = self.threaded_capture
+                _cam_fps = 0.0
+                if _cap is not None:
+                    # the CAMERA's delivery rate (what a user means by FPS); smoothed_fps is 1/loop-time, i.e. how fast
+                    # this loop could run (300+ on a 9 Hz Boson), which is not what is on screen
+                    def _live_fps(c):
+                        # .fps keeps its last value after reads start failing: only trust it while frames are fresh
+                        return c.fps if c is not None and (time.time() - c.latest_timestamp) < 2.0 else 0.0
+                    _cam_fps = max(_live_fps(_cap.thermal_capture), _live_fps(_cap.rgb_capture))
                 self.gui.update_metrics(
-                    fps=self.smoothed_fps,
+                    fps=_cam_fps if _cam_fps > 0 else 0.0,
                     roi_count=len(self.roi_controller.rois) if self.roi_controller else 0,
                     thermal_connected=state.thermal_connected,
                     rgb_connected=state.rgb_available

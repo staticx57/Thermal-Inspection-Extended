@@ -24,10 +24,40 @@ class SettingsPanel(QGroupBox):
     theme_changed = pyqtSignal(str)
     palette_changed = pyqtSignal(str)
     baseline_lock_toggled = pyqtSignal(bool)
+    com_port_changed = pyqtSignal(str)      # '' = auto-detect
 
     def __init__(self, parent=None):
         super().__init__("Configuration", parent)
         self._init_ui()
+
+    @staticmethod
+    def _detected_ports():
+        try:
+            import serial.tools.list_ports
+            return [p.device for p in serial.tools.list_ports.comports()]
+        except Exception:
+            return []
+
+    @staticmethod
+    def _data_folder_tip() -> str:
+        try:
+            from thermal_inspection.utils.paths import data_dir
+            return (f"Opens {data_dir()}\nconfig.json, the saved alignment calibration, recordings/ and snapshots/ "
+                    "live here.")
+        except Exception:
+            return "Open the folder holding config.json, recordings and snapshots."
+
+    def _emit_port(self):
+        text = self.com_port_edit.currentText().strip()
+        self.com_port_changed.emit("" if text in ("", self.AUTO_PORT) else text)
+
+    def _open_data_folder(self):
+        from PyQt6.QtCore import QUrl
+        from PyQt6.QtGui import QDesktopServices
+        from thermal_inspection.utils.paths import data_dir
+        folder = data_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
 
     def _init_ui(self):
         """Initialize widget UI components."""
@@ -60,6 +90,9 @@ class SettingsPanel(QGroupBox):
 
         # Baseline Lock
         self.baseline_check = QCheckBox("Lock Baseline Temp")
+        self.baseline_check.setToolTip(
+            "Freeze the current frame's average temperature as the reference that change / anomaly detection compares "
+            "against. Untick to release it.")
         self.baseline_check.toggled.connect(self.baseline_lock_toggled.emit)
         proc_layout.addWidget(self.baseline_check)
 
@@ -82,26 +115,39 @@ class SettingsPanel(QGroupBox):
         theme_layout.addWidget(self.theme_combo)
         sys_layout.addLayout(theme_layout)
 
-        # COM Port
+        # Control port override (was a dead combo: nothing was connected to it)
         com_layout = QHBoxLayout()
-        com_layout.addWidget(QLabel("SDK COM Port:"))
+        com_layout.addWidget(QLabel("Control port:"))
         self.com_port_edit = QComboBox()
         self.com_port_edit.setEditable(True)
         self.com_port_edit.setMinimumHeight(28)
-        # Use centralized config for COM port options
+        self.com_port_edit.setToolTip(
+            "Serial port used to control a Boson or Tau 2 (FFC, gain, radiometry). Auto-detect scans for the camera; "
+            "pick a port only to force one. Applies the next time a camera connects.")
+        self.AUTO_PORT = "Auto-detect"
+        self.com_port_edit.addItem(self.AUTO_PORT)
+        for port in self._detected_ports():
+            self.com_port_edit.addItem(port)
+        override = None
         try:
             from thermal_inspection.utils.config import get_config
-            config = get_config()
-            com_ports = config.get('sdk_com_port_options', ["COM3", "COM4", "COM5", "/dev/ttyACM0"])
-        except ImportError:
-            com_ports = ["COM3", "COM4", "COM5", "/dev/ttyACM0"]
-        self.com_port_edit.addItems(com_ports)
+            override = get_config().get('sdk_com_port')
+        except Exception:
+            pass
+        if override:
+            if self.com_port_edit.findText(override) < 0:
+                self.com_port_edit.addItem(override)
+            self.com_port_edit.setCurrentText(override)
+        self.com_port_edit.activated.connect(lambda _i: self._emit_port())
+        self.com_port_edit.lineEdit().editingFinished.connect(self._emit_port)
         com_layout.addWidget(self.com_port_edit)
         sys_layout.addLayout(com_layout)
 
-        # Paths
+        # Data folder (was a dead "Storage Paths" button)
         paths_layout = QHBoxLayout()
-        self.paths_btn = QPushButton("Storage Paths")
+        self.paths_btn = QPushButton("Open Data Folder")
+        self.paths_btn.setToolTip(self._data_folder_tip())
+        self.paths_btn.clicked.connect(self._open_data_folder)
         paths_layout.addWidget(self.paths_btn)
         sys_layout.addLayout(paths_layout)
 

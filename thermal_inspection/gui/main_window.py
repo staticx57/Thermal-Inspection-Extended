@@ -101,6 +101,10 @@ class InspectionAppWindow(QMainWindow):
 
         # Build UI
         self._build_ui()
+        self._build_menu()
+        QTimer.singleShot(0, self._sync_view_mode_button)      # the button shows the real current mode from the start
+        QTimer.singleShot(0, self._refresh_mapping_availability)
+        QTimer.singleShot(0, self._polish_accessibility)
 
         # Apply initial theme
         self._apply_theme(self.current_theme)
@@ -429,8 +433,25 @@ class InspectionAppWindow(QMainWindow):
                 except Exception as e:
                     logger.warning(f"Failed to create panel for {plugin.plugin_id}: {e}")
 
-            self.cameras_tabs.addTab(self.thermal_cameras_tabs, "Thermal")
-            self.cameras_tabs.addTab(self.rgb_cameras_tabs, "RGB")
+            # Each camera group gets a one-line "active source" banner above its plugin tabs: what is actually
+            # streaming (a live camera, or a FLIR recording that has no panel of its own) is otherwise invisible,
+            # because every plugin tab reads "Disconnected" until its own SDK port is connected.
+            self.source_banners = {}
+            for role, tabs, title in (("thermal", self.thermal_cameras_tabs, "Thermal"),
+                                      ("rgb", self.rgb_cameras_tabs, "RGB")):
+                holder = QWidget()
+                box = QVBoxLayout(holder)
+                box.setContentsMargins(0, 0, 0, 0)
+                box.setSpacing(4)
+                banner = QLabel()
+                banner.setWordWrap(True)
+                banner.setObjectName("source_banner")
+                banner.setTextFormat(Qt.TextFormat.RichText)
+                box.addWidget(banner)
+                box.addWidget(tabs, 1)
+                self.source_banners[role] = banner
+                self.cameras_tabs.addTab(holder, title)
+            self._refresh_source_banners()
 
             # Keep convenient attributes for backwards compatibility
             self.boson_panel = self.camera_panels.get("flir_boson")
@@ -591,6 +612,7 @@ class InspectionAppWindow(QMainWindow):
         # === SETTINGS PANEL ===
         self._safe_connect("settings_panel", "device_changed", self._on_device_changed, "(settings)")
         self._safe_connect("settings_panel", "theme_changed", self._on_theme_changed, "(settings)")
+        self._safe_connect("settings_panel", "com_port_changed", self._on_com_port_changed, "(settings)")
         self._safe_connect("settings_panel", "baseline_lock_toggled", self._on_baseline_toggle, "(settings)")
         self._safe_connect("settings_panel", "palette_changed", self._on_global_palette_changed, "(settings)")
 
@@ -1069,6 +1091,14 @@ class InspectionAppWindow(QMainWindow):
         return (self.thermal_cameras_tabs if plugin.camera_role == CameraRole.THERMAL
                 else self.rgb_cameras_tabs)
 
+    def _camera_group_page(self, container):
+        """The page of cameras_tabs that contains `container` (the Thermal/RGB plugin tab widget): the group holder
+        with its source banner, or the container itself when it is a direct page."""
+        w = container
+        while w is not None and self.cameras_tabs.indexOf(w) < 0:
+            w = w.parentWidget()
+        return w if w is not None else container
+
     def _select_camera_panel_tab(self, panel):
         """Select panel's own tab, switching to its Thermal/RGB group tab
         first if it lives in one of the nested sub-tab-widgets - plain
@@ -1078,7 +1108,7 @@ class InspectionAppWindow(QMainWindow):
         for container in (self.thermal_cameras_tabs, self.rgb_cameras_tabs):
             for i in range(container.count()):
                 if container.widget(i) == panel:
-                    self.cameras_tabs.setCurrentWidget(container)
+                    self.cameras_tabs.setCurrentWidget(self._camera_group_page(container))
                     container.setCurrentWidget(panel)
                     return
         self.cameras_tabs.setCurrentWidget(panel)
@@ -1284,6 +1314,8 @@ class InspectionAppWindow(QMainWindow):
             if convenience_attr:
                 setattr(self, convenience_attr, panel)
 
+        self._polish_accessibility(panel)
+        self._refresh_source_banners()
         self._select_camera_panel_tab(panel)
 
     def _on_bus_ports_scan_result(self, ports: list):
@@ -1359,6 +1391,69 @@ class InspectionAppWindow(QMainWindow):
     # Keyboard Shortcuts
     # ========================================================================
 
+    # (key, what it does) - the single source for the Help > Keyboard Shortcuts list and the button tooltips
+    SHORTCUTS = (
+        ("R", "Start / stop recording"), ("S", "Save a snapshot"), ("Space", "Freeze / unfreeze the view"),
+        ("A", "Auto-detect ROIs"), ("V", "Cycle the view mode"), ("C", "Cycle the colour palette"),
+        ("T", "Cycle the theme (auto / light / dark ...)"), ("Ctrl+D", "Show / hide the developer panels"),
+        ("F1", "This list"), ("Ctrl+Q", "Quit (asks first while recording)"),
+    )
+
+    def _build_menu(self):
+        """A small menu bar: it makes Quit and the single-letter shortcuts discoverable (Esc/Q used to quit the whole
+        app instantly, even mid-recording, and nothing said which keys existed)."""
+        from PyQt6.QtGui import QAction, QKeySequence
+        bar = self.menuBar()
+        file_menu = bar.addMenu("&File")
+        quit_action = QAction("&Quit", self)
+        quit_action.setShortcut(QKeySequence("Ctrl+Q"))
+        quit_action.triggered.connect(self.close)
+        file_menu.addAction(quit_action)
+        help_menu = bar.addMenu("&Help")
+        keys_action = QAction("&Keyboard shortcuts", self)
+        keys_action.setShortcut(QKeySequence("F1"))
+        keys_action.triggered.connect(self._show_shortcuts)
+        help_menu.addAction(keys_action)
+        self._menu_actions = (quit_action, keys_action)
+
+        # show the key in the tooltip of the buttons it triggers
+        cp = getattr(self, 'control_panel', None)
+        for attr, key in (("record_btn", "R"), ("snapshot_btn", "S"), ("freeze_btn", "Space"),
+                          ("auto_roi_btn", "A"), ("view_mode_btn", "V")):
+            btn = getattr(cp, attr, None) if cp is not None else None
+            if btn is not None:
+                base = btn.toolTip() or btn.text().strip()
+                if f"({key})" not in base:
+                    btn.setToolTip(f"{base} ({key})" if base else f"({key})")
+
+    def _on_com_port_changed(self, port: str):
+        """Persist the control-port override ('' = auto-detect); read by utils.config.get_serial_port on the next connect."""
+        try:
+            from thermal_inspection.utils.config import get_config
+            get_config().set('sdk_com_port', port or None)
+        except Exception as e:
+            logger.warning(f"Could not save the control port: {e}")
+            return
+        self.statusBar().showMessage(
+            f"Control port: {port}. Used the next time a camera connects." if port else
+            "Control port: auto-detect. Used the next time a camera connects.", 6000)
+
+    def _show_shortcuts(self):
+        rows = "".join(f"<tr><td><b>{k}</b>&nbsp;&nbsp;</td><td>{d}</td></tr>" for k, d in self.SHORTCUTS)
+        QMessageBox.information(self, "Keyboard shortcuts", f"<table cellspacing='4'>{rows}</table>")
+
+    def closeEvent(self, event):
+        """Closing mid-recording would silently end it (and can leave a truncated file): ask first."""
+        if self.recording:
+            answer = QMessageBox.question(
+                self, "Quit while recording?",
+                "A recording is in progress. Stop it and quit?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+            if answer != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
+        super().closeEvent(event)
+
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""
         key = event.key()
@@ -1366,8 +1461,6 @@ class InspectionAppWindow(QMainWindow):
 
         if key == Qt.Key.Key_D and modifiers == Qt.KeyboardModifier.ControlModifier:
             self._toggle_developer_mode()
-        elif key in (Qt.Key.Key_Q, Qt.Key.Key_Escape):
-            self.close()
         elif key == Qt.Key.Key_V:
             self._on_view_mode_cycle()
         elif key == Qt.Key.Key_C:
@@ -2203,7 +2296,7 @@ class InspectionAppWindow(QMainWindow):
             # actually updated the button text at all, on any view mode
             # change, manual or automatic.
             if hasattr(self, 'control_panel') and hasattr(self.control_panel, 'view_mode_btn'):
-                self.control_panel.view_mode_btn.setText(f"\U0001F441 {label}")
+                self.control_panel.view_mode_btn.setText(f"\U0001F441 View: {label}")
 
             self._sync_overlay_view_mode()
             self._sync_main_view_stack(view_mode)
@@ -3111,6 +3204,8 @@ class InspectionAppWindow(QMainWindow):
             if hasattr(self, 'mapping_fusion_panel'):
                 self.mapping_fusion_panel.set_status("idle", "n/a", 0)
                 self.mapping_fusion_panel._status_label.setText(
+                    "No depth frame yet - wait a moment for the RealSense to start streaming and try again."
+                    if backend is not None else
                     "No RealSense depth camera available - cannot start mapping."
                 )
             logger.warning("3D Mapping Fusion: cannot start scan, no depth intrinsics available")
@@ -3500,6 +3595,104 @@ class InspectionAppWindow(QMainWindow):
     # Camera Status / Hot-Plug Notifications
     # ========================================================================
 
+    def _polish_accessibility(self, root=None):
+        """Tooltips for controls that lack one, and accessible names for every interactive control (screen readers,
+        UI automation). Re-run on a camera panel when it is swapped in."""
+        from thermal_inspection.gui.accessibility import apply_accessible_names, apply_tooltips
+        root = root or self
+        apply_tooltips(root)
+        apply_accessible_names(root)
+
+    def _refresh_mapping_availability(self):
+        """Tell the 3D Mapping tab whether a scan can start. The test is "is a RealSense-type backend (one that exposes
+        depth) the active RGB camera", NOT "does it have intrinsics yet": get_depth_intrinsics() is None until the first
+        depth frame arrives, which would wrongly mark real hardware unavailable during start-up."""
+        panel = getattr(self, 'mapping_fusion_panel', None)
+        if panel is None:
+            return
+        backend = getattr(getattr(self, 'app', None), 'rgb_camera', None) if getattr(self, 'app', None) is not None else None
+        if backend is None:
+            panel.set_available(False, "Mapping needs a RealSense depth camera (L515 or D4xx). No RGB/depth camera is "
+                                       "connected. You can still load and view a saved world.")
+        elif not hasattr(backend, 'get_depth_intrinsics'):
+            panel.set_available(False, "The connected RGB camera has no depth stream: mapping needs a RealSense "
+                                       "(L515 or D4xx). You can still load and view a saved world.")
+        else:
+            try:
+                from thermal_inspection.processing.open3d_support import OPEN3D_AVAILABLE
+            except Exception:
+                OPEN3D_AVAILABLE = True
+            if not OPEN3D_AVAILABLE:
+                panel.set_available(False, "Open3D is not installed, so mapping cannot track the camera: "
+                                           "pip install open3d")
+            else:
+                panel.set_available(True)
+
+    def _describe_source(self, role: str):
+        """What is streaming for `role` ('thermal'/'rgb'), from the plugin host: dict(name, plugin, plugin_id,
+        resolution, radiometric, detail) or None when nothing is active."""
+        host = getattr(self.app, 'plugin_host', None) if getattr(self, 'app', None) is not None else None
+        try:
+            active = host.get_active_camera(role) if host is not None else None
+        except Exception:
+            active = None
+        if active is None:
+            return None
+        backend, caps = active.backend, active.capabilities
+        resolution = None
+        try:
+            resolution = backend.get_resolution() if backend is not None else None
+        except Exception:
+            pass
+        info = {}
+        try:
+            info = backend.get_info() or {}
+        except Exception:
+            pass
+        detail = ""
+        if info.get('backend') == 'FLIR file':
+            detail = f"recording, {info.get('frames', '?')} frames at {info.get('fps', '?'):g} fps, looping"
+        return {"name": active.match.name or active.plugin.display_name, "plugin": active.plugin.display_name,
+                "plugin_id": active.plugin.plugin_id, "resolution": resolution,
+                "radiometric": bool(getattr(caps, 'radiometric', False)), "detail": detail}
+
+    @staticmethod
+    def _source_text(src, role: str) -> str:
+        if src is None:
+            if role == "thermal":
+                return ("<b>No thermal camera streaming.</b> Plug one in, or open a camera tab below and connect; "
+                        "<code>--playback-file</code> plays a FLIR recording.")
+            return "<b>No RGB camera streaming.</b> The view falls back to thermal only."
+        bits = [f"<b>{src['name']}</b>"]
+        if src["plugin"] and src["plugin"] not in src["name"]:
+            bits.append(src["plugin"])
+        if src["resolution"]:
+            bits.append(f"{src['resolution'][0]}x{src['resolution'][1]}")
+        if role == "thermal":
+            bits.append("radiometric (temperatures)" if src["radiometric"] else "not radiometric (relative only)")
+        if src["detail"]:
+            bits.append(src["detail"])
+        return "Active: " + " &middot; ".join(bits)
+
+    def _refresh_source_banners(self):
+        """Banner text per role, and a marker on the plugin tab that owns the active source. Called whenever a camera
+        connects/disconnects (update_camera_status)."""
+        banners = getattr(self, 'source_banners', None)
+        if not banners:
+            return
+        for role, banner in banners.items():
+            src = self._describe_source(role)
+            banner.setText(self._source_text(src, role))
+            container = self.thermal_cameras_tabs if role == "thermal" else self.rgb_cameras_tabs
+            active_panel = None
+            if src is not None:
+                active_panel = getattr(self, 'camera_panels', {}).get(src["plugin_id"])
+            for i in range(container.count()):
+                title = container.tabText(i).replace(" \u25cf", "")
+                if active_panel is not None and container.widget(i) is active_panel:
+                    title += " \u25cf"
+                container.setTabText(i, title)
+
     def update_camera_status(self, state):
         """
         Reflect the current CameraState in the status bar.
@@ -3508,18 +3701,30 @@ class InspectionAppWindow(QMainWindow):
             state: CameraState dataclass from camera_controller.
         """
         parts = []
+        thermal = self._describe_source("thermal") if getattr(state, 'thermal_connected', False) else None
         if getattr(state, 'thermal_connected', False):
             dev = getattr(state, 'thermal_device_id', '?')
             label = 'FLIR Boson' if getattr(state, 'is_flir_boson', False) else 'Thermal'
-            parts.append(f"🌡 {label} [dev {dev}]")
+            if thermal is not None:
+                res = f" {thermal['resolution'][0]}x{thermal['resolution'][1]}" if thermal['resolution'] else ""
+                parts.append(f"🌡 {thermal['name']}{res}" + (" radiometric" if thermal['radiometric'] else ""))
+            else:
+                parts.append(f"🌡 {label} [dev {dev}]")
         else:
             parts.append("🌡 Thermal: disconnected")
 
+        rgb = self._describe_source("rgb") if getattr(state, 'rgb_available', False) else None
         if getattr(state, 'rgb_available', False):
             dev = getattr(state, 'rgb_device_id', '?')
-            parts.append(f"📷 RGB [dev {dev}]")
+            if rgb is not None:
+                res = f" {rgb['resolution'][0]}x{rgb['resolution'][1]}" if rgb['resolution'] else ""
+                parts.append(f"📷 {rgb['name']}{res}")
+            else:
+                parts.append(f"📷 RGB [dev {dev}]")
         else:
             parts.append("📷 RGB: disconnected")
+        self._refresh_source_banners()
+        self._refresh_mapping_availability()
 
         msg = "  |  ".join(parts)
         self.statusBar().showMessage(msg, 0)   # 0 = persist until next message

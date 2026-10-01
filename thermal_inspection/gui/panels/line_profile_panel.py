@@ -12,6 +12,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 from thermal_inspection.processing.line_profile_tool import LineProfileAnalyzer
 import logging
+from thermal_inspection.gui.widgets.empty_hint import HintListWidget, HintTableWidget
 
 try:
     import pyqtgraph as pg
@@ -63,7 +64,7 @@ class LineProfilePanel(QWidget):
         list_group = QGroupBox("Active Lines")
         list_layout = QVBoxLayout(list_group)
 
-        self.line_list = QListWidget()
+        self.line_list = HintListWidget("No profile lines yet.")
         self.line_list.setMaximumHeight(120)
         self.line_list.itemSelectionChanged.connect(self._on_line_selected)
         list_layout.addWidget(self.line_list)

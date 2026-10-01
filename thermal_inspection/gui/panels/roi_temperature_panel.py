@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
 
 from thermal_inspection.gui.widgets.palette_combo import PaletteComboBox
 from thermal_inspection.processing.roi_tracking import METRIC_LABELS, ROIAlert, ROITracker, export_rows
+from thermal_inspection.gui.widgets.empty_hint import HintListWidget, HintTableWidget
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +155,7 @@ class ROITemperaturePanel(QWidget):
         layout.addWidget(self.stats_label)
 
         # --- table
-        self.table = QTableWidget(0, len(COLUMNS))
+        self.table = HintTableWidget(0, len(COLUMNS), hint="No ROIs yet. Use Draw ROI or Auto ROI under the video.")
         self.table.setHorizontalHeaderLabels(COLUMNS)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)

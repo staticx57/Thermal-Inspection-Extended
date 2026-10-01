@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
-from thermal_inspection.gui.themes import set_button_state
+from thermal_inspection.gui.themes import set_button_state, set_role
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +179,7 @@ class BosonControlPanel(QWidget):
             "Adjust environmental parameters to improve radiometric accuracy."
         )
         info_label.setWordWrap(True)
-        info_label.setStyleSheet("color: #888888; font-size: 9pt; padding-bottom: 4px;")
+        set_role(info_label, "hint")
         env_group_layout.addWidget(info_label, 0, 0, 1, 3)
 
         # Emissivity (0.01 – 1.00, stored ×100 as int)
@@ -254,7 +254,7 @@ class BosonControlPanel(QWidget):
             "This tab shows the current camera mode status."
         )
         notice_text.setWordWrap(True)
-        notice_text.setStyleSheet("color: #aaf; font-size: 10px; padding: 8px;")
+        set_role(notice_text, "hint")
         unified_layout.addWidget(notice_text)
         radiometric_layout.addWidget(unified_notice)
 
@@ -263,10 +263,7 @@ class BosonControlPanel(QWidget):
         status_layout = QVBoxLayout(status_group)
 
         self.radiometric_mode_status = QLabel("Current Mode: UVC Post-Colorized (8-bit)")
-        self.radiometric_mode_status.setStyleSheet(
-            "font-weight: bold; padding: 8px; background-color: #2a2a2a; "
-            "border-radius: 3px; font-size: 11px;"
-        )
+        self._set_mode_pill("neutral")
         self.radiometric_mode_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         status_layout.addWidget(self.radiometric_mode_status)
 
@@ -275,7 +272,7 @@ class BosonControlPanel(QWidget):
             "• <b>Colorized (8-bit)</b>: Visual thermal imaging with AGC"
         )
         mode_explain.setWordWrap(True)
-        mode_explain.setStyleSheet("color: gray; font-size: 9px; padding: 8px;")
+        set_role(mode_explain, "hint")
         status_layout.addWidget(mode_explain)
 
         radiometric_layout.addWidget(status_group)
@@ -307,7 +304,7 @@ class BosonControlPanel(QWidget):
         frame_layout = QHBoxLayout()
         frame_layout.addWidget(QLabel("Frame Count:"))
         self.diag_frame_count_label = QLabel("--")
-        self.diag_frame_count_label.setStyleSheet("font-weight: bold;")
+        set_role(self.diag_frame_count_label, "emph")
         frame_layout.addWidget(self.diag_frame_count_label)
         frame_layout.addStretch()
         system_layout.addLayout(frame_layout)
@@ -315,7 +312,7 @@ class BosonControlPanel(QWidget):
         board_temp_layout = QHBoxLayout()
         board_temp_layout.addWidget(QLabel("Board Temp:"))
         self.diag_board_temp_label = QLabel("--")
-        self.diag_board_temp_label.setStyleSheet("font-weight: bold;")
+        set_role(self.diag_board_temp_label, "emph")
         board_temp_layout.addWidget(self.diag_board_temp_label)
         board_temp_layout.addStretch()
         system_layout.addLayout(board_temp_layout)
@@ -323,7 +320,7 @@ class BosonControlPanel(QWidget):
         fpa_temp_layout = QHBoxLayout()
         fpa_temp_layout.addWidget(QLabel("FPA Temp:"))
         self.diag_fpa_temp_label = QLabel("--")
-        self.diag_fpa_temp_label.setStyleSheet("font-weight: bold;")
+        set_role(self.diag_fpa_temp_label, "emph")
         fpa_temp_layout.addWidget(self.diag_fpa_temp_label)
         fpa_temp_layout.addStretch()
         system_layout.addLayout(fpa_temp_layout)
@@ -337,7 +334,7 @@ class BosonControlPanel(QWidget):
         last_ffc_frame_layout = QHBoxLayout()
         last_ffc_frame_layout.addWidget(QLabel("Last FFC Frame:"))
         self.diag_last_ffc_frame_label = QLabel("--")
-        self.diag_last_ffc_frame_label.setStyleSheet("font-weight: bold;")
+        set_role(self.diag_last_ffc_frame_label, "emph")
         last_ffc_frame_layout.addWidget(self.diag_last_ffc_frame_label)
         last_ffc_frame_layout.addStretch()
         ffc_status_layout.addLayout(last_ffc_frame_layout)
@@ -345,7 +342,7 @@ class BosonControlPanel(QWidget):
         frames_since_layout = QHBoxLayout()
         frames_since_layout.addWidget(QLabel("Frames Since FFC:"))
         self.diag_frames_since_ffc_label = QLabel("--")
-        self.diag_frames_since_ffc_label.setStyleSheet("font-weight: bold;")
+        set_role(self.diag_frames_since_ffc_label, "emph")
         frames_since_layout.addWidget(self.diag_frames_since_ffc_label)
         frames_since_layout.addStretch()
         ffc_status_layout.addLayout(frames_since_layout)
@@ -353,7 +350,7 @@ class BosonControlPanel(QWidget):
         last_ffc_temp_layout = QHBoxLayout()
         last_ffc_temp_layout.addWidget(QLabel("Last FFC Temp:"))
         self.diag_last_ffc_temp_label = QLabel("--")
-        self.diag_last_ffc_temp_label.setStyleSheet("font-weight: bold;")
+        set_role(self.diag_last_ffc_temp_label, "emph")
         last_ffc_temp_layout.addWidget(self.diag_last_ffc_temp_label)
         last_ffc_temp_layout.addStretch()
         ffc_status_layout.addLayout(last_ffc_temp_layout)
@@ -361,7 +358,7 @@ class BosonControlPanel(QWidget):
         ffc_threshold_layout = QHBoxLayout()
         ffc_threshold_layout.addWidget(QLabel("Auto FFC Threshold:"))
         self.diag_ffc_threshold_label = QLabel("--")
-        self.diag_ffc_threshold_label.setStyleSheet("font-weight: bold;")
+        set_role(self.diag_ffc_threshold_label, "emph")
         ffc_threshold_layout.addWidget(self.diag_ffc_threshold_label)
         ffc_threshold_layout.addStretch()
         ffc_status_layout.addLayout(ffc_threshold_layout)
@@ -387,7 +384,7 @@ class BosonControlPanel(QWidget):
 
         status_label_layout = QHBoxLayout()
         self.connection_status_label = QLabel("● Disconnected")
-        self.connection_status_label.setStyleSheet("color: #ff4444; font-weight: bold;")
+        set_role(self.connection_status_label, "error-strong")
         self.connection_status_label.setMaximumWidth(200)
         status_label_layout.addWidget(self.connection_status_label)
         status_label_layout.addStretch()
@@ -435,7 +432,7 @@ class BosonControlPanel(QWidget):
         status_layout.addLayout(button_layout)
 
         self.connection_hint = QLabel("Connect via COM port or use --enable-boson-sdk flag")
-        self.connection_hint.setStyleSheet("font-size: 10px; color: #888888;")
+        set_role(self.connection_hint, "hint")
         self.connection_hint.setWordWrap(True)
         self.connection_hint.setMaximumWidth(350)
         status_layout.addWidget(self.connection_hint)
@@ -460,9 +457,9 @@ class BosonControlPanel(QWidget):
             row = QHBoxLayout()
             label = QLabel(label_text)
             label.setFixedWidth(120)
-            label.setStyleSheet("font-weight: bold;")
+            set_role(label, "emph")
             value = QLabel("N/A")
-            value.setStyleSheet("color: #888888;")
+            set_role(value, "hint")
             value.setWordWrap(True)
             value.setMaximumWidth(200)
 
@@ -500,7 +497,7 @@ class BosonControlPanel(QWidget):
         ffc_layout.addLayout(ffc_mode_layout)
 
         self.ffc_status_label = QLabel("Status: Ready")
-        self.ffc_status_label.setStyleSheet("font-size: 10px; color: #888888;")
+        set_role(self.ffc_status_label, "hint")
         ffc_layout.addWidget(self.ffc_status_label)
 
         layout.addWidget(ffc_group)
@@ -541,7 +538,7 @@ class BosonControlPanel(QWidget):
         self.shutter_btn_group.setExclusive(True)
 
         self.shutter_status_label = QLabel("Position: Auto")
-        self.shutter_status_label.setStyleSheet("font-size: 10px; color: #888888;")
+        set_role(self.shutter_status_label, "hint")
         shutter_layout.addWidget(self.shutter_status_label)
 
         layout.addWidget(shutter_group)
@@ -562,7 +559,7 @@ class BosonControlPanel(QWidget):
         gain_layout.addLayout(combo_layout)
 
         self.current_gain_label = QLabel("Current: Auto")
-        self.current_gain_label.setStyleSheet("font-size: 10px; color: #888888;")
+        set_role(self.current_gain_label, "hint")
         gain_layout.addWidget(self.current_gain_label)
 
         layout.addWidget(gain_group)
@@ -586,7 +583,7 @@ class BosonControlPanel(QWidget):
             "Disabled: free-running (default).")
         sync_layout.addWidget(self.sync_mode_combo)
         self.current_sync_label = QLabel("Current: unknown")
-        self.current_sync_label.setStyleSheet("font-size: 10px; color: #888888;")
+        set_role(self.current_sync_label, "hint")
         sync_layout.addWidget(self.current_sync_label)
         layout.addWidget(sync_group)
         self.sync_mode_combo.currentIndexChanged.connect(
@@ -612,7 +609,7 @@ class BosonControlPanel(QWidget):
         lut_layout.addLayout(combo_layout)
 
         hint = QLabel("Note: Hardware LUT applies before software processing")
-        hint.setStyleSheet("font-size: 9px; color: #888888;")
+        set_role(hint, "hint")
         hint.setWordWrap(True)
         lut_layout.addWidget(hint)
 
@@ -624,7 +621,7 @@ class BosonControlPanel(QWidget):
         agc_layout = QVBoxLayout(agc_group)
 
         info_label = QLabel("Works on ALL Boson cameras (radiometric and non-radiometric)")
-        info_label.setStyleSheet("font-size: 9px; color: #4CAF50; font-weight: bold;")
+        set_role(info_label, "ok-strong")
         info_label.setWordWrap(True)
         agc_layout.addWidget(info_label)
 
@@ -633,7 +630,7 @@ class BosonControlPanel(QWidget):
         max_gain_header = QHBoxLayout()
         max_gain_header.addWidget(QLabel("Max Gain (Contrast):"))
         self.agc_max_gain_value = QLabel("2.0x")
-        self.agc_max_gain_value.setStyleSheet("font-weight: bold; color: #00aaff;")
+        set_role(self.agc_max_gain_value, "info-strong")
         max_gain_header.addWidget(self.agc_max_gain_value)
         max_gain_header.addStretch()
         max_gain_layout.addLayout(max_gain_header)
@@ -652,7 +649,7 @@ class BosonControlPanel(QWidget):
         gamma_header = QHBoxLayout()
         gamma_header.addWidget(QLabel("Gamma (ACE):"))
         self.agc_gamma_value = QLabel("1.0")
-        self.agc_gamma_value.setStyleSheet("font-weight: bold; color: #00aaff;")
+        set_role(self.agc_gamma_value, "info-strong")
         gamma_header.addWidget(self.agc_gamma_value)
         gamma_header.addStretch()
         gamma_layout.addLayout(gamma_header)
@@ -671,7 +668,7 @@ class BosonControlPanel(QWidget):
         linearity_header = QHBoxLayout()
         linearity_header.addWidget(QLabel("Linearity:"))
         self.agc_linearity_value = QLabel("50%")
-        self.agc_linearity_value.setStyleSheet("font-weight: bold; color: #00aaff;")
+        set_role(self.agc_linearity_value, "info-strong")
         linearity_header.addWidget(self.agc_linearity_value)
         linearity_header.addStretch()
         linearity_layout.addLayout(linearity_header)
@@ -690,7 +687,7 @@ class BosonControlPanel(QWidget):
         dde_header = QHBoxLayout()
         dde_header.addWidget(QLabel("Detail (DDE):"))
         self.agc_dde_value = QLabel("1.3")
-        self.agc_dde_value.setStyleSheet("font-weight: bold; color: #00aaff;")
+        set_role(self.agc_dde_value, "info-strong")
         dde_header.addWidget(self.agc_dde_value)
         dde_header.addStretch()
         dde_layout.addLayout(dde_header)
@@ -715,7 +712,7 @@ class BosonControlPanel(QWidget):
         plateau_header = QHBoxLayout()
         plateau_header.addWidget(QLabel("Plateau:"))
         self.agc_plateau_value = QLabel("50%")
-        self.agc_plateau_value.setStyleSheet("font-weight: bold; color: #00aaff;")
+        set_role(self.agc_plateau_value, "info-strong")
         plateau_header.addWidget(self.agc_plateau_value)
         plateau_header.addStretch()
         plateau_layout.addLayout(plateau_header)
@@ -734,7 +731,7 @@ class BosonControlPanel(QWidget):
         dampening_header = QHBoxLayout()
         dampening_header.addWidget(QLabel("Dampening:"))
         self.agc_dampening_value = QLabel("50%")
-        self.agc_dampening_value.setStyleSheet("font-weight: bold; color: #00aaff;")
+        set_role(self.agc_dampening_value, "info-strong")
         dampening_header.addWidget(self.agc_dampening_value)
         dampening_header.addStretch()
         dampening_layout.addLayout(dampening_header)
@@ -762,12 +759,12 @@ class BosonControlPanel(QWidget):
         temp_layout = QVBoxLayout(temp_group)
 
         self.fpa_temp_label = QLabel("N/A")
-        self.fpa_temp_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #00aaff;")
+        set_role(self.fpa_temp_label, "info-strong")
         self.fpa_temp_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         temp_layout.addWidget(self.fpa_temp_label)
 
         self.fpa_temp_unit = QLabel("Focal Plane Array Temperature")
-        self.fpa_temp_unit.setStyleSheet("font-size: 10px; color: #888888;")
+        set_role(self.fpa_temp_unit, "hint")
         self.fpa_temp_unit.setAlignment(Qt.AlignmentFlag.AlignCenter)
         temp_layout.addWidget(self.fpa_temp_unit)
 
@@ -922,7 +919,7 @@ class BosonControlPanel(QWidget):
         """Update SDK connection status and button states."""
         if connected:
             self.connection_status_label.setText("● Connected")
-            self.connection_status_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
+            set_role(self.connection_status_label, "ok-strong")
             self.connection_hint.setText("SDK features available")
             self.connect_button.setEnabled(False)
             self.disconnect_button.setEnabled(True)
@@ -945,7 +942,7 @@ class BosonControlPanel(QWidget):
             self.shutter_closed_btn.setEnabled(True)
         else:
             self.connection_status_label.setText("● Disconnected")
-            self.connection_status_label.setStyleSheet("color: #ff4444; font-weight: bold;")
+            set_role(self.connection_status_label, "error-strong")
             self.connection_hint.setText("Connect via COM port or use --enable-boson-sdk flag")
             self.connect_button.setEnabled(True)
             self.disconnect_button.setEnabled(False)
@@ -986,23 +983,23 @@ class BosonControlPanel(QWidget):
 
         if info.get('serial'):
             self.info_labels['serial'].setText(str(info['serial']))
-            self.info_labels['serial'].setStyleSheet("color: #e0e0e0;")
+            set_role(self.info_labels["serial"], None)
 
         if info.get('part_number'):
             self.info_labels['part_number'].setText(str(info['part_number']))
-            self.info_labels['part_number'].setStyleSheet("color: #e0e0e0;")
+            set_role(self.info_labels["part_number"], None)
 
         if info.get('firmware'):
             self.info_labels['software'].setText(str(info['firmware']))
-            self.info_labels['software'].setStyleSheet("color: #e0e0e0;")
+            set_role(self.info_labels["software"], None)
 
         if info.get('lens_number') is not None:
             self.info_labels['lens'].setText(str(info['lens_number']))
-            self.info_labels['lens'].setStyleSheet("color: #e0e0e0;")
+            set_role(self.info_labels["lens"], None)
 
         if info.get('table_number') is not None:
             self.info_labels['table'].setText(str(info['table_number']))
-            self.info_labels['table'].setStyleSheet("color: #e0e0e0;")
+            set_role(self.info_labels["table"], None)
 
         if info.get('external_sync'):
             # reflect the camera's real state without re-sending it as a command
@@ -1012,11 +1009,11 @@ class BosonControlPanel(QWidget):
                 self.sync_mode_combo.setCurrentIndex(idx)
                 self.sync_mode_combo.blockSignals(blocked)
             self.current_sync_label.setText(f"Current: {info['external_sync']}")
-            self.current_sync_label.setStyleSheet("font-size: 10px; color: #00aaff;")
+            set_role(self.current_sync_label, "info")
 
         if info.get('gain_mode'):
             self.current_gain_label.setText(f"Current: {info['gain_mode']}")
-            self.current_gain_label.setStyleSheet("font-size: 10px; color: #00aaff;")
+            set_role(self.current_gain_label, "info")
 
     def update_fpa_temperature(self, temp_kelvin: float, temp_celsius: float):
         """Update FPA temperature display."""
@@ -1025,15 +1022,13 @@ class BosonControlPanel(QWidget):
 
     def set_ffc_status(self, message: str, is_error: bool = False):
         """Update FFC status message."""
-        color = "#ff4444" if is_error else "#4CAF50"
         self.ffc_status_label.setText(f"Status: {message}")
-        self.ffc_status_label.setStyleSheet(f"font-size: 10px; color: {color};")
+        set_role(self.ffc_status_label, "error" if is_error else "ok")
 
     def set_status(self, message: str, is_error: bool = False):
         """Update connection hint/status message."""
-        color = "#ff4444" if is_error else "#4CAF50"
         self.connection_hint.setText(message)
-        self.connection_hint.setStyleSheet(f"font-size: 10px; color: {color};")
+        set_role(self.connection_hint, "error" if is_error else "ok")
 
     def update_ports(self, ports: list):
         """Update COM port dropdown with scanned ports."""
@@ -1083,24 +1078,26 @@ class BosonControlPanel(QWidget):
         else:
             self.diag_ffc_threshold_label.setText("--")
 
+    MODE_PILL_COLORS = {            # (background, text): both set explicitly so the pill reads on every theme
+        "neutral": ("#3a4048", "#e8eef0"), "ok": ("#14532d", "#d5f5e0"),
+        "warn": ("#5c4410", "#fbe7b0"), "error": ("#5c1a1a", "#fbd0d0"),
+    }
+
+    def _set_mode_pill(self, kind: str):
+        bg, fg = self.MODE_PILL_COLORS[kind]
+        self.radiometric_mode_status.setStyleSheet(
+            f"font-weight: bold; padding: 8px; background-color: {bg}; color: {fg}; border-radius: 3px; font-size: 11px;")
+
     def update_radiometric_mode_status(self, is_radiometric: bool, success: bool = True):
         """Update the radiometric mode status display."""
         if success:
             if is_radiometric:
                 self.radiometric_mode_status.setText("Current Mode: T-Linear Radiometric (16-bit)")
-                self.radiometric_mode_status.setStyleSheet(
-                    "font-weight: bold; padding: 8px; background-color: #004400; "
-                    "border-radius: 3px; color: #4CAF50;"
-                )
+                self._set_mode_pill("ok")
             else:
+                # 8-bit colourised video carries no temperatures: not a "success" state, so not green
                 self.radiometric_mode_status.setText("Current Mode: UVC Post-Colorized (8-bit)")
-                self.radiometric_mode_status.setStyleSheet(
-                    "font-weight: bold; padding: 8px; background-color: #004400; "
-                    "border-radius: 3px; color: #4CAF50;"
-                )
+                self._set_mode_pill("warn")
         else:
             self.radiometric_mode_status.setText("Mode change failed")
-            self.radiometric_mode_status.setStyleSheet(
-                "font-weight: bold; padding: 8px; background-color: #440000; "
-                "border-radius: 3px; color: #ff4444;"
-            )
+            self._set_mode_pill("error")

@@ -106,6 +106,9 @@ class CameraManagerDialog(QDialog):
         self.resize(820, 600)
 
         self._build_ui()
+        from thermal_inspection.gui.accessibility import apply_accessible_names, apply_tooltips
+        apply_tooltips(self)
+        apply_accessible_names(self)
 
         # Live status timer — polls CameraState every 1 s
         self._status_timer = QTimer(self)

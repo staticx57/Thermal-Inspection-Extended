@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont
 import logging
+from thermal_inspection.gui.themes import set_role
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,17 @@ class RadiometricPanel(QWidget):
             }
         """)
         self.status_banner.setMinimumHeight(50)
+        self.status_banner.setWordWrap(True)
+        self.status_banner.setToolTip(
+            "16-bit T-Linear gives temperatures straight from the sensor; how accurate they are depends on the camera's "
+            "own calibration. Check against a known reference (Cameras > Temp Calibration) before relying on absolute values.")
         layout.addWidget(self.status_banner)
+
+        scope = QLabel("How the app reads and shows temperatures. Settings sent to the camera itself are under "
+                       "Cameras > Thermal > (your camera) > Radiometric / Environment.")
+        scope.setWordWrap(True)
+        set_role(scope, "hint")
+        layout.addWidget(scope)
 
         # Status Group
         status_group = QGroupBox("Radiometric Status")
@@ -81,11 +92,11 @@ class RadiometricPanel(QWidget):
         status_layout.setSpacing(6)
 
         self.capability_label = QLabel("Camera Type: Checking...")
-        self.capability_label.setStyleSheet("color: #888888;")
+        set_role(self.capability_label, "hint")
         status_layout.addWidget(self.capability_label)
 
         self.mode_label = QLabel("Mode: Unknown")
-        self.mode_label.setStyleSheet("color: #888888;")
+        set_role(self.mode_label, "hint")
         status_layout.addWidget(self.mode_label)
 
         self.enable_checkbox = QCheckBox("Enable Radiometric Conversion")
@@ -152,7 +163,10 @@ class RadiometricPanel(QWidget):
         layout.addWidget(spot_count_group)
 
         # Temperature Range Configuration
-        range_group = QGroupBox("Temperature Range")
+        range_group = QGroupBox("Scene / Display Range")
+        range_group.setToolTip(
+            "The temperatures you expect in the scene: used for colour scaling and the 8-bit estimate. It does not "
+            "change 16-bit T-Linear readings, which come straight from the camera.")
         range_layout = QVBoxLayout()
         range_layout.setSpacing(6)
 
@@ -177,6 +191,7 @@ class RadiometricPanel(QWidget):
         range_layout.addLayout(max_layout)
 
         self.apply_range_btn = QPushButton("Apply Range")
+        self.apply_range_btn.setToolTip("Use this range for colour scaling (does not change 16-bit readings)")
         self.apply_range_btn.setEnabled(False)
         range_layout.addWidget(self.apply_range_btn)
 
@@ -557,7 +572,7 @@ class RadiometricPanel(QWidget):
         if enabled:
             self.mode_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
         else:
-            self.mode_label.setStyleSheet("color: #888888;")
+            set_role(self.mode_label, "hint")
 
         self.enable_checkbox.setEnabled(capable)
         self.apply_range_btn.setEnabled(capable and enabled)

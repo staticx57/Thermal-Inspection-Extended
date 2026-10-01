@@ -813,6 +813,21 @@ QPushButton[accent="primary"] {
     background-color: #4CAF50;
     color: #ffffff;
 }
+
+/* Semantic label roles (set_role): colours chosen to read on both light and dark themes, so panels do not hard-code
+   hex colours in setStyleSheet (a hard-coded near-white "#e0e0e0" camera-info value was invisible on the light theme). */
+QLabel[role="hint"] { color: #8a929a; font-size: 9pt; }
+QLabel[role="emph"] { font-weight: bold; }
+QLabel[role="ok"] { color: #2e9e57; }
+QLabel[role="ok-strong"] { color: #2e9e57; font-weight: bold; }
+QLabel[role="warn"] { color: #c98a00; }
+QLabel[role="error"] { color: #d9453d; }
+QLabel[role="error-strong"] { color: #d9453d; font-weight: bold; }
+QLabel[role="info"] { color: #2a7fd4; }
+QLabel[role="info-strong"] { color: #2a7fd4; font-weight: bold; }
+QLabel[role="warn-strong"] { color: #c98a00; font-weight: bold; }
+QLabel[role="small"] { font-size: 9pt; }
+QLabel[role="heading"] { font-weight: bold; font-size: 11pt; }
 """
 
 
@@ -863,6 +878,22 @@ def resolve_auto_theme(now_hour=None) -> str:
     return "Dark Mode" if dark else "Light Mode"
 
 
+ROLES = ("hint", "emph", "ok", "ok-strong", "warn", "warn-strong", "error", "error-strong", "info", "info-strong",
+         "small", "heading")
+
+
+def set_role(widget, role) -> None:
+    """Give a QLabel one of the semantic roles in STATE_COLORS_QSS (None clears it): theme-aware colour/weight without
+    a per-widget setStyleSheet. Any previous inline stylesheet on the widget is dropped."""
+    if role is not None and role not in ROLES:
+        raise ValueError(f"unknown role {role!r}")
+    if widget.styleSheet():
+        widget.setStyleSheet("")
+    widget.setProperty("role", role)
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
+
+
 def set_button_state(button, property_name: str, value) -> None:
     """
     Set one of STATE_COLORS_QSS's attribute-selector properties on a button.
@@ -880,6 +911,8 @@ def set_button_state(button, property_name: str, value) -> None:
     button.style().polish(button)
 
 __all__ = [
+    'ROLES',
+    'set_role',
     'DARK_THEME',
     'OLED_THEME',
     'LIGHT_THEME',

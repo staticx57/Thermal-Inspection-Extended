@@ -12,6 +12,8 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFrame, QGroupBox, QHBoxLayout, QLabel,
                              QPushButton, QScrollArea, QSpinBox, QVBoxLayout, QWidget)
 
+from thermal_inspection.gui.themes import set_role
+
 logger = logging.getLogger(__name__)
 
 METHOD_LABELS = [("Edges (thermal vs visible)", "edges"), ("Features (brightness)", "features"),
@@ -61,11 +63,11 @@ class AlignmentPanel(QWidget):
         v = QVBoxLayout(box)
         self.status_label = QLabel("Not calibrated")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_label.setStyleSheet("font-weight: bold; font-size: 11pt;")
+        set_role(self.status_label, "heading")
         v.addWidget(self.status_label)
         self.detail_label = QLabel("RGB is cropped to the thermal aspect ratio (no registration).")
         self.detail_label.setWordWrap(True)
-        self.detail_label.setStyleSheet("color: #888888; font-size: 9pt;")
+        set_role(self.detail_label, "hint")
         v.addWidget(self.detail_label)
         self.enable_checkbox = QCheckBox("Apply calibration")
         self.enable_checkbox.setEnabled(False)
@@ -73,10 +75,10 @@ class AlignmentPanel(QWidget):
         v.addWidget(self.enable_checkbox)
         self.stack_note_label = QLabel("")
         self.stack_note_label.setWordWrap(True)
-        self.stack_note_label.setStyleSheet("color: #d4a017; font-size: 9pt;")
+        set_role(self.stack_note_label, "warn")
         self.composition_label = QLabel("")
         self.composition_label.setWordWrap(True)
-        self.composition_label.setStyleSheet("font-size: 9pt;")
+        set_role(self.composition_label, "small")
         v.addWidget(self.composition_label)
         v.addWidget(self.stack_note_label)
         layout.addWidget(box)
@@ -88,7 +90,7 @@ class AlignmentPanel(QWidget):
                       "set the scene distance above, and capture. The distance is recorded with the calibration so "
                       "parallax correction can be combined with it.")
         hint.setWordWrap(True)
-        hint.setStyleSheet("color: #888888; font-size: 9pt;")
+        set_role(hint, "hint")
         c.addWidget(hint)
         row = QHBoxLayout()
         row.addWidget(QLabel("Method:"))
@@ -118,7 +120,8 @@ class AlignmentPanel(QWidget):
         c.addWidget(self.capture_btn)
         self.message_label = QLabel("")
         self.message_label.setWordWrap(True)
-        self.message_label.setStyleSheet("font-size: 9pt;")
+        set_role(self.message_label, "small")
+        self.message_label.setVisible(False)           # only takes space while there is something to say
         c.addWidget(self.message_label)
         layout.addWidget(cap)
 
@@ -133,7 +136,7 @@ class AlignmentPanel(QWidget):
         # Alignment/Auto-Crop actions get their OWN group below, since
         # calling both "Manual Alignment Shift" was misleading about what
         # was actually inside it.
-        shift_group = QGroupBox("Fine-Tune (manual)")
+        shift_group = QGroupBox("Fine-Tune (Manual)")
         shift_layout = QVBoxLayout()
         shift_layout.setSpacing(6)
         shift_layout.setContentsMargins(8, 8, 8, 8)
@@ -143,7 +146,7 @@ class AlignmentPanel(QWidget):
             "a fixed mounting offset that doesn't change with distance."
         )
         shift_info_label.setWordWrap(True)
-        shift_info_label.setStyleSheet("color: #888888; font-size: 9pt;")
+        set_role(shift_info_label, "hint")
         shift_layout.addWidget(shift_info_label)
 
         shift_x_layout = QHBoxLayout()
@@ -233,7 +236,7 @@ class AlignmentPanel(QWidget):
         # FIXED border-blank extent once, from whatever shift/zoom is
         # currently in effect - _remap_thermal then uses that fixed value
         # every frame instead of re-deriving it live.
-        auto_align_group = QGroupBox("Fine-Tune (auto) && Crop")
+        auto_align_group = QGroupBox("Fine-Tune (Auto) && Crop")
         auto_align_layout = QVBoxLayout()
         auto_align_layout.setSpacing(6)
         auto_align_layout.setContentsMargins(8, 8, 8, 8)
@@ -243,7 +246,7 @@ class AlignmentPanel(QWidget):
             "runs once, not every frame:"
         )
         auto_align_label.setWordWrap(True)
-        auto_align_label.setStyleSheet("color: #888888; font-size: 9pt;")
+        set_role(auto_align_label, "hint")
         auto_align_layout.addWidget(auto_align_label)
 
         self.working_distance_spin = self.distance_spin      # one shared scene distance (strip above)
@@ -280,7 +283,7 @@ class AlignmentPanel(QWidget):
 
         self.auto_align_result_label = QLabel("")
         self.auto_align_result_label.setWordWrap(True)
-        self.auto_align_result_label.setStyleSheet("color: #4CAF50; font-size: 9pt;")
+        set_role(self.auto_align_result_label, "ok")
         auto_align_layout.addWidget(self.auto_align_result_label)
 
         autocrop_label = QLabel(
@@ -288,7 +291,7 @@ class AlignmentPanel(QWidget):
             "also a one-time action, not recomputed every frame:"
         )
         autocrop_label.setWordWrap(True)
-        autocrop_label.setStyleSheet("color: #888888; font-size: 9pt;")
+        set_role(autocrop_label, "hint")
         auto_align_layout.addWidget(autocrop_label)
 
         autocrop_btn_layout = QHBoxLayout()
@@ -309,7 +312,7 @@ class AlignmentPanel(QWidget):
 
         self.auto_crop_result_label = QLabel("")
         self.auto_crop_result_label.setWordWrap(True)
-        self.auto_crop_result_label.setStyleSheet("color: #4CAF50; font-size: 9pt;")
+        set_role(self.auto_crop_result_label, "ok")
         auto_align_layout.addWidget(self.auto_crop_result_label)
 
         auto_align_group.setLayout(auto_align_layout)
@@ -438,7 +441,8 @@ class AlignmentPanel(QWidget):
 
     def show_message(self, text: str, is_error: bool):
         self.message_label.setText(text or "")
-        self.message_label.setStyleSheet(f"font-size: 9pt; color: {'#ff6666' if is_error else '#66bb6a'};")
+        set_role(self.message_label, "error" if is_error else "ok")
+        self.message_label.setVisible(bool(text))
 
     def set_status(self, st: dict):
         loaded, enabled = st.get("loaded"), st.get("enabled")
@@ -453,13 +457,16 @@ class AlignmentPanel(QWidget):
             "scale). Use them only for a small residual." if loaded and enabled else "")
         if not loaded:
             self.status_label.setText("Not calibrated")
-            self.status_label.setStyleSheet("font-weight: bold; font-size: 11pt; color: #ff4444;")
+            set_role(self.status_label, "error-strong")
             self.detail_label.setText("RGB is cropped to the thermal aspect ratio (no registration).")
             self.composition_label.setText("")
+            self.composition_label.setVisible(False)
+            self.stack_note_label.setVisible(False)
             return
+        self.stack_note_label.setVisible(bool(self.stack_note_label.text()))
+        self.composition_label.setVisible(True)
         self.status_label.setText("Calibrated" if enabled else "Calibrated (switched off)")
-        self.status_label.setStyleSheet(
-            f"font-weight: bold; font-size: 11pt; color: {'#4CAF50' if enabled else '#d4a017'};")
+        set_role(self.status_label, "ok-strong" if enabled else "warn-strong")
         parts = []
         if st.get("method"):
             parts.append(f"{st['method']}")
@@ -477,12 +484,12 @@ class AlignmentPanel(QWidget):
         elif not st.get("parallax_on"):
             self.composition_label.setText("Parallax correction is off: alignment is exact only near the "
                                            "calibration distance.")
-            self.composition_label.setStyleSheet("font-size: 9pt; color: #888888;")
+            set_role(self.composition_label, "hint")
         elif st.get("parallax_composed"):
             self.composition_label.setText("Parallax correction is on and composed with this calibration "
                                            "(its baseline shift is not applied twice).")
-            self.composition_label.setStyleSheet("font-size: 9pt; color: #66bb6a;")
+            set_role(self.composition_label, "ok")
         else:
             self.composition_label.setText("Parallax correction is on but this file records no distance, so the "
                                            "baseline shift is applied twice. Re-calibrate here to fix it.")
-            self.composition_label.setStyleSheet("font-size: 9pt; color: #ff6666;")
+            set_role(self.composition_label, "error")

@@ -82,8 +82,8 @@ class ControlPanel(QWidget):
         self.controls_layout.addWidget(self.draw_roi_btn, 1, 1)
         self.controls_layout.addWidget(self.clear_roi_btn, 1, 2)
 
-        # Row 2: View Controls
-        self.view_mode_btn = QPushButton("👁 View Mode")
+        # View controls: the view-mode button joins row 1 (4 + 4 columns), the theme button gets a slim full-width row
+        self.view_mode_btn = QPushButton("👁 View: Thermal")
         self.view_mode_btn.setMinimumWidth(100)
         self.view_mode_btn.setToolTip("Cycle view mode (Thermal/RGB/Fusion/Side-by-Side/PiP)")
 
@@ -91,8 +91,10 @@ class ControlPanel(QWidget):
         self.theme_btn.setMinimumWidth(100)
         self.theme_btn.setToolTip("Toggle dark/light theme")
 
-        self.controls_layout.addWidget(self.view_mode_btn, 2, 0)
-        self.controls_layout.addWidget(self.theme_btn, 2, 1)
+        self.controls_layout.addWidget(self.view_mode_btn, 1, 3)
+        self.controls_layout.addWidget(self.theme_btn, 2, 0, 1, 4)
+        for col in range(4):
+            self.controls_layout.setColumnStretch(col, 1)
 
         self.main_layout.addLayout(self.controls_layout)
 

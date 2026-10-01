@@ -6,6 +6,7 @@ from typing import Optional
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QColor
 from thermal_inspection.processing.isotherm_bands import IsothermBandManager, load_preset  # Phase 2 - Feature 8
+from thermal_inspection.gui.widgets.empty_hint import HintListWidget, HintTableWidget
 
 class IsothermPanel(QWidget):
     """
@@ -137,7 +138,7 @@ class IsothermPanel(QWidget):
         list_label = QLabel("Active Bands:")
         multiband_layout.addWidget(list_label)
 
-        self.band_list = QListWidget()
+        self.band_list = HintListWidget("No temperature bands defined yet.")
         self.band_list.setMaximumHeight(150)
         self.band_list.itemSelectionChanged.connect(self._on_band_selected)
         multiband_layout.addWidget(self.band_list)
