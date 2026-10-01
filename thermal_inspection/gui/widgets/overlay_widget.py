@@ -126,6 +126,10 @@ class InspectionOverlayWidget(QWidget):
         logger.info(f"[OVERLAY] set_view_mode called: mode='{mode}', fusion_priority='{fusion_priority}'")
         self.current_view_mode = mode
         self.fusion_priority = fusion_priority
+        # a thermal temperature scale only means something where the thermal image fills the view (side-by-side and
+        # picture-in-picture put other things in the top-right corner it would sit on)
+        if hasattr(self, 'colorbar') and self.colorbar:
+            self.colorbar.set_view_allowed(mode in ('thermal', 'fusion'))
 
         if mode == 'picture_in_picture':
             frame_w, frame_h = self.frame_size
@@ -1230,8 +1234,9 @@ class InspectionOverlayWidget(QWidget):
         self._position_colorbar()
 
     def _position_colorbar(self):
-        """Position the colorbar widget in the top-right corner."""
+        """Size the colorbar to the video area and place it in the top-right corner."""
         if hasattr(self, 'colorbar') and self.colorbar:
+            self.colorbar.set_available_size(self.width(), self.height())
             margin = 10
             x = self.width() - self.colorbar.width() - margin
             y = margin

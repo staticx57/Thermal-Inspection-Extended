@@ -283,6 +283,18 @@ class ROITemperaturePanel(QWidget):
                 out.append(item.data(Qt.ItemDataRole.UserRole))
         return out
 
+    def select_roi(self, roi_id: str) -> bool:
+        """Select one ROI's row (used when an ROI is clicked on the video). False if it isn't listed."""
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, COL_NAME)
+            if item is not None and item.data(Qt.ItemDataRole.UserRole) == roi_id:
+                self.table.clearSelection()
+                self.table.selectRow(row)
+                self.table.scrollToItem(item)
+                return True
+        logger.debug(f"ROI {roi_id} not in the ROI Manager list")
+        return False
+
     def _roi(self, roi_id):
         return next((r for r in self.current_rois if r.roi_id == roi_id), None)
 

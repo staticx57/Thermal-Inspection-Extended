@@ -85,3 +85,20 @@ def test_save_set_needs_rois_and_load_set_confirms_replacement(monkeypatch, tmp_
     w.app.roi_controller.load_rois.return_value = True
     MainWindow._on_roi_load_set(w)
     w.app.roi_controller.load_rois.assert_called_once_with(f)
+
+
+def test_clicking_an_roi_on_the_video_selects_it_in_the_roi_manager():
+    """Used to call analysis_panel.select_roi(), which read an roi_list that no longer exists and raised."""
+    w = _Win()
+    w.video_widget = MagicMock()
+    MainWindow._on_roi_selected(w, "manual_3")
+    w.video_widget.overlay.set_selected_roi.assert_called_once_with("manual_3")
+    w.roi_temp_panel.select_roi.assert_called_once_with("manual_3")
+
+
+def test_the_analysis_panel_no_longer_carries_a_second_roi_list():
+    from thermal_inspection.gui.panels.thermal_analysis import ThermalAnalysisPanel
+    for dead in ("select_roi", "_on_roi_selected", "_on_delete_rois_clicked", "_on_delete_all_rois_clicked",
+                 "_on_roi_palette_combo_changed"):
+        assert not hasattr(ThermalAnalysisPanel, dead), dead
+    assert hasattr(ThermalAnalysisPanel, "update_rois")                          # the ROI summary stays

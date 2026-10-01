@@ -243,3 +243,18 @@ class TestCompareExportHistory:
         panel.save_set_btn.click()
         panel.load_set_btn.click()
         assert got == ["save", "load"]
+
+
+class TestSelectFromTheVideo:
+    def test_select_roi_selects_the_row_and_reports_missing(self, setup):
+        mgr, panel, a, b = setup
+        assert panel.select_roi(b.roi_id)
+        assert panel.selected_ids() == [b.roi_id]
+        assert panel.select_roi(a.roi_id) and panel.selected_ids() == [a.roi_id]       # replaces, not adds
+        assert not panel.select_roi("nope") and panel.selected_ids() == [a.roi_id]
+
+    def test_selection_enables_the_row_actions(self, setup):
+        mgr, panel, a, b = setup
+        assert not panel.rename_btn.isEnabled()
+        panel.select_roi(a.roi_id)
+        assert panel.rename_btn.isEnabled()

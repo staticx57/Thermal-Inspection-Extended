@@ -72,12 +72,13 @@ Files: `gui/panels/fusion_panel.py` (727), `gui/panels/parallax_panel.py` (861),
 - [ ] 3D Fusion silently falls back to RGB-only unless parallax is enabled AND method=realsense AND target=thermal: show the reason in the UI (3D Mapping already does this for texture; see memory `project_3d_fusion_silent_gate`)
 - [ ] Parallax: clearer alignment diagnostics, remember settings, test the settings round trip (headless)
 
-### 4. Smaller UI pieces
-- [ ] `gui/widgets/colorbar_widget.py` (257, 0 tests): follow the active theme/palette/unit; was not touched in the theme or unit work
-- [ ] `gui/panels/anomaly_widgets.py` (661, 0 tests)
-- [ ] `gui/panels/environmental_compensation_panel.py` (280, 0 tests)
-- [ ] `gui/panels/grid_overlay_panel.py` (oldest GUI file, 2025-12-21)
-- [ ] `gui/panels/thermal_analysis.py` keeps its own ROI list alongside the ROI Manager tab: consolidate or remove the duplicate
+### 4. Smaller UI pieces - DONE 2026-10-01 (built + unit-tested + smoke-tested in the real app; not yet validated by the user)
+- [x] `gui/widgets/colorbar_widget.py`: was never fed a palette or range by anything outside the overlay, so it never showed. Now wired (palette + the 1st-99th percentile range the palette actually stretches over, in the app's unit), redrawn from a cached image with round tick values, sized from the font and video area, hidden in views where it means nothing (RGB, side-by-side, PIP, 3D), relative cold/hot ends for non-radiometric cameras, and a "Show Temperature Scale" checkbox (Analysis > General)
+- [x] `gui/panels/anomaly_widgets.py` (manual threshold): raw mode was capped at 0-16383 but Y16 radiometric counts are Kelvin x 100 (~29,000-31,000), so it could not express a room-temperature threshold. Added a real **Temperature** mode in the app's unit (sent to the detector as Y16), raw range now 0-65535, modes fall back to percentage without a radiometric source. The automatic `AnomalyWidget` half of this file was not reviewed
+- [x] `gui/panels/environmental_compensation_panel.py`: presets loaded one step low (`int(0.29*100)` = 28), ambient temperature was hard-coded to degC (now follows the unit, always emits degC), the "Estimated Accuracy +-0.5-1.0 C" figure was an invented heuristic (replaced by a plain-language settings check that makes no absolute-accuracy claim), `set_emissivity` left a stale preset name, and the panel greyed out with no explanation on non-radiometric sources
+- [x] `gui/panels/grid_overlay_panel.py`: "Custom (64x51) for Boson" assumed a 640x512 sensor; replaced by 3x3 / 4x4 / 10x10 cell presets computed from the real thermal resolution, plus a cell-count readout
+- [x] `gui/panels/thermal_analysis.py` kept a dead second ROI list, and clicking an ROI on the video called its `select_roi()` which read a list that no longer exists (it raised). Dead handlers removed; the click now selects the row in the ROI Manager
+- [ ] Still open from this group: the automatic `AnomalyWidget` (type toggles, fade/percentile controls) has not been audited; the colorbar has not been seen on a real radiometric camera
 
 ### 5. Persistence and dead/duplicate code - headless
 - [ ] `utils/settings_manager.py` defaults to a relative `config.json`: confirm where settings land depending on the working directory; make the location explicit

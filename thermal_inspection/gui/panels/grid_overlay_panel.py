@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QColor
 import logging
+import math
 from thermal_inspection.gui.themes import set_button_state
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ class GridOverlayPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.thermal_resolution = None           # (width, height) of the thermal sensor, once known
         self._setup_ui()
 
     def _setup_ui(self):
@@ -78,6 +80,9 @@ class GridOverlayPanel(QWidget):
         y_layout.addStretch()
         spacing_layout.addLayout(y_layout)
 
+        self.cells_label = QLabel("")
+        self.cells_label.setStyleSheet("color: #888888; font-size: 9pt;")
+        spacing_layout.addWidget(self.cells_label)
         layout.addWidget(spacing_group)
 
         # Color selection
@@ -122,16 +127,50 @@ class GridOverlayPanel(QWidget):
         coarse_btn.clicked.connect(lambda: self._apply_preset(100, 100))
         coarse_btn_layout.addWidget(coarse_btn)
 
-        custom_btn = QPushButton("Custom (64x51)")
-        custom_btn.setToolTip("640/10 x 512/10 grid for Boson")
-        custom_btn.clicked.connect(lambda: self._apply_preset(64, 51))
-        coarse_btn_layout.addWidget(custom_btn)
-
         preset_layout.addLayout(coarse_btn_layout)
+
+        # Presets by number of cells: they adapt to whatever resolution the thermal camera has (a 320x256 Boson, a
+        # 640x512 one, a 160x120 Lepton ...) instead of assuming one sensor
+        divide_layout = QHBoxLayout()
+        self.division_buttons = {}
+        for n in (3, 4, 10):
+            btn = QPushButton(f"{n} × {n}")
+            btn.setToolTip(f"Divide the thermal image into {n} × {n} cells")
+            btn.clicked.connect(lambda _=False, n=n: self._apply_division(n))
+            divide_layout.addWidget(btn)
+            self.division_buttons[n] = btn
+        preset_layout.addLayout(divide_layout)
 
         layout.addWidget(preset_group)
 
         layout.addStretch()
+
+    def set_thermal_resolution(self, width: int, height: int):
+        """Tell the panel the thermal sensor size so presets can divide it and the cell count can be shown."""
+        if width <= 0 or height <= 0:
+            return
+        self.thermal_resolution = (int(width), int(height))
+        cap = max(500, int(width), int(height))
+        for spin in (self.x_spacing_spin, self.y_spacing_spin):
+            spin.setMaximum(cap)
+        self._update_cells_label()
+
+    def _apply_division(self, n: int):
+        """Spacing that splits the thermal image into n x n cells (or a 50 px grid until the resolution is known)."""
+        if self.thermal_resolution is None:
+            self._apply_preset(50, 50)
+            return
+        w, h = self.thermal_resolution
+        self._apply_preset(max(10, round(w / n)), max(10, round(h / n)))
+
+    def _update_cells_label(self):
+        if self.thermal_resolution is None:
+            self.cells_label.setText("")
+            return
+        w, h = self.thermal_resolution
+        cx = math.ceil(w / self.x_spacing_spin.value())
+        cy = math.ceil(h / self.y_spacing_spin.value())
+        self.cells_label.setText(f"Thermal image {w}×{h} px  →  {cx} × {cy} cells")
 
     def _update_color_button(self):
         """Update color button appearance."""
@@ -151,6 +190,7 @@ class GridOverlayPanel(QWidget):
         x = self.x_spacing_spin.value()
         y = self.y_spacing_spin.value()
         logger.debug(f"Grid spacing changed: {x}x{y}")
+        self._update_cells_label()
         self.grid_spacing_changed.emit(x, y)
 
     def _on_color_clicked(self):

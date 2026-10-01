@@ -33,6 +33,7 @@ class _FakeMainWindow:
         self.video_widget = MagicMock()
         self.analysis_panel = MagicMock()
         self.anomaly_widget = MagicMock()
+        self._update_colorbar = MagicMock()
 
 
 def _call(fake, **kwargs):
@@ -99,3 +100,12 @@ class TestResultsChangedGating:
         fake = _FakeMainWindow()
         _call(fake, stats="s", hot_spots=["h"], cold_spots=["c"], anomalies=["a"])
         fake.analysis_panel.update_hot_spots.assert_called_once_with(["h"])
+
+
+class TestColorbarFeed:
+    def test_colorbar_is_fed_every_tick_with_the_results_flag(self):
+        fake = _FakeMainWindow()
+        _call(fake, stats="s", hot_spots=[], cold_spots=[], anomalies=[], palette_lut="lut",
+              temp_array="temps", is_radiometric=True, results_changed=False)
+        fake._update_colorbar.assert_called_once_with("lut", "temps", True, False)
+

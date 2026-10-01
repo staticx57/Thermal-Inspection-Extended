@@ -502,6 +502,7 @@ class InspectionAppWindow(QMainWindow):
             self.analysis_panel.show_hot_spots_toggled.connect(self._on_show_hot_spots_toggled)
             self.analysis_panel.show_cold_spots_toggled.connect(self._on_show_cold_spots_toggled)
             self.analysis_panel.show_anomalies_toggled.connect(self._on_show_anomalies_toggled)
+            self.analysis_panel.show_colorbar_toggled.connect(self._on_show_colorbar_toggled)
 
             # Info panel (overlay on video widget)
             self.info_panel = InfoPanel(self.video_widget)
@@ -1451,6 +1452,39 @@ class InspectionAppWindow(QMainWindow):
             self.app.thermal_analyzer.max_hot_spots = count
         logger.info(f"Max hot spots set to: {count}")
 
+    def _on_show_colorbar_toggled(self, enabled: bool):
+        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
+            self.video_widget.overlay.set_colorbar_enabled(enabled)
+
+    def _update_colorbar(self, palette_lut, temp_array, is_radiometric: bool, results_changed: bool):
+        """Feed the overlay colorbar its palette and the temperature range that palette actually spans.
+
+        The palette stretches the frame between its 1st and 99th percentile (PaletteManager._apply_contrast), so the
+        scale ends are those percentiles - not the scene's min/max, which one hot pixel would stretch. Without real
+        temperatures (non-radiometric) the bar shows relative cold/hot ends."""
+        overlay = getattr(getattr(self, 'video_widget', None), 'overlay', None)
+        if overlay is None:
+            return
+        if palette_lut is not None:
+            overlay.update_colorbar_palette(palette_lut)          # no-op when the palette is unchanged
+        if not is_radiometric:
+            overlay.update_colorbar_range(0.0, 1.0, "AGC")
+            return
+        now = time.monotonic()
+        if temp_array is None or not results_changed or now - getattr(self, '_colorbar_last', 0.0) < 0.5:
+            return
+        self._colorbar_last = now
+        import numpy as np
+        from thermal_inspection.processing import world_units
+        sample = np.asarray(temp_array)[::4, ::4]
+        sample = sample[np.isfinite(sample)]
+        if sample.size == 0:
+            return
+        lo, hi = np.percentile(sample, (1, 99))
+        unit = world_units.display_unit(getattr(self, '_temp_unit', 'C'))
+        overlay.update_colorbar_range(world_units.convert_temp(float(lo), unit), world_units.convert_temp(float(hi), unit),
+                                      world_units.unit_symbol(unit))
+
     def _on_show_hot_spots_toggled(self, enabled: bool):
         if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
             self.video_widget.overlay.show_hot_spots = enabled
@@ -1618,6 +1652,10 @@ class InspectionAppWindow(QMainWindow):
     def _on_radiometric_temp_unit_changed(self, unit: str):
         logger.info(f"[MAIN_WINDOW] _on_radiometric_temp_unit_changed called with unit: {unit}")
         self._temp_unit = unit
+        if hasattr(self, 'manual_threshold_widget'):
+            self.manual_threshold_widget.set_temperature_unit(unit)
+        if hasattr(self, 'env_comp_panel'):
+            self.env_comp_panel.set_temperature_unit(unit)
         if hasattr(self, 'gradient_panel'):
             self.gradient_panel.set_temperature_unit(unit)
         if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
@@ -1973,8 +2011,8 @@ class InspectionAppWindow(QMainWindow):
         logger.info(f"ROI selected: {roi_id}")
         if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
             self.video_widget.overlay.set_selected_roi(roi_id)
-        if hasattr(self, 'analysis_panel'):
-            self.analysis_panel.select_roi(roi_id)
+        if hasattr(self, 'roi_temp_panel'):
+            self.roi_temp_panel.select_roi(roi_id)       # the ROI Manager is the one ROI list
 
     def _on_cursor_moved(self, pos):
         """Display temperature at cursor position in the status bar."""
@@ -2966,6 +3004,9 @@ class InspectionAppWindow(QMainWindow):
             return
         if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
             self.video_widget.overlay.set_thermal_resolution(width, height)
+            grid_panel = getattr(getattr(self, 'analysis_panel', None), 'grid_overlay_panel', None)
+            if grid_panel is not None:
+                grid_panel.set_thermal_resolution(width, height)
 
     def update_metrics(self, fps: float, roi_count: int, thermal_connected: bool, rgb_connected: bool):
         """Update info panel metrics."""
@@ -3386,6 +3427,8 @@ class InspectionAppWindow(QMainWindow):
         if palette_lut is not None and hasattr(self.analysis_panel, 'set_histogram_palette_lut'):
             self.analysis_panel.set_histogram_palette_lut(palette_lut)
 
+        self._update_colorbar(palette_lut, temp_array, is_radiometric, results_changed)
+
         counts = {
             "hot_spots": len(hot_spots),
             "cold_spots": len(cold_spots),
@@ -3401,8 +3444,10 @@ class InspectionAppWindow(QMainWindow):
         if hasattr(self, 'isotherm_panel'):
             self.isotherm_panel.setEnabled(is_radiometric)
         if hasattr(self, 'env_comp_panel'):
-            self.env_comp_panel.setEnabled(is_radiometric)
+            self.env_comp_panel.set_radiometric(is_radiometric)
+            self.env_comp_panel.set_temperature_unit(getattr(self, '_temp_unit', 'C'))
         if hasattr(self, 'manual_threshold_widget'):
+            self.manual_threshold_widget.set_temperature_unit(getattr(self, '_temp_unit', 'C'))
             self.manual_threshold_widget.set_raw_mode_available(is_radiometric)
 
     # ========================================================================

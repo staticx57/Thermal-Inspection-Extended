@@ -39,6 +39,7 @@ class ThermalAnalysisPanel(QWidget):
     show_hot_spots_toggled = pyqtSignal(bool)
     show_cold_spots_toggled = pyqtSignal(bool)
     show_anomalies_toggled = pyqtSignal(bool)
+    show_colorbar_toggled = pyqtSignal(bool)
 
     # Spot Meter Signals
     spot_meter_toggled = pyqtSignal(bool)
@@ -49,7 +50,6 @@ class ThermalAnalysisPanel(QWidget):
         super().__init__(parent)
         # Removed fixed width - use parent tab width dynamically
         self.current_rois = []  # Store ROI list
-        self.selected_roi_index = -1  # Track selected ROI
 
         # Main layout with tabs
         main_layout = QVBoxLayout(self)
@@ -124,6 +124,13 @@ class ThermalAnalysisPanel(QWidget):
         self.show_anomalies_checkbox.setToolTip("Show/hide thermal anomaly markers on video")
         self.show_anomalies_checkbox.setMinimumHeight(28)
         self.general_layout.addWidget(self.show_anomalies_checkbox)
+
+        self.show_colorbar_checkbox = QCheckBox("Show Temperature Scale")
+        self.show_colorbar_checkbox.setChecked(True)
+        self.show_colorbar_checkbox.setToolTip(
+            "Show the colour scale (palette with temperatures) in the corner of the thermal view")
+        self.show_colorbar_checkbox.setMinimumHeight(28)
+        self.general_layout.addWidget(self.show_colorbar_checkbox)
 
         self.general_layout.addWidget(create_separator())
 
@@ -305,6 +312,7 @@ class ThermalAnalysisPanel(QWidget):
         self.show_hot_spots_checkbox.toggled.connect(self.show_hot_spots_toggled.emit)
         self.show_cold_spots_checkbox.toggled.connect(self.show_cold_spots_toggled.emit)
         self.show_anomalies_checkbox.toggled.connect(self.show_anomalies_toggled.emit)
+        self.show_colorbar_checkbox.toggled.connect(self.show_colorbar_toggled.emit)
 
     def _on_global_palette_changed(self, palette_name: str):
         """Handle global palette change."""
@@ -312,118 +320,6 @@ class ThermalAnalysisPanel(QWidget):
         clean_name = palette_name.strip().lstrip("─ ")
         if clean_name and not clean_name.startswith("───"):
             self.palette_changed.emit(clean_name)
-
-    def _on_roi_selected(self, row: int):
-        """Handle ROI selection in list."""
-        # This is triggered by single click, but might be part of multi-select
-        # We'll just update the palette combo based on the current item if only one is selected
-        selected_items = self.roi_list.selectedItems()
-        if len(selected_items) == 1:
-            item = selected_items[0]
-            roi_id = item.data(Qt.ItemDataRole.UserRole)
-            logger.debug(f"Panel internal selection: {roi_id}")
-            self.roi_selected.emit(roi_id)
-
-            # Update palette combo
-            if 0 <= row < len(self.current_rois):
-                 roi = next((r for r in self.current_rois if r.roi_id == roi_id), None)
-                 if roi and roi.custom_palette:
-                    target_palette = roi.custom_palette
-                    found_index = -1
-
-                    # Robust search for palette
-                    for i in range(self.roi_palette_combo.count()):
-                        item_text = self.roi_palette_combo.itemText(i)
-                        if "───" in item_text:
-                            continue
-                        # Clean item text to match stored palette name
-                        clean_text = item_text.strip().lstrip("─ ")
-                        if clean_text.lower() == target_palette.lower():
-                            found_index = i
-                            break
-
-                    if found_index >= 0:
-                        self.roi_palette_combo.blockSignals(True)
-                        self.roi_palette_combo.setCurrentIndex(found_index)
-                        self.roi_palette_combo.blockSignals(False)
-                        logger.debug(f"Synced combo to ROI palette: {target_palette}")
-                    else:
-                         logger.warning(f"Could not find palette '{target_palette}' in combo box")
-
-    def _on_delete_rois_clicked(self):
-        """Handle delete selected ROIs button."""
-        selected_items = self.roi_list.selectedItems()
-        if not selected_items:
-            return
-
-        count = len(selected_items)
-        confirm = QMessageBox.question(
-            self,
-            "Delete ROIs",
-            f"Are you sure you want to delete {count} ROI(s)?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-
-        if confirm == QMessageBox.StandardButton.Yes:
-            ids_to_delete = [item.data(Qt.ItemDataRole.UserRole) for item in selected_items]
-            for roi_id in ids_to_delete:
-                if roi_id:
-                    self.roi_deleted.emit(roi_id)
-
-    def _on_delete_all_rois_clicked(self):
-        """Handle delete all ROIs button."""
-        if self.roi_list.count() == 0:
-            return
-
-        confirm = QMessageBox.question(
-            self,
-            "Delete All ROIs",
-            "Are you sure you want to delete ALL ROIs?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-
-        if confirm == QMessageBox.StandardButton.Yes:
-            # Create a copy of IDs to avoid modification during iteration issues if immediate updates happen
-            ids_to_delete = []
-            for i in range(self.roi_list.count()):
-                item = self.roi_list.item(i)
-                ids_to_delete.append(item.data(Qt.ItemDataRole.UserRole))
-
-            for roi_id in ids_to_delete:
-                if roi_id:
-                    self.roi_deleted.emit(roi_id)
-
-    def _on_roi_palette_combo_changed(self, palette_name: str):
-        """Handle ROI palette change."""
-        # Remove category header prefix and indentation if present
-        clean_name = palette_name.strip().lstrip("─ ")
-        if clean_name and not clean_name.startswith("───"):
-            # Apply to all selected ROIs
-            selected_items = self.roi_list.selectedItems()
-            if selected_items:
-                for item in selected_items:
-                    roi_id = item.data(Qt.ItemDataRole.UserRole)
-                    if roi_id:
-                        self.roi_palette_changed.emit(roi_id, clean_name)
-                        logger.info(f"Setting ROI {roi_id} palette to {clean_name}")
-
-    def select_roi(self, roi_id: str):
-        """Select ROI in list by ID."""
-        logger.debug(f"Panel selecting ROI: {roi_id}")
-        found = False
-        for i in range(self.roi_list.count()):
-            item = self.roi_list.item(i)
-            item_id = item.data(Qt.ItemDataRole.UserRole)
-            if item_id == roi_id:
-                logger.debug(f"ROI {roi_id} found at index {i}, selecting...")
-                self.roi_list.setCurrentRow(i)
-                found = True
-                break
-
-        if not found:
-            logger.warning(f"ROI {roi_id} not found in ROI list (count: {self.roi_list.count()})")
-
-
 
     # Handlers for detection toggles are now signals emitted directly
     # _on_show_hot_spots_toggled, _on_show_cold_spots_toggled, _on_show_anomalies_toggled

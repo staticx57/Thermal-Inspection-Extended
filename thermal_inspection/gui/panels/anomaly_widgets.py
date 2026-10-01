@@ -11,10 +11,11 @@ import logging
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel,
-    QPushButton, QCheckBox, QComboBox, QSpinBox, QSlider,
+    QPushButton, QCheckBox, QComboBox, QDoubleSpinBox, QSpinBox, QSlider,
     QScrollArea, QFrame, QProgressBar, QTabWidget
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+from thermal_inspection.utils.temperature_units import from_celsius, to_celsius
 from PyQt6.QtGui import QFont
 
 logger = logging.getLogger(__name__)
@@ -31,9 +32,21 @@ class ManualThresholdWidget(QWidget):
     use_raw_values_changed = pyqtSignal(bool)
     enabled_changed = pyqtSignal(bool)
 
+    # Y16 radiometric frames hold Kelvin x 100 (about 29,000-31,000 at room temperature), so raw thresholds need the
+    # full 16-bit range; the old 0-16383 cap could not even express an ordinary temperature.
+    RAW_MAX = 65535
+    PERCENT, TEMPERATURE, RAW = "percent", "temperature", "raw"
+    UNIT_RANGE_C = (-100.0, 1500.0)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.enabled = False
+        self.value_mode = self.PERCENT
+        self.unit = "C"                         # temperature entry unit: 'C' | 'F' | 'K' (the app's unit setting)
+        self._temp_c = [40.0, 60.0]             # temperature thresholds, canonical degC (a unit switch keeps them)
+        self._percent = [50.0, 75.0]
+        self._raw = [29815.0, 31315.0]          # 25 C and 40 C as Y16 counts
+        self._radiometric = False
         self._init_ui()
         self._connect_signals()
 
@@ -84,11 +97,18 @@ class ManualThresholdWidget(QWidget):
         self.percent_radio.setChecked(True)
         self.percent_radio.setToolTip("Use percentage values (0-100%)")
 
+        self.temperature_radio = QPushButton("Temperature")
+        self.temperature_radio.setCheckable(True)
+        self.temperature_radio.setEnabled(False)          # needs a radiometric camera
+        self.temperature_radio.setToolTip("Enter thresholds as real temperatures in the app's unit (radiometric only)")
+
         self.advanced_radio = QPushButton("Advanced (Raw)")
         self.advanced_radio.setCheckable(True)
-        self.advanced_radio.setToolTip("Use raw 14-bit thermal values (0-16383)")
+        self.advanced_radio.setEnabled(False)             # needs a radiometric camera (see set_raw_mode_available)
+        self.advanced_radio.setToolTip("Use raw Y16 sensor counts (Kelvin x 100) - radiometric only")
 
         value_type_layout.addWidget(self.percent_radio)
+        value_type_layout.addWidget(self.temperature_radio)
         value_type_layout.addWidget(self.advanced_radio)
         config_layout.addWidget(value_type_group)
 
@@ -118,8 +138,9 @@ class ManualThresholdWidget(QWidget):
         # Min threshold
         min_layout = QHBoxLayout()
         min_layout.addWidget(QLabel("Min Threshold:"))
-        self.min_threshold_spin = QSpinBox()
+        self.min_threshold_spin = QDoubleSpinBox()
         self.min_threshold_spin.setRange(0, 100)
+        self.min_threshold_spin.setDecimals(0)
         self.min_threshold_spin.setValue(50)
         self.min_threshold_spin.setSuffix("%")
         self.min_threshold_spin.setToolTip("Minimum threshold percentage")
@@ -129,8 +150,9 @@ class ManualThresholdWidget(QWidget):
         # Max threshold
         max_layout = QHBoxLayout()
         max_layout.addWidget(QLabel("Max Threshold:"))
-        self.max_threshold_spin = QSpinBox()
+        self.max_threshold_spin = QDoubleSpinBox()
         self.max_threshold_spin.setRange(0, 100)
+        self.max_threshold_spin.setDecimals(0)
         self.max_threshold_spin.setValue(75)
         self.max_threshold_spin.setSuffix("%")
         self.max_threshold_spin.setToolTip("Maximum threshold percentage")
@@ -187,11 +209,12 @@ class ManualThresholdWidget(QWidget):
     def _connect_signals(self):
         """Connect internal signals."""
         self.enable_toggle.toggled.connect(self._on_enable_toggled)
-        self.percent_radio.clicked.connect(lambda: self._on_value_type_changed(False))
-        self.advanced_radio.clicked.connect(lambda: self._on_value_type_changed(True))
+        self.percent_radio.clicked.connect(lambda: self._set_value_mode(self.PERCENT))
+        self.temperature_radio.clicked.connect(lambda: self._set_value_mode(self.TEMPERATURE))
+        self.advanced_radio.clicked.connect(lambda: self._set_value_mode(self.RAW))
         self.threshold_mode_combo.currentTextChanged.connect(self._on_threshold_mode_changed)
-        self.min_threshold_spin.valueChanged.connect(self.min_threshold_changed.emit)
-        self.max_threshold_spin.valueChanged.connect(self.max_threshold_changed.emit)
+        self.min_threshold_spin.valueChanged.connect(lambda v: self._on_spin_edited(0, v))
+        self.max_threshold_spin.valueChanged.connect(lambda v: self._on_spin_edited(1, v))
         self.viz_mode_combo.currentTextChanged.connect(self._on_viz_mode_changed)
 
     def _on_enable_toggled(self, checked: bool):
@@ -201,29 +224,90 @@ class ManualThresholdWidget(QWidget):
         self.config_widget.setVisible(checked)
         self.enabled_changed.emit(checked)
 
+    # ---- value modes -------------------------------------------------------------------------------------------
+
+    def _store(self):
+        return {self.PERCENT: self._percent, self.TEMPERATURE: self._temp_c, self.RAW: self._raw}[self.value_mode]
+
     def _on_value_type_changed(self, use_raw: bool):
-        """Handle value type radio button change."""
-        self.percent_radio.setChecked(not use_raw)
-        self.advanced_radio.setChecked(use_raw)
+        """Legacy entry point (percentage vs raw)."""
+        self._set_value_mode(self.RAW if use_raw else self.PERCENT)
 
-        if use_raw:
-            self.min_threshold_spin.setRange(0, 16383)
-            self.max_threshold_spin.setRange(0, 16383)
-            self.min_threshold_spin.setSuffix("")
-            self.max_threshold_spin.setSuffix("")
-            self.min_threshold_spin.setValue(8000)
-            self.max_threshold_spin.setValue(12000)
-            self.threshold_hint.setText("Using raw values (0-16383) - Advanced mode")
+    def _set_value_mode(self, mode: str):
+        """Switch between percentage, real temperatures and raw Y16 counts. Each mode remembers its own thresholds."""
+        if mode in (self.TEMPERATURE, self.RAW) and not self._radiometric:
+            mode = self.PERCENT                                  # nothing real to compare against on an 8-bit frame
+        self.value_mode = mode
+        for btn, m in ((self.percent_radio, self.PERCENT), (self.temperature_radio, self.TEMPERATURE),
+                       (self.advanced_radio, self.RAW)):
+            btn.setChecked(mode == m)
+        self._apply_mode_to_spins()
+        # tell the detector how to read the numbers first, then the numbers themselves
+        self.use_raw_values_changed.emit(mode != self.PERCENT)
+        self._emit_values()
+
+    def _apply_mode_to_spins(self):
+        """Range / suffix / decimals / displayed value for the current mode (without echoing the change back out)."""
+        lo, hi = {self.PERCENT: (0, 100), self.RAW: (0, self.RAW_MAX),
+                  self.TEMPERATURE: tuple(from_celsius(v, self.unit) for v in self.UNIT_RANGE_C)}[self.value_mode]
+        suffix = {self.PERCENT: "%", self.RAW: "", self.TEMPERATURE: " " + self._unit_symbol()}[self.value_mode]
+        decimals = 1 if self.value_mode == self.TEMPERATURE else 0
+        for spin, v in zip((self.min_threshold_spin, self.max_threshold_spin), self._shown_values()):
+            spin.blockSignals(True)
+            spin.setDecimals(decimals)
+            spin.setRange(lo, hi)
+            spin.setSuffix(suffix)
+            spin.setValue(v)
+            spin.blockSignals(False)
+        self._update_hint()
+
+    def _unit_symbol(self) -> str:
+        return {"C": "°C", "F": "°F", "K": "K"}.get(self.unit, "°C")
+
+    def _shown_values(self):
+        if self.value_mode == self.TEMPERATURE:
+            return [from_celsius(c, self.unit) for c in self._temp_c]
+        return list(self._store())
+
+    def _on_spin_edited(self, which: int, value: float):
+        """A spin box was edited by the user: remember it (temperatures canonically in degC) and send it on."""
+        if self.value_mode == self.TEMPERATURE:
+            self._temp_c[which] = to_celsius(value, self.unit)
         else:
-            self.min_threshold_spin.setRange(0, 100)
-            self.max_threshold_spin.setRange(0, 100)
-            self.min_threshold_spin.setSuffix("%")
-            self.max_threshold_spin.setSuffix("%")
-            self.min_threshold_spin.setValue(50)
-            self.max_threshold_spin.setValue(75)
-            self.threshold_hint.setText("Using percentage (0-100%)")
+            self._store()[which] = value
+        self._update_hint()
+        (self.min_threshold_changed if which == 0 else self.max_threshold_changed).emit(self.backend_value(which))
 
-        self.use_raw_values_changed.emit(use_raw)
+    def backend_value(self, which: int) -> float:
+        """What the detector should receive for threshold `which` (0 = min, 1 = max): a percentage, or - for real
+        temperatures - the matching Y16 count (Kelvin x 100), since the detector compares raw frame values."""
+        if self.value_mode == self.TEMPERATURE:
+            return (self._temp_c[which] + 273.15) * 100.0
+        return float(self._store()[which])
+
+    def _emit_values(self):
+        self.min_threshold_changed.emit(self.backend_value(0))
+        self.max_threshold_changed.emit(self.backend_value(1))
+
+    def _update_hint(self):
+        if self.value_mode == self.PERCENT:
+            self.threshold_hint.setText("Percentage of the current frame's temperature range (0-100%)")
+        elif self.value_mode == self.TEMPERATURE:
+            self.threshold_hint.setText(
+                f"Real temperatures - detector sees {self.backend_value(0):,.0f} to {self.backend_value(1):,.0f} "
+                "raw counts (Y16: Kelvin x 100)")
+        else:
+            self.threshold_hint.setText("Raw Y16 counts (Kelvin x 100; 25 °C = 29,815) - advanced")
+
+    def set_temperature_unit(self, unit: str):
+        """The app's temperature unit changed ('C', 'F' or 'K'; anything else is treated as C). Temperature thresholds keep
+        their physical value and are re-shown in the new unit."""
+        unit = unit if unit in ("C", "F", "K") else "C"
+        if unit == self.unit:
+            return
+        self.unit = unit
+        if self.value_mode == self.TEMPERATURE:
+            self._apply_mode_to_spins()
 
     def _on_threshold_mode_changed(self, text: str):
         """Handle threshold mode combo change."""
@@ -256,19 +340,17 @@ class ManualThresholdWidget(QWidget):
 
     def set_raw_mode_available(self, available: bool):
         """
-        Enable/disable "Advanced (Raw)" mode based on whether the active
-        thermal source is actually producing 16-bit radiometric frames.
-        Raw-value thresholds (e.g. 8000) are compared directly against
-        whatever frame reaches detect_threshold_anomalies() - against an
-        8-bit AGC-processed frame (0-255, from a non-radiometric camera or
-        8-bit estimation mode) they can never match, silently making
-        detection permanently a no-op rather than erroring. Percentage
-        mode is unaffected - it derives its actual thresholds from
-        whatever min/max the current frame contains, at any bit depth.
+        Enable the Temperature and Advanced (Raw) modes only when the active thermal source is producing real 16-bit
+        radiometric frames. Thresholds in those modes are compared directly against whatever frame reaches
+        detect_threshold_anomalies() - against an 8-bit AGC frame (0-255, non-radiometric camera or 8-bit estimation)
+        they can never match, silently making detection a no-op rather than erroring. Percentage mode derives its
+        thresholds from the frame's own min/max, at any bit depth, so it always works.
         """
+        self._radiometric = bool(available)
         self.advanced_radio.setEnabled(available)
-        if not available and self.advanced_radio.isChecked():
-            self.percent_radio.click()
+        self.temperature_radio.setEnabled(available)
+        if not available and self.value_mode != self.PERCENT:
+            self._set_value_mode(self.PERCENT)
 
 
 class AnomalyWidget(QWidget):
