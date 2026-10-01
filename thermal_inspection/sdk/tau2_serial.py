@@ -27,18 +27,33 @@ logger = logging.getLogger(__name__)
 # Protocol Constants
 TAU2_PROCESS_CODE = 0x6E
 
-# Status Codes (Byte 1 in response header)
+# Status Codes (Byte 1 in response header). Cross-checked against flirpy 0.6 (flirpy/camera/tau.py) and a second
+# independent Tau 2 driver, both derived from the Tau 2 / Quark Software IDD (102-PS242-43). An earlier version of this
+# table was shifted by one (NOT_READY=0x01, a CHECKSUM_ERROR=0x03 that the IDD does not have).
 STATUS_CAM_OK = 0x00
-STATUS_CAM_NOT_READY = 0x01
-STATUS_CAM_RANGE_ERROR = 0x02
-STATUS_CAM_CHECKSUM_ERROR = 0x03
-STATUS_CAM_UNDEFINED_PROCESS_ERROR = 0x04
-STATUS_CAM_UNDEFINED_FUNCTION_ERROR = 0x05
-STATUS_CAM_TIMEOUT_ERROR = 0x06
+STATUS_CAM_NOT_READY = 0x02
+STATUS_CAM_RANGE_ERROR = 0x03
+STATUS_CAM_UNDEFINED_ERROR = 0x04
+STATUS_CAM_UNDEFINED_PROCESS_ERROR = 0x05
+STATUS_CAM_UNDEFINED_FUNCTION_ERROR = 0x06
+STATUS_CAM_TIMEOUT_ERROR = 0x07
 STATUS_CAM_BYTE_COUNT_ERROR = 0x09
 STATUS_CAM_FEATURE_NOT_ENABLED = 0x0A
 
-# Function Opcodes (Byte 3)
+STATUS_MESSAGES = {
+    STATUS_CAM_NOT_READY: "camera not ready (try again in a moment)",
+    STATUS_CAM_RANGE_ERROR: "argument out of range",
+    STATUS_CAM_UNDEFINED_ERROR: "undefined error",
+    STATUS_CAM_UNDEFINED_PROCESS_ERROR: "undefined process code",
+    STATUS_CAM_UNDEFINED_FUNCTION_ERROR: "function not supported by this camera/firmware",
+    STATUS_CAM_TIMEOUT_ERROR: "camera timed out",
+    STATUS_CAM_BYTE_COUNT_ERROR: "wrong number of argument bytes",
+    STATUS_CAM_FEATURE_NOT_ENABLED: "feature not enabled on this camera",
+}
+
+# Function Opcodes (Byte 3). Same provenance as the status table. The previous table put AGC at 0x0E (FFC temperature
+# delta), digital output at 0x11 (video orientation), "shutter position" at 0x1E (LENS NUMBER), spot meter at 0x2B/0x2C and
+# READ_SENSOR at 0x4E: writing any of those on a real camera would have changed an unrelated setting.
 CMD_NO_OP = 0x00
 CMD_SET_DEFAULTS = 0x01
 CMD_CAMERA_RESET = 0x02
@@ -49,22 +64,31 @@ CMD_BAUD_RATE = 0x07
 CMD_GAIN_MODE = 0x0A
 CMD_FFC_MODE = 0x0B
 CMD_DO_FFC = 0x0C
-CMD_AGC_TYPE = 0x0E
-CMD_COLOR_LUT = 0x10
-CMD_DIGITAL_OUTPUT_MODE = 0x11
-CMD_DIGITAL_OUTPUT_FORMAT = 0x12
-CMD_SHUTTER_POSITION = 0x1E
-CMD_TLINEAR_MODE = 0x2A
-CMD_SPOT_METER = 0x2B
-CMD_SPOT_METER_DATA = 0x2C
-CMD_READ_SENSOR = 0x4E
+CMD_COLOR_LUT = 0x10                 # VIDEO_PALETTE
+CMD_DIGITAL_OUTPUT_MODE = 0x12
+CMD_AGC_TYPE = 0x13
+CMD_LENS_NUMBER = 0x1E
+CMD_SPOT_METER_MODE = 0x1F
+CMD_READ_SENSOR = 0x20               # FPA / housing temperature, accelerometer, core status
+CMD_TEST_PATTERN = 0x25
+CMD_SHUTTER_POSITION = 0x79
+CMD_TLINEAR = 0x8E                   # TLinear output resolution (sub-command 0x0010)
+
+# READ_SENSOR arguments
+SENSOR_FPA_TEMPERATURE = 0x0000
+SENSOR_HOUSING_TEMPERATURE = 0x000A
+SENSOR_CORE_STATUS = 0x0011
+# TLINEAR sub-command and values: 0 = low resolution (0.4 K/count), 1 = high resolution (0.04 K/count)
+TLINEAR_SUBCOMMAND_RESOLUTION = 0x0010
+TLINEAR_KELVIN_PER_COUNT = {True: 0.04, False: 0.4}
 
 
 class Tau2StatusError(Exception):
     """Raised when Tau2 returns an error status code."""
     def __init__(self, status_code: int, message: str = ""):
         self.status_code = status_code
-        super().__init__(f"Tau 2 Error [0x{status_code:02X}]: {message}")
+        meaning = STATUS_MESSAGES.get(status_code, "unknown status")
+        super().__init__(f"Tau 2 Error [0x{status_code:02X}] {meaning}: {message}")
 
 
 class Tau2CRCError(Exception):
@@ -78,9 +102,11 @@ class Tau2TimeoutError(Exception):
 
 
 class GainMode(IntEnum):
-    HIGH = 0
+    """Tau 2 IDD GAIN_MODE values: 0 automatic, 1 low gain only, 2 high gain only, 3 manual. (The Boson's numbering is
+    HIGH=0, LOW=1, AUTO=2: this enum used to copy it, which on a Tau 2 would have selected the opposite gain.)"""
+    AUTO = 0
     LOW = 1
-    AUTO = 2
+    HIGH = 2
     MANUAL = 3
 
 
@@ -295,38 +321,67 @@ class Tau2Serial:
         status, _ = self.send_command(CMD_SHUTTER_POSITION, struct.pack(">H", position))
         return status == STATUS_CAM_OK
 
-    def set_tlinear_mode(self, enabled: bool, high_res: bool = True) -> bool:
-        """Configure Advanced Radiometry T-Linear mode."""
-        en_val = 0x0001 if enabled else 0x0000
-        res_val = 0x0000 if high_res else 0x0001
-        status, _ = self.send_command(CMD_TLINEAR_MODE, struct.pack(">HH", en_val, res_val))
+    def set_tlinear_resolution(self, high_res: bool = True) -> bool:
+        """Resolution of the TLinear digital output: high = 0.04 K/count, low = 0.4 K/count (IDD TLINEAR 0x8E)."""
+        status, _ = self.send_command(CMD_TLINEAR, struct.pack(">HH", TLINEAR_SUBCOMMAND_RESOLUTION,
+                                                               0x0001 if high_res else 0x0000))
         return status == STATUS_CAM_OK
 
+    def get_tlinear_resolution(self) -> Optional[bool]:
+        """True = high (0.04 K/count), False = low (0.4 K/count), None if the camera did not answer."""
+        _, data = self.send_command(CMD_TLINEAR, struct.pack(">H", TLINEAR_SUBCOMMAND_RESOLUTION))
+        if len(data) >= 2:
+            return struct.unpack(">H", data[:2])[0] == 0x0001
+        return None
+
+    def set_tlinear_mode(self, enabled: bool, high_res: bool = True) -> bool:
+        """
+        Select the TLinear output resolution. The IDD's TLINEAR command only sets the RESOLUTION of the TLinear
+        digital output; turning TLinear output on is part of the digital output format (DIGITAL_OUTPUT_MODE / the
+        capture hardware), so `enabled=False` is not something this command can do and is reported as such.
+        """
+        if not enabled:
+            logger.warning("Tau 2: TLinear output cannot be switched off through the TLINEAR command; "
+                           "change the digital output format instead")
+            return False
+        return self.set_tlinear_resolution(high_res)
+
     def get_tlinear_mode(self) -> Tuple[bool, bool]:
-        """Returns (enabled, is_high_res)."""
-        _, data = self.send_command(CMD_TLINEAR_MODE)
-        if len(data) >= 4:
-            en_val, res_val = struct.unpack(">HH", data[:4])
-            return (en_val == 0x0001), (res_val == 0x0000)
-        return False, True
+        """Returns (enabled, is_high_res). `enabled` is assumed True when the camera answers (see set_tlinear_mode)."""
+        high = self.get_tlinear_resolution()
+        return (high is not None), (True if high is None else high)
+
+    def _read_sensor(self, argument: int) -> Optional[int]:
+        _, data = self.send_command(CMD_READ_SENSOR, struct.pack(">H", argument))
+        return struct.unpack(">h", data[:2])[0] if len(data) >= 2 else None
 
     def get_fpa_temperature(self) -> float:
-        """Returns Focal Plane Array (FPA) temperature in Celsius."""
-        _, data = self.send_command(CMD_READ_SENSOR, struct.pack(">H", 0x0000))
-        if len(data) >= 2:
-            counts_tenth_k = struct.unpack(">H", data[:2])[0]
-            temp_k = counts_tenth_k / 10.0
-            return temp_k - 273.15
-        return 0.0
+        """Returns Focal Plane Array (FPA) temperature in Celsius (the camera reports 0.1 C units)."""
+        raw = self._read_sensor(SENSOR_FPA_TEMPERATURE)
+        return raw / 10.0 if raw is not None else 0.0
 
     def get_housing_temperature(self) -> float:
-        """Returns camera housing temperature in Celsius."""
-        _, data = self.send_command(CMD_READ_SENSOR, struct.pack(">H", 0x0001))
-        if len(data) >= 2:
-            counts_tenth_k = struct.unpack(">H", data[:2])[0]
-            temp_k = counts_tenth_k / 10.0
-            return temp_k - 273.15
-        return 0.0
+        """Returns camera housing temperature in Celsius (the camera reports 0.01 C units)."""
+        raw = self._read_sensor(SENSOR_HOUSING_TEMPERATURE)
+        return raw / 100.0 if raw is not None else 0.0
+
+    def get_core_status(self) -> dict:
+        """Core health flags: overtemp (remove power!), needs_ffc, suggest_gain_switch, suggest_nuc_switch, ffc_in_progress."""
+        _, data = self.send_command(CMD_READ_SENSOR, struct.pack(">H", SENSOR_CORE_STATUS))
+        status = struct.unpack(">H", data[:2])[0] if len(data) >= 2 else 0
+        return {"overtemp": bool(status & (1 << 0)), "needs_ffc": bool(status & (1 << 2)),
+                "suggest_gain_switch": bool(status & (1 << 3)), "suggest_nuc_switch": bool(status & (1 << 5)),
+                "ffc_in_progress": bool(status & (1 << 6)), "raw": status}
+
+    def set_test_pattern(self, mode: int = 1) -> bool:
+        """Built-in digital test pattern (0 = off): isolates video-path problems from the sensor."""
+        status, _ = self.send_command(CMD_TEST_PATTERN, struct.pack(">H", int(mode)))
+        return status == STATUS_CAM_OK
+
+    def get_shutter_position(self) -> Optional[int]:
+        """0 = open, 1 = closed."""
+        _, data = self.send_command(CMD_SHUTTER_POSITION)
+        return struct.unpack(">H", data[:2])[0] if len(data) >= 2 else None
 
 
 def scan_tau2_ports() -> List[str]:

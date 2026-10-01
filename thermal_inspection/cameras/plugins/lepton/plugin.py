@@ -9,7 +9,7 @@ from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from thermal_inspection.cameras.plugin.camera_plugin import (
     CameraPlugin, CameraRole, CameraPluginMatch, CameraCapabilities, CameraSDK
 )
-from thermal_inspection.cameras.device_scanner import find_devices_by_resolution
+from thermal_inspection.cameras.device_scanner import find_devices_by_resolution, scan_video_devices
 from thermal_inspection.cameras.opencv_thermal_backend import OpenCVThermalBackend
 
 if TYPE_CHECKING:
@@ -18,6 +18,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 LEPTON_RESOLUTIONS = [(160, 120), (80, 60), (120, 160), (60, 80)]
+
+# A Lepton on a PureThermal board (USB VID 1E4E / PID 0100) enumerates as "PureThermal (fw:...)". flirpy finds Lepton
+# cameras by exactly that VID/PID. Matching the name is more reliable than the frame size: a 160x120 webcam also fits
+# the size, and a PureThermal stream that carries its telemetry rows is 160x122/80x62, which the size list misses.
+PURETHERMAL_NAME_TERMS = ("purethermal",)
 
 
 class LeptonCameraSDK(CameraSDK):
@@ -125,13 +130,28 @@ class LeptonPlugin(CameraPlugin):
     def detect(self) -> List[CameraPluginMatch]:
         # Reads the shared device scan; does not touch hardware itself.
         matches = []
+        by_name = [d for d in scan_video_devices()
+                   if any(t in (d.name or "").lower() for t in PURETHERMAL_NAME_TERMS)]
+        for device in by_name:
+            matches.append(CameraPluginMatch(
+                plugin_id=self.plugin_id,
+                device_index=device.index,
+                name=f"FLIR Lepton on PureThermal ({device.width}x{device.height})",
+                resolution=device.resolution,
+                score=100,
+                extra={"matched_by": "name"},
+            ))
+        named = {d.index for d in by_name}
         for device in find_devices_by_resolution(LEPTON_RESOLUTIONS):
+            if device.index in named:
+                continue
             matches.append(CameraPluginMatch(
                 plugin_id=self.plugin_id,
                 device_index=device.index,
                 name=f"FLIR Lepton ({device.width}x{device.height})",
                 resolution=device.resolution,
-                score=90
+                score=90,
+                extra={"matched_by": "resolution"},
             ))
         return matches
 

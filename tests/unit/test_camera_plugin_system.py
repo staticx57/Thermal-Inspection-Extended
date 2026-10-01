@@ -309,3 +309,32 @@ def test_app_plugin_host_integration():
     assert app.camera_state.thermal_connected is False
     assert app.camera_state.is_radiometric is False
 
+
+
+class TestLeptonDetection:
+    """PureThermal boards are found by name (flirpy's own VID/PID rule), not only by frame size."""
+
+    @staticmethod
+    def devices(*specs):
+        from thermal_inspection.cameras.device_scanner import VideoDevice
+        return [VideoDevice(index=i, name=n, width=w, height=h) for i, (n, w, h) in enumerate(specs)]
+
+    def detect(self, monkeypatch, *specs):
+        from thermal_inspection.cameras.plugins.lepton import plugin as lp
+        devs = self.devices(*specs)
+        monkeypatch.setattr(lp, "scan_video_devices", lambda: devs)
+        monkeypatch.setattr(lp, "find_devices_by_resolution",
+                            lambda res, tolerance=0: [d for d in devs if d.resolution in res])
+        return lp.LeptonPlugin().detect()
+
+    def test_purethermal_with_telemetry_rows_is_found_by_name(self, monkeypatch):
+        (m,) = self.detect(monkeypatch, ("PureThermal (fw:v1.3.0)", 160, 122))
+        assert m.score == 100 and m.extra["matched_by"] == "name" and m.resolution == (160, 122)
+
+    def test_a_named_board_is_not_listed_twice(self, monkeypatch):
+        ms = self.detect(monkeypatch, ("PureThermal (fw:v1.3.0)", 160, 120))
+        assert len(ms) == 1 and ms[0].score == 100
+
+    def test_size_only_match_is_kept_as_the_lower_confidence_fallback(self, monkeypatch):
+        ms = self.detect(monkeypatch, ("USB Camera", 160, 120), ("Integrated Webcam", 1280, 720))
+        assert [(m.device_index, m.score, m.extra["matched_by"]) for m in ms] == [(0, 90, "resolution")]

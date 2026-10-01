@@ -12,7 +12,8 @@ from thermal_inspection.cameras.plugin.camera_plugin import (
 from thermal_inspection.cameras.device_scanner import find_devices_by_resolution
 from thermal_inspection.cameras.tau2_backend import Tau2Backend
 from thermal_inspection.cameras.tau2_camera import TAU2_RESOLUTIONS
-from thermal_inspection.sdk.tau2_serial import Tau2Serial, scan_tau2_ports, GainMode, FFCMode, ColorLUT, AGCType
+from thermal_inspection.sdk.tau2_serial import (Tau2Serial, scan_tau2_ports, GainMode, FFCMode, ColorLUT, AGCType,
+                                                  TLINEAR_KELVIN_PER_COUNT)
 from thermal_inspection.utils.config import get_serial_port, get_serial_baud
 
 if TYPE_CHECKING:
@@ -27,7 +28,8 @@ DEFAULT_BAUD_RATE = 57600
 class Tau2CameraSDK(CameraSDK):
     """CameraSDK implementation for FLIR Tau 2 using Tau2Serial CCI protocol."""
 
-    def __init__(self, com_port: Optional[str] = None, baud_rate: Optional[int] = None):
+    def __init__(self, com_port: Optional[str] = None, baud_rate: Optional[int] = None, backend=None):
+        self.backend = backend      # the video backend, told when the TLinear resolution changes
         # com_port intentionally stays None when the caller (Tau2Plugin,
         # after scanning live hardware) explicitly found no CCI serial port -
         # falling back to a configured default here would silently paper
@@ -124,11 +126,24 @@ class Tau2CameraSDK(CameraSDK):
                 enabled = params.get("enabled", True)
                 high_res = params.get("resolution", "high").lower() == "high"
                 ok = self.serial.set_tlinear_mode(enabled, high_res)
+                if ok and self.backend is not None:
+                    # Tau 2 TLinear counts are 0.04 K (high) or 0.4 K (low); Tau2Camera rescales them to the app's
+                    # Kelvin x 100 convention, so it has to know which resolution the camera was just set to
+                    self.backend.high_res = high_res
+                    if getattr(self.backend, "camera", None) is not None:
+                        self.backend.camera.set_tlinear(True, high_res)
                 return {"success": ok}
 
             elif command == "get_tlinear":
                 enabled, high_res = self.serial.get_tlinear_mode()
-                return {"success": True, "enabled": enabled, "high_res": high_res}
+                return {"success": True, "enabled": enabled, "high_res": high_res,
+                        "kelvin_per_count": TLINEAR_KELVIN_PER_COUNT[high_res]}
+
+            elif command == "get_core_status":
+                return {"success": True, **self.serial.get_core_status()}
+
+            elif command == "set_test_pattern":
+                return {"success": self.serial.set_test_pattern(int(params.get("mode", 1)))}
 
             elif command == "get_fpa_temp":
                 temp = self.serial.get_fpa_temperature()
@@ -184,7 +199,7 @@ class Tau2CameraSDK(CameraSDK):
             "get_gain_mode", "set_ffc_mode", "set_palette", "set_tlinear",
             "set_radiometric_mode", "get_tlinear", "get_fpa_temp",
             "get_housing_temp", "get_camera_info", "set_shutter_position",
-            "set_agc_type", "get_agc_type"
+            "set_agc_type", "get_agc_type", "get_core_status", "set_test_pattern"
         ]
 
 
@@ -276,7 +291,7 @@ class Tau2Plugin(CameraPlugin):
         raw_mode = bool(config.get('tau2', {}).get('raw_mode', False))
         byte_order = config.get('tau2', {}).get('byte_order', 'swap')
 
-        return Tau2Backend(
+        self._last_backend = Tau2Backend(
             device_id=match.device_index,
             resolution=match.resolution or (640, 512),
             tlinear=has_cci,
@@ -284,9 +299,11 @@ class Tau2Plugin(CameraPlugin):
             raw_mode=raw_mode,
             byte_order=byte_order
         )
+        return self._last_backend
 
     def create_sdk(self, match: CameraPluginMatch) -> Tau2CameraSDK:
         return Tau2CameraSDK(
+            backend=getattr(self, "_last_backend", None),
             com_port=match.com_port or self._resolve_com_port(),
             baud_rate=match.baud_rate or get_serial_baud(self.plugin_id, DEFAULT_BAUD_RATE)
         )
