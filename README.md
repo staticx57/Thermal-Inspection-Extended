@@ -1,7 +1,7 @@
 # Thermal Inspection Fusion Tool
 
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20Jetson-blue)]()
-[![Python](https://img.shields.io/badge/python-3.8+-green)]()
+[![Python](https://img.shields.io/badge/python-3.10+-green)]()
 [![OpenCV](https://img.shields.io/badge/opencv-4.5+-green.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
 
@@ -18,7 +18,7 @@ Professional-grade thermal imaging application combining FLIR Boson/Lepton therm
 - **Equipment Diagnostics** - Hot spot identification, bearing analysis, electrical panel inspection
 - **Research & Development** - Thermal characterization, heat dissipation studies, material testing
 
-Built on Qt6 with a modern dark-themed GUI, the application provides real-time thermal/RGB fusion, radiometric temperature measurement, automatic ROI detection, and comprehensive thermal analysis tools.
+Built on Qt6 with a themeable GUI (10 themes, including one that follows your system's light/dark setting), the application provides real-time thermal/RGB fusion, radiometric temperature measurement, automatic ROI detection, and comprehensive thermal analysis tools.
 
 ---
 
@@ -26,52 +26,59 @@ Built on Qt6 with a modern dark-themed GUI, the application provides real-time t
 
 ### 🔥 Advanced Thermal-RGB Fusion
 
-**9 Fusion Algorithms**:
+**13 Fusion Modes** (2D Fusion tab, or `--fusion-mode`):
 - **Alpha Blend** - Weighted overlay of thermal and RGB images
-- **Detail Inject** - FLIR MSX-style grayscale detail overlay from RGB onto thermal
+- **Detail Injection** (`detail_inject`) - FLIR MSX-style grayscale detail overlay from RGB onto thermal
 - **Relief Fusion** - 3D bas-relief embossed effect for enhanced depth perception
 - **Edge Enhanced** - Thermal base with RGB edge overlays for structural context
-- **Thermal Overlay** - Thermal colormap overlaid on RGB base with adjustable transparency
-- **Side-by-Side** - Synchronized dual view for direct comparison
-- **Picture-in-Picture** - Thermal inset on RGB (or vice versa)
+- **Thermal Overlay** (default) - Thermal colormap overlaid on RGB base with adjustable transparency
+- **Side by Side** - Dual view for direct comparison
+- **Picture in Picture** - Thermal inset on RGB (or vice versa). Composed on a larger canvas when the inset has more detail than its slot, so the inset stays sharp
 - **Max Intensity** - Pixel-wise maximum intensity fusion
 - **Feature Weighted** - Adaptive blending based on edge strength and content
+- **Thermal Contours** - Isotherm-style contour lines over the RGB image, optionally labelled with temperatures in the selected unit
+- **Laplacian Pyramid** - Multi-scale blending of thermal and RGB at each frequency band (GPU path when available)
+- **PCA Fusion** - Weights thermal and RGB intensities along their principal component
+- **Guided Filter Fusion** - Saliency-weighted blend using guided filtering
 
 **Real-time fusion controls**: Live mode switching, alpha blending (0-100%), edge color/intensity adjustment, detail strength tuning.
 
 ### 🌡️ Radiometric Temperature Measurement
 
-**Dual Backend System**:
-- **OpenCV Backend** - 8-bit thermal capture with pseudo-radiometric estimation (±5°C)
-- **Flirpy Backend** - 16-bit Y16 radiometric capture with true absolute temperatures (±2°C)
+**Measurement sources** (chosen automatically per camera plugin):
+- **Radiometric cameras** (e.g. a radiometric `-R` Boson) - 16-bit Y16 capture with true absolute temperatures (±2°C)
+- **Non-radiometric cameras** - 8-bit AGC frames: optional temperature *estimation* (±5-10°C, referenced to the FPA temperature; enable it in Analysis > Radiometric) or raw AGC counts. Estimates are never presented as measured temperatures, and the gradient and line-profile tools show `AGC` counts instead of degrees on these cameras
 
 **Temperature Measurement Features**:
-- Spot temperature metering (click anywhere on thermal image)
-- Multiple concurrent spot meters with customizable labels
-- ROI-based area temperature statistics (min/max/mean/median)
+- Spot temperature metering (click anywhere on the thermal image): multiple concurrent spots with labels, history graph, per-spot alerts (threshold with sound/flash), CSV/JSON export
+- **Line profile** - drag a line across the image, plot the temperature along it, export to CSV
+- ROI-based area temperature statistics (min/max/mean/median/std)
 - Hot/cold spot detection and tracking
-- Temperature gradient analysis
-- Isotherm highlighting (temperature range visualization)
-- °C/°F/K unit selection
-- 3-tier measurement fallback: 16-bit radiometric → 8-bit estimation → raw values
+- **Isotherm highlighting** - a single range or multiple bands, with a choice of highlight colour
+- **Gradient overlay** (Detection tab) - highlights where temperature changes quickly
+- **Units** - °C, °F, K or raw Y16 (Kelvin × 100). Readouts, thresholds, presets, histogram, line profiles and exports follow the selected unit
+- 3-tier measurement fallback: 16-bit radiometric → 8-bit estimation → raw AGC counts
 
 ### 🎨 Multi-Palette System
 
-**45 Thermal Color Palettes** organized by category:
-- **Grayscale** (7): white_hot, black_hot, grayscale, inverted variants
-- **Rainbow** (8): rainbow, rainbow_hc, jet, turbo, hsv variants
-- **Iron/Fire** (6): ironbow, lava, hot, copper, fire variants
-- **Arctic/Cool** (5): arctic, ice, ocean, cool, winter variants
-- **Medical** (5): medical, viridis, inferno, plasma, cividis
-- **Industrial** (8): metal, sepia, autumn, bone, specialized variants
-- **High Contrast** (6): Enhanced versions of popular palettes
+**115 Thermal Color Palettes** in 10 categories, each previewed inline as a strip of colour swatches
+(see the full [Palette Reference](#palette-reference) for what every palette looks like and what it is best for):
+- **Grayscale** (11): White Hot, Black Hot, Sepia, plus low-glare night-vision monochromes (green, red, cyan, blue)
+- **Iron / Fire** (18): Ironbow, Lava, Graded Fire, Inferno, Hot Metal and other heat ramps
+- **Rainbow** (13): Rainbow High Contrast, Smooth Rainbow, Turbo-style and full-spectrum maps
+- **Cold / Arctic** (13): Arctic, Ice, Ocean and other cold-emphasis ramps
+- **Scientific** (16): perceptually uniform / colorblind-safe (Viridis, Cividis, Batlow, colorcet, ...)
+- **Diverging** (18): for temperature *difference* from a reference (Blue - Red, Vik, Seismic, ...)
+- **Sequential** (7), **Single-Hue** (9), **Specialized** (8)
+- **Banded** (2): flat colour steps for threshold screening
 
 **Palette Features**:
-- Global palette applied to entire thermal image
-- Per-ROI palette override for multi-palette composite views
-- Live palette switching with auto-contrast
-- Gamma correction (0.1-3.0)
-- Custom palette import support
+- Global palette applied to the entire thermal image (Analysis > General > Global Palette)
+- Per-ROI palette override for multi-palette composite views (ROI Manager, or right-click an ROI)
+- Inline swatch previews (4-8 swatches depending on width) and friendly names in every palette picker
+- Live palette switching; `C` cycles palettes
+- Per-palette auto-contrast, gamma and invert options (`PaletteConfig`)
+- Add your own palettes in code - see [Adding Custom Palettes](#adding-custom-palettes)
 
 ### 🎯 Intelligent ROI Management
 
@@ -95,35 +102,43 @@ Built on Qt6 with a modern dark-themed GUI, the application provides real-time t
 - Per-ROI palette assignment
 - Right-click context menu for quick actions
 
+**ROI Manager tab**:
+- Live table per ROI: average / min / max, **peak hold**, trend (▲▼), area (pixels and % of frame) and alert state; the hottest ROI is highlighted. Values follow the app's temperature unit (estimated readings are marked `~`).
+- **Rename, Lock, Hide/Show, Duplicate, Delete** (also on the right-click menu). A locked ROI can't be renamed or deleted; a hidden ROI isn't drawn or measured but stays in the list.
+- **Threshold alerts** per ROI on the hottest pixel, average or coldest pixel (above/below, with an optional beep); alerts are saved with the ROI set.
+- Select two ROIs for a difference readout; optional **history graph** with an average / hottest / coldest selector.
+- **Save / Load ROI Set** (JSON) and **Export** to CSV or JSON (readings, peaks, area, alert state).
+
+**Spot meters**: peak-hold shown next to the live reading (right-click → Reset Peak Hold), **rate-of-change alerts** (rises/falls faster than N per minute) alongside above/below alerts, "snap new spots to the hottest nearby pixel", and history/peak survive a °C/°F/K switch.
+
 ### 🔬 Comprehensive Thermal Analysis
 
 **Real-Time Analysis**:
 - **Hot/Cold Spot Detection** - Automatic identification of temperature extremes
-- **Temperature Trends** - Track temperature changes over time with rate-of-change prediction
-- **Anomaly Detection** - Detect rapid changes, gradient anomalies, statistical outliers
-- **Temperature Gradients** - Sobel-based gradient magnitude and direction
+- **Spot-Meter History** - History graph and trend readout for each spot meter
+- **Anomaly Detection** - Rapid global and per-region temperature change, gradient regions and statistical outliers. Rates and gradients are in real degrees (°C/s, °C/px) on radiometric cameras and are shown in the selected unit
+- **Gradient Overlay** (Detection > Gradient) - Sobel magnitude, X, Y or direction arrows, thresholded in °C/px
+- **Line Profiles** - Temperature along a dragged line
 - **Histogram Analysis** - Temperature distribution visualization
 
 **Per-ROI Statistics**:
 - Min/max/mean/median/std dev temperatures
-- Temperature range and gradient strength
+- Temperature range
 - ROI area and center coordinates
 - Color-coded visualization
 
 ### 📹 Media Recording & Playback
 
 **Recording Features**:
-- Video recording (MP4, H.264 codec)
-- Snapshot capture (PNG, JPEG)
-- Configurable output directories
-- Filename templates with timestamps
-- Recording status overlay
+- Video recording to AVI (`mp4v` codec by default, configurable with `video_codec`). The fusion display is always recorded; separate thermal and RGB files are optional
+- JSON metadata file alongside each recording (per-frame timestamps, ROIs, thermal statistics)
+- Snapshots as PNG or JPEG, with metadata
+- Frames are resized to the recording's size if the display size changes mid-recording (for example when switching to Picture-in-Picture), instead of being silently dropped
+- Configurable output directories and filename templates with timestamps
 
 **Playback Features**:
-- Load recorded videos for post-analysis
-- Frame-by-frame stepping
-- Playback speed control
-- Apply ROI and analysis to recorded media
+- Load recorded videos for post-analysis (`--mode playback --playback-file video.avi`)
+- Seek, pause/resume and playback speed control
 
 ### 📷 Universal Camera Plugin Architecture
 
@@ -173,21 +188,36 @@ Emissivity, atmospheric temperature, and transmission are applied directly to di
 ### 🎨 Customizable UI
 
 **Professional Qt6 Interface**:
-- Modern dark theme with high contrast
-- Windows XP classic theme (nostalgic option)
+- **10 themes**: Dark, **OLED Black** (true black for OLED panels), Light, Solarized, Colorful, three Windows XP
+  styles (Luna, Silver, Olive) and two hardware-inspired themes (**Classic IBM** - System/360 console & PC-era
+  cream keycaps, blue label plates, amber lamps; **Classic HP** - 1970s-80s instrument/calculator look with
+  charcoal keycaps, orange lit keys and LED readouts)
+- **Auto theme follows your system's light/dark setting** and switches live when the OS changes (falls back to time of day
+  if the OS setting can't be read); choose it from Settings > Theme or cycle with the theme button
+- Buttons keep the same size in every theme
 - Tabbed panel layout for organized controls
 - Resizable video display with aspect ratio preservation
 - Real-time performance monitoring (FPS, processing time)
 
-**Panel Organization**:
-- **🧬 Fusion** - 9 fusion modes, alpha/intensity/edge controls
-- **🎨 Palettes** - 45 palettes, per-ROI overrides, gamma correction
-- **🎯 ROI Tools** - Manual drawing, auto-detection settings, ROI list
-- **📊 Analysis** - Hot/cold spots, temperature trends, anomaly detection
-- **🌡️ Radiometric** - Backend selector, temperature units, spot metering
-- **📷 Cameras** - Boson SDK controls, Firefly controls, camera status
-- **🔬 Advanced** - Parallax compensation, environmental settings, calibration
-- **⚙️ Settings** - Storage paths, performance tuning, backend configuration
+**Panel Organization** (right-hand panel; `Ctrl+D` shows or hides it):
+- **📊 Analysis** - General (global palette, overlay toggles, detection results), Spot Meters, Overlays (grid), Radiometric (units, scene range, calibration, estimation), ROI Manager (per-ROI statistics, palettes, export), Environmental (emissivity and atmosphere), Isotherm, Line Profile
+- **🔎 Detection** - Automatic and Manual anomaly detection, plus the **Gradient** overlay that highlights where temperature changes quickly (threshold in °C/px, optional direction arrows)
+- **📷 Cameras** - Thermal and RGB panels per camera plugin (Boson, Tau 2, Lepton, Firefly, USB Webcam, GigE Vision, RealSense), plus Calibration and Parallax
+- **🧬 2D Fusion** - 13 fusion modes, alpha/intensity/edge controls
+- **🧊 3D Fusion** - RealSense depth point-cloud / relief settings and preview
+- **🗺️ 3D Mapping** - World mapping with save/load
+- **⚙️ Settings** - Compute device (CPU / CUDA / DirectML), theme, SDK COM port
+
+### 🗺️ 3D Mapping (RealSense L515 / D4xx, requires `open3d`)
+Scan a space once with a RealSense depth camera, then keep tracking the camera inside it.
+- **Scan:** *Start Mapping* switches to the 3D Mapping view and builds a point-cloud world from RGB-D odometry (key-frame tracking, so a held-still camera does not drift). The IMU (L515, D435i, D455) gives the tracker a gyro rotation head-start and a gravity check.
+- **Live tracking:** after *Finish Mapping* the world is frozen and the camera is tracked against it (multi-scale ICP, automatic re-localization if tracking is lost or after loading a saved world).
+- **3D viewer (main view):** click a point for its position, distance from the camera and temperature (live / peak / change); *Measure* gives the distance between two points in metric and imperial; hotspot markers can be snapped to (toggle). Orbit, zoom and pan with the mouse.
+- **Temperatures:** recorded per point only from an aligned, genuinely radiometric thermal camera (never from estimates). Texture and temperature colouring, a colour legend, hotspots and changes versus a previously saved world are available; temperatures follow the app's unit setting.
+- **Save / Load / Export:** worlds save as `.ply` with a `.thermal.npz` sidecar; temperatures export to CSV.
+- Snapshot and record in this mode capture the RGB feed.
+
+Status: scanning, tracking, save/load and the viewer have been exercised on a real L515 with a held-still camera; moving-camera scans and real thermal temperatures are still being validated. See `TODO.md`.
 
 ### ⚡ Performance Optimization
 
@@ -201,10 +231,13 @@ Emissivity, atmospheric temperature, and transmission are applied directly to di
 - NumPy vectorized operations
 - VPI acceleration on NVIDIA Jetson
 
+**Overlay cost**:
+- The gradient overlay only colours and blends the pixels above its threshold, reuses its result when the camera frame hasn't changed, and holds large-sensor frames to about 30 recomputes per second. Its output is identical to the plain per-pixel computation
+- The Gradient panel shows the current scene's typical and strong gradient to help pick a threshold
+
 **Configurable Performance**:
-- Parallel processing toggle
-- Worker thread count adjustment
-- Frame skip options for low-power devices
+- Compute device: CPU, CUDA or DirectML (Settings tab, or `--device`)
+- Parallel detection toggle and worker count (`--enable_parallel`, `--max_workers`)
 
 ---
 
@@ -213,7 +246,7 @@ Emissivity, atmospheric temperature, and transmission are applied directly to di
 ### Installation
 
 #### Prerequisites
-- Python 3.8+ (3.10 recommended)
+- Python 3.10+
 - OpenCV 4.5+ with Python bindings
 - Qt6 (PyQt6)
 - FLIR Boson or Lepton thermal camera
@@ -266,11 +299,14 @@ python -m thermal_inspection --enable-boson-sdk --boson-com-port COM7
 # Specify thermal camera device ID
 python -m thermal_inspection --thermal-device 2
 
-# Use 16-bit radiometric backend (requires flirpy)
-# Select "Flirpy 16-bit" in Settings > Backend Selector
+# Radiometric (-R) Boson: 16-bit radiometry is used automatically (requires flirpy).
+# The backend is chosen per camera plugin; --thermal-backend is deprecated and ignored.
 
 # Run with specific fusion mode and palette
 python -m thermal_inspection --fusion-mode detail_inject --palette ironbow
+
+# Play back a recorded video
+python -m thermal_inspection --mode playback --playback-file recordings/inspection.avi
 
 # Enable automatic ROI detection
 python -m thermal_inspection --auto-roi
@@ -282,10 +318,11 @@ python -m thermal_inspection --disable-rgb
 ### First Run Tips
 
 1. **Camera Detection**: Application auto-detects thermal and RGB cameras. If detection fails, manually specify device IDs.
-2. **Backend Selection**: Start with OpenCV backend (8-bit). Switch to Flirpy backend for 16-bit radiometric if you have a Boson camera.
+2. **Radiometry**: A radiometric (-R) Boson is used in 16-bit mode automatically. On a non-radiometric camera you'll see AGC counts unless you enable estimation (Analysis > Radiometric).
 3. **COM Port**: Check Windows Device Manager for correct COM port (usually COM6 or COM7 for Boson).
-4. **Fusion Mode**: Try `detail_inject` or `edge_enhanced` for best thermal-RGB fusion quality.
-5. **Palette**: `ironbow`, `rainbow_hc`, or `hot` are good starting palettes.
+4. **Fusion Mode**: The default is `thermal_overlay`; try `detail_inject` or `edge_enhanced` for best thermal-RGB fusion quality.
+5. **Palette**: `ironbow`, `rainbow_hc`, or `lava` are good starting palettes. See the [Palette Reference](#palette-reference).
+6. **Theme**: The default "Auto" follows your system's light/dark setting; pick another in Settings > Theme or press `T`.
 
 ---
 
@@ -293,16 +330,17 @@ python -m thermal_inspection --disable-rgb
 
 | Key | Action |
 |-----|--------|
-| `f` | Trigger FFC (Flat Field Correction) |
-| `t` | Show FPA temperature |
-| `r` | Toggle recording |
-| `s` | Capture snapshot |
-| `p` | Cycle palettes |
-| `m` | Cycle fusion modes |
-| `q` / `Esc` | Quit application |
-| `Space` | Pause/resume |
-| `+` / `-` | Adjust alpha blend |
-| `[` / `]` | Adjust gamma |
+| `V` | Cycle view mode (thermal / RGB / fusion / ...) |
+| `C` | Cycle palettes |
+| `T` | Cycle themes |
+| `R` | Toggle recording |
+| `S` | Capture snapshot |
+| `Space` | Freeze / unfreeze the display |
+| `A` | Run automatic ROI detection |
+| `Ctrl+D` | Show / hide the right-hand panel |
+| `Q` / `Esc` | Quit application |
+
+Mouse: with Spot Meter mode on, click the thermal image to add a spot; with "Enable Line Drawing Mode" on (Analysis > Line Profile), drag to draw a profile line; right-click an ROI for its context menu.
 
 ---
 
@@ -310,52 +348,277 @@ python -m thermal_inspection --disable-rgb
 
 ```
 usage: python -m thermal_inspection [-h] [--thermal-device THERMAL_DEVICE]
-                          [--width WIDTH] [--height HEIGHT]
-                          [--disable-rgb] [--enable-boson-sdk]
-                          [--boson-com-port BOSON_COM_PORT]
-                          [--device {cuda,cpu}] [--palette PALETTE]
-                          [--fusion-mode FUSION_MODE]
-                          [--fusion-alpha FUSION_ALPHA]
-                          [--calibration-file CALIBRATION_FILE]
-                          [--mode {realtime,playback}]
-                          [--auto-roi] [--use-opencv-gui] [--headless]
+                   [--rgb-device RGB_DEVICE] [--auto-detect-cameras]
+                   [--width WIDTH] [--height HEIGHT] [--disable-rgb]
+                   [--enable-boson-sdk] [--boson-com-port BOSON_COM_PORT]
+                   [--thermal-backend {opencv,flirpy}] [--device {cuda,cpu}]
+                   [--palette PALETTE] [--radiometric]
+                   [--fusion-mode {alpha_blend,detail_inject,relief_fusion,edge_enhanced,thermal_overlay,side_by_side,picture_in_picture,max_intensity,feature_weighted,thermal_contours,laplacian_pyramid,pca_fusion,guided_filter_fusion}]
+                   [--fusion-alpha FUSION_ALPHA]
+                   [--calibration-file CALIBRATION_FILE]
+                   [--auto-cycle-fusion-modes SECONDS]
+                   [--mode {realtime,playback}]
+                   [--playback-file PLAYBACK_FILE] [--auto-roi]
+                   [--gui {qt,opencv,headless}] [--use-opencv-gui]
+                   [--headless] [--enable_parallel ENABLE_PARALLEL]
+                   [--max_workers MAX_WORKERS]
 
-optional arguments:
-  -h, --help            Show this help message and exit
+Thermal + RGB Fusion Inspection Tool
 
-Camera Settings:
+options:
+  -h, --help            show this help message and exit
   --thermal-device THERMAL_DEVICE
                         Thermal camera device ID (default: auto-detect)
+  --rgb-device RGB_DEVICE
+                        RGB camera device ID (default: auto-detect)
+  --auto-detect-cameras
+                        Auto-detect camera types (default: True)
   --width WIDTH         Thermal camera width (default: 640)
   --height HEIGHT       Thermal camera height (default: 512)
-  --disable-rgb         Disable RGB camera (thermal-only mode)
-
-Boson SDK Settings:
-  --enable-boson-sdk    Enable FLIR Boson SDK for serial control
+  --disable-rgb         Disable RGB camera
+  --enable-boson-sdk    Enable FLIR Boson SDK for serial control (FFC, gain,
+                        temperature)
   --boson-com-port BOSON_COM_PORT
-                        Boson COM port (default: COM7)
-
-Processing Settings:
-  --device {cuda,cpu}   Processing device (default: auto-detect)
-  --palette PALETTE     Default thermal palette (default: ironbow)
-
-Fusion Settings:
-  --fusion-mode FUSION_MODE
-                        Fusion algorithm (default: alpha_blend)
+                        Boson COM port for SDK control (default: COM7)
+  --thermal-backend {opencv,flirpy}
+                        Deprecated, ignored - backend selection is now
+                        automatic per camera plugin
+  --device {cuda,cpu}   Processing device (default: cuda)
+  --palette PALETTE     Thermal palette name (default: ironbow)
+  --radiometric         Enable radiometric temperature measurement (default:
+                        False)
+  --fusion-mode {alpha_blend,detail_inject,relief_fusion,edge_enhanced,thermal_overlay,side_by_side,picture_in_picture,max_intensity,feature_weighted,thermal_contours,laplacian_pyramid,pca_fusion,guided_filter_fusion}
+                        Fusion mode (default: thermal_overlay)
   --fusion-alpha FUSION_ALPHA
-                        Alpha for alpha_blend (default: 0.5)
+                        Fusion alpha for alpha_blend mode (default: 0.5)
   --calibration-file CALIBRATION_FILE
-                        Camera calibration file (JSON)
-
-Inspection Settings:
+                        Camera calibration file for alignment
+  --auto-cycle-fusion-modes SECONDS
+                        Self-drive through every fusion mode
+                        (get_available_modes()), holding each for SECONDS,
+                        then exit automatically. Switches to Fusion view mode
+                        if not already. For automated performance testing
+                        without manual UI clicking - not for normal use.
   --mode {realtime,playback}
-                        Operating mode (default: realtime)
+                        Inspection mode (default: realtime)
+  --playback-file PLAYBACK_FILE
+                        Video file to play back (required for playback mode)
   --auto-roi            Enable automatic ROI detection
-
-GUI Settings:
-  --use-opencv-gui      Use simple OpenCV GUI (no Qt)
-  --headless            Run without GUI (for testing)
+  --gui {qt,opencv,headless}
+                        GUI type (default: qt)
+  --use-opencv-gui      Use simple OpenCV GUI instead of Qt
+  --headless            Run without GUI
+  --enable_parallel ENABLE_PARALLEL
+                        Enable parallel processing (default: True)
+  --max_workers MAX_WORKERS
+                        Maximum number of worker threads for parallel
+                        detection (default: 5)
 ```
+
+---
+
+## Palette Reference
+
+The app ships **115 thermal palettes** in 10 categories. Pick one from **Analysis → General → Global Palette** (each row previews its colours as 4-8 swatches, cold → hot, and shows a friendly name), per-ROI from the **ROI Manager**, from the ROI right-click menu, cycle with `p`, or start with `--palette <id>`. The **ID** column is the name used in `config.json`, presets and the `--palette` flag.
+
+**Choosing a palette**
+
+- *General inspection / hot spots*: Ironbow, Lava, White Hot.
+- *Cold leaks, insulation, moisture*: Arctic, Ice, Rainbow High Contrast.
+- *Judging relative temperature by eye or publishing results*: Viridis, Inferno, Fire (Perceptual), Batlow, Cividis (colorblind-safe).
+- *Differences from a reference*: a diverging palette (Blue – Red, Deep Blue–Red, Vik, Seismic).
+- *Threshold screening*: Banded Heat or Banded Rainbow.
+- *Dark rooms / preserving night vision*: Red Hot, Night Vision Green, Sepia.
+- *Printing in black and white*: Black Hot, Greys, Cubehelix, Perceptual Spectrum, La Jolla.
+
+> A few palettes share the same colours (kept so existing presets keep working): **Gray = White Hot**, **Hottest = Ironbow**, **Medical ≈ Lava**. The *Rain*, *Cyan Hot*, *Blue Hot* and *Banded* palettes are hand-built looks, not vendor LUTs. Palette colours are display-only; they do not change any measured temperature.
+
+### Grayscale (11)
+
+Single-tone ramps. Show structure best and are the safest choice when the thermal image is fused with RGB. The coloured monochromes (green, red, cyan, blue) are low-glare night-vision styles.
+
+| Palette | ID | Cold → hot | Best for |
+|---|---|---|---|
+| White Hot | `white_hot` | black → dark gray → gray → light gray → white | The standard FLIR-style look. Most structural detail; best for finding targets, texture and general-purpose inspection. |
+| Black Hot | `black_hot` | white → light gray → gray → dark gray → black | Same data inverted (hot = dark). Good for bright/outdoor scenes, dark silhouettes of hot objects, and ink-friendly printed reports. |
+| Grayscale | `gray` | black → dark gray → gray → light gray → white | Identical to White Hot; kept so older configs/presets that name `gray` still work. |
+| Sepia | `sepia` | black → dark orange → orange → light orange | Warm, low-glare monochrome for long sessions and report screenshots. |
+| Night Vision Green | `green_hot` | black → dark green → green → light green → white | Night-vision phosphor look. Low glare for dark-adapted viewing. |
+| Red Hot | `red_hot` | black → dark red → red → light red → white | Red-only ramp that preserves night vision. Dark-room and low-light use. |
+| Copper | `copper` | black → dark orange → orange → light orange | Single-hue warm ramp. A calmer alternative to gray for long sessions. |
+| Cyan Hot | `cyan_hot` | black → dark cyan → cyan → light cyan → white | Low-glare cool monochrome for dark rooms and clean report captures. |
+| Blue Hot | `blue_hot` | black → dark blue → blue → light blue → white | Low-glare blue monochrome; like Cyan Hot with a deeper tint. |
+| Bone (X-Ray) | `bone` | black → dark blue → blue → light cyan → white | X-ray/radiography look with a slight blue cast in the highlights. Good for fine detail on boards and small parts. |
+| Pink | `pink` | black → red → light orange → light yellow → white | Soft pastel-tinted monochrome with warm highlights. Gentle gradients; low priority for measurement work. |
+
+### Iron / Fire (18)
+
+Black-to-white heat ramps through red/orange/yellow. The default family for hot-spot inspection (electrical, mechanical, electronics).
+
+| Palette | ID | Cold → hot | Best for |
+|---|---|---|---|
+| Ironbow | `ironbow` | black → dark magenta → magenta → orange → yellow → white | The industry-standard thermal palette. Intuitive hot-spot finding for electrical, mechanical and general inspection. |
+| Lava | `lava` | black → dark red → red → orange → yellow → white | Black to white through red/orange/yellow. Emphasizes heat intensity; good for electrical and mechanical hot spots. |
+| Graded Fire | `gradedfire` | black → dark red → red → orange → yellow → white | Finer red/orange steps than Lava, so small differences in the hot range are easier to separate. |
+| Hottest | `hottest` | black → dark magenta → magenta → orange → yellow → white | Identical to Ironbow (kept as an alias for older configs). |
+| Amber | `amber` | black → dark orange → orange → yellow → white | Warm amber heat ramp with low blue content. Comfortable for prolonged hot-spot viewing and fire-service style use. |
+| Inferno | `inferno` | black → dark purple → magenta → red → yellow → light yellow | Perceptually uniform fire ramp: equal steps look like equal changes, so it reads well for quantitative judgement and prints well. |
+| Hot Metal | `afmhot` | black → dark red → orange → light yellow → white | Smooth black → red → white heat ramp ("hot metal"). Clean hot-spot emphasis with little color confusion. |
+| Midnight Fire | `gnuplot2` | black → blue → purple → magenta → yellow → white | Wide-range fire ramp with blue/purple lows. Useful for scenes with a very large temperature span. |
+| Sunrise | `ylorrd` | light yellow → orange → red → dark magenta | Pale yellow to orange to deep red/magenta (more heat = darker). Good on white backgrounds and in printed reports. |
+| Fire (Perceptual) | `cc_fire` | black → dark red → red → orange → yellow → white | Kovesi's perceptually uniform "fire". Among the best ramps for judging relative temperature by eye. |
+| La Jolla | `lajolla` | black → dark orange → red → orange → light yellow | Crameri's dark brown/red to cream-yellow ramp. Colorblind-safe and grayscale-safe; good for print. |
+| Rocket | `rocket` | black → dark magenta → magenta → red → orange → light orange | seaborn's black → magenta → red → orange ramp. Smooth, dark-background friendly hot-spot view. |
+| Flare | `flare` | orange → red → magenta → dark purple | seaborn's orange → red → purple ramp (the hot end is the dark purple). Soft, warm-toned palette. |
+| Golden | `wistia` | light green → yellow → orange | Yellow-green to yellow to orange. High-visibility warm ramp for spotting small warm targets. |
+| Autumn | `autumn` | red → orange → yellow | Two-tone red → yellow ramp with hot = yellow. Quick read of the hottest regions. |
+| Gist Heat | `gist_heat` | black → dark red → red → orange → white | Black → red → yellow → white. A clean, conventional heat ramp. |
+| Yellow–Orange–Brown | `ylorbr` | white → light yellow → orange → dark orange | Near-white to pale yellow to orange to brown. Muted sequential heat ramp for reports. |
+| Orange–Red | `orrd` | white → light orange → red → dark red | Near-white to orange to deep red. Light-background heat map; good for printouts. |
+
+### Rainbow (13)
+
+Wide hue ranges for separating many temperature levels at once. Easy to read, but not perceptually uniform - prefer the perceptual variants (Smooth Rainbow, Turbo) when you need to judge relative temperature.
+
+| Palette | ID | Cold → hot | Best for |
+|---|---|---|---|
+| Rainbow | `rainbow` | red → orange → yellow → green → blue → purple | OpenCV's RAINBOW map. Note the cold end is RED and the hot end purple - unusual for thermal; kept for compatibility. Prefer Rainbow High Contrast for blue = cold. |
+| Rainbow High Contrast | `rainbow_hc` | blue → cyan → green → yellow → orange → red | Blue (cold) to red (hot) through cyan/green/yellow. Many distinct bands; good for spotting any difference and for building/HVAC surveys. |
+| Rainbow Reversed | `rainbow_rev` | red → orange → yellow → green → cyan → blue | Red at the cold end running to blue at the hot end - an inverted look, hot = blue. |
+| Spectral | `spectral` | magenta → red → light orange → light green → cyan → blue | Magenta → orange → yellow → green → blue. Broad hue range for discriminating many levels (hot = blue). |
+| Cool to Hot | `cool_hot` | dark blue → blue → cyan → yellow → orange → dark red | Classic JET-style blue → green → red ramp. Familiar general-purpose temperature map. |
+| Full Spectrum | `nipy_spectral` | black → blue → green → orange → light gray | Black → purple → blue → green → yellow → red → gray. Very wide discrimination of many levels. |
+| Rain | `rain` | black → blue → cyan → yellow → orange → white | Hand-built approximation of a FLIR-style "Rain" look: black → blue → cyan → green → yellow → red → white. Not the vendor's exact LUT. |
+| Isoluminant Rainbow | `cc_isolum` | cyan → green → yellow → light orange | Isoluminant rainbow: constant lightness, so only hue changes. Best for judging color alone without brightness bias. |
+| Smooth Rainbow | `cc_rainbow` | blue → cyan → green → yellow → orange → red | Kovesi's smooth, perceptually better rainbow. A safer rainbow when you want hue variety. |
+| Hawaii | `hawaii` | dark magenta → red → yellow → green → light cyan | Crameri's colorful sequential ramp. Scientific-grade alternative to a rainbow. |
+| Gist Rainbow | `gist_rainbow` | red → yellow → green → cyan → blue → magenta | Saturated full-hue sweep for maximum level separation (not perceptually uniform). |
+| Stern | `gist_stern` | black → purple → blue → gray → yellow → white | Black → purple → blue → gray → yellow → white. A busy multi-hue map whose level steps are easy to see. |
+| NCAR Spectrum | `gist_ncar` | dark blue → cyan → green → yellow → magenta → white | NCAR-style spectrum with many distinct hues; heavy discrimination of levels. |
+
+### Cold / Arctic (13)
+
+Blue/cyan-weighted ramps that emphasize the cold end: drafts, insulation gaps, moisture and refrigeration.
+
+| Palette | ID | Cold → hot | Best for |
+|---|---|---|---|
+| Arctic | `arctic` | dark blue → blue → cyan → light cyan → white | Dark blue to white through cyan. Highlights cold regions - cold-air leaks, insulation gaps, refrigeration. |
+| Ice | `ice` | dark blue → blue → light blue → light cyan → white | Deep blue to near-white. Cold-emphasis palette for moisture and insulation surveys. |
+| Winter | `winter` | dark blue → blue → cyan → green | Blue to green. Gentle cool-toned ramp for low-contrast scenes. |
+| Ocean | `ocean` | black → dark blue → blue → cyan | Black to dark blue to cyan. Low-glare cold-emphasis palette. |
+| Lagoon | `ylgnbu` | dark blue → blue → cyan → light green → light yellow | Deep blue → teal → pale yellow (hot = light). Clean cool-to-light ramp for reports. |
+| Oslo | `oslo` | black → dark blue → blue → light blue → white | Crameri's black → blue → white sequential ramp. Colorblind-safe cold emphasis. |
+| Mako | `mako` | black → dark purple → blue → cyan → light green | seaborn's black → blue → mint ramp. Smooth, dark-background friendly cool palette. |
+| Crest | `crest` | green → cyan → blue | seaborn's green → blue-green → blue ramp. Soft cool palette for low-contrast scenes. |
+| Cyan–Magenta | `cool` | cyan → blue → purple → magenta | Cyan to magenta. High-visibility cool-toned ramp. |
+| Blue–Purple | `bupu` | white → light blue → purple → magenta → dark magenta | White → light blue → purple → magenta. Light-background cool-to-warm ramp. |
+| Green–Blue | `gnbu` | white → light green → cyan → blue → dark blue | White → light green → blue. Light-background cool ramp. |
+| Blue–Green | `bugn` | white → light cyan → cyan → green → dark green | White → light cyan → green. Light-background cool ramp. |
+| Purple–Blue | `pubu` | white → light blue → blue → dark blue | White → light blue → deep blue. Light-background cool ramp. |
+
+### Scientific (16)
+
+Perceptually uniform (and mostly colorblind-safe) ramps from matplotlib, colorcet and the Scientific Colour Maps. Best when accuracy of visual comparison matters or the image will be published.
+
+| Palette | ID | Cold → hot | Best for |
+|---|---|---|---|
+| Viridis | `viridis` | dark purple → blue → cyan → green → yellow | Perceptually uniform and colorblind-friendly. A strong default for any quantitative reading. |
+| Plasma | `plasma` | dark blue → purple → magenta → red → orange → light yellow | Perceptually uniform blue → purple → orange → yellow. Good contrast for measurement displays. |
+| Magma | `magma` | black → dark purple → magenta → red → orange → light yellow | Perceptually uniform black → purple → orange → pale yellow. Dark-background heat maps. |
+| Cividis (Colorblind-Safe) | `cividis` | dark blue → blue → gray → orange → yellow | Optimized for color-vision deficiency and still readable in grayscale. |
+| Turbo | `turbo` | dark purple → blue → cyan → light green → yellow → red | Google's improved rainbow: smoother and more uniform than JET while keeping a wide hue range. |
+| Perceptual Spectrum | `cmrmap` | black → blue → magenta → orange → yellow → white | Perceptual ramp designed to survive grayscale printing. Good for documents that may be printed in black and white. |
+| Blue–Magenta–Yellow | `cc_bmy` | dark blue → purple → magenta → red → orange → yellow | Blue → magenta → yellow perceptual ramp (colorcet). Strong hue variety without rainbow artefacts. |
+| Black–Blue–Cyan | `cc_kbc` | dark blue → blue → cyan → light cyan | Black → blue → cyan perceptual ramp (colorcet). Cool dark-background map. |
+| Black–Green–Yellow | `cc_kgy` | black → dark green → green | Black → green → yellow perceptual ramp (colorcet). Natural-feeling single-path ramp. |
+| Blue–Green–Yellow–White | `cc_bgyw` | dark blue → blue → cyan → green → yellow → white | Blue → green → yellow → white perceptual ramp (colorcet). Broad uniform range. |
+| Batlow | `batlow` | dark blue → dark cyan → green → yellow → light orange → light magenta | Crameri's flagship multi-hue ramp. Colorblind-safe, grayscale-safe, perceptually uniform. |
+| Lipari | `lipari` | black → blue → gray → red → orange → light yellow | Crameri's dark-to-light multi-hue ramp. Colorblind-safe. |
+| Turku | `turku` | black → dark gray → yellow → orange → light red → white | Crameri's black/gray → olive-yellow → salmon → white ramp. Subtle, print-safe. |
+| Twilight Shifted | `twilight_shifted` | dark purple → blue → light blue → light orange → red → dark purple | Cyclic map (ends meet), shifted so the dark end sits at the low values. For cyclic quantities; unusual for temperature. |
+| Summer | `summer` | dark cyan → green → yellow | Green to yellow. Simple two-tone ramp for quick relative reading. |
+| Spring | `spring` | magenta → orange → yellow | Magenta to yellow. High-visibility two-tone ramp. |
+
+### Diverging (18)
+
+Two hues meeting at a neutral centre. Use them for temperature difference from a reference (before/after, left/right, set-point), not for absolute temperature - centre the range on the reference first.
+
+| Palette | ID | Cold → hot | Best for |
+|---|---|---|---|
+| Blue – Red | `blue_red` | blue → light blue → light red → red | Blue → white → red. Temperature difference from a reference: centre (white) = no change. |
+| Cool – Warm | `cool_warm` | blue → orange → red | Blue → gray → red. Softer diverging ramp for deviation from a reference. |
+| Purple – Orange | `purple_orange` | dark magenta → magenta → light purple → light orange → orange | Purple → white → orange. Diverging ramp that remains distinguishable for most color-vision types. |
+| Green – Red | `green_red` | green → light green → light red → red | Green → white → red. Pass/fail style deviation view. Avoid for red-green color-vision deficiency. |
+| Blue – Yellow | `blue_yellow` | blue → light blue → light yellow → yellow | Blue → white → yellow. Diverging ramp that works well for color-vision deficiency. |
+| Pink – Green | `pink_green` | magenta → light magenta → light green → green | Magenta → white → green. Diverging ramp, distinct from the blue/red family. |
+| Seismic | `seismic` | dark blue → blue → light blue → light red → red → dark red | Dark blue → white → dark red. High-contrast diverging ramp for large deviations. |
+| Cold to Hot (Blue-Yellow-Red) | `rdylbu` | blue → light cyan → light yellow → red | Blue → pale yellow → red, cold to hot. Gentle diverging ramp that doubles as a readable absolute-temperature map. |
+| Brown – Teal | `brbg` | dark orange → orange → light yellow → light cyan → cyan → black | Brown → white → teal. Diverging ramp that avoids red/blue temperature associations (good for humidity/moisture deltas). |
+| Roma | `roma` | blue → cyan → yellow → orange → dark red | Crameri's diverging ramp oriented cold = blue to hot = red. Colorblind-safe, perceptually uniform. |
+| Vik | `vik` | dark blue → blue → light cyan → light orange → orange → dark red | Crameri's blue ↔ red diverging ramp. Colorblind-safe, perceptually uniform. |
+| Berlin | `berlin` | light blue → cyan → dark blue → black → red → light red | Crameri's blue ↔ red diverging ramp with dark extremes. |
+| Icefire | `icefire` | light cyan → blue → dark blue → dark red → red → light orange | seaborn's blue → black → red diverging ramp. Dark centre: good on dark backgrounds. |
+| Deep Blue–Red | `rdbu` | dark blue → blue → light blue → light orange → red → dark magenta | Dark blue → white → dark red. Standard diverging ramp for temperature deltas. |
+| Gray–Red | `rdgy` | black → gray → light gray → light orange → red → dark magenta | Gray → white → red. Diverging ramp emphasizing only the warm side. |
+| Pink–Yellow–Green | `piyg` | dark magenta → magenta → light magenta → light green → green → dark green | Pink → white → green diverging ramp. |
+| Purple–Green | `prgn` | dark magenta → purple → light magenta → light green → green → dark green | Purple → white → green diverging ramp. |
+| Deep Purple–Orange | `puor` | dark purple → purple → light blue → light orange → orange → dark orange | Purple → white → orange diverging ramp (purple = cold side). |
+
+### Sequential (7)
+
+Smooth multi-hue sequential ramps with their own character.
+
+| Palette | ID | Cold → hot | Best for |
+|---|---|---|---|
+| Globow | `globow` | green → yellow → orange → red | Green → yellow → orange → red. Increasing-danger traffic-light feel for go/no-go screening. |
+| Medical | `medical` | black → dark red → red → orange → yellow → white | Black → red → yellow → white (OpenCV HOT). Essentially the same look as Lava. |
+| Thermal | `thermal` | black → dark blue → green → yellow → orange → white | Black → cyan → green → orange → white. Distinctive multi-hue sequential ramp. |
+| Helix | `helix` | black → purple → cyan → green → orange → white | Black → blue → green → yellow → white. Sequential ramp winding through color space. |
+| Cubehelix | `cubehelix` | black → dark blue → dark cyan → green → yellow → light red | Dark blue → cyan → green → pinkish. Designed to stay readable when printed in grayscale. |
+| Twilight | `twilight` | light gray → blue → cyan → light yellow → light gray | Cyclic light gray → blue → yellow → light gray. For cyclic quantities; unusual for temperature. |
+| Dusk | `dusk` | black → dark purple → magenta → red → orange → light yellow | Black → purple → magenta → orange → pale yellow. A warm sequential ramp similar to Magma. |
+
+### Specialized (8)
+
+Purpose-styled ramps (fusion overlays, flow, terrain, depth).
+
+| Palette | ID | Cold → hot | Best for |
+|---|---|---|---|
+| Fusion | `fusion` | blue → purple → magenta → red | Blue → purple → magenta → red. Saturated hot/cold scheme that stands out against a grayscale or RGB background. |
+| Prism | `prism` | red → yellow → green → cyan → purple → magenta | Red → yellow → green → blue → magenta. Multi-color sweep; emphasizes level boundaries rather than absolute temperature. |
+| Alarm | `alarm` | blue → green → yellow → orange → red → magenta | Blue → green → yellow → red → magenta. Smooth ramp that ends in magenta for extremes (it is not a hard threshold). |
+| Edge Enhance | `laplacian` | dark blue → blue → light blue → light orange → orange → dark red | Dark blue → blue → white → orange → dark red. Diverging, bright-centred ramp (despite the name it is a color map, not an edge filter). |
+| Isotherm Bands | `isotherm` | dark blue → blue → green → orange → red | Dark blue → cyan → green → yellow → red. Smooth gradient (the discrete isotherm bands live in the Isotherm panel; see Banded palettes for stepped output). |
+| Velocity | `velocity` | blue → cyan → green → orange → red | Blue → cyan → green → yellow → red. Flow/speed-style ramp. |
+| Terrain | `terrain` | dark blue → cyan → green → orange → white | Dark blue → cyan → green → yellow → white. Elevation-style ramp. |
+| Depth | `depth` | dark red → dark orange → orange → yellow → light yellow → white | Dark red → orange → pale yellow → white. Depth-perception style ramp (far = dark red). |
+
+### Single-Hue (9)
+
+One hue from light to dark (plus an earth-tone ramp). Understated and print-friendly; good for reports and slides.
+
+| Palette | ID | Cold → hot | Best for |
+|---|---|---|---|
+| Earth | `gist_earth` | black → blue → green → orange → white | Earth-tone ramp: dark blue → green → tan → white. Terrain-style colouring. |
+| Blues | `blues` | white → light blue → blue → dark blue | Pale to dark blue. Clean single-hue ramp for reports. |
+| Greens | `greens` | white → light green → green → dark green | Pale to dark green. Clean single-hue ramp for reports. |
+| Oranges | `oranges` | white → light orange → orange → dark orange | Pale to dark orange. Warm single-hue ramp for reports. |
+| Reds | `reds` | white → light orange → red → dark red | Pale to dark red. Warm single-hue ramp for reports. |
+| Purples | `purples` | white → light blue → blue → purple → dark purple | Pale to dark purple. Single-hue ramp for reports. |
+| Grays | `greys` | white → light gray → gray → dark gray → black | Light to dark gray (more = darker). Ink-friendly printed reports. |
+| Purple–Red | `purd` | white → light purple → magenta → dark magenta | Pale purple to deep red. Two-hue warm-leaning ramp. |
+| Red–Purple | `rdpu` | white → light red → light magenta → magenta → dark purple | Pale pink to deep purple. Two-hue ramp. |
+
+### Banded (2)
+
+Flat colour bands instead of a smooth gradient: a contour-map look that makes threshold crossings obvious.
+
+| Palette | ID | Cold → hot | Best for |
+|---|---|---|---|
+| Banded Heat | `banded_heat` | black → dark purple → cyan → green → orange → red | Eight flat bands (black, indigo, blue, teal, green, yellow, orange, red). Reads like a contour map: every change of band is a real step; good for threshold screening. |
+| Banded Rainbow (High Contrast) | `banded_rainbow` | purple → blue → green → yellow → red → white | Eight high-contrast flat bands (violet, blue, sky blue, green, yellow, orange, red, white). Maximum separation between adjacent levels for outdoor/bright-light viewing. |
+
+Colour data for the additional palettes is sampled from matplotlib colormaps, ColorBrewer (Apache 2.0), colorcet (Peter Kovesi, CC BY 4.0), the Scientific Colour Maps (Fabio Crameri, MIT) and seaborn (BSD-3-Clause); only the sampled numbers are embedded (`processing/palette_stops.py`), so none of those packages are needed at runtime.
 
 ---
 
@@ -406,22 +669,23 @@ Thermal-Inspection/
 │   │   ├── plugin/                  # Plugin base framework (CameraPlugin, CameraPluginHost, CameraPluginRegistry)
 │   │   └── plugins/                 # Vendor plugin implementations
 │   │       ├── boson/, tau2/, lepton/   # Thermal cameras
-│   │       └── firefly/, uvc/, gige/    # RGB / network cameras
+│   │       └── firefly/, uvc/, gige/, realsense/   # RGB / network / depth cameras
 │   │
 │   ├── core/                        # Controllers & managers
 │   │   ├── fusion_controller.py, roi_controller.py, radiometric_controller.py
-│   │   ├── media_manager.py, calibration_manager.py
+│   │   ├── media_manager.py, calibration_manager.py, camera_state.py
 │   │   ├── threshold_manager.py, isotherm_manager.py
 │   │   └── event_bus.py             # GUI <-> backend signal broker
 │   │
-│   ├── processing/                  # Fusion, palettes, ROI/thermal analysis, gradients
+│   ├── processing/                  # Fusion, palettes (palette_manager.py + palette_stops.py), ROI/thermal analysis, gradients
 │   ├── sdk/                         # FLIR Boson/Lepton/Tau2 serial protocols, GigE GVCP
 │   ├── gui/
 │   │   ├── main_window.py           # InspectionAppWindow
 │   │   ├── panels/                  # Fusion, radiometric, ROI, isotherm, parallax, etc.
 │   │   ├── camera_control/          # Per-plugin control panels
-│   │   └── widgets/, themes/
-│   └── utils/                       # Config, presets, media recording, exceptions
+│   │   ├── widgets/                 # Video/overlay, palette_combo (swatch picker), paged_tabwidget, ...
+│   │   └── themes/                  # Dark/Light/OLED/..., _retro.py (XP family), _instrument.py (IBM/HP)
+│   └── utils/                       # Config, presets, media recording, temperature unit conversion, exceptions
 │
 └── tests/unit/                      # pytest suite
 ```
@@ -435,9 +699,9 @@ Thermal-Inspection/
 
 **Solution**:
 1. Mount Boson thermal camera above PCB workbench
-2. Enable 16-bit radiometric mode for accurate temperature measurements
+2. Use a radiometric (-R) camera (16-bit) for accurate temperature measurements
 3. Use `temperature_threshold` auto-ROI to detect components above 80°C
-4. Apply `ironbow` or `hot` palette for clear hot spot visualization
+4. Apply `ironbow` or `lava` palette for clear hot spot visualization
 5. Use spot metering to measure specific IC temperatures
 6. Record thermal video during power-up sequence
 7. Export ROI temperature statistics for documentation
@@ -446,7 +710,7 @@ Thermal-Inspection/
 - Fusion: `thermal_overlay` (thermal on RGB PCB image)
 - Palette: `ironbow` or `lava`
 - Auto-ROI: Temperature threshold (75°C+)
-- Backend: Flirpy 16-bit radiometric
+- Camera: radiometric (16-bit)
 
 ### 2. Building Energy Audit
 **Problem**: Find thermal leaks and insulation defects in residential/commercial buildings.
@@ -454,7 +718,7 @@ Thermal-Inspection/
 **Solution**:
 1. Walk through building with handheld Boson + RGB camera
 2. Use `side_by_side` or `picture_in_picture` fusion for documentation
-3. Apply `arctic` or `rainbow` palette for intuitive cold spot identification
+3. Apply `arctic` or `rainbow_hc` palette for intuitive cold spot identification
 4. Mark ROIs on windows, doors, walls, and attic access
 5. Export annotated images for audit report
 6. Compare before/after insulation improvements
@@ -463,7 +727,7 @@ Thermal-Inspection/
 - Fusion: `side_by_side` or `alpha_blend`
 - Palette: `arctic` (blue = cold leaks) or `rainbow_hc`
 - Manual ROIs: Rectangle tool for windows/doors
-- Backend: OpenCV 8-bit (sufficient for relative temperature)
+- Camera: a non-radiometric (8-bit) camera is sufficient for relative temperature
 
 ### 3. Electrical Panel Inspection
 **Problem**: Detect loose connections and failing breakers before they cause fires.
@@ -473,12 +737,12 @@ Thermal-Inspection/
 2. Use `temperature_gradient` auto-ROI to detect high thermal gradients (loose connections)
 3. Enable hot spot detection to automatically flag dangerous components
 4. Measure spot temperatures of each breaker
-5. Apply `hot` or `medical` palette for clear visualization
+5. Apply `lava` or `ironbow` palette for clear visualization
 6. Save snapshot and ROI data for maintenance records
 
 **Typical Settings**:
 - Fusion: `thermal_overlay`
-- Palette: `hot` or `medical`
+- Palette: `lava` or `ironbow`
 - Auto-ROI: Gradient detection
 - Hot spot threshold: 60°C+
 
@@ -495,9 +759,9 @@ Thermal-Inspection/
 
 **Typical Settings**:
 - Fusion: `edge_enhanced` or `detail_inject`
-- Palette: `arctic` (cooling) or `hot` (heating)
+- Palette: `arctic` (cooling) or `lava` (heating)
 - Temperature trends enabled
-- Backend: Either (8-bit or 16-bit)
+- Camera: radiometric or not
 
 ---
 
@@ -508,7 +772,7 @@ Thermal-Inspection/
 When thermal and RGB cameras are physically separated, parallax errors cause misalignment. This tool provides ML-powered depth estimation to correct for parallax.
 
 **Enable Parallax Compensation**:
-1. Go to Advanced > Parallax Compensation
+1. Go to Cameras > Parallax
 2. Enable "Use Parallax Compensation"
 3. Select model size (Small for CPU, Large for GPU)
 4. Set camera baseline (distance between thermal and RGB lenses in cm)
@@ -521,66 +785,21 @@ When thermal and RGB cameras are physically separated, parallax errors cause mis
 
 ### Custom Palettes
 
-Create custom color palettes for specialized applications.
+Palettes are defined in code. See [Adding Custom Palettes](#adding-custom-palettes) in the Development section.
 
-**Format**: 256-row x 3-column NumPy array (BGR values 0-255)
+### Presets and ROI Sets
 
-```python
-import numpy as np
-
-# Create custom palette (example: red-to-yellow gradient)
-custom_palette = np.zeros((256, 3), dtype=np.uint8)
-custom_palette[:, 0] = 0  # Blue channel
-custom_palette[:, 1] = np.linspace(0, 255, 256)  # Green channel
-custom_palette[:, 2] = 255  # Red channel (constant)
-
-# Save palette
-np.save('custom_palette.npy', custom_palette)
-```
-
-Load in application: Palettes > Import Palette > Select `custom_palette.npy`
-
-### Preset Management
-
-Save and load complete application states (fusion mode, palette, ROIs, settings).
-
-**Save Preset**:
-1. Configure application (fusion mode, palette, ROIs, camera settings)
-2. Settings > Save Preset
-3. Enter preset name (e.g., "PCB_Inspection")
-
-**Load Preset**:
-1. Settings > Load Preset
-2. Select preset from dropdown
-3. All settings restored instantly
-
-### ROI Export/Import
-
-Export ROI sets for reuse across sessions.
-
-**Export**:
-1. Create ROIs (manual or auto-detection)
-2. ROI Tools > Export ROIs
-3. Save as JSON file
-
-**Import**:
-1. ROI Tools > Import ROIs
-2. Select JSON file
-3. ROIs restored with labels and palettes
+- Application presets (`utils/preset_manager.py`) and ROI save/load to JSON (`ROIController.save_rois` / `load_rois`) exist as APIs, but are not exposed in the GUI yet.
 
 ### Temperature Data Export
 
-Export temperature measurements for external analysis.
+Export temperature measurements for external analysis:
+- **Spot Meters** tab - Export CSV / Export JSON (readings, statistics, history)
+- **ROI Manager** tab - Export Data (per-ROI statistics)
+- **Line Profile** tab - Export CSV of the selected line
+- **Snapshots** (`S`) - PNG or JPEG of the current display, with a metadata file
 
-**Export Formats**:
-- CSV - Spot meter temperatures, ROI statistics
-- JSON - Complete thermal data with timestamps
-- PNG - Annotated thermal images with overlays
-
-**Export Data**:
-1. Analysis > Export Data
-2. Select format and destination
-3. Data saved with timestamp
+Exported values use the unit selected in the Radiometric panel.
 
 ---
 
@@ -618,22 +837,22 @@ If this is a **radiometric (-R)** Boson: as of v3.7.0 this shouldn't happen anym
 
 ### 16-bit Radiometric Mode Not Working
 
-**Problem**: Switching to Flirpy backend shows "Backend not available" or stays in 8-bit mode.
+**Problem**: Temperatures are shown as AGC counts or as estimates instead of true radiometric values.
 
 **Solutions**:
 1. Install flirpy: `pip install flirpy`
-2. Verify Boson camera is connected (not Lepton or other thermal cameras)
-3. Check SDK connection (T-Linear mode requires SDK)
-4. Specify COM port if not auto-detected
+2. Verify the camera is a radiometric (-R) Boson (non-radiometric units only have 8-bit AGC output)
+3. Check the SDK/CCI connection and that T-Linear mode is on (Cameras > FLIR Boson > Radiometric)
+4. Specify the COM port if it isn't auto-detected
 5. Check logs for detailed error messages
-6. Fallback: Use OpenCV backend with 8-bit temperature estimation
+6. Fallback: enable 8-bit temperature estimation (Analysis > Radiometric) for approximate values
 
 ### Fusion Quality Poor
 
 **Problem**: Thermal and RGB images don't align properly or fusion looks blurry.
 
 **Solutions**:
-1. **Parallax Misalignment**: Enable parallax compensation (Advanced > Parallax)
+1. **Parallax Misalignment**: Enable parallax compensation (Cameras > Parallax)
 2. **Resolution Mismatch**: Check if RGB camera resolution matches thermal (640x512 recommended)
 3. **Calibration**: Run camera calibration and save calibration file
 4. **Fusion Mode**: Try different modes (`detail_inject`, `edge_enhanced` are most forgiving)
@@ -645,7 +864,7 @@ If this is a **radiometric (-R)** Boson: as of v3.7.0 this shouldn't happen anym
 
 **Solutions**:
 1. **Disable Auto-ROI**: Auto-detection is CPU-intensive
-2. **Reduce Workers**: Settings > Performance > Set worker count to 2
+2. **Reduce Workers**: Start with `--max_workers 2`
 3. **Disable Parallax**: DepthAnything model is GPU-intensive
 4. **Lower Resolution**: Use 320x256 Boson instead of 640x512
 5. **GPU Acceleration**: Ensure CUDA is installed and detected (`--device cuda`)
@@ -669,19 +888,22 @@ This needs git, CMake, and a Visual Studio install with the C++ ATL component (`
 **Problem**: Temperature measurements don't match handheld thermal camera or expected values.
 
 **Solutions**:
-1. **Check Backend**: Use Flirpy 16-bit for accurate measurements (±2°C)
-2. **Emissivity**: Adjust material emissivity (Advanced > Environmental > Emissivity)
+1. **Check the Source**: Use a radiometric (16-bit) camera for accurate measurements (±2°C); estimated 8-bit values are ±5-10°C
+2. **Emissivity**: Adjust material emissivity (Analysis > Environmental)
 3. **Calibration**: Run radiometric calibration with reference temperatures
-4. **T-Linear Mode**: Verify SDK is connected and T-Linear mode is enabled (Boson SDK panel)
-5. **FFC**: Trigger FFC to recalibrate camera (press `F` or Boson SDK > Trigger FFC)
+4. **T-Linear Mode**: Verify T-Linear mode is enabled (Cameras > FLIR Boson > Radiometric)
+5. **FFC**: Trigger FFC to recalibrate the camera (Cameras > FLIR Boson > Controls > Trigger FFC)
 6. **Reflected Temperature**: Account for atmospheric/reflected temperature in environmental settings
 
 ---
 
 ## Documentation
 
-- **README.md** - Project overview, quick start, features (this file)
+- **README.md** - Project overview, quick start, features, palette reference (this file)
 - **CHANGELOG.md** - Version history, major changes, implementation details
+- **LAUNCHER_GUIDE.md** - Using `launch.bat` and its startup modes
+- **TODO.md** - Open work and handoff notes
+- **docs/** - Design specs and implementation plans (3D mapping fusion, spot-meter distance)
 
 ---
 
@@ -696,7 +918,7 @@ This needs git, CMake, and a Visual Studio install with the C++ ATL component (`
 
 **Processing Pipeline**:
 1. Capture thermal and RGB frames (parallel threads)
-2. Apply thermal processing (palette, normalization, edge detection)
+2. Apply thermal processing (palette, normalization, edge detection, isotherm / gradient / threshold overlays)
 3. Align RGB to thermal (homography transform or parallax compensation)
 4. Fuse thermal and RGB (selected fusion algorithm)
 5. Run thermal analysis (ROI detection, temperature measurement, anomaly detection)
@@ -712,10 +934,9 @@ This needs git, CMake, and a Visual Studio install with the C++ ATL component (`
 
 ### Adding Custom Fusion Algorithms
 
-1. Edit `fusion_processor.py`
-2. Add new method `_my_fusion(self, thermal, rgb)`
-3. Register in `set_mode()` valid_modes list
-4. Add to fusion dropdown in `fusion_panel.py`
+1. Edit `processing/fusion_processor.py` and add a method `_my_fusion(self, thermal, rgb)`
+2. Add the mode name to `AVAILABLE_FUSION_MODES` and a display label to `FUSION_MODE_LABELS` (one list feeds the 2D Fusion dropdown, `--fusion-mode` and `set_mode()`)
+3. Dispatch to your method where the other modes are chosen (the `elif self.fusion_mode == ...` chain)
 
 Example:
 ```python
@@ -735,15 +956,19 @@ def _my_fusion(self, thermal: np.ndarray, rgb: np.ndarray) -> np.ndarray:
 
 ### Adding Custom Palettes
 
-1. Create 256x3 NumPy array (BGR values)
-2. Save as `.npy` file in project root
-3. Import via Palettes > Import Palette
-4. Or add to `palette_manager.py` for permanent inclusion
+Palettes are added in code (there is no palette-import menu). Keep the steps in this order; the tests check that every palette is complete:
+
+1. Add a member to `PaletteType` in `processing/palette_manager.py` (its value is the ID used by config, presets and `--palette`)
+2. Add its colour stops (BGR, cold to hot) to `processing/palette_stops.py` - `"gradient"` for a smooth ramp, or `"steps"` for flat bands
+3. List it once in `PALETTE_CATEGORIES` and give it a unique friendly name in `PALETTE_DISPLAY_NAMES`
+4. Run `pytest tests/unit/test_palette_picker.py`
+
+A palette is a 256 x 3 array of BGR values (`uint8`); the stops are interpolated across those 256 entries.
 
 ### Running Tests
 
 ```bash
-# Run full test suite (600+ tests)
+# Run full test suite (780+ tests)
 pytest tests/ -v
 
 # Run camera plugin and driver tests
@@ -790,6 +1015,7 @@ MIT License - See LICENSE file for details.
 - **DepthAnything V2** - Monocular depth estimation for parallax compensation
 - **Qt / PyQt6** - Professional cross-platform GUI framework
 - **NVIDIA** - VPI acceleration on Jetson platforms
+- **matplotlib, ColorBrewer, colorcet (Peter Kovesi), Scientific Colour Maps (Fabio Crameri), seaborn** - colour data for the additional palettes (see the Palette Reference)
 
 ---
 
@@ -797,7 +1023,7 @@ MIT License - See LICENSE file for details.
 
 **Version**: 3.7.0
 **Status**: Production-ready with full radiometric support, runtime mode switching, ML + hardware depth estimation, universal camera plugin architecture
-**Last Updated**: 2026-09-18
+**Last Updated**: 2026-09-30
 **Tested**: Windows 11, FLIR Boson 640 (radiometric + non-radiometric), Intel RealSense D455 & L515, FLIR Firefly RGB
 
 ---

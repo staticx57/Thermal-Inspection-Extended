@@ -138,22 +138,25 @@ class ControlPanel(QWidget):
         # Theme icons and display names
         theme_info = {
             "Dark Mode": ("🌙", "Dark"),
+            "OLED Black": ("⚫", "OLED"),
             "Light Mode": ("☀", "Light"),
             "Solarized": ("🌅", "Solarized"),
             "Colorful": ("🎨", "Colorful"),
             "Win XP Luna": ("🖼", "XP Luna"),
             "Silver": ("💿", "XP Silver"),
             "Olive": ("🌿", "XP Olive"),
+            "Classic IBM": ("📟", "IBM"),
+            "Classic HP": ("🧮", "HP"),
             "auto": ("🔄", "Auto")
         }
 
-        # Handle auto mode with actual theme in parentheses
-        display_theme = theme
+        # Handle auto mode with actual theme in parentheses: "auto (Light Mode)". Kept short
+        # ("Auto: Light") - the full theme name overflowed the button and clipped its text.
         if "auto (" in theme:
-            # Extract actual theme from "auto (dark)" or "auto (light)"
-            display_theme = "auto"
-            icon, name = theme_info.get("auto", ("🔄", "Auto"))
-            self.theme_btn.setText(f"{icon} {theme.replace('auto ', 'Auto ')}")
+            icon = theme_info["auto"][0]
+            actual = theme[theme.index("(") + 1:theme.rindex(")")]
+            short = theme_info.get(actual, ("", actual))[1]
+            self.theme_btn.setText(f"{icon} Auto: {short}")
             self.theme_btn.setToolTip(f"Theme: {theme} - Click to cycle")
         else:
             icon, name = theme_info.get(theme, ("🌓", "Theme"))

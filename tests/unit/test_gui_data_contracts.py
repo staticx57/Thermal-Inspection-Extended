@@ -37,9 +37,10 @@ class TestROIControllerDataShape:
 
         data = controller._get_roi_data()
 
-        assert set(data.keys()) == {'count', 'rois'}
+        assert set(data.keys()) == {'count', 'rois', 'all_rois'}
         assert data['count'] == 1
         assert len(data['rois']) == 1
+        assert len(data['all_rois']) == 1       # all_rois also lists hidden ROIs; rois is only the visible ones
 
     @pytest.mark.unit
     def test_on_rois_changed_receives_structural_shape_not_stats(self):
@@ -56,7 +57,7 @@ class TestROIControllerDataShape:
         controller.clear_all()
 
         assert len(received) == 1
-        assert set(received[0].keys()) == {'count', 'rois'}
+        assert set(received[0].keys()) == {'count', 'rois', 'all_rois'}
         assert received[0]['count'] == 0
 
 
@@ -73,7 +74,7 @@ class TestAppRoiCallbackRouting:
 
         app._on_rois_changed({'count': 2, 'rois': ['a', 'b']})
 
-        app.gui.update_rois.assert_called_once_with(['a', 'b'])
+        app.gui.update_rois.assert_called_once_with(['a', 'b'], None)
         app.gui.roi_temp_panel.update_roi_data.assert_not_called()
 
 
@@ -87,24 +88,21 @@ class TestROITemperaturePanelStatsDisplay:
     def test_update_roi_data_displays_correct_values_and_unit(self, qapp):
         panel = ROITemperaturePanel()
 
-        panel.update_roi_data({
-            'roi_1': {
-                'roi_name': 'Test ROI',
-                'temp_avg': 42.5,
-                'temp_min': 30.0,
-                'temp_max': 55.0,
-                'temp_std': 5.0,
-                'pixel_count': 1000,
-                'unit': '°F (est)',
-                'emissivity': 'global',
-            }
-        })
+        # the panel lists ROIs from update_rois(); feed it the matching ROI object
+        from thermal_inspection.processing.roi_manager import ROIManager
+        mgr = ROIManager()
+        roi = mgr.create_rectangle_roi(x=0, y=0, w=10, h=10, label='Test ROI')
+        panel.tracker.records.clear()
+        panel.update_rois([roi])
+        panel.update_roi_data({roi.roi_id: {
+            'roi_name': 'Test ROI', 'temp_avg': 42.5, 'temp_min': 30.0, 'temp_max': 55.0, 'temp_std': 5.0,
+            'pixel_count': 1000, 'unit': '°F (est)', 'emissivity': 'global'}})
 
-        text = panel.stats_label.text()
-        assert 'Test ROI' in text
-        assert '42.50°F (est)' in text
-        assert '30.00°F (est)' in text
-        assert '55.00°F (est)' in text
+        from thermal_inspection.gui.panels import roi_temperature_panel as rp
+        row = [panel.table.item(0, c).text() for c in range(panel.table.columnCount())]
+        assert 'Test ROI' in row[rp.COL_NAME]
+        assert row[rp.COL_AVG] == '~42.5 °F'        # estimated readings carry a '~' and keep the app's unit
+        assert row[rp.COL_MIN] == '~30.0 °F' and row[rp.COL_MAX] == '~55.0 °F'
 
     @pytest.mark.gui
     @pytest.mark.unit
@@ -120,6 +118,7 @@ class TestROITemperaturePanelStatsDisplay:
         panel.update_roi_data({})
 
         assert panel.stats_label.text() == "No ROI data available"
+        assert panel.table.rowCount() == 0
 
 
 class TestIsothermPanelSignalWiring:

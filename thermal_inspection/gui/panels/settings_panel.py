@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import pyqtSignal
 
 # Import themes from new location
-from thermal_inspection.gui.themes import THEMES
+from thermal_inspection.gui.themes import THEMES, AUTO_THEME_LABEL
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,8 @@ class SettingsPanel(QGroupBox):
         theme_layout.addWidget(QLabel("Theme:"))
         self.theme_combo = QComboBox()
         self.theme_combo.setMinimumHeight(28)
-        self.theme_combo.addItems(list(THEMES.keys()))
+        self.theme_combo.addItems([AUTO_THEME_LABEL] + list(THEMES.keys()))
+        self.theme_combo.setToolTip("Auto follows your system's light/dark setting and switches live")
         self.theme_combo.currentTextChanged.connect(self.theme_changed.emit)
         theme_layout.addWidget(self.theme_combo)
         sys_layout.addLayout(theme_layout)

@@ -666,16 +666,16 @@ class FusionProcessor:
         self.contour_labels_enabled = bool(enabled)
 
     def set_contour_temp_unit(self, unit: str) -> None:
-        """Set thermal_contours' isotherm label unit: 'C', 'F', or 'K' (case-insensitive)."""
+        """Set thermal_contours' isotherm label unit: 'C', 'F', 'K', or 'RAW' (Y16, Kelvin x 100) (case-insensitive)."""
         normalized = (unit or '').strip().upper()
         # Accept the app's own longer forms too ('celsius'/'fahrenheit'/
         # 'kelvin') as well as the single-letter codes, since app.py's
         # set_temperature_unit() is itself called with either depending
         # on the caller (RadiometricController accepts both).
-        aliases = {'CELSIUS': 'C', 'FAHRENHEIT': 'F', 'KELVIN': 'K'}
+        aliases = {'CELSIUS': 'C', 'FAHRENHEIT': 'F', 'KELVIN': 'K', 'Y16': 'RAW'}
         normalized = aliases.get(normalized, normalized)
-        if normalized not in ('C', 'F', 'K'):
-            logger.warning(f"Invalid contour_temp_unit '{unit}', must be 'C', 'F', or 'K'")
+        if normalized not in ('C', 'F', 'K', 'RAW'):
+            logger.warning(f"Invalid contour_temp_unit '{unit}', must be 'C', 'F', 'K', or 'RAW'")
             return
         self.contour_temp_unit = normalized
 
@@ -1494,6 +1494,20 @@ class FusionProcessor:
                 main = rgb.copy()
                 inset = thermal
 
+            # If the inset has more pixels than its slot on the main frame (e.g. a 640x480
+            # RGB inset on a 320x256 thermal canvas), composing at main's native size throws
+            # that detail away - the inset is shrunk to ~80x64 - and the display then enlarges
+            # the whole result again, so it looks tiny and soft. Upscale main once, up front
+            # (capped at 1280 wide to bound per-frame cost) so the inset keeps its detail.
+            # Anything recording this frame conforms to its writer's size (MediaRecorder._conform).
+            main_h, main_w = main.shape[:2]
+            slot_w = main_w * pip_size
+            if slot_w > 0:
+                scale = max(1.0, min(inset.shape[1] / slot_w, 1280.0 / main_w))
+                if scale > 1.05:
+                    main = cv2.resize(main, (int(main_w * scale), int(main_h * scale)),
+                                      interpolation=cv2.INTER_CUBIC)
+
             # Calculate allocated inset dimensions
             main_h, main_w = main.shape[:2]
             allocated_w = int(main_w * pip_size)
@@ -1523,7 +1537,7 @@ class FusionProcessor:
             logger.debug(f"[FUSION PIP] Actual size: {actual_w}x{actual_h}, Offset: ({offset_x}, {offset_y})")
 
             # Resize inset maintaining aspect ratio
-            inset_resized = cv2.resize(inset, (actual_w, actual_h))
+            inset_resized = cv2.resize(inset, (actual_w, actual_h), interpolation=cv2.INTER_AREA)
 
             # Determine position for allocated space
             margin = 10
@@ -2047,6 +2061,9 @@ class FusionProcessor:
             value = temp_c * 9.0 / 5.0 + 32.0
         elif unit == 'K':
             value = temp_c + 273.15
+        elif unit == 'RAW':
+            value = (temp_c + 273.15) * 100.0
+            unit = 'Y16'
         else:
             value = temp_c
             unit = 'C'

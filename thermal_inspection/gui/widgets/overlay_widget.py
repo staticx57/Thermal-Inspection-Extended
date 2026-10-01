@@ -8,7 +8,7 @@ import time
 from typing import List, Optional
 
 from PyQt6.QtWidgets import QWidget, QMenu
-from PyQt6.QtCore import Qt, pyqtSignal, QRect
+from PyQt6.QtCore import Qt, pyqtSignal, QRect, QPoint
 from PyQt6.QtGui import QPainter, QPen, QColor, QPolygon
 
 from thermal_inspection.processing.roi_manager import ROI, ROIType
@@ -31,6 +31,7 @@ class InspectionOverlayWidget(QWidget):
     # Signals for mode changes (to sync button states)
     spot_meter_mode_changed = pyqtSignal(bool)  # Emitted when spot meter mode changes internally
     drawing_mode_changed = pyqtSignal(bool)     # Emitted when drawing mode changes internally
+    line_drawn = pyqtSignal(int, int, int, int)  # Line profile drawn: (x0, y0, x1, y1) in thermal coordinates
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -58,6 +59,13 @@ class InspectionOverlayWidget(QWidget):
         # "Add Point" was checked emitted no click signal at all - the
         # gate below only ever checked spot_meter_mode.
         self.calibration_add_point_mode = False
+
+        # Line profile drawing state (drag to draw; coordinates are thermal-sensor space)
+        self.line_profile_mode = False
+        self._line_start_thermal = None   # (x, y) thermal coords of the press
+        self._line_start_widget = None    # QPoint of the press, for the rubber band
+        self._line_current_widget = None  # QPoint of the current drag position
+        self.line_profiles: List = []     # committed lines: (start, end, color, label)
 
         # ROI drawing state
         self.drawing_mode = False
@@ -261,6 +269,20 @@ class InspectionOverlayWidget(QWidget):
             frame_y = y * scale_y
             return self.frame_to_widget(frame_x, frame_y)
 
+    def set_line_profile_mode(self, enabled: bool):
+        """Enable/disable click-and-drag line profile drawing."""
+        self.line_profile_mode = enabled
+        self._line_start_thermal = None
+        self._line_start_widget = None
+        self._line_current_widget = None
+        self.setCursor(Qt.CursorShape.CrossCursor if enabled else Qt.CursorShape.ArrowCursor)
+        self.update()
+
+    def set_line_profiles(self, profiles: List):
+        """Set committed line profiles to draw: list of (start, end, color, label), thermal coords."""
+        self.line_profiles = profiles
+        self.update()
+
     def set_spot_meter_mode(self, enabled: bool, emit_signal: bool = True):
         """Enable or disable spot metering mode."""
         self.spot_meter_mode = enabled
@@ -356,11 +378,27 @@ class InspectionOverlayWidget(QWidget):
             else:
                 return (temp_celsius, " (AGC)")
 
-        if self.current_temp_unit == 'RAW':
+        # 8-bit AGC counts are not a temperature in any unit - never convert them
+        if "AGC" in original_unit:
+            return (temp_celsius, original_unit)
+
+        # The value arrives in original_unit (the analyzer/controller already
+        # converted it to the user's unit on the way in) - normalise it to
+        # Celsius first, including Y16 (Kelvin x 100), so a RAW selection isn't
+        # mistaken for Celsius (or vice versa) when the unit is switched.
+        if "Y16" in original_unit:
+            if self.current_temp_unit == 'RAW':
+                return (temp_celsius, original_unit)
+            temp_celsius = temp_celsius / 100.0 - 273.15
+            original_unit = "°C"
+        elif self.current_temp_unit == 'RAW':
             if raw_value is not None:
                 return (raw_value, " (Y16)")
-            else:
-                return (temp_celsius, "°C")
+            if "F" in original_unit:
+                temp_celsius = (temp_celsius - 32) * 5/9
+            elif "K" in original_unit:
+                temp_celsius = temp_celsius - 273.15
+            return ((temp_celsius + 273.15) * 100.0, " (Y16)")
 
         if (self.current_temp_unit == 'C' and "C" in original_unit) or \
            (self.current_temp_unit == 'F' and "F" in original_unit) or \
@@ -426,6 +464,23 @@ class InspectionOverlayWidget(QWidget):
             # nudge instead of staying at the original (un-nudged) y.
             painter.drawText(rect.x() + 2, rect.y() + rect.height() - 2, text)
 
+        # Line profiles: committed lines, then the rubber band being dragged
+        if self.line_profiles and self._should_draw_thermal_overlays():
+            for start, end, color, label in self.line_profiles:
+                p0 = self._transform_thermal_coords(start[0], start[1])
+                p1 = self._transform_thermal_coords(end[0], end[1])
+                qcolor = QColor(color[0], color[1], color[2])
+                painter.setPen(QPen(qcolor, 2))
+                painter.drawLine(p0[0], p0[1], p1[0], p1[1])
+                painter.setBrush(qcolor)
+                painter.drawEllipse(QPoint(p0[0], p0[1]), 3, 3)
+                painter.drawEllipse(QPoint(p1[0], p1[1]), 3, 3)
+                draw_label(p0[0] + 6, p0[1] - 4, label, qcolor)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+        if self.line_profile_mode and self._line_start_widget is not None and self._line_current_widget is not None:
+            painter.setPen(QPen(QColor(255, 255, 0), 2, Qt.PenStyle.DashLine))
+            painter.drawLine(self._line_start_widget, self._line_current_widget)
+
         # Draw grid overlay
         if self.grid_enabled and self._should_draw_thermal_overlays():
             painter.setPen(QPen(self.grid_color, 1, Qt.PenStyle.DashLine))
@@ -486,7 +541,6 @@ class InspectionOverlayWidget(QWidget):
                 wx2, wy2 = self._transform_thermal_coords(x + w, y + h)
                 painter.drawRect(wx1, wy1, wx2 - wx1, wy2 - wy1)
             elif roi.roi_type == ROIType.POLYGON:
-                from PyQt6.QtCore import QPoint
                 points = [QPoint(int(self._transform_thermal_coords(p[0], p[1])[0]),
                                 int(self._transform_thermal_coords(p[0], p[1])[1])) for p in roi.points]
                 painter.drawPolygon(QPolygon(points))
@@ -665,7 +719,6 @@ class InspectionOverlayWidget(QWidget):
                 painter.drawEllipse(center_x - radius, center_y - radius, radius * 2, radius * 2)
 
             elif self.drawing_type == ROIType.POLYGON and self.temp_polygon_points:
-                from PyQt6.QtCore import QPoint
                 points = self.temp_polygon_points + [self.draw_current_pos]
                 for i in range(len(points) - 1):
                     painter.drawLine(points[i], points[i + 1])
@@ -700,87 +753,107 @@ class InspectionOverlayWidget(QWidget):
         self.show_detection_info = show
         self.update()
 
+    def _widget_to_thermal_coords(self, click_wx, click_wy):
+        """Map frame-space coordinates (from widget_to_frame) to thermal sensor
+        coordinates for the current view mode (side-by-side/PIP aware).
+        Returns (x, y), or None if the point isn't on the thermal image."""
+        click_x, click_y = click_wx, click_wy
+        valid_click = True
+        if self.current_view_mode == 'side_by_side':
+            # Mirrors _transform_thermal_coords(): FusionProcessor._side_by_side()
+            # hstacks the two panels at their own native widths (only height is
+            # matched), so the thermal panel is thermal's native resolution,
+            # unscaled, at whichever end fusion_priority puts it — not a 50/50
+            # split with letterboxing.
+            fw, fh = self.frame_size
+            tw, th = self.thermal_resolution if self.thermal_resolution else (640, 512)
+
+            if self.fusion_priority == 'thermal':
+                thermal_start = 0
+                thermal_in_region = (click_wx < tw)
+            else:
+                thermal_start = fw - tw
+                thermal_in_region = (click_wx >= thermal_start)
+
+            if thermal_in_region:
+                click_x = click_wx - thermal_start
+                click_y = click_wy
+                click_x = max(0, min(tw - 1, click_x))
+                click_y = max(0, min(th - 1, click_y))
+            else:
+                logger.info("Clicked on RGB side in Side-by-Side mode - Ignoring spot meter add")
+                valid_click = False
+
+        elif self.pip_rect is not None:
+            fw, fh = self.frame_size
+            tw, th = self.thermal_resolution if self.thermal_resolution else (640, 514)
+
+            if self.fusion_priority == 'thermal':
+                # Thermal is the main image, allow clicks anywhere on main display
+                if fw > 0 and fh > 0:
+                    click_x = click_wx * (tw / fw)
+                    click_y = click_wy * (th / fh)
+                    click_x = max(0, min(tw - 1, click_x))
+                    click_y = max(0, min(th - 1, click_y))
+                else:
+                    valid_click = False
+            else:
+                # Thermal is in PIP, only accept clicks inside PIP region
+                if hasattr(self, 'pip_thermal_rect') and self.pip_thermal_rect is not None:
+                    pip_x, pip_y, pip_w, pip_h = self.pip_thermal_rect
+                else:
+                    pip_x, pip_y, pip_allocated_w, pip_allocated_h = self.pip_rect
+                    actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(tw, th, pip_allocated_w, pip_allocated_h)
+                    pip_x += offset_x
+                    pip_y += offset_y
+                    pip_w = actual_w
+                    pip_h = actual_h
+
+                if (pip_x <= click_wx <= pip_x + pip_w) and (pip_y <= click_wy <= pip_y + pip_h):
+                    scale_x = pip_w / tw
+                    scale_y = pip_h / th
+                    click_x = (click_wx - pip_x) / scale_x
+                    click_y = (click_wy - pip_y) / scale_y
+                    click_x = max(0, min(tw - 1, click_x))
+                    click_y = max(0, min(th - 1, click_y))
+                else:
+                    logger.info("Clicked outside thermal PIP region - Ignoring spot meter add")
+                    valid_click = False
+
+        elif hasattr(self, 'thermal_resolution') and self.thermal_resolution:
+            tw, th = self.thermal_resolution
+            fw, fh = self.frame_size
+            if fw > 0 and fh > 0:
+                click_x = click_wx * (tw / fw)
+                click_y = click_wy * (th / fh)
+
+        return (click_x, click_y) if valid_click else None
+
     def mousePressEvent(self, event):
         """Handle mouse press for ROI drawing and selection."""
         click_wx, click_wy = self.widget_to_frame(event.pos().x(), event.pos().y())
         click_x, click_y = click_wx, click_wy
         valid_click = True
 
+        if self.line_profile_mode:
+            if event.button() == Qt.MouseButton.LeftButton:
+                mapped = self._widget_to_thermal_coords(click_wx, click_wy)
+                if mapped is not None:
+                    self._line_start_thermal = mapped
+                    self._line_start_widget = event.pos()
+                    self._line_current_widget = event.pos()
+                    self.update()
+            event.accept()
+            return
+
         # Handle spot meter mode - also used for calibration's "Add Point"
         # mode, which needs the exact same click-to-frame-coordinate
         # mapping (side-by-side/PIP aware) but has no reason to require
         # Spot Meter mode to also be turned on.
         if self.spot_meter_mode or self.calibration_add_point_mode:
-            if self.current_view_mode == 'side_by_side':
-                # Mirrors _transform_thermal_coords(): FusionProcessor._side_by_side()
-                # hstacks the two panels at their own native widths (only height is
-                # matched), so the thermal panel is thermal's native resolution,
-                # unscaled, at whichever end fusion_priority puts it — not a 50/50
-                # split with letterboxing.
-                fw, fh = self.frame_size
-                tw, th = self.thermal_resolution if self.thermal_resolution else (640, 512)
-
-                if self.fusion_priority == 'thermal':
-                    thermal_start = 0
-                    thermal_in_region = (click_wx < tw)
-                else:
-                    thermal_start = fw - tw
-                    thermal_in_region = (click_wx >= thermal_start)
-
-                if thermal_in_region:
-                    click_x = click_wx - thermal_start
-                    click_y = click_wy
-                    click_x = max(0, min(tw - 1, click_x))
-                    click_y = max(0, min(th - 1, click_y))
-                else:
-                    logger.info("Clicked on RGB side in Side-by-Side mode - Ignoring spot meter add")
-                    valid_click = False
-
-            elif self.pip_rect is not None:
-                fw, fh = self.frame_size
-                tw, th = self.thermal_resolution if self.thermal_resolution else (640, 514)
-
-                if self.fusion_priority == 'thermal':
-                    # Thermal is the main image, allow clicks anywhere on main display
-                    if fw > 0 and fh > 0:
-                        click_x = click_wx * (tw / fw)
-                        click_y = click_wy * (th / fh)
-                        click_x = max(0, min(tw - 1, click_x))
-                        click_y = max(0, min(th - 1, click_y))
-                    else:
-                        valid_click = False
-                else:
-                    # Thermal is in PIP, only accept clicks inside PIP region
-                    if hasattr(self, 'pip_thermal_rect') and self.pip_thermal_rect is not None:
-                        pip_x, pip_y, pip_w, pip_h = self.pip_thermal_rect
-                    else:
-                        pip_x, pip_y, pip_allocated_w, pip_allocated_h = self.pip_rect
-                        actual_w, actual_h, offset_x, offset_y = self._calculate_aspect_ratio_fit(tw, th, pip_allocated_w, pip_allocated_h)
-                        pip_x += offset_x
-                        pip_y += offset_y
-                        pip_w = actual_w
-                        pip_h = actual_h
-
-                    if (pip_x <= click_wx <= pip_x + pip_w) and (pip_y <= click_wy <= pip_y + pip_h):
-                        scale_x = pip_w / tw
-                        scale_y = pip_h / th
-                        click_x = (click_wx - pip_x) / scale_x
-                        click_y = (click_wy - pip_y) / scale_y
-                        click_x = max(0, min(tw - 1, click_x))
-                        click_y = max(0, min(th - 1, click_y))
-                    else:
-                        logger.info("Clicked outside thermal PIP region - Ignoring spot meter add")
-                        valid_click = False
-
-            elif hasattr(self, 'thermal_resolution') and self.thermal_resolution:
-                tw, th = self.thermal_resolution
-                fw, fh = self.frame_size
-                if fw > 0 and fh > 0:
-                    click_x = click_wx * (tw / fw)
-                    click_y = click_wy * (th / fh)
-
-            if valid_click:
-                self.spot_meter_clicked.emit(int(click_x), int(click_y))
+            mapped = self._widget_to_thermal_coords(click_wx, click_wy)
+            if mapped is not None:
+                self.spot_meter_clicked.emit(int(mapped[0]), int(mapped[1]))
 
             event.accept()
             return
@@ -847,6 +920,10 @@ class InspectionOverlayWidget(QWidget):
 
     def mouseMoveEvent(self, event):
         """Handle mouse move for ROI drawing AND cursor temperature readout."""
+        if self.line_profile_mode and self._line_start_thermal is not None:
+            self._line_current_widget = event.pos()
+            self.update()
+
         if self.drawing_mode and self.draw_start_pos:
             self.draw_current_pos = event.pos()
             self.update()
@@ -929,6 +1006,20 @@ class InspectionOverlayWidget(QWidget):
 
     def mouseReleaseEvent(self, event):
         """Handle mouse release to finalize ROI."""
+        if self.line_profile_mode:
+            start = self._line_start_thermal
+            self._line_start_thermal = None
+            self._line_start_widget = None
+            self._line_current_widget = None
+            if start is not None:
+                fx, fy = self.widget_to_frame(event.pos().x(), event.pos().y())
+                end = self._widget_to_thermal_coords(fx, fy)
+                if end is not None and abs(end[0] - start[0]) + abs(end[1] - start[1]) >= 3:
+                    self.line_drawn.emit(int(start[0]), int(start[1]), int(end[0]), int(end[1]))
+            self.update()
+            event.accept()
+            return
+
         if not self.drawing_mode or not self.draw_start_pos:
             return
 
@@ -1069,8 +1160,9 @@ class InspectionOverlayWidget(QWidget):
             ("gray", "Gray")
         ]
 
+        from thermal_inspection.gui.widgets.palette_combo import palette_swatch_icon
         for palette_id, palette_name in palettes:
-            action = palette_menu.addAction(palette_name)
+            action = palette_menu.addAction(palette_swatch_icon(palette_id), palette_name)
             action.triggered.connect(lambda checked, p=palette_id: self._set_roi_palette(p))
 
         clear_action = palette_menu.addAction("Clear Custom Palette")

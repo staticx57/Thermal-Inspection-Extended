@@ -116,6 +116,7 @@ class Tau2ControlPanel(QWidget):
 
         self.scan_btn = QPushButton("Scan")
         self.scan_btn.setFixedWidth(50)
+        set_button_state(self.scan_btn, "compact", True)
         self.scan_btn.setToolTip("Scan for available COM ports")
         port_row.addWidget(self.scan_btn)
         port_row.addStretch()

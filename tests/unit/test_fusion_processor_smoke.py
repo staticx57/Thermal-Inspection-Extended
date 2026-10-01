@@ -49,10 +49,15 @@ class TestFusionProcessorAllModes:
         assert result.dtype == np.uint8
         assert result.ndim == 3
         assert result.shape[2] == 3
-        # side_by_side legitimately doubles the width; every other mode
+        # side_by_side legitimately doubles the width, and picture_in_picture may compose on a
+        # larger canvas (same aspect ratio) so its inset keeps its detail; every other mode
         # must match the thermal frame's own dimensions.
+        th, tw = colorized_thermal.shape[:2]
         if mode == 'side_by_side':
-            assert result.shape[0] == colorized_thermal.shape[0]
+            assert result.shape[0] == th
+        elif mode == 'picture_in_picture':
+            assert result.shape[0] >= th and result.shape[1] >= tw
+            assert abs(result.shape[1] / result.shape[0] - tw / th) < 0.01
         else:
             assert result.shape[:2] == colorized_thermal.shape[:2]
 

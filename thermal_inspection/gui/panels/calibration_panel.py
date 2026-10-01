@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 import logging
+from thermal_inspection.gui.themes import set_button_state
 
 logger = logging.getLogger(__name__)
 
@@ -283,6 +284,7 @@ class CalibrationPanel(QWidget):
             # Remove button
             remove_btn = QPushButton("✕")
             remove_btn.setMaximumWidth(30)
+            set_button_state(remove_btn, "compact", True)
             remove_btn.clicked.connect(lambda checked, idx=i: self.remove_point_clicked.emit(idx))
             self.points_table.setCellWidget(i, 3, remove_btn)
 

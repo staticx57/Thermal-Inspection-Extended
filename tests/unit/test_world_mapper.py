@@ -37,8 +37,9 @@ class _FakePoseTracker:
         return self.next_result
 
     def track_frame_to_model(self, color, depth_m, world_points, world_normals, init_transform,
-                              max_correspondence_distance=0.05):
+                              max_correspondence_distance=0.05, world_key=None):
         self.frame_to_model_calls += 1
+        self.last_world_key = world_key
         return self.next_result
 
 
@@ -46,6 +47,7 @@ class _FakeWorldPointCloud:
     def __init__(self, voxel_size=0.01):
         self.voxel_size = voxel_size
         self.frozen = False
+        self.revision = 0
         self.integrate_calls = 0
         self.update_colors_calls = 0
         self._point_count = 0
@@ -62,9 +64,14 @@ class _FakeWorldPointCloud:
     def freeze(self):
         self.frozen = True
 
-    def update_colors(self, pose, texture_frame, intrinsic):
+    def update_temperatures(self, pose, temp_c, intrinsic, depth_m=None):
+        self.temp_calls = getattr(self, 'temp_calls', 0) + 1
+        return 0
+
+    def update_colors(self, pose, texture_frame, intrinsic, depth_m=None):
         self.update_colors_calls += 1
         self.last_texture_shape = texture_frame.shape
+        self.last_depth_given = depth_m is not None
         return 5
 
     def reset(self):
@@ -120,14 +127,36 @@ class TestStateMachine:
 
 
 class TestTrackAndTextureScanPhase:
-    def test_calls_integrate_every_frame(self):
+    def test_held_still_camera_skips_tracking_and_integration(self):
+        mapper = _make_mapper()
+        mapper.start_scan(64, 48, 50.0, 50.0, 32.0, 24.0)
+        color = np.zeros((48, 64, 3), dtype=np.uint8)
+        depth = np.ones((48, 64), dtype=np.float32)
+        mapper.track_and_texture(color, depth)
+        mapper.track_and_texture(color, depth)
+        mapper.track_and_texture(color, depth)
+        assert mapper.world.integrate_calls == 1
+        assert mapper._pose_tracker.frame_to_frame_calls == 0
+
+    def test_submit_frame_runs_in_background(self):
+        mapper = _make_mapper()
+        mapper.start_scan(64, 48, 50.0, 50.0, 32.0, 24.0)
+        color = np.zeros((48, 64, 3), dtype=np.uint8)
+        depth = np.ones((48, 64), dtype=np.float32)
+        mapper.submit_frame(color, depth)
+        mapper._worker.join(timeout=5)
+        assert mapper.world.integrate_calls == 1
+
+    def test_integrates_each_keyframe_when_camera_moves(self):
         mapper = _make_mapper()
         mapper.start_scan(64, 48, 50.0, 50.0, 32.0, 24.0)
         color = np.zeros((48, 64, 3), dtype=np.uint8)
         depth = np.ones((48, 64), dtype=np.float32)
 
+        moved = np.eye(4); moved[0, 3] = 0.05      # well past the key-frame distance
+        mapper._pose_tracker.next_result = (True, moved, 0.5)
         mapper.track_and_texture(color, depth)
-        mapper.track_and_texture(color, depth)
+        mapper.track_and_texture(color, depth + 0.2)
 
         assert mapper.world.integrate_calls == 2
 

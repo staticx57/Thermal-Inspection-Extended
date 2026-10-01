@@ -65,8 +65,10 @@ class VideoWidget(QLabel):
         widget_size = self.size()
         widget_w, widget_h = widget_size.width(), widget_size.height()
 
-        if widget_w > 0 and widget_h > 0 and orig_width > widget_w:
-            # Calculate aspect-preserving dimensions
+        if widget_w > 0 and widget_h > 0:
+            # Fit to the widget preserving aspect ratio - up as well as down, so
+            # small sensors (e.g. 320x256) fill the window instead of sitting at
+            # native size (which also fought resizeEvent's upscale)
             aspect = orig_width / orig_height
             target_w = widget_w
             target_h = int(target_w / aspect)
@@ -74,8 +76,10 @@ class VideoWidget(QLabel):
                 target_h = widget_h
                 target_w = int(target_h * aspect)
 
-            # Use OpenCV resize (much faster than QPixmap.scaled for 4K arrays)
-            frame = cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
+            if target_w > 0 and target_h > 0 and (target_w, target_h) != (orig_width, orig_height):
+                # Use OpenCV resize (much faster than QPixmap.scaled for 4K arrays)
+                interp = cv2.INTER_CUBIC if target_w >= orig_width else cv2.INTER_AREA
+                frame = cv2.resize(frame, (target_w, target_h), interpolation=interp)
 
         height, width = frame.shape[:2]
 
@@ -134,6 +138,18 @@ class VideoWidget(QLabel):
 
         self.overlay.set_spot_meter_mode(enabled, emit_signal=False)
 
+    def set_line_profile_mode(self, enabled: bool):
+        """Enable/disable click-and-drag line profile drawing."""
+        if enabled:
+            # Line drawing takes over clicks - don't leave spot meter/add-point armed
+            self.add_point_mode = False
+            self.overlay.set_spot_meter_mode(False, emit_signal=True)
+        self.overlay.set_line_profile_mode(enabled)
+
+    def set_line_profiles(self, profiles):
+        """Update committed line profiles drawn on the overlay."""
+        self.overlay.set_line_profiles(profiles)
+
     def update_measurement_points(self, points):
         """Update measurement points on overlay."""
         self.overlay.update_measurement_points(points)
@@ -143,7 +159,7 @@ class VideoWidget(QLabel):
         super().resizeEvent(event)
         self.overlay.setGeometry(self.rect())
 
-        if self._last_qpixmap and hasattr(self.overlay, 'frame_size') and self.overlay.frame_size != (640, 512):
+        if self._last_qpixmap and self._frame_width > 0:
             if self._last_qimage:
                 frame_width, frame_height = self.overlay.frame_size
                 self._last_qpixmap = QPixmap.fromImage(self._last_qimage).scaled(

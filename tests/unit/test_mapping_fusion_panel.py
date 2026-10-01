@@ -76,22 +76,6 @@ def test_reset_button_disabled_when_idle_with_no_points(qapp):
     assert panel._reset_button.isEnabled()  # something to reset (an active scan)
 
 
-def test_point_cloud_view_not_stuck_on_no_hardware_placeholder(qapp):
-    """C2: the viewport must not be permanently hidden behind the 'no
-    hardware depth sensor' placeholder - this panel shows the WORLD point
-    cloud (from WorldMapper), not a live RealSense preview, so that gate
-    doesn't apply here."""
-    from thermal_inspection.gui.panels.mapping_fusion_panel import MappingFusionPanel
-    from thermal_inspection.gui.panels.fusion_3d_panel import GL_AVAILABLE
-    panel = MappingFusionPanel()
-    if not GL_AVAILABLE:
-        pytest.skip("PyOpenGL not installed - placeholder-visibility check needs the real GL view")
-    # isHidden() (not isVisible()) - the panel is never shown/realized in
-    # this headless test, so isVisible() would read False regardless of
-    # the internal show()/hide() calls this test actually cares about.
-    assert panel.point_cloud_view._no_source_label.isHidden()
-
-
 def test_texture_source_combo_emits_signal(qapp):
     from thermal_inspection.gui.panels.mapping_fusion_panel import MappingFusionPanel
     panel = MappingFusionPanel()
@@ -109,17 +93,6 @@ def test_set_status_updates_label_text(qapp):
     assert "mapped" in panel._status_label.text().lower()
     assert "12345" in panel._status_label.text() or "12,345" in panel._status_label.text()
     assert "good" in panel._status_label.text().lower()
-
-
-def test_update_point_cloud_delegates_to_view(qapp):
-    import numpy as np
-    from thermal_inspection.gui.panels.mapping_fusion_panel import MappingFusionPanel
-    panel = MappingFusionPanel()
-    vertices = np.zeros((10, 3), dtype=np.float32)
-    colors = np.ones((10, 4), dtype=np.float32)
-    # Should not raise - actual rendering is Fusion3DPointCloudView's own
-    # already-tested responsibility.
-    panel.update_point_cloud(vertices, colors)
 
 
 def test_save_button_emits_signal(qapp):
@@ -145,3 +118,60 @@ def test_set_status_shows_lost_message(qapp):
     panel = MappingFusionPanel()
     panel.set_status("mapped", "lost", 500)
     assert "mapped area" in panel._status_label.text().lower() or "reset world" in panel._status_label.text().lower()
+
+
+def test_view_mode_combo_emits_key(qapp):
+    from thermal_inspection.gui.panels.mapping_fusion_panel import MappingFusionPanel
+    panel = MappingFusionPanel()
+    got = []
+    panel.view_mode_changed.connect(got.append)
+    panel._view_mode_combo.setCurrentIndex(panel._view_mode_combo.findData("peak"))
+    assert got == ["peak"]
+
+
+def test_thermal_summary_shows_and_hides(qapp):
+    from thermal_inspection.gui.panels.mapping_fusion_panel import MappingFusionPanel
+    panel = MappingFusionPanel()
+    panel.set_status("mapped", "good", 100)
+    panel.set_thermal_summary("Live: 20.0 to 80.0 C")
+    assert not panel._thermal_label.isHidden() and "80.0" in panel._thermal_label.text()
+    panel.set_status("idle", "n/a", 0)             # leaving the mapped state clears stale temperatures
+    assert panel._thermal_label.isHidden()
+
+
+def test_export_button_only_when_mapped(qapp):
+    from thermal_inspection.gui.panels.mapping_fusion_panel import MappingFusionPanel
+    panel = MappingFusionPanel()
+    assert not panel._export_button.isEnabled()
+    panel.set_status("mapped", "good", 10)
+    assert panel._export_button.isEnabled()
+    got = []
+    panel.export_thermal_requested.connect(lambda: got.append(1))
+    panel._export_button.click()
+    assert got == [1]
+
+
+def test_panel_no_longer_embeds_a_point_cloud(qapp):
+    """The 3D world is drawn full-size in the main view (WorldViewer); the settings tab holds controls only."""
+    from thermal_inspection.gui.panels.mapping_fusion_panel import MappingFusionPanel
+    panel = MappingFusionPanel()
+    assert not hasattr(panel, "point_cloud_view") and not hasattr(panel, "update_point_cloud")
+
+
+def test_hotspot_list_fills_and_emits_selection(qapp):
+    from thermal_inspection.gui.panels.mapping_fusion_panel import MappingFusionPanel
+    from thermal_inspection.processing.world_thermal import Marker
+    panel = MappingFusionPanel()
+    panel.set_status("mapped", "good", 100)
+    panel.set_hotspots([Marker("H1", (0.1, 0.2, 2.0), 80.0, "hot", 5),
+                        Marker("C1", (1.0, 0.0, 2.0), -12.0, "cool", 9)], "F")
+    texts = [panel._hotspot_list.item(i).text() for i in range(panel._hotspot_list.count())]
+    assert "H1" in texts[0] and "176.0" in texts[0]              # absolute temperature in the app's unit (F)
+    assert "C1" in texts[1] and "-21.6" in texts[1]              # a difference: scaled by 1.8, no +32 offset
+    got = []
+    panel.hotspot_selected.connect(got.append)
+    panel._hotspot_list.setCurrentRow(1)
+    assert got == [1]
+    panel.set_status("idle", "n/a", 0)                           # leaving the mapped state empties the list
+    assert panel._hotspot_list.count() == 0
+

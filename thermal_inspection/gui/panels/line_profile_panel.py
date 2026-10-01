@@ -108,7 +108,7 @@ class LineProfilePanel(QWidget):
         if HAS_PYQTGRAPH:
             self.plot = pg.PlotWidget(background='k')
             self.plot.setTitle("Temperature Profile", color='w', size='11pt')
-            self.plot.setLabel('left', 'Temperature', units='°C')
+            self.plot.setLabel('left', 'Temperature', units=self.analyzer.unit_label)
             self.plot.setLabel('bottom', 'Distance', units='px')
             self.plot.showGrid(x=True, y=True, alpha=0.3)
             self.plot.addLegend(offset=(10, 10))
@@ -148,14 +148,15 @@ class LineProfilePanel(QWidget):
             profile = self.analyzer.get_profile(line_id)
 
             if profile:
+                unit = self.analyzer.unit_label
                 # Update statistics
                 stats_text = (
                     f"<b>{profile.label}</b><br>"
                     f"Length: {profile.length:.1f} pixels<br>"
-                    f"Min: {profile.min_temp:.1f}°C<br>"
-                    f"Max: {profile.max_temp:.1f}°C<br>"
-                    f"Avg: {profile.avg_temp:.1f}°C<br>"
-                    f"StdDev: {profile.std_temp:.1f}°C<br>"
+                    f"Min: {profile.min_temp:.1f} {unit}<br>"
+                    f"Max: {profile.max_temp:.1f} {unit}<br>"
+                    f"Avg: {profile.avg_temp:.1f} {unit}<br>"
+                    f"StdDev: {profile.std_temp:.1f} {unit}<br>"
                     f"Points: {profile.num_points}"
                 )
                 self.stats_label.setText(stats_text)
@@ -217,6 +218,19 @@ class LineProfilePanel(QWidget):
         self._update_line_list()
         self._update_plot()
         return line_id
+
+    def set_unit_label(self, label: str):
+        """Set the unit shown for profile values ('°C', '°F', 'K', 'Y16' or 'AGC')."""
+        if label == self.analyzer.unit_label:
+            return
+        self.analyzer.unit_label = label
+        if HAS_PYQTGRAPH and self.plot is not None:
+            self.plot.setLabel('left', 'Value' if label in ('AGC', 'Y16') else 'Temperature', units=label)
+        self._on_line_selected()
+
+    def export_line(self, line_id: str, filepath: str):
+        """Export one line's profile to CSV."""
+        self.analyzer.export_profile_csv(line_id, filepath)
 
     def update_lines(self, temp_map):
         """Update all line profiles with new temperature data.

@@ -405,6 +405,7 @@ class BosonControlPanel(QWidget):
 
         self.scan_ports_button = QPushButton("Scan")
         self.scan_ports_button.setFixedWidth(50)
+        set_button_state(self.scan_ports_button, "compact", True)
         self.scan_ports_button.setToolTip("Scan for available COM ports")
         port_layout.addWidget(self.scan_ports_button)
         port_layout.addStretch()

@@ -80,6 +80,7 @@ class VideoRecorder:
 
             height, width = frame_shape[:2]
             frame_size = (width, height)
+            self._frame_size = frame_size
 
             # Initialize fusion writer (always enabled)
             self.fusion_writer = cv2.VideoWriter(
@@ -144,6 +145,24 @@ class VideoRecorder:
             self.cleanup()
             return False
 
+    def _conform(self, frame: np.ndarray) -> np.ndarray:
+        """
+        Make a frame match the size (and 3 channels) its VideoWriter was opened with.
+
+        cv2.VideoWriter.write() silently drops a frame whose size differs from the writer's,
+        so a display that changes size mid-recording (switching PIP/fusion modes, a larger
+        composite canvas) would otherwise quietly stop being recorded.
+        """
+        if frame is None:
+            return frame
+        if frame.ndim == 2:
+            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+        size = getattr(self, "_frame_size", None)
+        if size is not None and (frame.shape[1], frame.shape[0]) != size:
+            shrinking = frame.shape[1] > size[0] or frame.shape[0] > size[1]
+            frame = cv2.resize(frame, size, interpolation=cv2.INTER_AREA if shrinking else cv2.INTER_LINEAR)
+        return frame
+
     def write_frame(self, fusion_frame: np.ndarray,
                    thermal_frame: Optional[np.ndarray] = None,
                    rgb_frame: Optional[np.ndarray] = None,
@@ -168,18 +187,15 @@ class VideoRecorder:
         try:
             # Write fusion frame
             if self.fusion_writer and self.fusion_writer.isOpened():
-                self.fusion_writer.write(fusion_frame)
+                self.fusion_writer.write(self._conform(fusion_frame))
 
             # Write thermal frame if enabled
             if self.thermal_writer and self.thermal_writer.isOpened() and thermal_frame is not None:
-                # Ensure thermal frame is 3-channel
-                if len(thermal_frame.shape) == 2:
-                    thermal_frame = cv2.cvtColor(thermal_frame, cv2.COLOR_GRAY2BGR)
-                self.thermal_writer.write(thermal_frame)
+                self.thermal_writer.write(self._conform(thermal_frame))
 
             # Write RGB frame if enabled
             if self.rgb_writer and self.rgb_writer.isOpened() and rgb_frame is not None:
-                self.rgb_writer.write(rgb_frame)
+                self.rgb_writer.write(self._conform(rgb_frame))
 
             # Save frame metadata if enabled
             if self.config.get('save_roi_metadata', True):

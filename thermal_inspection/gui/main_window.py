@@ -5,6 +5,7 @@ Integrates all GUI components for the Thermal Inspection Fusion Tool.
 
 import sys
 import logging
+import time
 from typing import List, Optional, Dict, Tuple
 
 import numpy as np
@@ -19,7 +20,7 @@ from PyQt6.QtGui import QColor
 
 # Import themes
 from thermal_inspection.gui.themes import (
-    DARK_THEME, LIGHT_THEME, THEMES, STATE_COLORS_QSS
+    DARK_THEME, LIGHT_THEME, THEMES, STATE_COLORS_QSS, AUTO_THEME, AUTO_THEME_LABEL, resolve_auto_theme
 )
 
 # Import widgets
@@ -41,6 +42,7 @@ from thermal_inspection.gui.camera_control import (
 from thermal_inspection.processing.roi_manager import ROI, ROIType
 from thermal_inspection.processing.thermal_analyzer import ThermalStatistics, HotSpot, ColdSpot, ThermalAnomaly, TemperatureTrend
 from thermal_inspection.gui.panels.spot_meter_panel import SpotMeterPresets
+from thermal_inspection.gui.widgets.paged_tabwidget import PagedTabWidget
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +88,7 @@ class InspectionAppWindow(QMainWindow):
         self.statusBar().showMessage("Developer Mode: ON (Press Ctrl+D to toggle panels)", 8000)
 
         # State
-        self.current_theme = "dark"
+        self.current_theme = AUTO_THEME  # follow the OS light/dark setting
         self.developer_mode = True
         self.recording = False
         self.frozen = False
@@ -102,6 +104,13 @@ class InspectionAppWindow(QMainWindow):
 
         # Apply initial theme
         self._apply_theme(self.current_theme)
+
+        # "auto" follows the OS: re-apply live when the user flips Windows/macOS light<->dark
+        try:
+            from PyQt6.QtGui import QGuiApplication
+            QGuiApplication.styleHints().colorSchemeChanged.connect(self._on_system_scheme_changed)
+        except Exception as e:
+            logger.debug(f"System color-scheme change notifications unavailable: {e}")
 
         # Force layout update after startup to ensure panels are visible
         QTimer.singleShot(500, self._force_layout_update)
@@ -172,7 +181,15 @@ class InspectionAppWindow(QMainWindow):
             # below already does, and this duplicate connection meant every
             # overlay click fired _on_spot_meter_clicked (and, when active,
             # the broken calibration add-point routing) twice.
-            left_layout.addWidget(self.video_widget, stretch=1)
+            # The main view is a stack: the 2D video widget, or - while the app is in 3D Mapping mode - the 3D world
+            # viewer (see gui/widgets/world_viewer.py). Snapshot/record keep using the RGB feed either way.
+            from PyQt6.QtWidgets import QStackedWidget
+            from thermal_inspection.gui.widgets.world_viewer import WorldViewer
+            self.main_view_stack = QStackedWidget()
+            self.main_view_stack.addWidget(self.video_widget)      # index 0
+            self.world_viewer = WorldViewer()
+            self.main_view_stack.addWidget(self.world_viewer)      # index 1
+            left_layout.addWidget(self.main_view_stack, stretch=1)
             logger.info("[OK] Video widget created")
 
             # Control panel
@@ -186,7 +203,7 @@ class InspectionAppWindow(QMainWindow):
             logger.info("[OK] Left widget added to main layout")
 
             # RIGHT PANEL TABS
-            self.right_panel_tabs = QTabWidget()
+            self.right_panel_tabs = PagedTabWidget()
             self.right_panel_tabs.setObjectName("right_panel")
             self.right_panel_tabs.setFixedWidth(630)
             self.right_panel_tabs.setVisible(True)
@@ -196,7 +213,7 @@ class InspectionAppWindow(QMainWindow):
 
             # Analysis tab with subtabs
             logger.info("Creating Analysis tab...")
-            self.analysis_tabs = QTabWidget()
+            self.analysis_tabs = PagedTabWidget()
 
             # Create ThermalAnalysisPanel and transfer ALL its tabs
             self.analysis_panel = ThermalAnalysisPanel()
@@ -274,6 +291,15 @@ class InspectionAppWindow(QMainWindow):
                 )
             logger.info("  [OK] Connected ROI Manager.roi_deleted and roi_palette_changed")
 
+            # ROI Manager actions (rename / lock / show-hide / duplicate / alerts / ROI sets)
+            self.roi_temp_panel.roi_renamed.connect(lambda i, label: self._roi_action("rename_roi", i, label))
+            self.roi_temp_panel.roi_lock_changed.connect(lambda i, on: self._roi_action("set_roi_locked", i, on))
+            self.roi_temp_panel.roi_visibility_changed.connect(lambda i, on: self._roi_action("set_roi_visible", i, on))
+            self.roi_temp_panel.roi_duplicate_requested.connect(lambda i: self._roi_action("duplicate_roi", i))
+            self.roi_temp_panel.roi_alert_triggered.connect(self._on_roi_alert_triggered)
+            self.roi_temp_panel.save_set_requested.connect(self._on_roi_save_set)
+            self.roi_temp_panel.load_set_requested.connect(self._on_roi_load_set)
+
             # Connect export and clear history signals
             self.roi_temp_panel.export_data_requested.connect(self._on_roi_export_data)
             self.roi_temp_panel.clear_history_requested.connect(self._on_roi_clear_history)
@@ -313,23 +339,6 @@ class InspectionAppWindow(QMainWindow):
             self.analysis_tabs.addTab(isotherm_tab, "Isotherm")
             logger.info("  [OK] Isotherm panel added")
 
-            from thermal_inspection.gui.panels.gradient_overlay_panel import GradientOverlayPanel
-            gradient_tab = QWidget()
-            gradient_scroll = QScrollArea()
-            gradient_scroll.setWidgetResizable(True)
-            gradient_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-            gradient_scroll.setFrameShape(QFrame.Shape.NoFrame)
-
-            self.gradient_panel = GradientOverlayPanel()
-            gradient_scroll.setWidget(self.gradient_panel)
-
-            gradient_tab_layout = QVBoxLayout(gradient_tab)
-            gradient_tab_layout.setContentsMargins(0, 0, 0, 0)
-            gradient_tab_layout.addWidget(gradient_scroll)
-
-            self.analysis_tabs.addTab(gradient_tab, "Gradient")
-            logger.info("  [OK] Gradient overlay panel added")
-
             from thermal_inspection.gui.panels.line_profile_panel import LineProfilePanel
             line_profile_tab = QWidget()
             line_profile_scroll = QScrollArea()
@@ -356,6 +365,25 @@ class InspectionAppWindow(QMainWindow):
             self.right_panel_tabs.addTab(self.combined_anomaly_widget, "Detection")
             self.anomaly_widget = self.combined_anomaly_widget.automatic_widget
             self.manual_threshold_widget = self.combined_anomaly_widget.manual_widget
+
+            # Gradient overlay lives with detection (Automatic / Manual / Gradient): it highlights where
+            # temperature changes quickly rather than measuring anything
+            from thermal_inspection.gui.panels.gradient_overlay_panel import GradientOverlayPanel
+            gradient_tab = QWidget()
+            gradient_scroll = QScrollArea()
+            gradient_scroll.setWidgetResizable(True)
+            gradient_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            gradient_scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+            self.gradient_panel = GradientOverlayPanel()
+            gradient_scroll.setWidget(self.gradient_panel)
+
+            gradient_tab_layout = QVBoxLayout(gradient_tab)
+            gradient_tab_layout.setContentsMargins(0, 0, 0, 0)
+            gradient_tab_layout.addWidget(gradient_scroll)
+
+            self.combined_anomaly_widget.mode_tabs.addTab(gradient_tab, "Gradient")
+            logger.info("  [OK] Gradient overlay panel added to Detection")
             logger.info("[OK] Detection tab added to right panel")
 
             # Tab 3: Cameras
@@ -603,6 +631,12 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("mapping_fusion_panel", "texture_source_changed", self._on_mapping_texture_source_changed, "(3d mapping)")
         self._safe_connect("mapping_fusion_panel", "save_requested", self._on_mapping_save, "(3d mapping)")
         self._safe_connect("mapping_fusion_panel", "load_requested", self._on_mapping_load, "(3d mapping)")
+        self._safe_connect("mapping_fusion_panel", "view_mode_changed", self._on_mapping_view_mode_changed, "(3d mapping)")
+        self._safe_connect("mapping_fusion_panel", "hotspot_selected", self._on_mapping_hotspot_selected, "(3d mapping)")
+        self._safe_connect("world_viewer", "probe_requested", self._on_world_probe, "(3d world viewer)")
+        self._safe_connect("world_viewer", "measure_completed", self._on_world_measure, "(3d world viewer)")
+        self._safe_connect("world_viewer", "reset_view_requested", self._on_world_view_reset, "(3d world viewer)")
+        self._safe_connect("mapping_fusion_panel", "export_thermal_requested", self._on_mapping_export_thermal, "(3d mapping)")
 
         # === ANALYSIS PANEL ===
         self._safe_connect("analysis_panel", "palette_changed", self._on_global_palette_changed, "(analysis)")
@@ -641,6 +675,9 @@ class InspectionAppWindow(QMainWindow):
             if hasattr(spot_panel, 'comparison_changed') and hasattr(self, 'video_widget'):
                 spot_panel.comparison_changed.connect(self._on_comparison_changed)
                 logger.info("  [OK] Connected spot comparison signal")
+
+            if hasattr(spot_panel, 'snap_to_hottest_changed'):
+                spot_panel.snap_to_hottest_changed.connect(self._on_spot_snap_changed)
 
             logger.info("Connected SpotMeterPanel signals")
 
@@ -714,12 +751,14 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("gradient_panel", "gradient_mode_changed", self._on_gradient_mode_changed, "(gradient)")
         self._safe_connect("gradient_panel", "gradient_threshold_changed", self._on_gradient_threshold_changed, "(gradient)")
         self._safe_connect("gradient_panel", "gradient_color_map_changed", self._on_gradient_colormap_changed, "(gradient)")
+        self._safe_connect("gradient_panel", "gradient_sensitivity_changed", self._on_gradient_sensitivity_changed, "(gradient)")
 
         # === LINE PROFILE PANEL ===
         self._safe_connect("line_profile_panel", "line_mode_toggled", self._on_line_profile_mode_toggled, "(line profile)")
         self._safe_connect("line_profile_panel", "line_deleted", self._on_line_profile_deleted, "(line profile)")
         self._safe_connect("line_profile_panel", "clear_all_requested", self._on_line_profile_clear_all, "(line profile)")
         self._safe_connect("line_profile_panel", "export_requested", self._on_line_profile_export, "(line profile)")
+        self._safe_connect("video_widget.overlay", "line_drawn", self._on_line_drawn, "(line profile)")
 
         # === RADIOMETRIC PANEL 8-Bit ===
         self._safe_connect("radiometric_panel", "estimation_8bit_enabled_changed", self._on_8bit_estimation_toggled, "(radiometric 8-bit)")
@@ -1341,17 +1380,23 @@ class InspectionAppWindow(QMainWindow):
 
     def _on_theme_changed(self, theme: str):
         """Handle theme change from settings."""
+        if theme == AUTO_THEME_LABEL:
+            theme = AUTO_THEME
         self._apply_theme(theme)
+
+    def _on_system_scheme_changed(self, *_):
+        """The OS switched between light and dark - follow it if the theme is "auto"."""
+        if self.current_theme == AUTO_THEME:
+            logger.info("System color scheme changed - re-applying auto theme")
+            self._apply_theme(AUTO_THEME)
 
     def _apply_theme(self, theme: str):
         """Apply color theme."""
         self.current_theme = theme
 
         actual_theme = theme
-        if theme == "auto":
-            import datetime
-            hour = datetime.datetime.now().hour
-            actual_theme = "Light Mode" if 7 <= hour < 19 else "Dark Mode"
+        if theme == AUTO_THEME:
+            actual_theme = resolve_auto_theme()
 
         # STATE_COLORS_QSS is appended after every theme (not baked into
         # each one) so recording/frozen/primary-action buttons keep a fixed,
@@ -1572,6 +1617,9 @@ class InspectionAppWindow(QMainWindow):
 
     def _on_radiometric_temp_unit_changed(self, unit: str):
         logger.info(f"[MAIN_WINDOW] _on_radiometric_temp_unit_changed called with unit: {unit}")
+        self._temp_unit = unit
+        if hasattr(self, 'gradient_panel'):
+            self.gradient_panel.set_temperature_unit(unit)
         if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
             self.video_widget.overlay.set_temperature_unit(unit)
         if self.event_bus:
@@ -1951,18 +1999,71 @@ class InspectionAppWindow(QMainWindow):
         except Exception:
             pass  # Don't let cursor tracking errors affect the UI
 
-    def _on_roi_export_data(self):
-        """Export ROI temperature data to file."""
-        logger.info("ROI export data requested")
-        # Open file dialog and export data
+    def _roi_action(self, name: str, *args):
+        """Apply an ROI Manager action (rename/lock/hide/duplicate) through the ROIController, which also refreshes
+        every listener. Locked ROIs refuse to be renamed; the panel shows the reason before it ever gets here."""
+        controller = getattr(self.app, 'roi_controller', None)
+        if controller is not None:
+            getattr(controller, name)(*args)
+
+    def _on_roi_alert_triggered(self, roi_id: str, text: str):
+        logger.warning(text)
+        self.statusBar().showMessage(text, 10000)
+
+    def _on_roi_save_set(self):
+        """Save every ROI (with its lock, visibility, palette and alert) as a named ROI set."""
+        import os
+        import time
         from PyQt6.QtWidgets import QFileDialog
-        filepath, _ = QFileDialog.getSaveFileName(
-            self, "Export ROI Data", "", "CSV Files (*.csv);;JSON Files (*.json)"
-        )
-        if filepath:
-            if hasattr(self, 'roi_temp_panel'):
-                self.roi_temp_panel.export_data(filepath)
-                logger.info(f"ROI data exported to: {filepath}")
+        controller = getattr(self.app, 'roi_controller', None)
+        if controller is None or not controller.all_rois:
+            self.statusBar().showMessage("No ROIs to save", 5000)
+            return
+        os.makedirs("roi_sets", exist_ok=True)
+        default = os.path.join("roi_sets", time.strftime("rois_%Y%m%d_%H%M%S.json"))
+        path, _ = QFileDialog.getSaveFileName(self, "Save ROI Set", default, "ROI Set (*.json)")
+        if path:
+            ok = controller.save_rois(path)
+            self.statusBar().showMessage(f"ROI set saved to {path}" if ok else "Could not save the ROI set", 6000)
+
+    def _on_roi_load_set(self):
+        """Load an ROI set, replacing the current ROIs (asks first when there are some)."""
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+        controller = getattr(self.app, 'roi_controller', None)
+        if controller is None:
+            return
+        path, _ = QFileDialog.getOpenFileName(self, "Load ROI Set", "roi_sets", "ROI Set (*.json)")
+        if not path:
+            return
+        existing = len(controller.all_rois)
+        if existing and QMessageBox.question(
+                self, "Load ROI Set", f"Replace the {existing} current ROI(s) with this set?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+            return
+        ok = controller.load_rois(path)
+        self.statusBar().showMessage(f"ROI set loaded from {path}" if ok else "Could not load the ROI set", 6000)
+
+    def _on_roi_export_data(self):
+        """Export every ROI's readings, peaks, area and alert state to CSV or JSON."""
+        import os
+        import time
+        from PyQt6.QtWidgets import QFileDialog
+        logger.info("ROI export data requested")
+        default = time.strftime("roi_data_%Y%m%d_%H%M%S.csv")
+        filepath, selected = QFileDialog.getSaveFileName(
+            self, "Export ROI Data", default, "CSV Files (*.csv);;JSON Files (*.json)")
+        if not filepath or not hasattr(self, 'roi_temp_panel'):
+            return
+        if not os.path.splitext(filepath)[1]:
+            filepath += ".json" if "json" in selected.lower() else ".csv"
+        try:
+            self.roi_temp_panel.export_data(filepath)
+        except (ValueError, OSError) as e:
+            logger.warning(f"ROI export failed: {e}")
+            self.statusBar().showMessage(f"Could not export ROI data: {e}", 8000)
+            return
+        logger.info(f"ROI data exported to: {filepath}")
+        self.statusBar().showMessage(f"ROI data exported to {filepath}", 6000)
 
     def _on_roi_clear_history(self, roi_id: str):
         """Clear temperature history for a specific ROI."""
@@ -2041,9 +2142,25 @@ class InspectionAppWindow(QMainWindow):
                 self.control_panel.view_mode_btn.setText(f"\U0001F441 {label}")
 
             self._sync_overlay_view_mode()
+            self._sync_main_view_stack(view_mode)
             logger.info(f"View mode button synced to: {label}")
         except Exception as e:
             logger.debug(f"_sync_view_mode_button failed: {e}")
+
+    def _sync_main_view_stack(self, view_mode=None):
+        """Show the 3D world viewer in the main view while in 3D Mapping mode, the 2D video widget otherwise."""
+        stack = getattr(self, 'main_view_stack', None)
+        if stack is None:
+            return
+        try:
+            from thermal_inspection.core import ViewMode
+            if view_mode is None and self.app:
+                view_mode = getattr(self.app, 'view_mode', None)
+            want = 1 if view_mode == ViewMode.THREE_D_MAPPING else 0
+            if stack.currentIndex() != want:
+                stack.setCurrentIndex(want)
+        except Exception as e:
+            logger.debug(f"_sync_main_view_stack failed: {e}")
 
     def _sync_overlay_view_mode(self):
         """Sync overlay widget's view mode with current app state."""
@@ -2236,6 +2353,10 @@ class InspectionAppWindow(QMainWindow):
     def get_spot_meter_coords(self) -> List[Tuple[int, int, str]]:
         return [(p.x, p.y, p.label) for p in self.measurement_points]
 
+    def _on_spot_snap_changed(self, enabled: bool):
+        """Place new spot meters on the hottest pixel near the click (see _on_spot_meter_clicked)."""
+        self._spot_snap_to_hottest = bool(enabled)
+
     def _on_spot_meter_clicked(self, x: int, y: int):
         logger.info(f"Main Window: _on_spot_meter_clicked at ({x}, {y})")
 
@@ -2258,6 +2379,12 @@ class InspectionAppWindow(QMainWindow):
             elif self.app and hasattr(self.app, '_on_add_calibration_point'):
                 self.app._on_add_calibration_point(x, y)
             return
+
+        if getattr(self, '_spot_snap_to_hottest', False):
+            frame = getattr(self.app, '_last_thermal_frame', None)
+            if frame is not None:
+                from thermal_inspection.processing.spot_tracking import snap_to_hottest
+                x, y = snap_to_hottest(frame, x, y)
 
         for existing in self.measurement_points:
             if existing.x == x and existing.y == y:
@@ -2694,6 +2821,10 @@ class InspectionAppWindow(QMainWindow):
             self.event_bus.gradient_colormap_changed.emit(colormap)
         self._apply_gradient_setting(colormap=colormap)
 
+    def _on_gradient_sensitivity_changed(self, value: int):
+        logger.debug(f"Gradient sensitivity: {value}")
+        self._apply_gradient_setting(sensitivity=value)
+
     def _apply_gradient_setting(self, **kwargs):
         """Forward gradient settings to the app's GradientProcessor if available."""
         if self.app and hasattr(self.app, 'gradient_processor'):
@@ -2711,21 +2842,78 @@ class InspectionAppWindow(QMainWindow):
         if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'set_line_profile_mode'):
             self.video_widget.set_line_profile_mode(enabled)
 
+    def set_line_temp_map(self, raw_map, kind: str = 'y16'):
+        """
+        Latest thermal data at sensor resolution, or None if unavailable.
+
+        kind 'y16': radiometric Y16 (Kelvin x 100) - converted here to the unit
+        chosen in the Radiometric panel (C/F/K/RAW). kind 'agc': 8-bit AGC
+        counts from a non-radiometric camera - shown as-is, never as a
+        temperature.
+        """
+        panel = getattr(self, 'line_profile_panel', None)
+        if raw_map is None or panel is None:
+            self._line_temp_map = None
+            return
+
+        unit = getattr(self, '_temp_unit', 'C')
+        if kind == 'agc':
+            temp_map_c, label = raw_map.astype(np.float32), 'AGC'
+        else:
+            y16 = raw_map.astype(np.float32)
+            if unit == 'RAW':
+                temp_map_c, label = y16, 'Y16'
+            elif unit == 'K':
+                temp_map_c, label = y16 / 100.0, 'K'
+            elif unit == 'F':
+                temp_map_c, label = (y16 / 100.0 - 273.15) * 1.8 + 32.0, '°F'
+            else:
+                temp_map_c, label = y16 / 100.0 - 273.15, '°C'
+        panel.set_unit_label(label)
+        self._line_temp_map = temp_map_c
+        if panel.get_analyzer().get_all_profiles():
+            # Replotting every frame is wasteful - refresh the live plot at ~5 Hz
+            now = time.monotonic()
+            if now - getattr(self, '_line_plot_last_update', 0.0) >= 0.2:
+                self._line_plot_last_update = now
+                panel.update_lines(temp_map_c)
+
+    def wants_line_temp_map(self) -> bool:
+        """True while line profiles exist or are being drawn, so the app only builds the map when needed."""
+        panel = getattr(self, 'line_profile_panel', None)
+        return panel is not None and (panel.is_line_mode_enabled() or bool(panel.get_analyzer().get_all_profiles()))
+
+    def _sync_line_profile_overlay(self):
+        """Redraw committed lines on the video canvas from the analyzer's current list."""
+        panel = getattr(self, 'line_profile_panel', None)
+        if panel is None or not hasattr(self, 'video_widget'):
+            return
+        self.video_widget.set_line_profiles([
+            (p.start_point, p.end_point, p.color, p.label)
+            for p in panel.get_analyzer().get_all_profiles()
+        ])
+
+    def _on_line_drawn(self, x0: int, y0: int, x1: int, y1: int):
+        """A line was dragged on the video: sample it and add it to the Line Profile panel."""
+        temp_map = getattr(self, '_line_temp_map', None)
+        if temp_map is None:
+            logger.warning("Line profile: no thermal data available yet - line not added")
+            return
+        self.line_profile_panel.add_line((x0, y0), (x1, y1), temp_map)
+        self._sync_line_profile_overlay()
+
     def _on_line_profile_deleted(self, line_id: str):
         """Remove the line overlay from the video canvas."""
         logger.info(f"Line profile deleted: {line_id}")
         if self.event_bus:
             self.event_bus.line_profile_deleted.emit(line_id)
-        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'remove_line_profile'):
-            self.video_widget.remove_line_profile(line_id)
+        self._sync_line_profile_overlay()
 
     def _on_line_profile_clear_all(self):
         """Clear all line overlays from the video canvas."""
         logger.info("Line profiles: clear all")
-        if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'clear_line_profiles'):
-            self.video_widget.clear_line_profiles()
-        if hasattr(self, 'line_profile_panel'):
-            self.line_profile_panel.clear_all_lines()
+        # The panel has already cleared its own analyzer before emitting this
+        self._sync_line_profile_overlay()
 
     def _on_line_profile_export(self, line_id: str):
         """Export a single line profile to CSV via file dialog."""
@@ -2783,12 +2971,13 @@ class InspectionAppWindow(QMainWindow):
         """Update info panel metrics."""
         self.info_panel.update_info(fps, roi_count, thermal_connected, rgb_connected, self.recording)
 
-    def update_rois(self, rois: List[ROI]):
-        """Update ROI visualization and list."""
+    def update_rois(self, rois: List[ROI], all_rois: Optional[List[ROI]] = None):
+        """Update ROI visualization and lists. `rois` are the visible ROIs (drawn and measured); `all_rois` also
+        includes hidden ones, which the ROI Manager lists so they can be shown again."""
         self.video_widget.update_rois(rois)
         self.analysis_panel.update_rois(rois)
         if hasattr(self, 'roi_temp_panel'):
-            self.roi_temp_panel.update_rois(rois)
+            self.roi_temp_panel.update_rois(all_rois if all_rois is not None else rois)
 
     def set_fusion_3d_hardware_available(self, available: bool):
         """Record whether a RealSense camera is active, for the 3D Fusion settings tab's status/preview."""
@@ -2850,6 +3039,17 @@ class InspectionAppWindow(QMainWindow):
                 self.mapping_fusion_panel._status_label.setText(str(e))
             logger.warning(f"3D Mapping Fusion: cannot start scan: {e}")
             return
+        # Frames only reach the mapper while the view mode is 3D Mapping, so switch to it: otherwise Start from any
+        # other view scans nothing (and Finish would freeze an empty world).
+        try:
+            from thermal_inspection.core import ViewMode
+            if getattr(self.app, 'view_mode', None) != ViewMode.THREE_D_MAPPING:
+                self.app.view_mode = ViewMode.THREE_D_MAPPING
+                if getattr(self.app, 'fusion_controller', None) is not None:
+                    self.app.fusion_controller.set_view_mode("3d mapping")
+                self._sync_view_mode_button()
+        except Exception as e:
+            logger.warning(f"3D Mapping Fusion: could not switch to the 3D Mapping view: {e}")
         # I7: push the panel's status immediately rather than relying
         # solely on the next frame-loop tick (which only runs the
         # THREE_D_MAPPING dispatch branch's status push while that view
@@ -2871,6 +3071,13 @@ class InspectionAppWindow(QMainWindow):
         mode. Also pushes status immediately - see the comment in
         _on_mapping_start_scan."""
         if not (self.app and hasattr(self.app, 'world_mapper')):
+            return
+        if self.app.world_mapper.state == "scanning" and self.app.world_mapper.point_count == 0:
+            # nothing integrated yet (no frames arrived): freezing would produce an unusable empty world
+            if hasattr(self, 'mapping_fusion_panel'):
+                self.mapping_fusion_panel.set_message(
+                    "Nothing scanned yet - no depth frames have arrived. Keep the camera pointed at the scene and try again."
+                )
             return
         try:
             self.app.world_mapper.finish_scan()
@@ -2896,6 +3103,41 @@ class InspectionAppWindow(QMainWindow):
                 self.app.world_mapper.point_count,
             )
 
+    def set_mapping_fusion_thermal(self, text: str):
+        if hasattr(self, 'mapping_fusion_panel'):
+            self.mapping_fusion_panel.set_thermal_summary(text)
+
+    def _on_mapping_view_mode_changed(self, mode: str):
+        if self.app:
+            self.app._mapping_view_mode = mode
+            self.app._mapping_view_dirty = True      # repaint the viewport on the next tick even if nothing else changed
+
+    def _on_mapping_export_thermal(self):
+        """Write every world point's position and temperatures to CSV."""
+        if not (self.app and hasattr(self.app, 'world_mapper')) or self.app.world_mapper.state != "mapped":
+            return
+        import os
+        import time
+        from PyQt6.QtWidgets import QFileDialog
+        world = self.app.world_mapper.world
+        if not world.thermal.has_data and not world.thermal.has_baseline:
+            self.mapping_fusion_panel.set_message(
+                "No temperatures to export yet - they're only recorded from an aligned, radiometric thermal camera."
+            )
+            return
+        os.makedirs("world_maps", exist_ok=True)
+        default_path = os.path.join("world_maps", time.strftime("world_%Y%m%d_%H%M%S_temps.csv"))
+        path, _ = QFileDialog.getSaveFileName(self, "Export Temperatures", default_path, "CSV (*.csv)")
+        if not path:
+            return
+        try:
+            world.thermal.export_csv(path, world.points)
+        except OSError as e:
+            logger.warning(f"3D Mapping Fusion: could not export temperatures: {e}")
+            self.mapping_fusion_panel.set_message(f"Could not export temperatures: {e}")
+            return
+        self.mapping_fusion_panel.set_message(f"Temperatures exported to {path}")
+
     def _on_mapping_texture_source_changed(self, source: str):
         if self.app and hasattr(self.app, '_mapping_texture_source'):
             self.app._mapping_texture_source = source
@@ -2909,12 +3151,21 @@ class InspectionAppWindow(QMainWindow):
         if not (self.app and hasattr(self.app, 'world_mapper')) or self.app.world_mapper.state != "mapped":
             return
         import os
+        import time
         from PyQt6.QtWidgets import QFileDialog
         os.makedirs("world_maps", exist_ok=True)
-        default_path = os.path.join("world_maps", "world.ply")
+        default_path = os.path.join("world_maps", time.strftime("world_%Y%m%d_%H%M%S.ply"))
         path, _ = QFileDialog.getSaveFileName(self, "Save World", default_path, "Point Cloud (*.ply)")
         if path:
-            self.app.world_mapper.world.save(path)
+            try:
+                self.app.world_mapper.world.save(path)
+            except (ValueError, OSError, ImportError) as e:
+                logger.warning(f"3D Mapping Fusion: could not save world: {e}")
+                if hasattr(self, 'mapping_fusion_panel'):
+                    self.mapping_fusion_panel.set_message(f"Could not save the world: {e}")
+                return
+            if hasattr(self, 'mapping_fusion_panel'):
+                self.mapping_fusion_panel.set_message(f"World saved to {path}")
 
     def _on_mapping_load(self):
         """Load a previously-saved world. Puts WorldMapper straight into
@@ -2975,6 +3226,12 @@ class InspectionAppWindow(QMainWindow):
                 self.mapping_fusion_panel._status_label.setText(str(e))
             logger.warning(f"3D Mapping Fusion: cannot load world: {e}")
             return
+        except (ValueError, OSError) as e:
+            # a missing, empty or corrupt .ply: say so, and leave the current world/state untouched
+            logger.warning(f"3D Mapping Fusion: cannot load world from {path}: {e}")
+            if hasattr(self, 'mapping_fusion_panel'):
+                self.mapping_fusion_panel.set_message(f"Could not load the world: {e}")
+            return
         if hasattr(self, 'mapping_fusion_panel'):
             self.mapping_fusion_panel.set_status(
                 self.app.world_mapper.state, self.app.world_mapper.quality_state,
@@ -2985,16 +3242,65 @@ class InspectionAppWindow(QMainWindow):
         if hasattr(self, 'mapping_fusion_panel'):
             self.mapping_fusion_panel.set_status(state, quality_state, point_count)
 
-    def update_mapping_fusion_view(self, points, colors_rgb):
-        """points: (N,3) float64/float32 XYZ. colors_rgb: (N,3) float64 RGB in [0,1]
-        from WorldPointCloud (Open3D convention) - Fusion3DPointCloudView.update_point_cloud
-        wants (N,4) float32 RGBA in [0,1], so convert here at the GUI boundary."""
+    def set_mapping_fusion_message(self, message: str):
+        """Guidance text from WorldMapper (scan tracking lost, searching for the camera, ...)."""
         if hasattr(self, 'mapping_fusion_panel'):
+            self.mapping_fusion_panel.set_message(message)
+
+    def update_mapping_fusion_view(self, points, colors_rgb, indices=None):
+        """points: (N,3) world XYZ, colors_rgb: (N,3) RGB 0-1, indices: full-world index of each point (so a click
+        resolves to an exact reading even though the preview is decimated). Draws in the main-view world viewer."""
+        if hasattr(self, 'world_viewer'):
             import numpy as np
-            n = colors_rgb.shape[0]
-            rgba = np.ones((n, 4), dtype=np.float32)
-            rgba[:, :3] = colors_rgb.astype(np.float32)
-            self.mapping_fusion_panel.update_point_cloud(points.astype(np.float32), rgba)
+            self.world_viewer.set_world(np.asarray(points, dtype=np.float32), np.asarray(colors_rgb, dtype=np.float32),
+                                        indices)
+
+    def set_mapping_camera(self, pose, quality_state):
+        if hasattr(self, 'world_viewer'):
+            self.world_viewer.set_camera_pose(pose, quality_state)
+
+    def set_mapping_overlays(self, markers, legend, mode, unit):
+        """Hotspot markers + colour legend for the viewer, and the hotspot list in the settings tab."""
+        if hasattr(self, 'world_viewer'):
+            self.world_viewer.set_unit(unit)
+            self.world_viewer.set_markers(markers)
+            lo, hi = legend if legend else (None, None)
+            self.world_viewer.set_legend(mode, lo, hi, unit)
+        self._mapping_markers = list(markers)
+        if hasattr(self, 'mapping_fusion_panel'):
+            self.mapping_fusion_panel.set_hotspots(markers, unit)
+
+    def set_mapping_inset(self, frame_bgr):
+        if hasattr(self, 'world_viewer'):
+            self.world_viewer.set_inset(frame_bgr)
+
+    def _mapping_unit(self) -> str:
+        """The app's temperature unit as 'C' / 'F' / 'K' (raw counts fall back to C)."""
+        from thermal_inspection.processing import world_units
+        try:
+            return world_units.display_unit(self.app.radiometric_controller.get_unit_symbol())
+        except Exception:
+            return "C"
+
+    def _on_world_probe(self, index: int):
+        mapper = getattr(self.app, 'world_mapper', None)
+        if mapper is not None:
+            self.world_viewer.show_probe(mapper.probe(index), self._mapping_unit())
+
+    def _on_world_measure(self, index_a: int, index_b: int):
+        mapper = getattr(self.app, 'world_mapper', None)
+        if mapper is not None:
+            self.world_viewer.show_measure(mapper.measure(index_a, index_b), self._mapping_unit())
+
+    def _on_world_view_reset(self):
+        self.world_viewer.show_probe(None)
+
+    def _on_mapping_hotspot_selected(self, row: int):
+        markers = getattr(self, '_mapping_markers', [])
+        if 0 <= row < len(markers):
+            m = markers[row]
+            self.world_viewer.fly_to(m.xyz)
+            self._on_world_probe(m.index)
 
     def update_roi_stats(self, roi_stats: dict):
         """Push per-ROI temperature statistics (roi_id -> stats dict) to the ROI Manager panel."""
@@ -3060,9 +3366,19 @@ class InspectionAppWindow(QMainWindow):
             if temp_array is not None and hasattr(self.analysis_panel, 'update_histogram'):
                 self.analysis_panel.update_histogram(temp_array)
 
-        # Update histogram temperature unit based on mode
+        if hasattr(self, 'gradient_panel'):
+            self.gradient_panel.set_radiometric(is_radiometric)
+            # live "what do this scene's gradients look like" hint for picking a threshold (2 Hz, on demand)
+            now = time.monotonic()
+            if now - getattr(self, '_grad_stats_last', 0.0) >= 0.5:
+                self._grad_stats_last = now
+                processor = getattr(self.app, 'gradient_processor', None) if self.app else None
+                self.gradient_panel.set_scene_stats(processor.scene_stats() if processor and processor.enabled else None)
+
+        # Histogram follows the user's unit (the widget converts its Celsius
+        # data); non-radiometric 8-bit counts are AGC values, not a temperature
         if hasattr(self.analysis_panel, 'set_histogram_temperature_unit'):
-            unit = 'C' if is_radiometric else 'RAW'
+            unit = getattr(self, '_temp_unit', 'C') if is_radiometric else 'AGC'
             self.analysis_panel.set_histogram_temperature_unit(unit)
 
         # Update histogram palette LUT if available - independent of the

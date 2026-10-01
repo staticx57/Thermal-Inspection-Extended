@@ -18,7 +18,9 @@ Requires: pip install pyrealsense2 (not installed by default - optional
 dependency, see requirements.txt).
 """
 import logging
+import threading
 import time
+from collections import deque
 from typing import Optional, Tuple, Dict, Any
 
 import cv2
@@ -128,6 +130,17 @@ class RGBCameraRealSense:
         self._spatial_filter: Optional["rs.spatial_filter"] = None
         self._temporal_filter: Optional["rs.temporal_filter"] = None
         self._hole_filling_filter: Optional["rs.hole_filling_filter"] = None
+
+        # IMU (gyro + accelerometer): present on the L515 and the D435i/D455/D456 family, absent on plain D435 etc.
+        # Streamed through the sensor API, independent of the colour/depth pipeline, and rotated into the colour
+        # camera's frame. Optional everywhere - a camera without one just reports has_imu False.
+        self._motion_sensor = None
+        self._imu_lock = threading.Lock()
+        self._gyro = deque(maxlen=4000)          # (t_seconds, wx, wy, wz) rad/s, colour-camera frame
+        self._accel_filtered = None              # EMA of accelerometer readings, colour-camera frame (m/s^2)
+        self._imu_R_to_color = np.eye(3)
+        self._imu_window_start: Optional[float] = None
+        self.imu_model = ""
         self._depth_filters_enabled: Dict[str, bool] = {
             'spatial': False, 'temporal': False, 'hole_filling': False
         }
@@ -191,6 +204,7 @@ class RGBCameraRealSense:
             color_stream = profile.get_stream(rs.stream.color).as_video_stream_profile()
             self.width = color_stream.width()
             self.height = color_stream.height()
+            self._start_imu(device, color_stream)
 
             self.is_open = True
             logger.info(f"RealSense camera opened: {self.model} ({self.width}x{self.height} @ {self.fps}fps requested)")
@@ -324,7 +338,95 @@ class RGBCameraRealSense:
             logger.debug(f"Could not read RealSense depth intrinsics: {e}")
             return None
 
+    # ------------------------------------------------------------------ IMU
+
+    @property
+    def has_imu(self) -> bool:
+        return self._motion_sensor is not None
+
+    def _start_imu(self, device, color_profile):
+        """Best-effort: open the Motion Module at its lowest gyro/accel rates (plenty for a ~30 Hz tracker) and
+        collect samples. Any failure just leaves has_imu False - the IMU only ever improves tracking."""
+        try:
+            motion = None
+            for sensor in device.query_sensors():
+                if "Motion" in sensor.get_info(rs.camera_info.name):
+                    motion = sensor
+                    break
+            if motion is None:
+                return
+            by_type = {}
+            for prof in motion.get_stream_profiles():
+                if prof.stream_type() in (rs.stream.accel, rs.stream.gyro) and prof.format() == rs.format.motion_xyz32f:
+                    by_type.setdefault(prof.stream_type(), []).append(prof)
+            if rs.stream.accel not in by_type or rs.stream.gyro not in by_type:
+                return
+            chosen = [sorted(v, key=lambda x: x.fps())[0] for v in by_type.values()]
+            # sample axes -> colour camera axes (they are not the same frame on every model)
+            ext = chosen[0].get_extrinsics_to(color_profile)
+            self._imu_R_to_color = np.array(ext.rotation, dtype=float).reshape(3, 3).T   # librealsense is column-major
+            self._gyro.clear()
+            self._accel_filtered = None
+            self._imu_window_start = None
+            motion.open(chosen)
+            motion.start(self._on_motion_frame)
+            self._motion_sensor = motion
+            try:
+                self.imu_model = device.get_info(rs.camera_info.name)
+            except Exception:
+                self.imu_model = ""
+            logger.info(f"RealSense IMU started ({', '.join(f'{c.stream_type()} {c.fps()}Hz' for c in chosen)})")
+        except Exception as e:
+            logger.info(f"RealSense IMU unavailable: {e}")
+            self._stop_imu()
+
+    def _on_motion_frame(self, frame):
+        try:
+            if not frame.is_motion_frame():
+                return
+            m = frame.as_motion_frame()
+            d = m.get_motion_data()
+            v = self._imu_R_to_color @ np.array([d.x, d.y, d.z], dtype=float)
+            t = time.perf_counter()        # arrival time: the same clock read() uses (device clocks differ per model)
+            with self._imu_lock:
+                if m.get_profile().stream_type() == rs.stream.gyro:
+                    self._gyro.append((t, float(v[0]), float(v[1]), float(v[2])))
+                else:
+                    self._accel_filtered = v if self._accel_filtered is None else 0.8 * self._accel_filtered + 0.2 * v
+        except Exception:
+            pass
+
+    def _stop_imu(self):
+        sensor, self._motion_sensor = self._motion_sensor, None
+        if sensor is not None:
+            try:
+                sensor.stop()
+                sensor.close()
+            except Exception as e:
+                logger.debug(f"Error stopping RealSense IMU: {e}")
+
+    def get_imu_sample(self):
+        """Camera rotation since the previous call (integrated from the gyro, 3x3 in the colour camera's frame) plus
+        the latest low-passed accelerometer reading, as an ImuSample - or None when this camera has no IMU or no gyro
+        data has arrived. The first call just starts the window and returns an identity rotation."""
+        if self._motion_sensor is None:
+            return None
+        from thermal_inspection.processing.imu_prior import ImuSample, integrate_gyro
+        now = time.perf_counter()
+        with self._imu_lock:
+            samples = list(self._gyro)
+            accel = None if self._accel_filtered is None else self._accel_filtered.copy()
+            start, self._imu_window_start = self._imu_window_start, now
+        if not samples:
+            return None
+        # No previous window, or a stale one (the caller wasn't polling, e.g. another view mode was active): rotation
+        # over that gap is unknowable here, so report none rather than integrating a huge stale span.
+        fresh = start is not None and (now - start) <= 1.0
+        R = integrate_gyro(samples, start, now) if fresh else np.eye(3)
+        return ImuSample(R, accel)
+
     def release(self):
+        self._stop_imu()
         if self.pipeline is not None:
             try:
                 self.pipeline.stop()

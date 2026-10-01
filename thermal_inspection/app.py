@@ -34,6 +34,9 @@ from .utils.profiling import profile_log
 
 logger = logging.getLogger(__name__)
 
+# 3D Mapping viewer: enough points to pick and read detail, light enough to redraw at 10 Hz
+MAX_WORLD_VIEW_POINTS = 150000
+
 
 def _compute_spot_distance_m(depth_map, point_x: int, point_y: int,
                               thermal_w: int, thermal_h: int) -> Optional[float]:
@@ -981,7 +984,7 @@ class ThermalInspectionApp:
         temperature-stats push in `_process_frame_loop` instead).
         """
         if self.gui and hasattr(self.gui, 'update_rois'):
-            self.gui.update_rois(roi_data.get('rois', []))
+            self.gui.update_rois(roi_data.get('rois', []), roi_data.get('all_rois'))
 
     def _on_radiometric_state_change(self, state: RadiometricState):
         """Handle radiometric state changes."""
@@ -1074,7 +1077,7 @@ class ThermalInspectionApp:
             # Same idea for thermal_contours' isotherm-label unit - sync
             # the startup default now; set_temperature_unit() keeps it in
             # sync on every later change.
-            _unit_code = {'CELSIUS': 'C', 'FAHRENHEIT': 'F', 'KELVIN': 'K'}.get(
+            _unit_code = {'CELSIUS': 'C', 'FAHRENHEIT': 'F', 'KELVIN': 'K', 'RAW': 'RAW'}.get(
                 self.radiometric_controller.state.temperature_unit.name, 'C'
             )
             self.fusion_processor.set_contour_temp_unit(_unit_code)
@@ -1114,6 +1117,11 @@ class ThermalInspectionApp:
         from .processing.world_mapper import WorldMapper
         self.world_mapper = WorldMapper()
         self._mapping_texture_source = "thermal"
+        self._mapping_view_mode = "colour"      # viewport colouring: colour / temperature / peak / change
+        self._mapping_view_dirty = False
+        self._last_thermal_summary_time = 0.0
+        self._last_mapping_inset_time = 0.0
+        self._last_world_view_push = 0.0
         # Throttle live-phase tracking+recolor the same way the existing
         # ViewMode.THREE_D block throttles its own relief-shading
         # recompute (self._3d_fusion_update_interval_s, 15Hz) - per the
@@ -2175,6 +2183,7 @@ class ThermalInspectionApp:
                             'temp_max': roi_stat.max_temp,
                             'temp_std': roi_stat.std_temp,
                             'pixel_count': roi_stat.pixel_count,
+                            'frame_pixels': int(mask.size),
                             'unit': roi_stat.unit,
                             'emissivity': 'global',
                         }
@@ -2211,6 +2220,16 @@ class ThermalInspectionApp:
                                     if _iso_state.multiband_mode and self.isotherm_manager._band_manager else 0),
                         ms=f"{(time.perf_counter() - _iso_t0) * 1000:.2f}",
                     )
+
+            # 3b'. Temperature-gradient overlay (Analysis > Gradient). Measured on the thermal DATA -
+            # Y16 gives real deg C/px, an 8-bit AGC frame gives counts/px - not on the colourised picture,
+            # and composited onto the colourised frame so it shows in thermal and fused views.
+            if (_needs_colorized_overlays and self.gradient_processor is not None
+                    and self.gradient_processor.enabled
+                    and thermal_frame is not None and thermal_frame is not self.thermal_placeholder):
+                colorized_thermal = self.gradient_processor.blend(
+                    colorized_thermal, thermal_16bit if thermal_16bit is not None else thermal_frame
+                )
 
             # 3c. Apply manual threshold overlay via ThresholdManager
             ts = self.threshold_manager.get_state()
@@ -2559,6 +2578,29 @@ class ThermalInspectionApp:
                                 else:
                                     _aligned_thermal_texture = _corrected_thermal_for_preview
 
+                            # Say so when the chosen texture can't be honoured, instead of silently painting RGB.
+                            self._mapping_texture_note = ""
+                            if self._mapping_texture_source in ("thermal", "blend") and _aligned_thermal_texture is None:
+                                self._mapping_texture_note = (
+                                    "Texture is RGB: no thermal camera is streaming."
+                                    if _corrected_thermal_for_preview is None else
+                                    "Texture is RGB: thermal isn't aligned to the depth camera. Turn on parallax "
+                                    "correction with the RealSense depth method and the thermal target."
+                                )
+                            # Temperatures for the world's per-point thermal layer: only from a genuinely radiometric
+                            # Y16 frame (Kelvin x 100) that is aligned to the depth camera - never from the 8-bit
+                            # estimate or an unaligned frame, which would put wrong numbers on the wrong places.
+                            _temp_c = None
+                            self._mapping_temp_note = ""
+                            if _aligned_thermal_texture is not None and _corrected_thermal_for_preview is not None:
+                                if (getattr(self.camera_state, 'is_radiometric', False)
+                                        and _corrected_thermal_for_preview.dtype == np.uint16):
+                                    _raw = _corrected_thermal_for_preview.astype(np.float32)
+                                    _temp_c = np.where(_raw > 0, _raw / 100.0 - 273.15, np.nan).astype(np.float32)
+                                else:
+                                    self._mapping_temp_note = (
+                                        "Temperatures aren't recorded: the thermal camera isn't in radiometric mode."
+                                    )
                             if self._mapping_texture_source == "thermal":
                                 # No sane thermal to use - RGB Only fallback,
                                 # same fallback spirit as ViewMode.THREE_D's
@@ -2579,7 +2621,10 @@ class ThermalInspectionApp:
                                 texture = rgb_frame
 
                             try:
-                                self.world_mapper.track_and_texture(rgb_frame, depth_map, texture_frame=texture)
+                                self.world_mapper.submit_frame(
+                                    rgb_frame, depth_map, texture_frame=texture, temp_c=_temp_c,
+                                    imu=_rs_backend.get_imu_sample() if hasattr(_rs_backend, 'get_imu_sample') else None,
+                                )
                                 self._mapping_failure_count = 0
                             except Exception as e:
                                 # I7: bumped from debug to warning (rate-
@@ -2603,31 +2648,49 @@ class ThermalInspectionApp:
                                 "set_mapping_fusion_status",
                                 self.world_mapper.state, self.world_mapper.quality_state, self.world_mapper.point_count,
                             )
-                            if self.world_mapper.state == "mapped":
-                                # I10: cap what gets pushed to the GPU every
-                                # tick, the same way the existing 3D Fusion
-                                # preview path stride-subsamples via
-                                # MAX_PREVIEW_POINTS before calling
-                                # update_point_cloud - the world cloud can
-                                # grow to hundreds of thousands of points
-                                # with no cap otherwise, copied several times
-                                # over on its way to the GL view.
-                                _wpoints = self.world_mapper.world.points
-                                _wcolors = self.world_mapper.world.colors
-                                _wn = _wpoints.shape[0]
-                                if _wn > MAX_PREVIEW_POINTS:
-                                    _widx = np.linspace(0, _wn - 1, MAX_PREVIEW_POINTS).astype(np.int64)
-                                    _wpoints = _wpoints[_widx]
-                                    _wcolors = _wcolors[_widx]
+                            _note = "\n".join(
+                                x for x in (getattr(self, '_mapping_texture_note', ''),
+                                            getattr(self, '_mapping_temp_note', '')) if x
+                            )
+                            _msg = self.world_mapper.status_message
+                            self._gui_invoke(
+                                "set_mapping_fusion_message", "\n".join(x for x in (_msg, _note) if x)
+                            )
+                            if self.world_mapper.state == "mapped" and (
+                                    _now_mapping - self._last_thermal_summary_time >= 1.5):
+                                self._last_thermal_summary_time = _now_mapping
+                                try:
+                                    from .processing import world_units as _wu
+                                    _unit = _wu.display_unit(self.radiometric_controller.get_unit_symbol())
+                                    self.world_mapper.temp_unit = _unit
+                                    self._gui_invoke("set_mapping_fusion_thermal", self.world_mapper.thermal_summary())
+                                    self._gui_invoke(
+                                        "set_mapping_overlays", self.world_mapper.markers(5),
+                                        self.world_mapper.legend(self._mapping_view_mode), self._mapping_view_mode, _unit,
+                                    )
+                                except Exception as _ov_err:
+                                    logger.debug(f"3D Mapping overlays failed: {_ov_err}")
+                            if self.world_mapper.state in ("scanning", "mapped"):
                                 self._gui_invoke(
-                                    "update_mapping_fusion_view",
-                                    _wpoints, _wcolors,
+                                    "set_mapping_camera", self.world_mapper.camera_pose(),
+                                    self.world_mapper.quality_state if self.world_mapper.state == "mapped" else "good",
                                 )
-                # Display: same RGB-only-depth-shaded fallback the existing
-                # THREE_D branch uses when nothing better is available -
-                # this mode's real output is the point-cloud viewport tab,
-                # not the main video widget, but the main widget still needs
-                # SOMETHING to show.
+                                if _now_mapping - self._last_mapping_inset_time >= 0.2 and rgb_frame is not None:
+                                    self._last_mapping_inset_time = _now_mapping
+                                    _iw = 320
+                                    _ih = max(1, int(rgb_frame.shape[0] * _iw / max(1, rgb_frame.shape[1])))
+                                    self._gui_invoke("set_mapping_inset", cv2.resize(rgb_frame, (_iw, _ih)))
+                            if (self.world_mapper.state in ("scanning", "mapped")
+                                    and _now_mapping - self._last_world_view_push >= (
+                                        0.5 if self.world_mapper.state == "scanning" else 0.1)):
+                                self._last_world_view_push = _now_mapping
+                                _wpts, _wcols, _widx = self.world_mapper.preview_cloud(
+                                    MAX_WORLD_VIEW_POINTS, self._mapping_view_mode)
+                                if len(_wpts):
+                                    self._gui_invoke("update_mapping_fusion_view", _wpts, _wcols, _widx)
+                # Display: the 3D world itself is drawn by the main-view WorldViewer (pushed above via
+                # preview_cloud()); the video widget is hidden in this mode but keeps receiving the RGB feed, which
+                # is also what snapshot and record capture.
                 display_frame = rgb_frame if rgb_frame is not None else colorized_thermal
             elif self.view_mode == ViewMode.PICTURE_IN_PICTURE:
                 if self.fusion_processor and rgb_frame is not None:
@@ -2679,6 +2742,21 @@ class ThermalInspectionApp:
                 # frozen isn't itself frozen in time for no reason.
                 if not self.frame_frozen:
                     self.gui.update_frame(display_frame)
+
+                # Line Profile tool: raw radiometric Y16 (GUI converts to the chosen
+                # unit) or, for non-radiometric cameras, AGC counts - never estimated
+                # temperatures. Only handed over while lines exist / are being drawn
+                if hasattr(self.gui, 'wants_line_temp_map'):
+                    _line_map, _line_kind = None, 'y16'
+                    if self.gui.wants_line_temp_map():
+                        if getattr(self.camera_state, 'is_radiometric', False) and thermal_16bit is not None:
+                            _line_map = thermal_16bit
+                        elif thermal_frame is not None and thermal_frame is not self.thermal_placeholder:
+                            # Non-radiometric: profile the AGC counts, labelled as such
+                            _line_map, _line_kind = thermal_frame, 'agc'
+                            if _line_map.ndim == 3:
+                                _line_map = cv2.cvtColor(_line_map, cv2.COLOR_BGR2GRAY)
+                    self.gui.set_line_temp_map(_line_map, _line_kind)
 
                 _prof_t_guiframe = time.time()
 
@@ -2751,7 +2829,7 @@ class ThermalInspectionApp:
 
                 # Update ROIs
                 if self.roi_controller:
-                    self.gui.update_rois(self.roi_controller.rois)
+                    self.gui.update_rois(self.roi_controller.rois, self.roi_controller.all_rois)
 
                 # Update spot meters (measurement points) in the GUI
                 if hasattr(self.gui, 'measurement_points') and self.gui.measurement_points:

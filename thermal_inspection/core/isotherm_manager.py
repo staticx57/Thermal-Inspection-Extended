@@ -106,10 +106,14 @@ class IsothermManager(QObject):
         self.state_changed.emit()
 
     def set_color(self, color: str) -> None:
-        if color not in self.VALID_COLORS:
+        # The panel's combo box emits its display text ("Yellow", "Green", ...) - accept any capitalisation.
+        # This used to require the exact lowercase key, so every non-red choice was rejected and the
+        # overlay stayed red.
+        key = (color or "").strip().lower()
+        if key not in self.VALID_COLORS:
             logger.warning(f"Unknown isotherm color '{color}', ignoring")
             return
-        self._color = color
+        self._color = key
         self.state_changed.emit()
 
     def set_band_manager(self, band_manager) -> None:

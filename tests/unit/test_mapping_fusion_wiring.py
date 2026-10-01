@@ -16,9 +16,18 @@ construction needed, following test_thermal_analysis_push_throttle.py's
 from unittest.mock import MagicMock
 
 import numpy as np
+import pytest
 
 from thermal_inspection.gui.main_window import InspectionAppWindow as MainWindow
 from thermal_inspection.processing.world_mapper import WorldMapper
+
+
+@pytest.fixture
+def no_open3d(monkeypatch):
+    """Simulate a machine without open3d, whatever this environment has installed - these tests are about the
+    graceful-degradation path, which must keep working for users who never install it."""
+    from thermal_inspection.processing import open3d_support
+    monkeypatch.setattr(open3d_support, "OPEN3D_AVAILABLE", False)
 
 
 class _FakeRealSenseBackend:
@@ -45,7 +54,7 @@ class _FakeMainWindow:
 
 
 class TestMappingStartScanImportErrorHandling:
-    def test_start_scan_without_open3d_does_not_raise(self):
+    def test_start_scan_without_open3d_does_not_raise(self, no_open3d):
         """The real regression this test guards against: PoseTracker()
         raises ImportError (open3d not installed) inside
         WorldMapper.start_scan() - _on_mapping_start_scan must catch it,
@@ -59,7 +68,7 @@ class TestMappingStartScanImportErrorHandling:
             "reaching the state assignment"
         )
 
-    def test_start_scan_surfaces_import_error_as_status_message(self):
+    def test_start_scan_surfaces_import_error_as_status_message(self, no_open3d):
         fake = _FakeMainWindow(_FakeApp(rgb_camera=_FakeRealSenseBackend()))
 
         MainWindow._on_mapping_start_scan(fake)
@@ -103,7 +112,7 @@ class TestMappingStartScanImportErrorHandling:
 
 
 class TestMappingLoadWorld:
-    def test_load_without_open3d_does_not_raise(self):
+    def test_load_without_open3d_does_not_raise(self, no_open3d):
         """WorldPointCloud.load() (and PoseTracker construction) raises
         ImportError when open3d isn't installed - this genuinely-missing
         environment exercises the real ImportError, not a mock of it."""
@@ -113,7 +122,7 @@ class TestMappingLoadWorld:
 
         assert fake.app.world_mapper.state == "idle"
 
-    def test_load_surfaces_import_error_as_status_message(self):
+    def test_load_surfaces_import_error_as_status_message(self, no_open3d):
         fake = _FakeMainWindow(_FakeApp(rgb_camera=_FakeRealSenseBackend()))
 
         MainWindow._load_mapping_world_from_path(fake, "world.ply")
@@ -173,22 +182,71 @@ class TestMappingFusionForwardingMethods:
 
         fake.mapping_fusion_panel.set_status.assert_called_once_with("mapped", "good", 12345)
 
-    def test_update_mapping_fusion_view_converts_rgb_to_rgba(self):
+    def test_update_mapping_fusion_view_forwards_to_world_viewer(self):
         fake = _FakeMainWindow(_FakeApp())
+        fake.world_viewer = MagicMock()
         points = np.zeros((5, 3), dtype=np.float64)
         colors_rgb = np.full((5, 3), 0.5, dtype=np.float64)
+        indices = np.arange(5) * 7
 
-        MainWindow.update_mapping_fusion_view(fake, points, colors_rgb)
+        MainWindow.update_mapping_fusion_view(fake, points, colors_rgb, indices)
 
-        fake.mapping_fusion_panel.update_point_cloud.assert_called_once()
-        call_points, call_colors = fake.mapping_fusion_panel.update_point_cloud.call_args[0]
-        assert call_points.dtype == np.float32
-        assert call_points.shape == (5, 3)
-        assert call_colors.dtype == np.float32
-        assert call_colors.shape == (5, 4)
-        assert np.allclose(call_colors[:, :3], 0.5)
-        assert np.allclose(call_colors[:, 3], 1.0)  # alpha always opaque
+        call_points, call_colors, call_idx = fake.world_viewer.set_world.call_args[0]
+        assert call_points.dtype == np.float32 and call_points.shape == (5, 3)
+        assert call_colors.dtype == np.float32 and np.allclose(call_colors, 0.5)
+        assert list(call_idx) == [0, 7, 14, 21, 28]            # full-world indices travel with the preview points
 
+    def test_overlays_update_viewer_and_hotspot_list(self):
+        fake = _FakeMainWindow(_FakeApp())
+        fake.world_viewer = MagicMock()
+        marks = [object()]
+
+        MainWindow.set_mapping_overlays(fake, marks, (20.0, 80.0), "peak", "F")
+
+        fake.world_viewer.set_markers.assert_called_once_with(marks)
+        fake.world_viewer.set_legend.assert_called_once_with("peak", 20.0, 80.0, "F")
+        fake.mapping_fusion_panel.set_hotspots.assert_called_once_with(marks, "F")
+        assert fake._mapping_markers == marks
+
+    def test_probe_and_measure_resolve_through_the_mapper_in_the_apps_unit(self):
+        fake = _FakeMainWindow(_FakeApp())
+        fake.world_viewer = MagicMock()
+        fake.app.world_mapper = MagicMock()
+        fake._mapping_unit = lambda: "F"
+
+        MainWindow._on_world_probe(fake, 42)
+        MainWindow._on_world_measure(fake, 1, 2)
+
+        fake.app.world_mapper.probe.assert_called_once_with(42)
+        fake.world_viewer.show_probe.assert_called_once_with(fake.app.world_mapper.probe.return_value, "F")
+        fake.app.world_mapper.measure.assert_called_once_with(1, 2)
+        fake.world_viewer.show_measure.assert_called_once_with(fake.app.world_mapper.measure.return_value, "F")
+
+    def test_hotspot_selection_flies_to_marker_and_probes_it(self):
+        from thermal_inspection.processing.world_thermal import Marker
+        fake = _FakeMainWindow(_FakeApp())
+        fake.world_viewer = MagicMock()
+        fake._mapping_markers = [Marker("H1", (1.0, 2.0, 3.0), 80.0, "hot", 55)]
+        fake._on_world_probe = MagicMock()
+
+        MainWindow._on_mapping_hotspot_selected(fake, 0)
+
+        fake.world_viewer.fly_to.assert_called_once_with((1.0, 2.0, 3.0))
+        fake._on_world_probe.assert_called_once_with(55)
+        MainWindow._on_mapping_hotspot_selected(fake, 9)            # out of range: ignored, no crash
+
+    def test_main_view_stack_follows_view_mode(self):
+        from thermal_inspection.core import ViewMode
+        from PyQt6.QtWidgets import QStackedWidget, QWidget, QApplication
+        QApplication.instance() or QApplication([])
+        fake = _FakeMainWindow(_FakeApp())
+        fake.main_view_stack = QStackedWidget()
+        fake.main_view_stack.addWidget(QWidget())
+        fake.main_view_stack.addWidget(QWidget())
+        MainWindow._sync_main_view_stack(fake, ViewMode.THREE_D_MAPPING)
+        assert fake.main_view_stack.currentIndex() == 1
+        MainWindow._sync_main_view_stack(fake, ViewMode.FUSION)
+        assert fake.main_view_stack.currentIndex() == 0
 
 class TestMappingSimpleForwardingHandlers:
     def test_finish_scan_forwards_to_world_mapper(self):

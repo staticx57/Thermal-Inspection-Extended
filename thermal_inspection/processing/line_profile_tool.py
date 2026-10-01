@@ -63,6 +63,9 @@ class LineProfileAnalyzer:
             num_samples: Number of points to sample along the line
         """
         self.num_samples = num_samples
+        # Unit of the values in the map being sampled (display only - the tool
+        # stores whatever it is given): '°C', '°F', 'K', 'Y16', or 'AGC'
+        self.unit_label = '°C'
         self.profiles: List[LineProfileData] = []
         self._next_id = 1
 
@@ -210,9 +213,10 @@ class LineProfileAnalyzer:
             return
 
         import csv
-        with open(filepath, 'w', newline='') as f:
+        with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.writer(f)
-            writer.writerow(['Distance (px)', 'Temperature (°C)'])
+            value_name = 'Value' if self.unit_label in ('AGC', 'Y16') else 'Temperature'
+            writer.writerow(['Distance (px)', f'{value_name} ({self.unit_label})'])
             for dist, temp in zip(profile.distances, profile.temperatures):
                 writer.writerow([f"{dist:.2f}", f"{temp:.2f}"])
 

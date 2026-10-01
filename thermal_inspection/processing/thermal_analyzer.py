@@ -922,6 +922,36 @@ class ThermalAnalyzer:
 
         return gradient_magnitude
 
+    # Y16 radiometric frames store Kelvin x 100, so one count is 0.01 K: a
+    # *difference* (rate, gradient, deviation) in counts times this is a
+    # difference in degrees C/K (no offset involved, unlike absolute values).
+    Y16_DEGREES_PER_COUNT = 0.01
+
+    @classmethod
+    def _degrees_per_count(cls, frame: np.ndarray) -> float:
+        """Scale from raw pixel differences to degrees: 0.01 for Y16 (uint16), else 1.0 (8-bit AGC counts)."""
+        return cls.Y16_DEGREES_PER_COUNT if frame is not None and frame.dtype == np.uint16 else 1.0
+
+    def _format_delta(self, delta: float, in_degrees: bool, per_second: bool = False) -> str:
+        """
+        Format a difference/rate for display in the user's selected unit.
+
+        in_degrees: delta is in degrees C (a Y16 frame, already scaled) - shown as
+        C/F/K, or as raw Y16 counts if the RAW unit is selected. Otherwise delta is
+        8-bit AGC counts - not a temperature, so never labelled as degrees.
+        """
+        suffix = "/s" if per_second else ""
+        if not in_degrees:
+            return f"{delta:.1f} AGC{suffix}"
+        unit = self.temp_unit
+        if unit == TemperatureUnit.RAW:
+            return f"{delta / self.Y16_DEGREES_PER_COUNT:.0f} Y16{suffix}"
+        if unit == TemperatureUnit.FAHRENHEIT:
+            return f"{delta * 9.0 / 5.0:.1f}°F{suffix}"
+        if unit == TemperatureUnit.KELVIN:
+            return f"{delta:.1f} K{suffix}"
+        return f"{delta:.1f}°C{suffix}"
+
     def detect_anomalies(self, thermal_frame: np.ndarray,
                         roi_id: str = "global") -> List[ThermalAnomaly]:
         """
@@ -986,7 +1016,7 @@ class ThermalAnalyzer:
                             location=(w//2, h//2),
                             bbox=(0, 0, w, h),
                             severity=min(1.0, rate_of_change / (self.rapid_change_threshold * 2)),
-                            description=f"{rate_of_change:.1f}°C/s",
+                            description=self._format_delta(rate_of_change, True, per_second=True),
                             metadata={"rate": rate_of_change}
                         ))
 
@@ -997,7 +1027,7 @@ class ThermalAnalyzer:
                             location=(w//2, h//2),
                             bbox=(0, 0, w, h),
                             severity=min(1.0, abs(rate_of_change) / (self.rapid_change_threshold * 2)),
-                            description=f"{rate_of_change:.1f}°C/s",
+                            description=self._format_delta(rate_of_change, True, per_second=True),
                             metadata={"rate": rate_of_change}
                         ))
 
@@ -1009,6 +1039,8 @@ class ThermalAnalyzer:
         # ── Fix 3: Region-based gradient anomaly (replaces single-pixel argmax) ─
         gradient = self.compute_temperature_gradient(thermal_frame) if self.is_radiometric else None
         if gradient is not None:
+            # gradient_threshold is in degrees; the Sobel runs on raw counts
+            gradient = gradient * self._degrees_per_count(thermal_frame)
             gradient_mask = (gradient > self.gradient_threshold).astype(np.uint8) * 255
             if gradient_mask.any():
                 # Close small gaps so adjacent hot-edge pixels form one region
@@ -1036,7 +1068,7 @@ class ThermalAnalyzer:
                         location=(cx, cy),
                         bbox=(x, y, x+w, y+h),
                         severity=severity,
-                        description=f"{max_grad:.1f}°C over {area:.0f}px²",
+                        description=f"{self._format_delta(max_grad, thermal_frame.dtype == np.uint16)} over {area:.0f}px²",
                         metadata={"max_gradient": max_grad, "area": float(area)}
                     ))
 
@@ -1125,7 +1157,12 @@ class ThermalAnalyzer:
                         location=(cx, cy),
                         bbox=(x, y, x+w, y+h),
                         severity=severity,
-                        description=f"Δ{max_diff:.1f} vs. background",
+                        description=(
+                            "Δ" + self._format_delta(
+                                float(max_diff) * self._degrees_per_count(thermal_frame),
+                                thermal_frame.dtype == np.uint16,
+                            ) + " vs. background"
+                        ),
                         metadata={"max_diff": float(max_diff), "threshold": float(threshold)}
                     ))
 
@@ -1162,7 +1199,10 @@ class ThermalAnalyzer:
         if self._grid_history is not None and self._grid_last_time is not None:
             dt = now - self._grid_last_time
             if dt > 0:
-                rates = (grid_now - self._grid_history) / dt   # (g, g) rate map
+                # (g, g) rate map in degrees/s for Y16 frames (rapid_change_threshold
+                # is in degrees/s), raw counts/s for 8-bit AGC frames
+                deg_per_count = self._degrees_per_count(thermal_frame)
+                rates = (grid_now - self._grid_history) / dt * deg_per_count
                 cell_h = h / g
                 cell_w = w / g
 
@@ -1212,7 +1252,8 @@ class ThermalAnalyzer:
                             bbox=(px1, py1, px2, py2),
                             severity=severity,
                             description=(
-                                f"Localised {direction}: {rate:.1f}°/s "
+                                f"Localised {direction}: "
+                                f"{self._format_delta(abs(rate), deg_per_count != 1.0, per_second=True)} "
                                 f"at grid ({gx},{gy})"
                             ),
                             metadata={"rate": rate, "grid": (gx, gy)},

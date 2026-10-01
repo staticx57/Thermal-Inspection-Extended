@@ -642,10 +642,86 @@ class ROIManager:
 
         roi.last_updated = time.time()
 
-    def delete_roi(self, roi_id: str):
-        """Delete an ROI."""
-        if roi_id in self.rois:
-            del self.rois[roi_id]
+    def delete_roi(self, roi_id: str, force: bool = False) -> bool:
+        """Delete an ROI. A locked ROI is protected from deletion unless force=True. Returns True if it was deleted."""
+        roi = self.rois.get(roi_id)
+        if roi is None:
+            return False
+        if roi.locked and not force:
+            return False
+        del self.rois[roi_id]
+        return True
+
+    # ---- per-ROI properties the ROI Manager panel edits. update_roi() refuses to touch a locked ROI (including to
+    # unlock it), so lock state and visibility have their own methods.
+
+    def set_locked(self, roi_id: str, locked: bool) -> bool:
+        roi = self.rois.get(roi_id)
+        if roi is None:
+            return False
+        roi.locked = bool(locked)
+        roi.last_updated = time.time()
+        return True
+
+    def set_visible(self, roi_id: str, visible: bool) -> bool:
+        """Show/hide an ROI. A hidden ROI is not drawn and gets no statistics, but stays in the list and can be shown."""
+        roi = self.rois.get(roi_id)
+        if roi is None:
+            return False
+        roi.active = bool(visible)
+        roi.last_updated = time.time()
+        return True
+
+    def rename_roi(self, roi_id: str, label: str) -> bool:
+        """Rename an ROI (a locked ROI keeps its name). Empty names are refused."""
+        roi = self.rois.get(roi_id)
+        label = (label or "").strip()
+        if roi is None or roi.locked or not label:
+            return False
+        roi.label = label
+        roi.last_updated = time.time()
+        return True
+
+    def duplicate_roi(self, roi_id: str, offset: Tuple[int, int] = (20, 20)) -> Optional[ROI]:
+        """Copy an ROI, shifted by `offset` pixels (clamped to stay inside the frame). The copy is a manual ROI named
+        '<name> copy', unlocked and visible, keeping the original's colour, custom palette and emissivity."""
+        src = self.rois.get(roi_id)
+        if src is None or not src.points:
+            return None
+        w, h = self.current_resolution
+        xs = [p[0] for p in src.points]
+        ys = [p[1] for p in src.points]
+        dx, dy = offset
+        # keep the whole shape inside the frame: limit the shift so no point leaves [0, w-1] x [0, h-1]
+        if w > 0:
+            dx = max(-min(xs), min(dx, (w - 1) - max(xs)))
+        if h > 0:
+            dy = max(-min(ys), min(dy, (h - 1) - max(ys)))
+        points = [(int(x + dx), int(y + dy)) for x, y in src.points]
+        new_id = f"manual_{self.roi_counter}"
+        self.roi_counter += 1
+        copy = ROI(
+            roi_id=new_id,
+            roi_type=src.roi_type,
+            roi_source=ROISource.MANUAL,
+            points=points,
+            label=f"{src.label or src.roi_id} copy",
+            color=src.color,
+            custom_palette=src.custom_palette,
+            emissivity=src.emissivity,
+            normalized_points=self._normalize_points(points),
+            source_resolution=self.current_resolution,
+        )
+        self.add_roi(copy)
+        return copy
+
+    def area_pixels(self, roi_id: str) -> Optional[int]:
+        """Pixels the ROI covers at the current working resolution."""
+        roi = self.rois.get(roi_id)
+        if roi is None:
+            return None
+        w, h = self.current_resolution
+        return int(np.count_nonzero(roi.get_mask((h, w))))
 
     def delete_rois_by_source(self, source: ROISource):
         """Delete all ROIs from a specific source."""

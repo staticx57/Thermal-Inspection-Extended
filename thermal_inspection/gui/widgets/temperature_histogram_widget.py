@@ -101,19 +101,34 @@ class TemperatureHistogramWidget(QWidget):
         """Set the temperature unit for display.
 
         Args:
-            unit: 'C' for Celsius, 'F' for Fahrenheit, 'K' for Kelvin, 'RAW' for raw values
+            unit: 'C', 'F', 'K', 'RAW' (Y16, Kelvin x 100) - data handed to
+                update_histogram() is Celsius, converted here - or 'AGC' for
+                non-radiometric 8-bit counts, shown as-is (never as a temperature).
         """
+        if unit == self.temp_unit:
+            return
         self.temp_unit = unit
         # Update axis label
         if HAS_PYQTGRAPH and self.plot:
             unit_labels = {
-                'C': '°C', 'F': '°F', 'K': 'K', 'RAW': '(raw)'
+                'C': '°C', 'F': '°F', 'K': 'K', 'RAW': 'Y16', 'AGC': 'AGC'
             }
-            self.plot.setLabel('bottom', 'Temperature', units=unit_labels.get(unit, '°C'))
+            self.plot.setLabel('bottom', 'Value' if unit in ('RAW', 'AGC') else 'Temperature',
+                               units=unit_labels.get(unit, '°C'))
 
         # Refresh if we have data
         if self.current_temps is not None:
-            self.update_histogram(self.current_temps)
+            self._do_update_histogram(self.current_temps)
+
+    def _to_display_unit(self, temps: np.ndarray) -> np.ndarray:
+        """Convert Celsius data to the selected unit (AGC counts pass through)."""
+        if self.temp_unit == 'F':
+            return temps * 1.8 + 32.0
+        if self.temp_unit == 'K':
+            return temps + 273.15
+        if self.temp_unit == 'RAW':
+            return (temps + 273.15) * 100.0
+        return temps
 
     def set_palette_lut(self, lut: np.ndarray):
         """Set the palette LUT for coloring histogram bars.
@@ -128,7 +143,7 @@ class TemperatureHistogramWidget(QWidget):
 
     def _get_unit_symbol(self) -> str:
         """Get the unit symbol string."""
-        symbols = {'C': '°C', 'F': '°F', 'K': 'K', 'RAW': ''}
+        symbols = {'C': '°C', 'F': '°F', 'K': 'K', 'RAW': ' Y16', 'AGC': ' AGC'}
         return symbols.get(self.temp_unit, '°C')
 
     def _on_settings_changed(self):
@@ -162,8 +177,9 @@ class TemperatureHistogramWidget(QWidget):
             self.clear()
             return
 
-        # Store for recomputation
+        # Store for recomputation (source data, before unit conversion)
         self.current_temps = temperatures
+        temperatures = self._to_display_unit(temperatures)
 
         # Compute statistics
         temp_min = float(np.min(temperatures))

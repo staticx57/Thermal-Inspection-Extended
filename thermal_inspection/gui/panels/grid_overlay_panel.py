@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QColor
 import logging
+from thermal_inspection.gui.themes import set_button_state
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +86,7 @@ class GridOverlayPanel(QWidget):
 
         self.color_btn = QPushButton()
         self.color_btn.setFixedSize(60, 25)
+        set_button_state(self.color_btn, "compact", True)
         self.grid_color = QColor(255, 255, 255, 128)  # Semi-transparent white
         self._update_color_button()
         self.color_btn.setToolTip("Click to choose grid color")

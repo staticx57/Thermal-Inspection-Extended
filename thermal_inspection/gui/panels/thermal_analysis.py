@@ -14,6 +14,8 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QPalette
 
 from thermal_inspection.processing.palette_manager import PaletteType
+from thermal_inspection.gui.widgets.palette_combo import PaletteComboBox
+from thermal_inspection.gui.widgets.paged_tabwidget import PagedTabWidget
 from thermal_inspection.processing.roi_manager import ROI
 from thermal_inspection.processing.thermal_analyzer import (
     ThermalStatistics, HotSpot, ColdSpot, ThermalAnomaly, TemperatureTrend, ANOMALY_TYPE_LABELS
@@ -54,7 +56,7 @@ class ThermalAnalysisPanel(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
 
         # Create tab widget
-        self.analysis_tabs = QTabWidget()
+        self.analysis_tabs = PagedTabWidget()
         main_layout.addWidget(self.analysis_tabs)
 
         # Helper function to create section headers
@@ -93,12 +95,10 @@ class ThermalAnalysisPanel(QWidget):
         # === Global Palette ===
         self.general_layout.addWidget(create_section_header("🎨 Global Palette"))
 
-        self.palette_combo = QComboBox()
+        self.palette_combo = PaletteComboBox()
         self.palette_combo.setMinimumHeight(32)
         self.palette_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        # Populate palette combo
-        self._populate_palette_combo(self.palette_combo)
-        self.palette_combo.currentTextChanged.connect(self.palette_changed.emit)
+        self.palette_combo.paletteValueChanged.connect(self.palette_changed.emit)
         self.general_layout.addWidget(self.palette_combo)
 
         self.general_layout.addWidget(create_separator())
@@ -305,59 +305,6 @@ class ThermalAnalysisPanel(QWidget):
         self.show_hot_spots_checkbox.toggled.connect(self.show_hot_spots_toggled.emit)
         self.show_cold_spots_checkbox.toggled.connect(self.show_cold_spots_toggled.emit)
         self.show_anomalies_checkbox.toggled.connect(self.show_anomalies_toggled.emit)
-
-    def _populate_palette_combo(self, combo: QComboBox):
-        """Populate a combo box with categorized palettes."""
-        palette_categories = [
-            ("GRAYSCALE", [
-                PaletteType.WHITE_HOT, PaletteType.BLACK_HOT,
-                PaletteType.GRAY, PaletteType.SEPIA
-            ]),
-            ("IRON/FIRE", [
-                PaletteType.IRONBOW, PaletteType.LAVA, PaletteType.GRADEDFIRE,
-                PaletteType.HOTTEST, PaletteType.AMBER, PaletteType.INFERNO
-            ]),
-            ("RAINBOW", [
-                PaletteType.RAINBOW, PaletteType.RAINBOW_HC, PaletteType.RAINBOW_REVERSED,
-                PaletteType.SPECTRAL, PaletteType.COOL_HOT
-            ]),
-            ("COLD/ARCTIC", [
-                PaletteType.ARCTIC, PaletteType.ICE,
-                PaletteType.WINTER, PaletteType.OCEAN
-            ]),
-            ("SCIENTIFIC", [
-                PaletteType.VIRIDIS, PaletteType.PLASMA, PaletteType.MAGMA,
-                PaletteType.CIVIDIS, PaletteType.TURBO
-            ]),
-            ("DIVERGING", [
-                PaletteType.BLUE_RED, PaletteType.COOL_WARM, PaletteType.PURPLE_ORANGE,
-                PaletteType.GREEN_RED, PaletteType.BLUE_YELLOW, PaletteType.PINK_GREEN
-            ]),
-            ("SEQUENTIAL", [
-                PaletteType.GLOBOW, PaletteType.MEDICAL, PaletteType.THERMAL,
-                PaletteType.HELIX, PaletteType.CUBEHELIX, PaletteType.TWILIGHT, PaletteType.DUSK
-            ]),
-            ("SPECIALIZED", [
-                PaletteType.FUSION, PaletteType.PRISM, PaletteType.ALARM,
-                PaletteType.LAPLACIAN, PaletteType.ISOTHERM, PaletteType.VELOCITY,
-                PaletteType.TERRAIN, PaletteType.DEPTH
-            ])
-        ]
-
-        # Populate combo box with categorized palettes
-        for category_name, palettes in palette_categories:
-            # Add category header (bold, disabled)
-            combo.addItem(f"─── {category_name} ───")
-            idx = combo.count() - 1
-            item = combo.model().item(idx)
-            font = QFont()
-            font.setBold(True)
-            item.setFont(font)
-            item.setEnabled(False)
-
-            # Add palette items (indented)
-            for palette in palettes:
-                combo.addItem(f"  {palette.value}")
 
     def _on_global_palette_changed(self, palette_name: str):
         """Handle global palette change."""

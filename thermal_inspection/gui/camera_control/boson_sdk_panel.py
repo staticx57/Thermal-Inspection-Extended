@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QComboBox, QPushButton
 )
 from PyQt6.QtCore import pyqtSignal
+from thermal_inspection.gui.themes import set_button_state
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ class BosonSDKPanel(QGroupBox):
         self.scan_btn = QPushButton("Scan")
         self.scan_btn.setToolTip("Scan for available COM ports")
         self.scan_btn.setMaximumWidth(60)
+        set_button_state(self.scan_btn, "compact", True)
         self.scan_btn.clicked.connect(self._on_scan_ports)
         port_layout.addWidget(self.scan_btn)
         layout.addLayout(port_layout)

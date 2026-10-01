@@ -97,9 +97,11 @@ class ROIController:
         rois = self.roi_manager.get_all_rois() if hasattr(self.roi_manager, 'get_all_rois') else []
         self.state.roi_count = len(rois)
 
+        all_rois = self.roi_manager.get_all_rois(active_only=False) if hasattr(self.roi_manager, 'get_all_rois') else rois
         return {
             'count': len(rois),
-            'rois': rois
+            'rois': rois,              # visible ROIs: what is drawn and measured
+            'all_rois': all_rois,      # including hidden ones: what the ROI Manager lists
         }
 
     def enable_drawing_mode(self):
@@ -177,7 +179,9 @@ class ROIController:
         if not self.roi_manager:
             return
 
-        self.roi_manager.delete_roi(roi_id)
+        if not self.roi_manager.delete_roi(roi_id):
+            logger.info(f"ROI {roi_id} not deleted (missing or locked)")
+            return
 
         # Clear any associated palette config
         if self.palette_manager:
@@ -189,6 +193,32 @@ class ROIController:
             self.on_roi_deleted(roi_id)
 
         self._notify_rois_changed()
+
+    # ---- ROI Manager panel actions (each refreshes listeners) ----------------------------------------------------
+
+    def rename_roi(self, roi_id: str, label: str) -> bool:
+        ok = bool(self.roi_manager and self.roi_manager.rename_roi(roi_id, label))
+        if ok:
+            self._notify_rois_changed()
+        return ok
+
+    def set_roi_locked(self, roi_id: str, locked: bool) -> bool:
+        ok = bool(self.roi_manager and self.roi_manager.set_locked(roi_id, locked))
+        if ok:
+            self._notify_rois_changed()
+        return ok
+
+    def set_roi_visible(self, roi_id: str, visible: bool) -> bool:
+        ok = bool(self.roi_manager and self.roi_manager.set_visible(roi_id, visible))
+        if ok:
+            self._notify_rois_changed()
+        return ok
+
+    def duplicate_roi(self, roi_id: str):
+        copy = self.roi_manager.duplicate_roi(roi_id) if self.roi_manager else None
+        if copy is not None:
+            self._notify_rois_changed()
+        return copy
 
     def set_roi_palette(self, roi_id: str, palette_name: str):
         """
@@ -272,5 +302,12 @@ class ROIController:
 
     @property
     def rois(self) -> List:
-        """Shortcut for getting all ROIs."""
+        """Shortcut for getting all ROIs (visible ones: hidden ROIs are neither drawn nor measured)."""
         return self.get_all_rois()
+
+    @property
+    def all_rois(self) -> List:
+        """Every ROI including hidden ones, for the ROI Manager list."""
+        if self.roi_manager and hasattr(self.roi_manager, 'get_all_rois'):
+            return self.roi_manager.get_all_rois(active_only=False)
+        return []

@@ -19,6 +19,7 @@ class TemperatureUnit(Enum):
     CELSIUS = auto()
     FAHRENHEIT = auto()
     KELVIN = auto()
+    RAW = auto()  # Y16: Kelvin x 100
 
 
 class RadiometricMethod(Enum):
@@ -175,7 +176,7 @@ class RadiometricController:
         Set temperature display unit.
 
         Args:
-            unit: 'celsius', 'fahrenheit', or 'kelvin'
+            unit: 'celsius', 'fahrenheit', 'kelvin', or 'raw' (Y16, Kelvin x 100)
         """
         unit_map = {
             'celsius': TemperatureUnit.CELSIUS,
@@ -184,6 +185,8 @@ class RadiometricController:
             'f': TemperatureUnit.FAHRENHEIT,
             'kelvin': TemperatureUnit.KELVIN,
             'k': TemperatureUnit.KELVIN,
+            'raw': TemperatureUnit.RAW,
+            'y16': TemperatureUnit.RAW,
         }
 
         temp_unit = unit_map.get(unit.lower())
@@ -390,6 +393,8 @@ class RadiometricController:
             return self.celsius_to_fahrenheit(temp_celsius)
         elif self.state.temperature_unit == TemperatureUnit.KELVIN:
             return self.celsius_to_kelvin(temp_celsius)
+        elif self.state.temperature_unit == TemperatureUnit.RAW:
+            return self.celsius_to_kelvin(temp_celsius) * 100.0
         return temp_celsius
 
     def get_unit_symbol(self) -> str:
@@ -397,7 +402,8 @@ class RadiometricController:
         symbols = {
             TemperatureUnit.CELSIUS: "°C",
             TemperatureUnit.FAHRENHEIT: "°F",
-            TemperatureUnit.KELVIN: "K"
+            TemperatureUnit.KELVIN: "K",
+            TemperatureUnit.RAW: " (Y16)",
         }
         return symbols.get(self.state.temperature_unit, "°C")
 

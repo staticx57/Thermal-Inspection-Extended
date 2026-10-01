@@ -200,7 +200,12 @@ class TestPictureInPictureBoundsClamping:
         fp = FusionProcessor()
         result = fp._picture_in_picture(colorized_thermal, rgb_frame_matching_thermal, pip_size=0.25)
         assert result is not None
-        assert result.shape == colorized_thermal.shape
+        # Same aspect ratio as the main frame, never smaller (PIP may compose on a larger canvas so
+        # the inset keeps its detail - see test_pip_canvas_keeps_inset_detail)
+        h, w = colorized_thermal.shape[:2]
+        assert result.shape[2] == colorized_thermal.shape[2]
+        assert result.shape[1] >= w and result.shape[0] >= h
+        assert abs(result.shape[1] / result.shape[0] - w / h) < 0.01
 
     def test_extreme_pip_size_does_not_crash(self, colorized_thermal, rgb_frame_matching_thermal):
         """pip_size near 1.0 is an edge case the aspect-fit math wasn't
@@ -224,7 +229,9 @@ class TestPictureInPictureBoundsClamping:
                 colorized_thermal, rgb_frame_matching_thermal,
                 pip_size=0.25, position=position
             )
-            assert result.shape == colorized_thermal.shape
+            h, w = colorized_thermal.shape[:2]
+            assert result.shape[1] >= w and result.shape[0] >= h     # may use a larger canvas
+            assert abs(result.shape[1] / result.shape[0] - w / h) < 0.01
 
 
 class TestThermalContoursLevelCountAndLineSize:

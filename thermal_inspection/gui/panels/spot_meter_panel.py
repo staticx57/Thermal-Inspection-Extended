@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 import logging
 import time
 import statistics  # Phase 2 - Feature 6: Multi-point Statistics
+from thermal_inspection.processing.spot_tracking import RATE_TYPES, convert_delta, rate_per_minute
 try:
     import pyqtgraph as pg
     HAS_PYQTGRAPH = True
@@ -34,6 +35,7 @@ class SpotMeterAlert:
     """Alert configuration for a spot meter (Phase 2 - Feature 7: Enhanced)."""
     threshold: float
     type: str = 'above'  # 'above' or 'below'
+    unit: str = '°C'  # Unit symbol the threshold was entered in
     enabled: bool = True
     triggered: bool = False
     sound_enabled: bool = True  # Phase 2 - Feature 7: Sound alerts
@@ -42,10 +44,26 @@ class SpotMeterAlert:
     last_trigger_time: float = 0.0  # Phase 2 - Feature 7: Last trigger timestamp
     trigger_history: List[float] = field(default_factory=list)  # Phase 2 - Feature 7: Trigger timestamps
 
-    def check(self, value: float) -> bool:
-        """Check if alert should trigger."""
+    def check(self, value: float, unit: Optional[str] = None, history=None) -> bool:
+        """Check if alert should trigger. `history` ([(timestamp, reading)] in the spot's display unit) is only needed
+        for the rate-of-change types ('rising_fast' / 'falling_fast': degrees per MINUTE, threshold in self.unit).
+
+        value is in `unit` (the reading's display unit). The threshold was
+        entered in self.unit, which may differ if the user switched units
+        since - convert the reading to the threshold's unit first so a 50 degC
+        alert doesn't compare against 29815 (Y16) or 122 (degF).
+        """
         if not self.enabled:
             return False
+
+        if self.type in RATE_TYPES:
+            return self._check_rate(history, unit)
+
+        if unit is not None:
+            from thermal_inspection.utils.temperature_units import convert
+            converted = convert(value, unit, self.unit)
+            if converted is not None:
+                value = converted
 
         is_triggered = False
         if self.type == 'above':
@@ -65,6 +83,28 @@ class SpotMeterAlert:
 
         self.triggered = is_triggered
         return is_triggered
+
+
+    def _check_rate(self, history, unit: Optional[str]) -> bool:
+        rate = rate_per_minute(history or [])
+        hit = False
+        if rate is not None:
+            if unit is not None and unit != self.unit:
+                rate = convert_delta(rate, unit, self.unit)       # a rate converts by scale only; None = raw counts
+            if rate is not None:
+                hit = rate > self.threshold if self.type == "rising_fast" else -rate > self.threshold
+        if hit and not self.triggered:
+            self.trigger_count += 1
+            self.last_trigger_time = time.time()
+            self.trigger_history.append(self.last_trigger_time)
+            self.trigger_history = self.trigger_history[-100:]
+        self.triggered = hit
+        return hit
+
+    def describe(self) -> str:
+        if self.type in RATE_TYPES:
+            return f"{'rises' if self.type == 'rising_fast' else 'falls'} faster than {self.threshold:g} {self.unit}/min"
+        return f"{'above' if self.type == 'above' else 'below'} {self.threshold:g} {self.unit}"
 
 
 class TemperatureHistoryGraph(QWidget):
@@ -164,6 +204,8 @@ class SpotMeterData:
     updated_at: float = 0.0              # Last temperature update
     history: List[Tuple[float, float]] = field(default_factory=list)  # (timestamp, temp) history
     alert: Optional[SpotMeterAlert] = None # Alert configuration
+    peak: Optional[float] = None         # Hottest reading since placed / last reset (peak hold), in `unit`
+    trough: Optional[float] = None       # Coldest reading since placed / last reset
 
     def __post_init__(self):
         if self.created_at == 0.0:
@@ -184,6 +226,30 @@ class SpotMeterData:
         self.history.append((time.time(), val))
         if len(self.history) > 1000:
             self.history.pop(0)
+
+    def record_extremes(self, temperature: float):
+        """Update the peak-hold / trough values with a new reading."""
+        if temperature is None:
+            return
+        self.peak = temperature if self.peak is None else max(self.peak, temperature)
+        self.trough = temperature if self.trough is None else min(self.trough, temperature)
+
+    def reset_peak(self):
+        """Forget the held peak/trough (they restart from the next reading)."""
+        self.peak = self.trough = None
+
+    def convert_unit(self, new_unit: str):
+        """Re-express history, peak and trough in a new display unit so switching degC/degF/K keeps the graph and the
+        held peak; if the units can't be converted (raw counts) start over rather than mix scales."""
+        from thermal_inspection.utils.temperature_units import convert
+        if convert(0.0, self.unit, new_unit) is None:
+            self.history.clear()
+            self.reset_peak()
+        else:
+            self.history = [(t, convert(v, self.unit, new_unit)) for t, v in self.history]
+            self.peak = None if self.peak is None else convert(self.peak, self.unit, new_unit)
+            self.trough = None if self.trough is None else convert(self.trough, self.unit, new_unit)
+        self.unit = new_unit
 
     def get_trend(self) -> str:
         """Calculate temperature trend based on recent history.
@@ -299,8 +365,14 @@ class SpotMeterListItem(QListWidgetItem):
         # spot-meter loop for why)
         dist_str = f" @ {data.distance_m:.2f}m" if data.distance_m is not None else ""
 
+        # Held peak, only when it says something the current reading doesn't
+        peak_str = ""
+        if data.peak is not None and data.temperature is not None and data.peak - data.temperature >= 0.1:
+            peak_str = f"  ⌃{data.peak:.1f}"
+        alert_str = " ⚠" if data.alert and data.alert.triggered else ""
+
         # Build display text
-        display_text = f"{indicators}{data.label}: {temp_str}{trend_icon}{dist_str}  ({data.x}, {data.y})"
+        display_text = f"{indicators}{data.label}: {temp_str}{trend_icon}{peak_str}{alert_str}{dist_str}  ({data.x}, {data.y})"
         self.setText(display_text)
 
         # Set color indicator as icon, keep text color default for readability
@@ -330,6 +402,7 @@ class SpotMeterPanel(QWidget):
     preset_requested = pyqtSignal(str)        # Request to apply preset
     alert_triggered = pyqtSignal(str, str, float) # (spot_id, type, val)
     comparison_changed = pyqtSignal(str, str, float)  # (spot1_id, spot2_id, delta) - Phase 1 Feature 3
+    snap_to_hottest_changed = pyqtSignal(bool)        # place new spots on the hottest nearby pixel
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -489,6 +562,12 @@ class SpotMeterPanel(QWidget):
         preset_layout.addWidget(self.apply_preset_btn)
         adv_layout.addLayout(preset_layout)
 
+        # Snap to hottest pixel when placing
+        self.snap_cb = QCheckBox("Snap new spots to the hottest nearby pixel")
+        self.snap_cb.setToolTip("When placing a spot meter, move it to the hottest pixel within a few pixels of the click")
+        self.snap_cb.toggled.connect(self.snap_to_hottest_changed.emit)
+        adv_layout.addWidget(self.snap_cb)
+
         # Compare Mode
         self.compare_cb = QCheckBox("Compare Mode (Select 2)")
         self.compare_cb.setToolTip("Show delta between exactly 2 selected spots")
@@ -641,11 +720,18 @@ class SpotMeterPanel(QWidget):
             return False
 
         data = self.spots[spot_id]
+        if data.unit != unit:
+            # Unit changed: re-express the old readings (and the held peak) in the new unit so the graph and peak
+            # survive a degC/degF/K switch; raw-count units can't be converted, so those start over.
+            data.convert_unit(unit)
+            if hasattr(data, 'timestamps'):
+                data.timestamps.clear()
         data.temperature = temperature
         data.unit = unit
         data.distance_m = distance_m
         data.updated_at = time.time()
         data.add_history(temperature)
+        data.record_extremes(temperature)
 
         # Check alerts (Phase 6)
         self.check_alerts(spot_id, temperature)
@@ -873,10 +959,18 @@ class SpotMeterPanel(QWidget):
             data.alert = dialog.result_alert
             # Check immediately
             if data and data.alert:
-             if data.alert.check(data.temperature):
-                 logger.warning(f"ALERT: {data.label} is {data.alert.type} {data.alert.threshold} (Val: {data.temperature})")
+             if data.alert.check(data.temperature, data.unit, data.history):
+                 logger.warning(f"ALERT: {data.label} {data.alert.describe()} (Val: {data.temperature})")
                  self.alert_triggered.emit(spot_id, data.alert.type, data.temperature)
             logger.info(f"Alert configured for {data.label}: {data.alert}")
+
+    def _on_reset_peak(self):
+        """Reset the held peak/trough of the selected spot meters (all of them when none is selected)."""
+        ids = [i.data(Qt.ItemDataRole.UserRole) for i in self.spot_list.selectedItems()] or list(self.spots)
+        for spot_id in ids:
+            if spot_id in self.spots:
+                self.spots[spot_id].reset_peak()
+                self._refresh_list_item(spot_id)
 
     def check_alerts(self, spot_id: str, temperature: float):
         """Check alert for specific spot (Phase 2 - Feature 7: Enhanced with sound/flash)."""
@@ -885,8 +979,8 @@ class SpotMeterPanel(QWidget):
             # Store previous trigger state to detect rising edge
             was_triggered = data.alert.triggered
 
-            if data.alert.check(temperature):
-                logger.warning(f"ALERT: {data.label} is {data.alert.type} {data.alert.threshold} (Val: {temperature})")
+            if data.alert.check(temperature, data.unit, data.history):
+                logger.warning(f"ALERT: {data.label} {data.alert.describe()} (Val: {temperature}{data.unit})")
                 self.alert_triggered.emit(spot_id, data.alert.type, temperature)
 
                 # Play sound on rising edge only (not continuously)
@@ -1093,6 +1187,9 @@ class SpotMeterPanel(QWidget):
             lock_action = menu.addAction(lock_text)
             lock_action.triggered.connect(self._on_toggle_lock)
 
+            menu.addSeparator()
+            menu.addAction("♻ Reset Peak Hold", self._on_reset_peak)
+
         menu.exec(self.spot_list.mapToGlobal(position))
 
 class SpotMeterAlertDialog(QDialog):
@@ -1110,12 +1207,24 @@ class SpotMeterAlertDialog(QDialog):
         thresh_layout = QHBoxLayout()
         thresh_layout.addWidget(QLabel(f"Threshold ({unit}):"))
         self.thresh_spin = QDoubleSpinBox()
-        self.thresh_spin.setRange(-100.0, 1000.0)
+        self._unit = unit
+        from thermal_inspection.utils.temperature_units import convert, from_celsius, unit_code
+        code = unit_code(unit)
+        if code == 'Y16':
+            self.thresh_spin.setRange(0.0, 100000.0)
+        elif code is None:
+            self.thresh_spin.setRange(0.0, 255.0)  # AGC counts
+        else:
+            self.thresh_spin.setRange(-100.0, 1000.0)
         self.thresh_spin.setDecimals(1)
         if current_alert:
-            self.thresh_spin.setValue(current_alert.threshold)
+            # Show the existing threshold in the unit currently displayed
+            shown = convert(current_alert.threshold, current_alert.unit, unit)
+            self.thresh_spin.setValue(shown if shown is not None else current_alert.threshold)
+        elif code is None:
+            self.thresh_spin.setValue(128.0)
         else:
-            self.thresh_spin.setValue(30.0)
+            self.thresh_spin.setValue(from_celsius(30.0, code))
         thresh_layout.addWidget(self.thresh_spin)
         layout.addLayout(thresh_layout)
 
@@ -1124,14 +1233,17 @@ class SpotMeterAlertDialog(QDialog):
         type_layout = QVBoxLayout(type_group)
         self.above_radio = QRadioButton("Alert when ABOVE threshold")
         self.below_radio = QRadioButton("Alert when BELOW threshold")
+        self.rising_radio = QRadioButton("Alert when it RISES faster than the threshold, per minute")
+        self.falling_radio = QRadioButton("Alert when it FALLS faster than the threshold, per minute")
 
-        if current_alert and current_alert.type == 'below':
-            self.below_radio.setChecked(True)
-        else:
-            self.above_radio.setChecked(True)
+        kind = current_alert.type if current_alert else 'above'
+        {'below': self.below_radio, 'rising_fast': self.rising_radio,
+         'falling_fast': self.falling_radio}.get(kind, self.above_radio).setChecked(True)
 
         type_layout.addWidget(self.above_radio)
         type_layout.addWidget(self.below_radio)
+        type_layout.addWidget(self.rising_radio)
+        type_layout.addWidget(self.falling_radio)
         layout.addWidget(type_group)
 
         # Enabled
@@ -1168,9 +1280,12 @@ class SpotMeterAlertDialog(QDialog):
         layout.addWidget(btns)
 
     def _on_accept(self):
-        alert_type = 'above' if self.above_radio.isChecked() else 'below'
+        alert_type = ('rising_fast' if self.rising_radio.isChecked() else
+                      'falling_fast' if self.falling_radio.isChecked() else
+                      'below' if self.below_radio.isChecked() else 'above')
         self.result_alert = SpotMeterAlert(
             threshold=self.thresh_spin.value(),
+            unit=self._unit,
             type=alert_type,
             enabled=self.enabled_cb.isChecked(),
             sound_enabled=self.sound_cb.isChecked(),  # Phase 2 - Feature 7

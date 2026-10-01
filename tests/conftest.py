@@ -4,6 +4,16 @@ Pytest Configuration and Shared Fixtures
 This module provides common fixtures used across all test modules.
 """
 
+import importlib.util
+
+# Open3D must load before PyQt6/torch on Windows (same reason as thermal_inspection/__main__.py), or its pybind DLL
+# fails to initialise for every later test that needs it.
+if importlib.util.find_spec("open3d") is not None:
+    try:
+        import open3d  # noqa: F401
+    except Exception:
+        pass
+
 import pytest
 import numpy as np
 import sys

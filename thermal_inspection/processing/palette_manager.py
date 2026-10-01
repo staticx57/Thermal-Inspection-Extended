@@ -42,7 +42,7 @@ def is_camera_native_colorized(frame: np.ndarray) -> bool:
 
 
 class PaletteType(Enum):
-    """Available thermal color palettes (45 total)."""
+    """Available thermal color palettes (115 total)."""
 
     # ===== GRAYSCALE PALETTES (4) =====
     WHITE_HOT = "white_hot"          # Hot=white, cold=black (FLIR standard)
@@ -104,6 +104,269 @@ class PaletteType(Enum):
     VELOCITY = "velocity"            # Flow/velocity visualization
     TERRAIN = "terrain"              # Terrain-like elevation
     DEPTH = "depth"                  # Depth perception palette
+
+    # ===== ADDITIONAL PALETTES (12) =====
+    GREEN_HOT = "green_hot"       # Black→green phosphor→white (night-vision style)
+    RED_HOT = "red_hot"           # Black→deep red→red→pink→white (low-light friendly)
+    COPPER = "copper"             # Black→copper→pale gold (single-hue, matplotlib)
+    AFMHOT = "afmhot"             # Black→red→orange→white (matplotlib afmhot)
+    GNUPLOT2 = "gnuplot2"         # Black→blue→magenta→red→yellow→white (matplotlib gnuplot2)
+    YLORRD = "ylorrd"             # Pale yellow→orange→dark red (ColorBrewer YlOrRd)
+    NIPY_SPECTRAL = "nipy_spectral"# Black→purple→blue→green→yellow→red→gray (matplotlib nipy_spectral)
+    YLGNBU = "ylgnbu"             # Deep blue→green→pale yellow (ColorBrewer YlGnBu, reversed so hot is light)
+    CMRMAP = "cmrmap"             # Perceptual, prints well in grayscale (matplotlib CMRmap)
+    SEISMIC = "seismic"           # Dark blue→white→dark red (matplotlib seismic)
+    RDYLBU = "rdylbu"             # Blue→pale yellow→red, cold to hot (ColorBrewer RdYlBu)
+    BRBG = "brbg"                 # Brown→white→teal diverging (ColorBrewer BrBG)
+
+    # ===== ADDITIONAL PALETTES, BATCH 2 (data in palette_stops.py) =====
+    RAIN = "rain"
+    CYAN_HOT = "cyan_hot"
+    BLUE_HOT = "blue_hot"
+    BANDED_HEAT = "banded_heat"
+    BANDED_RAINBOW = "banded_rainbow"
+    CC_FIRE = "cc_fire"
+    CC_BMY = "cc_bmy"
+    CC_KBC = "cc_kbc"
+    CC_KGY = "cc_kgy"
+    CC_ISOLUM = "cc_isolum"
+    CC_RAINBOW = "cc_rainbow"
+    CC_BGYW = "cc_bgyw"
+    BATLOW = "batlow"
+    LAJOLLA = "lajolla"
+    LIPARI = "lipari"
+    OSLO = "oslo"
+    TURKU = "turku"
+    HAWAII = "hawaii"
+    ROMA = "roma"
+    VIK = "vik"
+    BERLIN = "berlin"
+    ROCKET = "rocket"
+    MAKO = "mako"
+    FLARE = "flare"
+    CREST = "crest"
+    ICEFIRE = "icefire"
+    TWILIGHT_SHIFTED = "twilight_shifted"
+    COOL = "cool"
+    WISTIA = "wistia"
+    BONE = "bone"
+    PINK = "pink"
+    SUMMER = "summer"
+    AUTUMN = "autumn"
+    SPRING = "spring"
+    GIST_HEAT = "gist_heat"
+    GIST_EARTH = "gist_earth"
+    GIST_RAINBOW = "gist_rainbow"
+    GIST_STERN = "gist_stern"
+    GIST_NCAR = "gist_ncar"
+    BLUES = "blues"
+    GREENS = "greens"
+    ORANGES = "oranges"
+    REDS = "reds"
+    PURPLES = "purples"
+    GREYS = "greys"
+    YLORBR = "ylorbr"
+    ORRD = "orrd"
+    PURD = "purd"
+    RDPU = "rdpu"
+    BUPU = "bupu"
+    GNBU = "gnbu"
+    BUGN = "bugn"
+    PUBU = "pubu"
+    RDBU = "rdbu"
+    RDGY = "rdgy"
+    PIYG = "piyg"
+    PRGN = "prgn"
+    PUOR = "puor"
+
+
+# Display grouping shared by every palette picker (global, per-ROI, menus), so a
+# new palette only has to be listed once. Every PaletteType should appear exactly once.
+PALETTE_CATEGORIES = [
+    ("GRAYSCALE", [
+        PaletteType.WHITE_HOT, PaletteType.BLACK_HOT, PaletteType.GRAY, PaletteType.SEPIA,
+        PaletteType.GREEN_HOT, PaletteType.RED_HOT, PaletteType.COPPER,
+    ]),
+    ("IRON/FIRE", [
+        PaletteType.IRONBOW, PaletteType.LAVA, PaletteType.GRADEDFIRE, PaletteType.HOTTEST,
+        PaletteType.AMBER, PaletteType.INFERNO, PaletteType.AFMHOT, PaletteType.GNUPLOT2,
+        PaletteType.YLORRD,
+    ]),
+    ("RAINBOW", [
+        PaletteType.RAINBOW, PaletteType.RAINBOW_HC, PaletteType.RAINBOW_REVERSED,
+        PaletteType.SPECTRAL, PaletteType.COOL_HOT, PaletteType.NIPY_SPECTRAL,
+    ]),
+    ("COLD/ARCTIC", [
+        PaletteType.ARCTIC, PaletteType.ICE, PaletteType.WINTER, PaletteType.OCEAN,
+        PaletteType.YLGNBU,
+    ]),
+    ("SCIENTIFIC", [
+        PaletteType.VIRIDIS, PaletteType.PLASMA, PaletteType.MAGMA, PaletteType.CIVIDIS,
+        PaletteType.TURBO, PaletteType.CMRMAP,
+    ]),
+    ("DIVERGING", [
+        PaletteType.BLUE_RED, PaletteType.COOL_WARM, PaletteType.PURPLE_ORANGE,
+        PaletteType.GREEN_RED, PaletteType.BLUE_YELLOW, PaletteType.PINK_GREEN,
+        PaletteType.SEISMIC, PaletteType.RDYLBU, PaletteType.BRBG,
+    ]),
+    ("SEQUENTIAL", [
+        PaletteType.GLOBOW, PaletteType.MEDICAL, PaletteType.THERMAL, PaletteType.HELIX,
+        PaletteType.CUBEHELIX, PaletteType.TWILIGHT, PaletteType.DUSK,
+    ]),
+    ("SPECIALIZED", [
+        PaletteType.FUSION, PaletteType.PRISM, PaletteType.ALARM, PaletteType.LAPLACIAN,
+        PaletteType.ISOTHERM, PaletteType.VELOCITY, PaletteType.TERRAIN, PaletteType.DEPTH,
+    ]),
+]
+
+
+# Batch-2 palettes join the categories above (new categories are appended)
+_EXTRA_CATEGORY_MEMBERS = {
+    "GRAYSCALE": [PaletteType.CYAN_HOT, PaletteType.BLUE_HOT, PaletteType.BONE, PaletteType.PINK],
+    "IRON/FIRE": [PaletteType.CC_FIRE, PaletteType.LAJOLLA, PaletteType.ROCKET, PaletteType.FLARE, PaletteType.WISTIA, PaletteType.AUTUMN, PaletteType.GIST_HEAT, PaletteType.YLORBR, PaletteType.ORRD],
+    "RAINBOW": [PaletteType.RAIN, PaletteType.CC_ISOLUM, PaletteType.CC_RAINBOW, PaletteType.HAWAII, PaletteType.GIST_RAINBOW, PaletteType.GIST_STERN, PaletteType.GIST_NCAR],
+    "COLD/ARCTIC": [PaletteType.OSLO, PaletteType.MAKO, PaletteType.CREST, PaletteType.COOL, PaletteType.BUPU, PaletteType.GNBU, PaletteType.BUGN, PaletteType.PUBU],
+    "SCIENTIFIC": [PaletteType.CC_BMY, PaletteType.CC_KBC, PaletteType.CC_KGY, PaletteType.CC_BGYW, PaletteType.BATLOW, PaletteType.LIPARI, PaletteType.TURKU, PaletteType.TWILIGHT_SHIFTED, PaletteType.SUMMER, PaletteType.SPRING],
+    "DIVERGING": [PaletteType.ROMA, PaletteType.VIK, PaletteType.BERLIN, PaletteType.ICEFIRE, PaletteType.RDBU, PaletteType.RDGY, PaletteType.PIYG, PaletteType.PRGN, PaletteType.PUOR],
+    "SINGLE-HUE": [PaletteType.GIST_EARTH, PaletteType.BLUES, PaletteType.GREENS, PaletteType.ORANGES, PaletteType.REDS, PaletteType.PURPLES, PaletteType.GREYS, PaletteType.PURD, PaletteType.RDPU],
+    "BANDED": [PaletteType.BANDED_HEAT, PaletteType.BANDED_RAINBOW],
+}
+for _cat, _members in _EXTRA_CATEGORY_MEMBERS.items():
+    for _entry in PALETTE_CATEGORIES:
+        if _entry[0] == _cat:
+            _entry[1].extend(_members)
+            break
+    else:
+        PALETTE_CATEGORIES.append((_cat, list(_members)))
+
+
+# Friendly names for palette pickers; PaletteType.value stays the internal ID
+# (config, presets, CLI). Every PaletteType needs an entry.
+PALETTE_DISPLAY_NAMES = {
+    PaletteType.WHITE_HOT: "White Hot",
+    PaletteType.BLACK_HOT: "Black Hot",
+    PaletteType.GRAY: "Grayscale",
+    PaletteType.SEPIA: "Sepia",
+    PaletteType.GREEN_HOT: "Night Vision Green",
+    PaletteType.RED_HOT: "Red Hot",
+    PaletteType.COPPER: "Copper",
+    PaletteType.IRONBOW: "Ironbow",
+    PaletteType.LAVA: "Lava",
+    PaletteType.GRADEDFIRE: "Graded Fire",
+    PaletteType.HOTTEST: "Hottest",
+    PaletteType.AMBER: "Amber",
+    PaletteType.INFERNO: "Inferno",
+    PaletteType.AFMHOT: "Hot Metal",
+    PaletteType.GNUPLOT2: "Midnight Fire",
+    PaletteType.YLORRD: "Sunrise",
+    PaletteType.RAINBOW: "Rainbow",
+    PaletteType.RAINBOW_HC: "Rainbow High Contrast",
+    PaletteType.RAINBOW_REVERSED: "Rainbow Reversed",
+    PaletteType.SPECTRAL: "Spectral",
+    PaletteType.COOL_HOT: "Cool to Hot",
+    PaletteType.NIPY_SPECTRAL: "Full Spectrum",
+    PaletteType.ARCTIC: "Arctic",
+    PaletteType.ICE: "Ice",
+    PaletteType.WINTER: "Winter",
+    PaletteType.OCEAN: "Ocean",
+    PaletteType.YLGNBU: "Lagoon",
+    PaletteType.VIRIDIS: "Viridis",
+    PaletteType.PLASMA: "Plasma",
+    PaletteType.MAGMA: "Magma",
+    PaletteType.CIVIDIS: "Cividis (Colorblind-Safe)",
+    PaletteType.TURBO: "Turbo",
+    PaletteType.CMRMAP: "Perceptual Spectrum",
+    PaletteType.BLUE_RED: "Blue – Red",
+    PaletteType.COOL_WARM: "Cool – Warm",
+    PaletteType.PURPLE_ORANGE: "Purple – Orange",
+    PaletteType.GREEN_RED: "Green – Red",
+    PaletteType.BLUE_YELLOW: "Blue – Yellow",
+    PaletteType.PINK_GREEN: "Pink – Green",
+    PaletteType.SEISMIC: "Seismic",
+    PaletteType.RDYLBU: "Cold to Hot (Blue-Yellow-Red)",
+    PaletteType.BRBG: "Brown – Teal",
+    PaletteType.GLOBOW: "Globow",
+    PaletteType.MEDICAL: "Medical",
+    PaletteType.THERMAL: "Thermal",
+    PaletteType.HELIX: "Helix",
+    PaletteType.CUBEHELIX: "Cubehelix",
+    PaletteType.TWILIGHT: "Twilight",
+    PaletteType.DUSK: "Dusk",
+    PaletteType.FUSION: "Fusion",
+    PaletteType.PRISM: "Prism",
+    PaletteType.ALARM: "Alarm",
+    PaletteType.LAPLACIAN: "Edge Enhance",
+    PaletteType.ISOTHERM: "Isotherm Bands",
+    PaletteType.VELOCITY: "Velocity",
+    PaletteType.TERRAIN: "Terrain",
+    PaletteType.DEPTH: "Depth",
+}
+
+PALETTE_DISPLAY_NAMES.update({
+    PaletteType.RAIN: "Rain",
+    PaletteType.CYAN_HOT: "Cyan Hot",
+    PaletteType.BLUE_HOT: "Blue Hot",
+    PaletteType.BANDED_HEAT: "Banded Heat",
+    PaletteType.BANDED_RAINBOW: "Banded Rainbow (High Contrast)",
+    PaletteType.CC_FIRE: "Fire (Perceptual)",
+    PaletteType.CC_BMY: "Blue–Magenta–Yellow",
+    PaletteType.CC_KBC: "Black–Blue–Cyan",
+    PaletteType.CC_KGY: "Black–Green–Yellow",
+    PaletteType.CC_ISOLUM: "Isoluminant Rainbow",
+    PaletteType.CC_RAINBOW: "Smooth Rainbow",
+    PaletteType.CC_BGYW: "Blue–Green–Yellow–White",
+    PaletteType.BATLOW: "Batlow",
+    PaletteType.LAJOLLA: "La Jolla",
+    PaletteType.LIPARI: "Lipari",
+    PaletteType.OSLO: "Oslo",
+    PaletteType.TURKU: "Turku",
+    PaletteType.HAWAII: "Hawaii",
+    PaletteType.ROMA: "Roma",
+    PaletteType.VIK: "Vik",
+    PaletteType.BERLIN: "Berlin",
+    PaletteType.ROCKET: "Rocket",
+    PaletteType.MAKO: "Mako",
+    PaletteType.FLARE: "Flare",
+    PaletteType.CREST: "Crest",
+    PaletteType.ICEFIRE: "Icefire",
+    PaletteType.TWILIGHT_SHIFTED: "Twilight Shifted",
+    PaletteType.COOL: "Cyan–Magenta",
+    PaletteType.WISTIA: "Golden",
+    PaletteType.BONE: "Bone (X-Ray)",
+    PaletteType.PINK: "Pink",
+    PaletteType.SUMMER: "Summer",
+    PaletteType.AUTUMN: "Autumn",
+    PaletteType.SPRING: "Spring",
+    PaletteType.GIST_HEAT: "Gist Heat",
+    PaletteType.GIST_EARTH: "Earth",
+    PaletteType.GIST_RAINBOW: "Gist Rainbow",
+    PaletteType.GIST_STERN: "Stern",
+    PaletteType.GIST_NCAR: "NCAR Spectrum",
+    PaletteType.BLUES: "Blues",
+    PaletteType.GREENS: "Greens",
+    PaletteType.ORANGES: "Oranges",
+    PaletteType.REDS: "Reds",
+    PaletteType.PURPLES: "Purples",
+    PaletteType.GREYS: "Grays",
+    PaletteType.YLORBR: "Yellow–Orange–Brown",
+    PaletteType.ORRD: "Orange–Red",
+    PaletteType.PURD: "Purple–Red",
+    PaletteType.RDPU: "Red–Purple",
+    PaletteType.BUPU: "Blue–Purple",
+    PaletteType.GNBU: "Green–Blue",
+    PaletteType.BUGN: "Blue–Green",
+    PaletteType.PUBU: "Purple–Blue",
+    PaletteType.RDBU: "Deep Blue–Red",
+    PaletteType.RDGY: "Gray–Red",
+    PaletteType.PIYG: "Pink–Yellow–Green",
+    PaletteType.PRGN: "Purple–Green",
+    PaletteType.PUOR: "Deep Purple–Orange",
+})
+
+
+def palette_display_name(palette_type: PaletteType) -> str:
+    """Friendly name for a palette (falls back to a tidied version of its ID)."""
+    return PALETTE_DISPLAY_NAMES.get(palette_type, palette_type.value.replace("_", " ").title())
 
 
 @dataclass
@@ -619,6 +882,185 @@ class PaletteManager:
             (255, 255, 255)  # White (near) (BGR)
         ])
 
+        # ===== ADDITIONAL PALETTES =====
+        # GREEN_HOT - Black→green phosphor→white (night-vision style)
+        self.palette_cache[PaletteType.GREEN_HOT] = self._create_gradient_palette([
+            (0, 0, 0),
+            (0, 40, 0),
+            (0, 120, 20),
+            (40, 220, 60),
+            (170, 255, 170),
+            (255, 255, 255)  # BGR stops
+        ])
+
+        # RED_HOT - Black→deep red→red→pink→white (low-light friendly)
+        self.palette_cache[PaletteType.RED_HOT] = self._create_gradient_palette([
+            (0, 0, 0),
+            (0, 0, 110),
+            (0, 0, 255),
+            (120, 120, 255),
+            (255, 255, 255)  # BGR stops
+        ])
+
+        # COPPER - Black→copper→pale gold (single-hue, matplotlib)
+        self.palette_cache[PaletteType.COPPER] = self._create_gradient_palette([
+            (0, 0, 0),
+            (16, 25, 40),
+            (32, 50, 79),
+            (48, 75, 119),
+            (64, 100, 158),
+            (80, 125, 198),
+            (96, 150, 237),
+            (111, 175, 255),
+            (127, 199, 255)  # BGR stops
+        ])
+
+        # AFMHOT - Black→red→orange→white (matplotlib afmhot)
+        self.palette_cache[PaletteType.AFMHOT] = self._create_gradient_palette([
+            (0, 0, 0),
+            (0, 0, 64),
+            (0, 0, 128),
+            (0, 64, 192),
+            (1, 128, 255),
+            (65, 192, 255),
+            (129, 255, 255),
+            (193, 255, 255),
+            (255, 255, 255)  # BGR stops
+        ])
+
+        # GNUPLOT2 - Black→blue→magenta→red→yellow→white (matplotlib gnuplot2)
+        self.palette_cache[PaletteType.GNUPLOT2] = self._create_gradient_palette([
+            (0, 0, 0),
+            (100, 0, 0),
+            (204, 0, 0),
+            (255, 0, 38),
+            (255, 0, 120),
+            (213, 42, 201),
+            (163, 92, 255),
+            (111, 144, 255),
+            (61, 194, 255),
+            (9, 246, 255),
+            (255, 255, 255)  # BGR stops
+        ])
+
+        # YLORRD - Pale yellow→orange→dark red (ColorBrewer YlOrRd)
+        self.palette_cache[PaletteType.YLORRD] = self._create_gradient_palette([
+            (204, 255, 255),
+            (160, 237, 255),
+            (118, 217, 254),
+            (76, 178, 254),
+            (60, 140, 253),
+            (42, 77, 252),
+            (28, 25, 226),
+            (38, 0, 187),
+            (38, 0, 128)  # BGR stops
+        ])
+
+        # NIPY_SPECTRAL - Black→purple→blue→green→yellow→red→gray (matplotlib nipy_spectral)
+        self.palette_cache[PaletteType.NIPY_SPECTRAL] = self._create_gradient_palette([
+            (0, 0, 0),
+            (140, 0, 123),
+            (162, 0, 67),
+            (209, 0, 0),
+            (221, 120, 0),
+            (207, 158, 0),
+            (152, 170, 0),
+            (29, 157, 0),
+            (0, 188, 0),
+            (0, 231, 0),
+            (0, 255, 103),
+            (0, 241, 228),
+            (0, 201, 255),
+            (0, 105, 255),
+            (0, 0, 236),
+            (0, 0, 207),
+            (204, 204, 204)  # BGR stops
+        ])
+
+        # YLGNBU - Deep blue→green→pale yellow (ColorBrewer YlGnBu, reversed so hot is light)
+        self.palette_cache[PaletteType.YLGNBU] = self._create_gradient_palette([
+            (88, 29, 8),
+            (146, 51, 36),
+            (168, 93, 34),
+            (192, 144, 29),
+            (196, 181, 64),
+            (187, 205, 126),
+            (180, 233, 198),
+            (177, 248, 237),
+            (217, 255, 255)  # BGR stops
+        ])
+
+        # CMRMAP - Perceptual, prints well in grayscale (matplotlib CMRmap)
+        self.palette_cache[PaletteType.CMRMAP] = self._create_gradient_palette([
+            (0, 0, 0),
+            (100, 30, 30),
+            (166, 38, 61),
+            (167, 43, 106),
+            (110, 54, 173),
+            (38, 65, 255),
+            (8, 115, 235),
+            (16, 167, 230),
+            (66, 207, 230),
+            (155, 235, 235),
+            (255, 255, 255)  # BGR stops
+        ])
+
+        # SEISMIC - Dark blue→white→dark red (matplotlib seismic)
+        self.palette_cache[PaletteType.SEISMIC] = self._create_gradient_palette([
+            (76, 0, 0),
+            (166, 0, 0),
+            (255, 1, 1),
+            (255, 129, 129),
+            (253, 253, 255),
+            (125, 125, 255),
+            (0, 0, 254),
+            (0, 0, 190),
+            (0, 0, 128)  # BGR stops
+        ])
+
+        # RDYLBU - Blue→pale yellow→red, cold to hot (ColorBrewer RdYlBu)
+        self.palette_cache[PaletteType.RDYLBU] = self._create_gradient_palette([
+            (149, 54, 49),
+            (179, 116, 69),
+            (209, 173, 116),
+            (233, 216, 170),
+            (248, 243, 224),
+            (192, 255, 254),
+            (144, 224, 254),
+            (96, 173, 253),
+            (67, 109, 244),
+            (39, 47, 214),
+            (38, 0, 165)  # BGR stops
+        ])
+
+        # BRBG - Brown→white→teal diverging (ColorBrewer BrBG)
+        self.palette_cache[PaletteType.BRBG] = self._create_gradient_palette([
+            (5, 48, 84),
+            (10, 80, 139),
+            (45, 129, 191),
+            (123, 193, 222),
+            (195, 232, 246),
+            (245, 245, 244),
+            (229, 234, 199),
+            (192, 204, 127),
+            (143, 151, 53),
+            (93, 101, 1),
+            (48, 60, 0)  # BGR stops
+        ])
+
+        # ===== ADDITIONAL PALETTES, BATCH 2 =====
+        from .palette_stops import EXTRA_PALETTE_STOPS
+        for _pid, (_kind, _stops) in EXTRA_PALETTE_STOPS.items():
+            if _kind == "steps":
+                self.palette_cache[PaletteType(_pid)] = self._create_stepped_palette(_stops)
+            else:
+                self.palette_cache[PaletteType(_pid)] = self._create_gradient_palette(_stops)
+
+    def _create_stepped_palette(self, colors: List[Tuple[int, int, int]]) -> np.ndarray:
+        """256-entry palette of flat bands, one per colour (for banded/high-contrast palettes)."""
+        band = np.minimum(np.arange(256) * len(colors) // 256, len(colors) - 1)
+        return np.array(colors, dtype=np.uint8)[band]
+
     def _create_gradient_palette(self, colors: List[Tuple[int, int, int]]) -> np.ndarray:
         """
         Create a 256-entry color palette from gradient control points.
@@ -952,8 +1394,13 @@ class PaletteManager:
         Returns:
             numpy array of shape (256, 3) with BGR values, or None if not found
         """
-        palette_type = self.global_palette.palette_type
+        return self.get_palette_lut(self.global_palette.palette_type)
 
+    def get_palette_lut(self, palette_type: PaletteType) -> np.ndarray:
+        """
+        Get the (256, 3) BGR lookup table for any palette (not just the active one),
+        e.g. to draw previews in a palette picker.
+        """
         if palette_type in self.palette_cache:
             return self.palette_cache[palette_type].copy()
         elif palette_type in self.OPENCV_COLORMAPS:
