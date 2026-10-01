@@ -101,6 +101,42 @@ Files: `gui/panels/fusion_panel.py` (727), `gui/panels/parallax_panel.py` (861),
 - [ ] Real thermal temperatures into the 3D world and ROI alerts (needs a connected, aligned, radiometric thermal camera)
 - [ ] Combined spot-meter + ROI comparison table (spot compare and ROI compare exist separately)
 
+## New-machine readiness (audited 2026-10-01)
+
+**Verified here:** a clean `git clone` of the committed code passes all 1073 unit tests and launches, running 40 s without errors, creating its own `config.json` + `camera_registry.json`; the same launch with torch, open3d, pyrealsense2, PyOpenGL, flirpy and scipy all absent also runs (warnings only). Optional hardware/vendor pieces (Boson vendor SDK, PySpin, VPI) just warn.
+
+**NOT verified (could not be tested from this machine):**
+- A from-scratch `pip install -r requirements.txt` (the sandbox has no PyPI access). Requirements are mostly lower bounds with no lock file, so a fresh install gets whatever is newest that day.
+- Linux / Jetson / macOS. The Linux scripts pass a syntax check only; macOS has no camera backend (DirectShow / V4L2 only).
+- Python versions other than 3.12.10.
+
+**Machine-specific assumptions that remain:**
+- [ ] No lock file: add `requirements-lock.txt` (or constraints) from the working environment (numpy 2.2.6, opencv 4.12.0, PyQt6 6.10.0, pyqtgraph 0.14.0, scipy 1.16.3, flirpy 0.3.0, setuptools 80.9.0) so installs are reproducible
+- [x] `pygrabber` / `comtypes` are Windows-only: now carry `sys_platform == "win32"` markers
+- [ ] Runtime data is written relative to the current directory (`config.json`, `camera_registry.json`, `recordings/`, `snapshots/`, `world_maps/`, `roi_sets/`): launching from another folder silently starts with fresh settings. Move to a per-user data dir (e.g. `platformdirs`) or anchor to the repo root
+- [ ] `--boson-com-port` defaults to `COM7` (a Windows port from the dev machine); `app.py` and `flir_camera.py` hard-code it. Auto-detect, or default per platform (`/dev/ttyACM0` on Linux)
+- [ ] `--device` defaults to `cuda`: confirm the fallback message on machines with no GPU/torch is clear
+- [ ] The L515 needs a from-source pyrealsense2 build (`scripts/install_realsense_l515.ps1`, Windows only); D400 cameras use the pip package
+- [ ] A first-run "doctor" (`python -m thermal_inspection --check-env`) listing which optional features are available (torch/CUDA, open3d, OpenGL, RealSense, flirpy, PySpin) and why, instead of scattered warnings
+
+## Repository sprawl (audited 2026-10-01)
+
+Done: `.gitignore` expanded (transient test/coverage/tool caches, `world_maps/`, `roi_sets/`, `*.ply`, `*.thermal.npz`, editor leftovers) and an `.egg-info/` rule that matched nothing fixed; ~90 stale Python 3.10 `.pyc` files, the per-user `settings_editor_theme.json` and `.claude/settings.local.json` untracked (files kept locally); `tests/unit/test_repo_hygiene.py` guards all of it. **Their content is still in git history** (the settings file contains local paths and a broad command allowlist): scrubbing it needs a history rewrite (git filter-repo) and a force-push: the user's decision.
+
+Done 2026-10-01:
+- [x] Removed 7 modules with no reference anywhere (~1,300 lines) and their re-exports: `gui/widgets/multi_row_tabwidget.py` (imported PyQt5, so it could never load), `utils/logging_setup.py` (replaced by `cli.configure_logging`), `utils/platform_detection.py`, `utils/performance_monitor.py`, `utils/placeholder_frames.py`, `gui/camera_control/boson_sdk_panel.py`, `utils/measurement_points.py`. Full suite still passes and the app starts clean
+- [x] `Media/`: the 12 unreferenced concept images moved to `Media/concepts/` with tool-friendly names and a README (original names recorded); the 3 live assets stay in `Media/`
+- [x] `sdk/__init__.py` exported `USBFSLPTransport`, a name that does not exist (class is `USBFslpTransport`), so its `try/except ImportError` silently hid the module forever: fixed
+- [x] `pytest.ini`: `-v` and live `log_cli` removed (logs now show only for failures)
+- [x] Verified NOT dead, kept: `themes/_instrument.py` (builds the Classic IBM/HP themes), `utils/preset_manager.py` (documented API, not exposed in the UI), `cameras/camera_calibration.py` (the producer of the homography JSON that `--calibration-file` reads, but it has no launcher/entry point), `sdk/usb_fslp_transport.py` (experimental Boson-over-USB protocol, now importable, not wired in or tested), `gui/widgets/spot_alert_dialog.py`
+
+Open (your decision):
+- [ ] `cameras/camera_calibration.py`: add an entry point (`python -m thermal_inspection.cameras.camera_calibration`) and document the calibration workflow, or retire it
+- [ ] `utils/preset_manager.py` and `sdk/usb_fslp_transport.py`: wire into the UI/app and test, or delete
+- [ ] `gui/widgets/spot_alert_dialog.py` defines a second `SpotMeterAlert` that duplicates the one in the spot-meter panel: keep one
+- [ ] Local disk only (untracked and ignored, not a repo problem): `recordings/` ~118 MB, `scratch/` ~27 MB, `snapshots/` ~3 MB
+- [ ] `CHANGELOG.md` (151 KB) stops at 3.7.0 (2026-09-11); this session's work has no entry and `__version__` is still 3.7.0. Held back until you have validated the work (a changelog entry would claim it works)
+
 ## Also pending
 
 - Push/merge-to-main decisions are the user's: the branch `camera-plugin-architecture-and-perf-fixes` was pushed to origin on 2026-09-30 at the user's request; merging to `main` has NOT been done.

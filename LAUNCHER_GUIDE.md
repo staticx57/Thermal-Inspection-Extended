@@ -10,7 +10,7 @@ For frequent tasks, use these one-click launchers:
 
 - **`scripts/quick-thermal.bat`** - Thermal Priority Mode (radiometric analysis)
 - **`scripts/quick-rgb.bat`** - RGB Priority Mode (visual inspection)
-- **`scripts/quick-debug.bat`** - Debug Mode (detailed logging)
+- **`scripts/quick-debug.bat`** - Debug Mode (DEBUG logging to the console and `thermal_inspection_debug.log`)
 
 ---
 
@@ -20,8 +20,7 @@ The main `launch.bat` provides an interactive menu with 7 options:
 
 ### [1] Quick Start (Default Settings)
 Launches with auto-detected cameras and default configuration.
-- Auto-detect cameras
-- OpenCV backend (8-bit)
+- Auto-detect cameras (the backend is chosen per camera automatically)
 - Ironbow palette
 - Qt GUI
 
@@ -33,10 +32,9 @@ Launches with auto-detected cameras and default configuration.
 Optimized for radiometric temperature analysis.
 
 **Features:**
-- Flirpy backend (16-bit radiometric)
-- Boson SDK enabled for camera control
+- Boson serial control enabled (FFC, gain, temperature) via `--enable-boson-sdk`
 - Ironbow palette (scientific)
-- Temperature measurement support
+- A radiometric Boson is detected automatically and uses 16-bit data; no backend flag is needed
 
 **Device Options:**
 1. Auto-detect cameras (recommended)
@@ -59,7 +57,6 @@ Optimized for radiometric temperature analysis.
 Optimized for visual inspection with thermal overlay.
 
 **Features:**
-- OpenCV backend (8-bit AGC)
 - Viridis palette (visual-friendly)
 - RGB camera focus
 - Option to disable thermal camera
@@ -76,7 +73,6 @@ Analyze recorded thermal videos.
 
 **Features:**
 - Drag-and-drop video file support
-- Choice of OpenCV (8-bit) or Flirpy (16-bit) backend
 - Full analysis tools available
 - Frame-by-frame control
 
@@ -130,7 +126,7 @@ Displays comprehensive list of all command-line arguments.
 
 **Categories:**
 - Camera options (device IDs, auto-detection)
-- Thermal backend (OpenCV, Flirpy, SDK)
+- Boson control and radiometric options
 - Display (palettes, fusion modes)
 - Processing (CUDA/CPU, ROI detection)
 - Mode (realtime, playback)
@@ -148,32 +144,32 @@ Displays comprehensive list of all command-line arguments.
 --disable-rgb                # Run without RGB camera
 ```
 
-### Thermal Backend
+### Boson / Radiometric
 ```bat
---thermal-backend TYPE       # opencv or flirpy (default: opencv)
---enable-boson-sdk           # Enable Boson SDK for control
+--enable-boson-sdk           # Serial control of the Boson (FFC, gain, temperature)
 --boson-com-port PORT        # COM port for Boson (default: COM7)
---radiometric                # Enable radiometric mode
+--radiometric                # Enable radiometric temperature measurement
+--thermal-backend TYPE       # DEPRECATED and ignored: the backend is chosen per camera plugin
 ```
 
 ### Display
 ```bat
---palette NAME               # Thermal palette
-                             # Options: ironbow, viridis, rainbow,
-                             #          white_hot, lava, arctic, etc.
---fusion-mode MODE           # Fusion mode
-                             # Options: alpha_blend, thermal_overlay,
-                             #          picture_in_picture,
-                             #          side_by_side, etc.
---fusion-alpha VALUE         # Fusion transparency (0.0-1.0)
+--palette ID                 # Palette id (115 palettes: ironbow, viridis, ... see the README
+                             # palette table; the ID column is what this flag takes)
+--fusion-mode MODE           # Fusion mode (python -m thermal_inspection --help lists them all:
+                             # thermal_overlay, alpha_blend, ...)
+--fusion-alpha VALUE         # Alpha for alpha_blend (0.0-1.0)
+--calibration-file PATH      # Camera alignment calibration
 ```
 
 ### Processing
 ```bat
 --device TYPE                # cuda or cpu (default: cuda)
 --auto-roi                   # Enable automatic ROI detection
---width WIDTH                # Frame width (default: 640)
---height HEIGHT              # Frame height (default: 512)
+--width WIDTH                # Thermal frame width (default: 640)
+--height HEIGHT              # Thermal frame height (default: 512)
+--enable_parallel true|false # Parallel detection (default: true)
+--max_workers N              # Worker threads for parallel detection (default: 5)
 ```
 
 ### Operation Mode
@@ -185,7 +181,15 @@ Displays comprehensive list of all command-line arguments.
 ### GUI
 ```bat
 --gui TYPE                   # qt, opencv, or headless (default: qt)
+--use-opencv-gui             # Simple OpenCV window instead of Qt
 --headless                   # Run without GUI
+```
+
+### Diagnostics
+```bat
+--log-level LEVEL            # DEBUG, INFO, WARNING (default) or ERROR - the console only shows WARNING+
+                             # unless you ask for more
+--log-file PATH              # Also write the log (with timestamps) to this file
 ```
 
 ---
@@ -224,7 +228,6 @@ scripts\quick-rgb.bat
 launch.bat
 [Select: 4 - Playback Mode]
 [Drag video file]
-[Backend: 2 - Flirpy (if radiometric recording)]
 ```
 
 ---
@@ -238,7 +241,7 @@ python -m thermal_inspection --headless --thermal-device 2 --rgb-device 0
 
 ### 6. Custom PIP Configuration
 ```bat
-python -m thermal_inspection --fusion-mode picture_in_picture --thermal-backend flirpy
+python -m thermal_inspection --fusion-mode picture_in_picture
 ```
 Then use fusion priority toggle in GUI to swap main/PIP views
 
@@ -250,7 +253,7 @@ Then use fusion priority toggle in GUI to swap main/PIP views
 1. Use **Option 7** in launcher to verify camera connections
 2. Try **Thermal Priority Mode > Manual device IDs**
 3. Check camera connections and drivers
-4. Review `thermal_inspection_debug.log`
+4. Run `scripts\quick-debug.bat` and review `thermal_inspection_debug.log`
 
 ### Wrong COM Port
 1. Device Manager → Ports → Find Boson Serial
@@ -273,7 +276,7 @@ You can still use the traditional command-line approach:
 
 ```bat
 # Direct launch with arguments
-launch.bat --thermal-backend flirpy --enable-boson-sdk
+launch.bat --enable-boson-sdk --boson-com-port COM7
 
 # Or call Python directly
 python -m thermal_inspection [arguments]
@@ -288,7 +291,11 @@ The launcher will detect direct arguments and bypass the menu.
 - **launch.bat** - Interactive launcher with menu
 - **scripts/quick-thermal.bat** - One-click thermal priority
 - **scripts/quick-rgb.bat** - One-click RGB priority
-- **scripts/quick-debug.bat** - One-click debug mode
+- **scripts/quick-debug.bat** - One-click debug mode (verbose log to `thermal_inspection_debug.log`)
+- **scripts/install_windows.bat / install_linux.sh** - Installers (`--with-firefly`, `--with-3d-mapping`, `--with-realsense-l515` on Windows)
+- **scripts/repair_windows.bat / repair_linux.sh** - Re-install/upgrade dependencies for an existing checkout
+- **scripts/install_realsense_l515.ps1** - Builds pyrealsense2 for an Intel RealSense L515 (pip's wheels dropped it)
+- **scripts/run_vpi.sh, run_with_gpu.sh, setup_jetson_gpu.sh** - Jetson / CUDA helpers
 - **LAUNCHER_GUIDE.md** - This documentation
 
 ---
@@ -322,7 +329,7 @@ pause
 ## Support
 
 For issues or questions:
-1. Check `thermal_inspection_debug.log`
-2. Use **scripts/quick-debug.bat** for verbose output
+1. Use **scripts/quick-debug.bat** for verbose output (it writes `thermal_inspection_debug.log`)
+2. Or add `--log-level DEBUG --log-file debug.log` to any launch command
 3. Review this guide
 4. Check main README.md for project documentation

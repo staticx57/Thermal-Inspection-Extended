@@ -1,3 +1,7 @@
+"""Generates Media/banner_hero.png (README/hero banner). Developer tool: needs matplotlib, which is NOT a runtime
+requirement (pip install matplotlib). Run from the repo root or this folder: python Media/Generate.py
+
+The feature counts shown on the banner are read from the code so they cannot go stale."""
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
@@ -55,7 +59,15 @@ def generate_banner():
     plt.text(50, 200, "FUSION TOOL", color='#F28218', fontsize=38, fontname='Arial', fontweight='bold')
     
     # Subtitle / Features
-    features = "• Radiometric Analysis  • 9 Fusion Modes  • FLIR Boson Support"
+    try:
+        import os, sys
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from thermal_inspection.processing.fusion_processor import FusionProcessor
+        from thermal_inspection.processing.palette_manager import PaletteType
+        fusion_modes, palettes = len(FusionProcessor.AVAILABLE_FUSION_MODES), len(list(PaletteType))
+        features = f"• Radiometric Analysis  • {fusion_modes} Fusion Modes  • {palettes} Palettes  • FLIR Boson Support"
+    except Exception:                                    # the banner is still useful without the project importable
+        features = "• Radiometric Analysis  • Thermal/RGB Fusion  • FLIR Boson Support"
     plt.text(50, 140, features, color='#CCCCCC', fontsize=14, fontname='Arial')
 
     # 5. UI Elements Simulation (The "Focus Box")
@@ -65,8 +77,10 @@ def generate_banner():
     plt.text(855, 310, "MAX: 85.4°C", color='#FFFFA0', fontsize=10, fontweight='bold')
 
     # Save
-    plt.savefig('banner_hero.png', facecolor=fig.get_facecolor())
-    print("Banner generated: banner_hero.png")
+    import os
+    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'banner_hero.png')
+    plt.savefig(out, facecolor=fig.get_facecolor())
+    print(f"Banner generated: {out}")
 
 if __name__ == "__main__":
     generate_banner()

@@ -13,6 +13,7 @@ cd "$(dirname "$0")/.."
 #   chmod +x scripts/install_linux.sh
 #   ./scripts/install_linux.sh                 # Install base system (UVC webcams)
 #   ./scripts/install_linux.sh --with-firefly  # Install base + FLIR Firefly support
+#   ./scripts/install_linux.sh --with-3d-mapping  # Install base + Open3D/PyOpenGL for 3D Mapping
 #
 
 set -e  # Exit on error
@@ -34,7 +35,7 @@ fi
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}Thermal Inspection Fusion Tool Installation${NC}"
-echo -e "${BLUE}Version 3.0.0${NC}"
+echo -e "${BLUE}(see CHANGELOG.md for the release notes)${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 echo -e "Architecture: ${GREEN}${ARCH}${NC}"
@@ -47,34 +48,57 @@ echo ""
 
 # Parse command-line arguments
 INSTALL_FIREFLY=false
+INSTALL_3D=false
 for arg in "$@"; do
     case $arg in
         --with-firefly)
             INSTALL_FIREFLY=true
-            shift
+            ;;
+        --with-3d-mapping)
+            INSTALL_3D=true
             ;;
         --help)
             echo "Usage: scripts/install_linux.sh [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --with-firefly    Install FLIR Firefly Spinnaker SDK (optional)"
-            echo "  --help            Show this help message"
+            echo "  --with-firefly      Install FLIR Firefly Spinnaker SDK (optional)"
+            echo "  --with-3d-mapping   Install Open3D + PyOpenGL for the 3D Mapping view"
+            echo "                      (needs a RealSense camera - see requirements.txt)"
+            echo "  --help              Show this help message"
             echo ""
             exit 0
             ;;
     esac
 done
 
+# Python 3.10+ is required (3.10 - 3.12 are the tested versions)
+if ! python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)"; then
+    echo -e "${RED}✗ Python 3.10 or newer is required (found: $(python3 --version 2>&1))${NC}"
+    echo -e "${YELLOW}  Install a newer Python (e.g. sudo apt-get install python3.11) and re-run.${NC}"
+    exit 1
+fi
+
+# Debian 12 / Ubuntu 23.04+ mark the system Python "externally managed" (PEP 668): pip refuses to install into it
+STDLIB_DIR=$(python3 -c "import sysconfig; print(sysconfig.get_path('stdlib'))")
+if [ -f "$STDLIB_DIR/EXTERNALLY-MANAGED" ] && [ -z "$VIRTUAL_ENV" ]; then
+    echo -e "${YELLOW}This system's Python is externally managed (PEP 668), so pip cannot install into it.${NC}"
+    echo -e "${BLUE}Use a virtual environment, then re-run this script from inside it:${NC}"
+    echo -e "    python3 -m venv --system-site-packages .venv   # keeps Jetson's CUDA OpenCV/torch visible"
+    echo -e "    source .venv/bin/activate"
+    echo -e "    ./scripts/$(basename "$0")"
+    exit 1
+fi
+
 # Step 1: Update system packages
-echo -e "${BLUE}[1/6] Updating system packages...${NC}"
+echo -e "${BLUE}[1/8] Updating system packages...${NC}"
 sudo apt-get update
 
 # Step 2: Install Python dependencies
-echo -e "${BLUE}[2/6] Installing Python dependencies...${NC}"
+echo -e "${BLUE}[2/8] Installing Python dependencies...${NC}"
 sudo apt-get install -y python3 python3-pip python3-dev python3-numpy
 
 # Step 3: Install OpenCV (if not already installed)
-echo -e "${BLUE}[3/6] Installing OpenCV...${NC}"
+echo -e "${BLUE}[3/8] Installing OpenCV...${NC}"
 if [ "$IS_JETSON" = true ]; then
     # Jetson comes with OpenCV pre-installed (with CUDA support)
     echo -e "${GREEN}✓ Jetson platform detected - using pre-installed OpenCV with CUDA${NC}"
@@ -89,7 +113,7 @@ else
 fi
 
 # Step 4: Install V4L2 utilities (for UVC webcam debugging)
-echo -e "${BLUE}[4/6] Installing V4L2 utilities...${NC}"
+echo -e "${BLUE}[4/8] Installing V4L2 utilities...${NC}"
 sudo apt-get install -y v4l-utils
 
 # List available cameras
@@ -97,7 +121,7 @@ echo -e "${GREEN}✓ Listing available UVC cameras:${NC}"
 v4l2-ctl --list-devices || echo -e "${YELLOW}⚠ No cameras detected${NC}"
 
 # Step 5: Install project dependencies
-echo -e "${BLUE}[5/7] Installing project Python dependencies...${NC}"
+echo -e "${BLUE}[5/8] Installing project Python dependencies...${NC}"
 if [ -f requirements.txt ]; then
     pip3 install --user -r requirements.txt
 else
@@ -106,7 +130,7 @@ else
 fi
 
 # Step 5.5: Install PyQt6 for Qt GUI
-echo -e "${BLUE}[5.5/7] Installing PyQt6 for Qt GUI (v3.x)...${NC}"
+echo -e "${BLUE}[6/8] Installing PyQt6 for the Qt GUI...${NC}"
 if [ "$IS_JETSON" = true ]; then
     # Jetson: Try system package first (better performance)
     echo -e "${YELLOW}Attempting system PyQt6 installation...${NC}"
@@ -127,7 +151,7 @@ python3 -c "from PyQt6.QtWidgets import QApplication; print('✓ PyQt6 installed
 
 # Step 6: OPTIONAL - Install FLIR Firefly Spinnaker SDK
 if [ "$INSTALL_FIREFLY" = true ]; then
-    echo -e "${BLUE}[6/7] Installing FLIR Firefly Spinnaker SDK...${NC}"
+    echo -e "${BLUE}[7/8] Installing FLIR Firefly Spinnaker SDK...${NC}"
 
     # Check architecture
     if [ "$ARCH" = "aarch64" ]; then
@@ -215,18 +239,27 @@ if [ "$INSTALL_FIREFLY" = true ]; then
         echo -e "  2. Run: ./scripts/install_linux.sh --with-firefly"
     fi
 else
-    echo -e "${BLUE}[6/7] Skipping FLIR Firefly support (use --with-firefly to enable)${NC}"
+    echo -e "${BLUE}[7/8] Skipping FLIR Firefly support (use --with-firefly to enable)${NC}"
 fi
 
-# Step 7: Verify installation
-echo -e "${BLUE}[7/7] Verifying installation...${NC}"
+# Optional: 3D Mapping packages
+if [ "$INSTALL_3D" = true ]; then
+    echo -e "${BLUE}Installing 3D Mapping packages (Open3D, PyOpenGL)...${NC}"
+    pip3 install --user "open3d>=0.18.0" "PyOpenGL>=3.1.0" || {
+        echo -e "${YELLOW}⚠ 3D Mapping packages failed to install - the 3D Mapping view will show a placeholder.${NC}"
+        echo -e "${YELLOW}  (Open3D has no wheel for every ARM/Python combination; see requirements.txt)${NC}"
+    }
+fi
+
+# Step 8: Verify installation
+echo -e "${BLUE}[8/8] Verifying installation...${NC}"
 echo ""
 
 VERIFICATION_FAILED=false
 
 # Test 1: Python imports
 echo -e "${BLUE}Testing Python modules...${NC}"
-python3 << 'EOF'
+python3 - $([ "$INSTALL_3D" = true ] && echo 3D) << 'EOF'
 import sys
 exit_code = 0
 
@@ -238,7 +271,11 @@ modules = [
     ('pyqtgraph', 'pyqtgraph'),
     ('psutil', 'psutil'),
     ('serial', 'pyserial'),
+    ('scipy', 'SciPy'),
+    ('flirpy', 'flirpy (Boson)'),
 ]
+if '3D' in sys.argv[1:]:
+    modules += [('open3d', 'Open3D'), ('OpenGL', 'PyOpenGL')]
 
 for module, name in modules:
     try:
@@ -327,15 +364,16 @@ else
     echo -e "  ${YELLOW}⚠ FLIR Firefly support: Not installed (use --with-firefly)${NC}"
 fi
 echo ""
-echo -e "${BLUE}Qt GUI Features (v3.x):${NC}"
-echo -e "  • Camera plugin architecture (Boson/Tau2/Lepton thermal, Firefly/UVC/GigE RGB)"
-echo -e "  • 9 fusion algorithms, ROI management, radiometric temperature analysis"
-echo -e "  • Isotherm highlighting, gradient overlays, media recording"
+echo -e "${BLUE}What you have:${NC}"
+echo -e "  • Camera plugin architecture (Boson/Tau2/Lepton thermal, Firefly/UVC/GigE/RealSense RGB)"
+echo -e "  • Thermal/RGB fusion modes, 100+ palettes, ROI Manager, spot meters, radiometric analysis"
+echo -e "  • Isotherms, gradient overlays, 3D Fusion / 3D Mapping (optional), media recording"
 echo ""
 echo -e "${BLUE}Next Steps:${NC}"
 echo -e "  ${BLUE}1.${NC} Connect RGB camera (UVC webcam or FLIR Firefly)"
 echo -e "  ${BLUE}2.${NC} Run system: ${GREEN}python3 -m thermal_inspection${NC}"
 echo -e "  ${BLUE}3.${NC} Or use a quick-launch script in scripts/ (see LAUNCHER_GUIDE.md)"
+echo -e "  ${BLUE}4.${NC} Troubleshooting: ${GREEN}python3 -m thermal_inspection --log-level DEBUG --log-file debug.log${NC}"
 echo ""
 echo -e "${BLUE}Testing Commands:${NC}"
 echo -e "  • List cameras: ${GREEN}v4l2-ctl --list-devices${NC}"

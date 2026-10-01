@@ -3,7 +3,7 @@
 
 echo "========================================"
 echo "Jetson Orin GPU Setup for Thermal Inspection Fusion Tool"
-echo "Version 3.0.0"
+echo "(PyTorch is OPTIONAL: it only accelerates fusion/3D and enables ML depth for parallax)"
 echo "========================================"
 echo ""
 
@@ -48,25 +48,23 @@ if [ $CUDA_WORKS -eq 0 ]; then
         echo "GPU Information:"
         python3 -c "import torch; print(f'  Device: {torch.cuda.get_device_name(0)}'); print(f'  Compute Capability: {torch.cuda.get_device_capability(0)}'); print(f'  Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB')"
         echo ""
-        echo "Your system is ready to run the Thermal Road Monitor!"
+        echo "Your system is ready for GPU-accelerated fusion in the Thermal Inspection Fusion Tool!"
         exit 0
     fi
 fi
 
 echo "✗ CUDA is NOT working with PyTorch"
 echo ""
-echo "To fix this, you need to install PyTorch with CUDA support for Jetson:"
+echo "PyTorch is optional: without it the app falls back to the CPU (OpenCV/NumPy) paths."
+echo "For GPU acceleration install NVIDIA's PyTorch build that matches your JetPack AND your Python"
+echo "(this project needs Python 3.10 or newer - check with: python3 --version):"
 echo ""
-echo "1. For JetPack 5.x (recommended):"
-echo "   wget https://nvidia.box.com/shared/static/mp164asf3sceb570wvjsrezk1p4ftj8t.whl -O torch-2.0.0+nv23.05-cp38-cp38-linux_aarch64.whl"
-echo "   pip3 install torch-2.0.0+nv23.05-cp38-cp38-linux_aarch64.whl"
+echo "  https://docs.nvidia.com/deeplearning/frameworks/install-pytorch-jetson-platform/"
+echo "  https://forums.developer.nvidia.com/t/pytorch-for-jetson/72048"
 echo ""
-echo "2. Or visit: https://forums.developer.nvidia.com/t/pytorch-for-jetson/72048"
-echo ""
-echo "3. After installation, verify with:"
+echo "Do NOT pip-install the generic PyPI torch wheel on a Jetson: it is CPU-only (or the wrong CUDA)."
+echo "After installing, verify with:"
 echo "   python3 -c 'import torch; print(torch.cuda.is_available())'"
-echo ""
-echo "For more help, see: https://docs.nvidia.com/deeplearning/frameworks/install-pytorch-jetson-platform/"
 echo ""
 
 exit 1

@@ -17,7 +17,7 @@ set "NC=[0m"
 
 echo %BLUE%============================================%NC%
 echo %BLUE%Thermal Inspection Fusion Tool Repair%NC%
-echo %BLUE%Version 3.0.0%NC%
+echo %BLUE%(see CHANGELOG.md for the release notes)%NC%
 echo %BLUE%============================================%NC%
 echo.
 
@@ -33,28 +33,28 @@ echo %GREEN%Project directory found%NC%
 echo.
 
 REM Check Python
-python --version >nul 2>&1
+call python --version >nul 2>&1
 if errorlevel 1 (
     echo %RED%ERROR: Python not found!%NC%
-    echo Please install Python 3.8+ from https://www.python.org/
+    echo Please install Python 3.10+ from https://www.python.org/
     pause
     exit /b 1
 )
 
 echo %GREEN%Python version:%NC%
-python --version
+call python --version
 echo.
 
 REM Step 1: Update pip
 echo %BLUE%[1/4] Updating pip...%NC%
-python -m pip install --upgrade pip
+call python -m pip install --upgrade pip
 
 REM Step 2: Install/update PyQt6
 echo %BLUE%[2/4] Installing/updating PyQt6...%NC%
-python -m pip install --upgrade PyQt6
+call python -m pip install --upgrade PyQt6
 
 REM Verify PyQt6
-python -c "from PyQt6.QtWidgets import QApplication; print('OK PyQt6 verified')" 2>nul
+call python -c "from PyQt6.QtWidgets import QApplication; print('OK PyQt6 verified')" 2>nul
 if errorlevel 1 (
     echo %RED%PyQt6 installation failed%NC%
     echo %YELLOW%Please check your Python installation%NC%
@@ -66,10 +66,10 @@ REM Step 3: Update requirements
 echo %BLUE%[3/4] Updating project dependencies...%NC%
 if exist requirements.txt (
     echo %GREEN%Found requirements.txt - updating...%NC%
-    python -m pip install --upgrade -r requirements.txt
+    call python -m pip install --upgrade -r requirements.txt
 ) else (
     echo %YELLOW%requirements.txt not found. Updating core packages...%NC%
-    python -m pip install --upgrade numpy opencv-python opencv-contrib-python PyQt6 psutil pyserial
+    call python -m pip install --upgrade numpy scipy opencv-python Pillow PyQt6 "pyqtgraph>=0.14" psutil pyserial flirpy "setuptools<81"
 )
 
 REM Step 4: Verify installation
@@ -77,11 +77,14 @@ echo %BLUE%[4/4] Verifying repaired installation...%NC%
 echo.
 
 echo %BLUE%Testing Python modules...%NC%
-python -c "import numpy; print('  ✓ NumPy')" 2>nul || echo   ✗ NumPy - FAILED
-python -c "import cv2; print('  ✓ OpenCV')" 2>nul || echo   ✗ OpenCV - FAILED
-python -c "import PyQt6.QtWidgets; print('  ✓ PyQt6')" 2>nul || echo   ✗ PyQt6 - FAILED
-python -c "import serial; print('  ✓ PySerial')" 2>nul || echo   ✗ PySerial - FAILED
-python -c "import psutil; print('  ✓ psutil')" 2>nul || echo   ✗ psutil - FAILED
+call python -c "import numpy; print('  ✓ NumPy')" 2>nul || echo   ✗ NumPy - FAILED
+call python -c "import cv2; print('  ✓ OpenCV')" 2>nul || echo   ✗ OpenCV - FAILED
+call python -c "import PyQt6.QtWidgets; print('  ✓ PyQt6')" 2>nul || echo   ✗ PyQt6 - FAILED
+call python -c "import serial; print('  ✓ PySerial')" 2>nul || echo   ✗ PySerial - FAILED
+call python -c "import pyqtgraph; print('  ✓ pyqtgraph', pyqtgraph.__version__)" 2>nul || echo   ✗ pyqtgraph - FAILED
+call python -c "import scipy; print('  ✓ SciPy')" 2>nul || echo   ✗ SciPy - FAILED
+call python -c "import flirpy; print('  ✓ flirpy (Boson)')" 2>nul || echo   ✗ flirpy - FAILED
+call python -c "import psutil; print('  ✓ psutil')" 2>nul || echo   ✗ psutil - FAILED
 
 echo.
 echo %BLUE%Checking project files...%NC%
@@ -91,26 +94,24 @@ if exist thermal_inspection\cameras\flir_camera.py (echo   ✓ thermal_inspectio
 if exist thermal_inspection\processing\fusion_processor.py (echo   ✓ thermal_inspection\processing\fusion_processor.py) else echo   ✗ thermal_inspection\processing\fusion_processor.py - MISSING
 if exist thermal_inspection\processing\palette_manager.py (echo   ✓ thermal_inspection\processing\palette_manager.py) else echo   ✗ thermal_inspection\processing\palette_manager.py - MISSING
 if exist thermal_inspection\sdk\boson_sdk_wrapper.py (echo   ✓ thermal_inspection\sdk\boson_sdk_wrapper.py) else echo   ✗ thermal_inspection\sdk\boson_sdk_wrapper.py - MISSING
-if exist config.json (echo   ✓ config.json) else echo   ✗ config.json - MISSING
+if exist config.json (echo   ✓ config.json) else echo   - config.json will be created on first run
 
 echo.
 echo %GREEN%============================================%NC%
 echo %GREEN%Repair Complete ^& Verified!%NC%
 echo %GREEN%============================================%NC%
 echo.
-echo %BLUE%Current Features (v3.0):%NC%
-echo   • PyQt6 GUI (modern Qt6 framework)
-echo   • 7 Fusion algorithms (thermal/RGB fusion)
-echo   • 45 Thermal palettes (7 categories)
-echo   • ROI management (auto-detection + manual)
-echo   • Temperature analysis (spot, trend, anomaly)
-echo   • Boson SDK integration (FFC, AGC, radiometric)
-echo   • Camera auto-detection
-echo   • Media recording (video + snapshots)
+echo %BLUE%What you have:%NC%
+echo   • PyQt6 GUI with a camera plugin architecture
+echo   • Thermal/RGB fusion modes, 100+ thermal palettes
+echo   • ROI Manager and spot meters, temperature analysis
+echo   • Optional 3D Fusion / 3D Mapping ^(RealSense; see requirements.txt^)
+echo   • Media recording ^(video + snapshots^)
 echo.
 echo %GREEN%Ready to run:%NC%
 echo   python -m thermal_inspection
 echo   python -m thermal_inspection --enable-boson-sdk
+echo   Troubleshooting: python -m thermal_inspection --log-level DEBUG --log-file debug.log
 echo   Or use the quick-launch scripts in scripts\ (see LAUNCHER_GUIDE.md)
 echo.
 echo %YELLOW%Press any key to exit...%NC%

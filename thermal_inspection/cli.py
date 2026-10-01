@@ -13,8 +13,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def parse_arguments():
-    """Parse command-line arguments."""
+def build_parser():
+    """The argument parser (separate from parse_arguments() so tests and docs can check the real option list)."""
     parser = argparse.ArgumentParser(
         description='Thermal + RGB Fusion Inspection Tool'
     )
@@ -93,7 +93,37 @@ def parse_arguments():
     parser.add_argument('--max_workers', type=int, default=5,
                        help='Maximum number of worker threads for parallel detection (default: 5)')
 
-    return parser.parse_args()
+    # Diagnostics
+    parser.add_argument('--log-level', type=str.upper, choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], default='WARNING',
+                       help='Console log level (default: WARNING - INFO and DEBUG lines are hidden unless you ask)')
+    parser.add_argument('--log-file', type=str, default=None, metavar='PATH',
+                       help='Also write the log (at --log-level) to this file')
+
+    return parser
+
+
+def parse_arguments():
+    """Parse command-line arguments."""
+    return build_parser().parse_args()
+
+
+def configure_logging(level: str = 'WARNING', log_file: str = None):
+    """Set up root logging. The console shows `level` in the usual compact format; with log_file the same records are
+    also written there (appended, UTF-8, with timestamps). Returns the numeric level."""
+    numeric = getattr(logging, str(level).upper(), logging.WARNING)
+    console = logging.StreamHandler()
+    console.setFormatter(logging.Formatter('%(levelname)s:%(name)s:%(message)s'))
+    handlers = [console]
+    if log_file:
+        try:
+            fh = logging.FileHandler(log_file, encoding='utf-8')
+            fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s:%(name)s:%(message)s'))
+            handlers.append(fh)
+        except OSError as e:
+            print(f"Could not open log file {log_file}: {e}", file=sys.stderr)
+    logging.basicConfig(level=numeric, handlers=handlers, force=True)
+    return numeric
+
 
 
 def main():
@@ -106,7 +136,7 @@ def main():
     logger.info("=" * 80)
 
     # Set logging back to WARNING to prevent hot-plug monitor spam
-    logging.basicConfig(level=logging.WARNING, format='%(levelname)s:%(name)s:%(message)s')
+    configure_logging(args.log_level, args.log_file)
 
     # Initialize Qt app if not using OpenCV GUI
     qt_app = None

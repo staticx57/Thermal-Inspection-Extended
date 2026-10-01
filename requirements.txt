@@ -41,8 +41,8 @@ psutil>=5.9.0               # System and process utilities
 flirpy>=0.3.0               # FLIR Boson support (flirpy.camera.boson, used by thermal_inspection.sdk.boson_flirpy_ext)
 setuptools<81               # flirpy imports pkg_resources, which setuptools 81+ removes
 pyserial>=3.5               # Serial port communication for FLIR Boson (921600 baud) and FLIR Tau 2 (57600 baud) CCI protocols
-pygrabber>=0.2              # Native Windows DirectShow device enumeration & probing
-comtypes>=1.1.7             # DirectShow COM interface (required by pygrabber)
+pygrabber>=0.2; sys_platform == "win32"      # Native Windows DirectShow device enumeration & probing (Windows only)
+comtypes>=1.1.7; sys_platform == "win32"     # DirectShow COM interface, required by pygrabber (Windows only)
 
 # ============================================================================
 # Camera Plugin Support Notes:
@@ -58,8 +58,8 @@ comtypes>=1.1.7             # DirectShow COM interface (required by pygrabber)
 #
 # pyusb>=1.2.1
 #
-# Optional, Jetson only (installed by NVIDIA, not from PyPI): `jtop` (jetson-stats) for the performance monitor and
-# `vpi` (Vision Programming Interface) for GPU image processing. The app runs without either.
+# Optional, Jetson only (installed by NVIDIA, not from PyPI): `vpi` (Vision Programming Interface) for GPU image
+# processing. The app runs without it.
 
 # ============================================================================
 # Development & Testing (Optional)

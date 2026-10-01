@@ -10,6 +10,7 @@ REM - OPTIONAL: FLIR Firefly Spinnaker SDK (for RGB camera)
 REM
 REM Usage (run from repo root):
 REM   scripts\install_windows.bat                       Install base system (UVC webcams)
+REM   scripts\install_windows.bat --with-3d-mapping     Install base + Open3D/PyOpenGL for 3D Mapping
 REM   scripts\install_windows.bat --with-firefly        Install base + FLIR Firefly support
 REM   scripts\install_windows.bat --with-realsense-l515 Install base + build pyrealsense2 for L515
 REM
@@ -25,41 +26,41 @@ set "NC=[0m"
 
 echo %BLUE%============================================%NC%
 echo %BLUE%Thermal Inspection Fusion Tool Installation%NC%
-echo %BLUE%Version 3.0.0%NC%
+echo %BLUE%(see CHANGELOG.md for the release notes)%NC%
 echo %BLUE%============================================%NC%
 echo.
 
 REM Check if Python is installed
-python --version >nul 2>&1
+call python --version >nul 2>&1
 if errorlevel 1 (
     echo %RED%ERROR: Python not found!%NC%
-    echo Please install Python 3.8+ from https://www.python.org/
+    echo Please install Python 3.10+ from https://www.python.org/
     echo Make sure to check "Add Python to PATH" during installation
     pause
     exit /b 1
 )
 
 echo %GREEN%Python version:%NC%
-python --version
+call python --version
 
-REM Check Python version and warn if 3.12+
-for /f "tokens=2" %%i in ('python --version') do set PYTHON_VER=%%i
-echo %PYTHON_VER% | findstr /C:"3.12" >nul && (
-    echo %YELLOW%WARNING: Python 3.12 detected!%NC%
-    echo %YELLOW%PySpin (FLIR Firefly support) may not be compatible.%NC%
-    echo %YELLOW%Recommended: Python 3.10 for best compatibility.%NC%
+REM Python 3.10 or newer is required (3.10 - 3.12 are the tested versions)
+call python -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1
+if errorlevel 1 (
+    echo %RED%ERROR: Python 3.10 or newer is required.%NC%
+    echo Please install a newer Python from https://www.python.org/
+    pause
+    exit /b 1
+)
+call python -c "import sys; sys.exit(1 if sys.version_info >= (3, 13) else 0)" >nul 2>&1
+if errorlevel 1 (
+    echo %YELLOW%NOTE: Python 3.13+ has not been tested with this project ^(3.10 - 3.12 have^).%NC%
     echo.
 )
-echo %PYTHON_VER% | findstr /C:"3.13" >nul && (
-    echo %YELLOW%WARNING: Python 3.13 detected!%NC%
-    echo %YELLOW%PySpin (FLIR Firefly support) may not be compatible.%NC%
-    echo %YELLOW%Recommended: Python 3.10 for best compatibility.%NC%
-    echo.
-)
+echo %YELLOW%If you plan to use a FLIR Firefly: the Spinnaker PySpin wheel must match your Python version.%NC%
 echo.
 
 REM Check if pip is available
-python -m pip --version >nul 2>&1
+call python -m pip --version >nul 2>&1
 if errorlevel 1 (
     echo %RED%ERROR: pip not found!%NC%
     echo Please reinstall Python with pip enabled
@@ -70,7 +71,9 @@ if errorlevel 1 (
 REM Parse command-line arguments
 set INSTALL_FIREFLY=false
 set INSTALL_REALSENSE_L515=false
+set INSTALL_3D=false
 for %%A in (%*) do (
+    if "%%A"=="--with-3d-mapping" set INSTALL_3D=true
     if "%%A"=="--with-firefly" set INSTALL_FIREFLY=true
     if "%%A"=="--with-realsense-l515" set INSTALL_REALSENSE_L515=true
 )
@@ -78,43 +81,46 @@ if "%1"=="--help" (
     echo Usage: %0 [OPTIONS]
     echo.
     echo Options:
-    echo   --with-firefly          Install FLIR Firefly Spinnaker SDK (optional)
+    echo   --with-firefly          Install FLIR Firefly Spinnaker SDK ^(optional^)
     echo   --with-realsense-l515   Build pyrealsense2 from source for an Intel
     echo                           RealSense L515 (pip's pyrealsense2 dropped
     echo                           L515 support upstream - see requirements.txt)
+    echo   --with-3d-mapping       Install Open3D + PyOpenGL for the 3D Mapping view
+    echo                           (needs a RealSense camera: D400 series via pip,
+    echo                           or --with-realsense-l515 for an L515)
     echo   --help                  Show this help message
     echo.
     exit /b 0
 )
 
 REM Step 1: Upgrade pip
-echo %BLUE%[1/5] Upgrading pip...%NC%
-python -m pip install --upgrade pip
+echo %BLUE%[1/7] Upgrading pip...%NC%
+call python -m pip install --upgrade pip
 
 REM Step 2: Install core dependencies from requirements.txt
-echo %BLUE%[2/5] Installing core dependencies...%NC%
+echo %BLUE%[2/7] Installing core dependencies...%NC%
 if exist requirements.txt (
     echo %GREEN%Found requirements.txt - installing...%NC%
-    python -m pip install -r requirements.txt
+    call python -m pip install -r requirements.txt
 ) else (
     echo %YELLOW%requirements.txt not found. Installing core packages manually...%NC%
-    python -m pip install opencv-python numpy scipy Pillow PyQt6 "pyqtgraph>=0.14" psutil pyserial flirpy "setuptools<81"
+    call python -m pip install opencv-python numpy scipy Pillow PyQt6 "pyqtgraph>=0.14" psutil pyserial flirpy "setuptools<81"
 )
 
 REM Step 3: Verify PyQt6
-echo %BLUE%[3/5] Verifying PyQt6 installation...%NC%
-python -c "from PyQt6.QtWidgets import QApplication; print('PyQt6 OK')" 2>nul
+echo %BLUE%[3/7] Verifying PyQt6 installation...%NC%
+call python -c "from PyQt6.QtWidgets import QApplication; print('PyQt6 OK')" 2>nul
 if errorlevel 1 (
     echo %RED%PyQt6 installation failed%NC%
     echo %YELLOW%Attempting to reinstall...%NC%
-    python -m pip install --upgrade PyQt6
+    call python -m pip install --upgrade PyQt6
 ) else (
     echo %GREEN%PyQt6 installed successfully%NC%
 )
 
 REM Step 4: OPTIONAL - Install FLIR Firefly Spinnaker SDK
 if "%INSTALL_FIREFLY%"=="true" (
-    echo %BLUE%[4/6] Installing FLIR Firefly Spinnaker SDK...%NC%
+    echo %BLUE%[4/7] Installing FLIR Firefly Spinnaker SDK...%NC%
     echo.
     echo %YELLOW%========================================%NC%
     echo %YELLOW%FLIR Spinnaker SDK Installation%NC%
@@ -136,7 +142,7 @@ if "%INSTALL_FIREFLY%"=="true" (
     pause >nul
 
     REM Verify PySpin installation
-    python -c "import PySpin; print('PySpin version:', PySpin.__version__)" 2>nul
+    call python -c "import PySpin; print('PySpin version:', PySpin.__version__)" 2>nul
     if errorlevel 1 (
         echo %RED%ERROR: PySpin not detected!%NC%
         echo.
@@ -152,12 +158,12 @@ if "%INSTALL_FIREFLY%"=="true" (
         echo %GREEN%FLIR Firefly cameras are now supported.%NC%
     )
 ) else (
-    echo %BLUE%[4/6] Skipping FLIR Firefly support (use --with-firefly to enable)%NC%
+    echo %BLUE%[4/7] Skipping FLIR Firefly support (use --with-firefly to enable)%NC%
 )
 
 REM Step 5: OPTIONAL - Build pyrealsense2 from source for L515 support
 if "%INSTALL_REALSENSE_L515%"=="true" (
-    echo %BLUE%[5/6] Building pyrealsense2 from source for Intel RealSense L515...%NC%
+    echo %BLUE%[5/7] Building pyrealsense2 from source for Intel RealSense L515...%NC%
     echo.
     echo %YELLOW%========================================%NC%
     echo %YELLOW%Intel RealSense L515 Support%NC%
@@ -184,21 +190,40 @@ if "%INSTALL_REALSENSE_L515%"=="true" (
         echo %GREEN%SUCCESS: pyrealsense2 built and installed for L515!%NC%
     )
 ) else (
-    echo %BLUE%[5/6] Skipping RealSense L515 build (use --with-realsense-l515 to enable)%NC%
+    echo %BLUE%[5/7] Skipping RealSense L515 build (use --with-realsense-l515 to enable)%NC%
 )
 
-REM Step 6: Verify installation
-echo %BLUE%[6/6] Verifying installation...%NC%
+REM Step 6: OPTIONAL - 3D Mapping packages
+if "%INSTALL_3D%"=="true" (
+    echo %BLUE%[6/7] Installing 3D Mapping packages ^(Open3D, PyOpenGL^)...%NC%
+    call python -m pip install "open3d>=0.18.0" "PyOpenGL>=3.1.0" "PyOpenGL_accelerate>=3.1.0"
+    if errorlevel 1 (
+        echo %YELLOW%Some 3D Mapping packages failed to install - the 3D Mapping view will show a placeholder.%NC%
+        echo %YELLOW%^(PyOpenGL_accelerate needs a C compiler and is optional: pip install "open3d>=0.18.0" PyOpenGL^)%NC%
+    )
+) else (
+    echo %BLUE%[6/7] Skipping 3D Mapping packages ^(use --with-3d-mapping to enable^)%NC%
+)
+
+REM Step 7: Verify installation
+echo %BLUE%[7/7] Verifying installation...%NC%
 echo.
 
 echo %BLUE%Testing Python modules...%NC%
-python -c "import numpy; print('  ✓ NumPy')" 2>nul || echo   ✗ NumPy - FAILED
-python -c "import cv2; print('  ✓ OpenCV')" 2>nul || echo   ✗ OpenCV - FAILED
-python -c "import PyQt6.QtWidgets; print('  ✓ PyQt6')" 2>nul || echo   ✗ PyQt6 - FAILED
-python -c "import serial; print('  ✓ PySerial')" 2>nul || echo   ✗ PySerial - FAILED
-python -c "import psutil; print('  ✓ psutil')" 2>nul || echo   ✗ psutil - FAILED
+call python -c "import numpy; print('  ✓ NumPy')" 2>nul || echo   ✗ NumPy - FAILED
+call python -c "import cv2; print('  ✓ OpenCV')" 2>nul || echo   ✗ OpenCV - FAILED
+call python -c "import PyQt6.QtWidgets; print('  ✓ PyQt6')" 2>nul || echo   ✗ PyQt6 - FAILED
+call python -c "import serial; print('  ✓ PySerial')" 2>nul || echo   ✗ PySerial - FAILED
+call python -c "import pyqtgraph; print('  ✓ pyqtgraph', pyqtgraph.__version__)" 2>nul || echo   ✗ pyqtgraph - FAILED
+call python -c "import scipy; print('  ✓ SciPy')" 2>nul || echo   ✗ SciPy - FAILED
+call python -c "import flirpy; print('  ✓ flirpy (Boson)')" 2>nul || echo   ✗ flirpy - FAILED
+if "%INSTALL_3D%"=="true" (
+    call python -c "import open3d; print('  ✓ Open3D', open3d.__version__)" 2>nul || echo   ✗ Open3D - FAILED
+    call python -c "import OpenGL; print('  ✓ PyOpenGL')" 2>nul || echo   ✗ PyOpenGL - FAILED
+)
+call python -c "import psutil; print('  ✓ psutil')" 2>nul || echo   ✗ psutil - FAILED
 if "%INSTALL_REALSENSE_L515%"=="true" (
-    python -c "import pyrealsense2; print('  ✓ pyrealsense2 (L515 build)')" 2>nul || echo   ✗ pyrealsense2 - FAILED
+    call python -c "import pyrealsense2; print('  ✓ pyrealsense2 (L515 build)')" 2>nul || echo   ✗ pyrealsense2 - FAILED
 )
 
 echo.
@@ -211,7 +236,7 @@ if exist thermal_inspection\processing\palette_manager.py (echo   ✓ thermal_in
 if exist thermal_inspection\processing\thermal_analyzer.py (echo   ✓ thermal_inspection\processing\thermal_analyzer.py) else echo   ✗ thermal_inspection\processing\thermal_analyzer.py - MISSING
 if exist thermal_inspection\processing\roi_manager.py (echo   ✓ thermal_inspection\processing\roi_manager.py) else echo   ✗ thermal_inspection\processing\roi_manager.py - MISSING
 if exist thermal_inspection\sdk\boson_sdk_wrapper.py (echo   ✓ thermal_inspection\sdk\boson_sdk_wrapper.py) else echo   ✗ thermal_inspection\sdk\boson_sdk_wrapper.py - MISSING
-if exist config.json (echo   ✓ config.json) else echo   ✗ config.json - MISSING
+if exist config.json (echo   ✓ config.json) else echo   - config.json will be created on first run
 
 echo.
 echo %GREEN%============================================%NC%
@@ -237,13 +262,12 @@ if "%INSTALL_REALSENSE_L515%"=="true" (
 )
 echo.
 echo %BLUE%Key Features:%NC%
-echo   • 7 Fusion Algorithms (thermal/RGB fusion)
-echo   • 45 Thermal Palettes (7 categories)
-echo   • ROI Management (4 auto-detection methods)
-echo   • Temperature Analysis (spot, trend, anomaly detection)
-echo   • FLIR Boson SDK Integration (FFC, AGC, radiometric)
-echo   • Camera Auto-Detection (thermal + RGB)
-echo   • Media Recording (video, snapshots, metadata)
+echo   • Thermal/RGB fusion modes, 100+ thermal palettes
+echo   • ROI Manager (live stats, alerts, history) and spot meters
+echo   • Temperature analysis (isotherms, gradients, anomalies, radiometric units)
+echo   • FLIR Boson / Tau 2 / Lepton thermal cameras, UVC / Firefly / GigE / RealSense RGB
+echo   • 3D Fusion and 3D Mapping with RealSense depth (optional)
+echo   • Media recording (video, snapshots, metadata)
 echo.
 echo %BLUE%Boson SDK Requirements:%NC%
 echo   • FLIR Boson thermal camera connected via USB
@@ -256,6 +280,7 @@ echo   2. (Optional) Connect RGB camera (webcam or FLIR Firefly)
 echo   3. Configure COM port with --boson-com-port (default: COM7)
 echo   4. Run system: python -m thermal_inspection
 echo   5. Enable Boson SDK: python -m thermal_inspection --enable-boson-sdk
+echo   6. Troubleshooting: python -m thermal_inspection --log-level DEBUG --log-file debug.log
 echo   Or use a quick-launch script in scripts\ (see LAUNCHER_GUIDE.md)
 echo.
 echo %BLUE%Documentation:%NC%

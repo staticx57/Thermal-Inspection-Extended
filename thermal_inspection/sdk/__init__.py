@@ -56,11 +56,14 @@ except ImportError:
     SDK_AVAILABLE = False
 
 # Migrated modules from Phase 5
-# USBFSLPTransport - optional import (requires pyusb)
+# USB FSLP transport (Boson over direct USB instead of a COM port) - optional import (requires pyusb).
+# NOTE: experimental and not wired into the app yet. This used to import the non-existent name USBFSLPTransport, so
+# the ImportError handler below silently masked it and the module was never reachable.
 try:
-    from thermal_inspection.sdk.usb_fslp_transport import USBFSLPTransport
+    from thermal_inspection.sdk.usb_fslp_transport import USBFslpTransport, USBFslpPort
 except ImportError:
-    USBFSLPTransport = None
+    USBFslpTransport = None
+    USBFslpPort = None
 
 
 __all__ = [
@@ -89,5 +92,6 @@ __all__ = [
     'FlirpyThermalBackend',
     'SDK_AVAILABLE',
     # Phase 5 modules
-    'USBFSLPTransport',
+    'USBFslpTransport',
+    'USBFslpPort',
 ]

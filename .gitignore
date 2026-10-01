@@ -7,10 +7,27 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
-.egg-info/
+*.egg-info/
+.eggs/
 dist/
 build/
 *.egg
+
+# Test / coverage / tooling caches and transient output
+.pytest_cache/
+.coverage.*
+coverage.xml
+.hypothesis/
+.mypy_cache/
+.tox/
+.nox/
+.ipynb_checkpoints/
+*.prof
+*.pstats
+pytest-of-*/
+test_output/
+tmp/
+.tmp/
 
 # Virtual environments
 venv/
@@ -28,9 +45,19 @@ camera_registry.json
 config.json
 settings_editor_theme.json
 
-# Project-specific: recordings and snapshots
+# Project-specific: user data the app writes into the working directory
 recordings/
 snapshots/
+# saved 3D worlds (.ply) and their temperature sidecars
+world_maps/
+# saved ROI sets
+roi_sets/
+*.ply
+*.thermal.npz
+thermal_inspection_debug.log
+
+# Per-user preferences that must not ship (the app regenerates what it needs)
+settings_editor_theme.json
 
 # Local scratch/working scripts (not part of the package)
 scratch/
@@ -46,7 +73,15 @@ boson_sdk/*
 # LEGACY_SDK_ROOT fallback). Same "not ours to distribute" rationale.
 3.0 IDD & SDK/
 
+# Editor / merge leftovers
+*.bak
+*.orig
+*.rej
+*.swp
+*~
+
 # OS/IDE files
+desktop.ini
 .DS_Store
 Thumbs.db
 .vscode/

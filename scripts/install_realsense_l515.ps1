@@ -271,6 +271,11 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# Non-fatal: list any connected RealSense device and whether it has an IMU (the L515's Motion Module is what the 3D
+# Mapping view uses as a rotation head-start). Nothing connected is fine - the build itself already verified.
+$devices = & $PythonExe -c "import pyrealsense2 as rs; ds = rs.context().devices; print('; '.join('%s (IMU: %s)' % (d.get_info(rs.camera_info.name), 'yes' if any('Motion' in s.get_info(rs.camera_info.name) for s in d.query_sensors()) else 'no') for d in ds) or 'none connected')" 2>&1
+Write-Host "Connected RealSense devices: $devices"
+
 Write-Host ""
 Write-Ok "L515-compatible pyrealsense2 installed for $resolvedPython"
 Write-Host "Next: connect the L515 and run 'python -m thermal_inspection' - check the" -ForegroundColor Cyan

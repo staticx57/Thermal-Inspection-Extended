@@ -20,7 +20,7 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}Thermal Inspection Fusion Tool Repair${NC}"
-echo -e "${BLUE}Version 3.0.0${NC}"
+echo -e "${BLUE}(see CHANGELOG.md for the release notes)${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 
@@ -33,6 +33,24 @@ fi
 
 echo -e "${GREEN}✓ Project directory found${NC}"
 echo ""
+
+# Python 3.10+ is required (3.10 - 3.12 are the tested versions)
+if ! python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)"; then
+    echo -e "${RED}✗ Python 3.10 or newer is required (found: $(python3 --version 2>&1))${NC}"
+    echo -e "${YELLOW}  Install a newer Python (e.g. sudo apt-get install python3.11) and re-run.${NC}"
+    exit 1
+fi
+
+# Debian 12 / Ubuntu 23.04+ mark the system Python "externally managed" (PEP 668): pip refuses to install into it
+STDLIB_DIR=$(python3 -c "import sysconfig; print(sysconfig.get_path('stdlib'))")
+if [ -f "$STDLIB_DIR/EXTERNALLY-MANAGED" ] && [ -z "$VIRTUAL_ENV" ]; then
+    echo -e "${YELLOW}This system's Python is externally managed (PEP 668), so pip cannot install into it.${NC}"
+    echo -e "${BLUE}Use a virtual environment, then re-run this script from inside it:${NC}"
+    echo -e "    python3 -m venv --system-site-packages .venv   # keeps Jetson's CUDA OpenCV/torch visible"
+    echo -e "    source .venv/bin/activate"
+    echo -e "    ./scripts/$(basename "$0")"
+    exit 1
+fi
 
 # Step 1: Update Python packages
 echo -e "${BLUE}[1/4] Updating Python packages...${NC}"
@@ -55,7 +73,7 @@ if [ -f requirements.txt ]; then
     pip3 install --user --upgrade -r requirements.txt
 else
     echo -e "${YELLOW}⚠ requirements.txt not found. Updating core packages...${NC}"
-    pip3 install --user --upgrade numpy opencv-python ultralytics supervision torch torchvision
+    pip3 install --user --upgrade numpy scipy opencv-python Pillow PyQt6 "pyqtgraph>=0.14" psutil pyserial flirpy "setuptools<81"
 fi
 
 # Step 4: Verify installation
@@ -74,7 +92,11 @@ modules = [
     ('numpy', 'NumPy'),
     ('cv2', 'OpenCV'),
     ('PyQt6.QtWidgets', 'PyQt6'),
-    ('ultralytics', 'Ultralytics YOLO'),
+    ('pyqtgraph', 'pyqtgraph'),
+    ('psutil', 'psutil'),
+    ('serial', 'pyserial'),
+    ('scipy', 'SciPy'),
+    ('flirpy', 'flirpy (Boson)'),
 ]
 
 for module, name in modules:
@@ -156,11 +178,12 @@ else
 fi
 
 echo ""
-echo -e "${BLUE}Latest Features (v3.x):${NC}"
-echo -e "  • PyQt6 GUI with camera plugin architecture"
-echo -e "  • 9 fusion algorithms, ROI management, radiometric analysis"
-echo -e "  • Boson/Tau2/Lepton thermal camera plugins"
+echo -e "${BLUE}What you have:${NC}"
+echo -e "  • PyQt6 GUI with a camera plugin architecture"
+echo -e "  • Thermal/RGB fusion modes, 100+ palettes, ROI Manager, spot meters, radiometric analysis"
+echo -e "  • Boson/Tau2/Lepton thermal camera plugins; optional 3D Fusion / 3D Mapping (see requirements.txt)"
 echo ""
 echo -e "${GREEN}Ready to run: python3 -m thermal_inspection${NC}"
+echo -e "${GREEN}Troubleshooting: python3 -m thermal_inspection --log-level DEBUG --log-file debug.log${NC}"
 echo -e "${GREEN}Or use the quick-launch scripts in scripts/ (see LAUNCHER_GUIDE.md)${NC}"
 echo ""

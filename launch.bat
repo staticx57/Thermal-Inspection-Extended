@@ -23,7 +23,7 @@ echo.
 echo   SELECT STARTUP MODE:
 echo.
 echo   [1] Quick Start (Default Settings)
-echo   [2] Thermal Priority Mode (radiometric + flirpy backend)
+echo   [2] Thermal Priority Mode (Boson control + radiometric)
 echo   [3] RGB Priority Mode (visual inspection)
 echo   [4] Playback Mode (analyze recorded video)
 echo   [5] Headless Mode (no GUI, processing only)
@@ -102,8 +102,8 @@ echo   RGB PRIORITY MODE
 echo ================================================================================
 echo.
 echo   This mode optimizes for visual inspection:
-echo   - RGB priority fusion
-echo   - Viridis palette
+echo   - Viridis palette (easier on the eyes for visual inspection)
+echo   - Optionally runs without the thermal camera
 echo.
 
 set ARGS=--palette viridis
@@ -176,7 +176,7 @@ goto :run
 :show_options
 cls
 echo ================================================================================
-echo   AVAILABLE COMMAND-LINE OPTIONS
+echo   AVAILABLE COMMAND-LINE OPTIONS  (python -m thermal_inspection --help for the full text)
 echo ================================================================================
 echo.
 echo   CAMERA OPTIONS:
@@ -184,20 +184,24 @@ echo     --thermal-device ID          Thermal camera device ID
 echo     --rgb-device ID              RGB camera device ID
 echo     --auto-detect-cameras        Auto-detect camera devices (default)
 echo     --disable-rgb                Run without RGB camera
+echo     --width W / --height H       Thermal frame size (default 640 x 512)
 echo.
-echo   BOSON SDK:
-echo     --enable-boson-sdk           Enable Boson SDK for control (FFC, gain, radiometric)
+echo   BOSON:
+echo     --enable-boson-sdk           Serial control of the Boson (FFC, gain, temperature)
 echo     --boson-com-port PORT        COM port for Boson (default: COM7)
+echo     --radiometric                Enable radiometric temperature measurement
 echo.
 echo   DISPLAY:
-echo     --palette NAME               Thermal palette (ironbow, viridis, etc.)
-echo     --fusion-mode MODE           alpha_blend, thermal_overlay,
-echo                                  picture_in_picture, etc.
-echo     --fusion-alpha VALUE         Fusion transparency (0.0-1.0)
+echo     --palette ID                 Palette id (ironbow, viridis, ... see README palette table)
+echo     --fusion-mode MODE           thermal_overlay, alpha_blend, ... (see --help)
+echo     --fusion-alpha VALUE         Alpha for alpha_blend (0.0-1.0)
+echo     --calibration-file PATH      Camera alignment calibration
 echo.
 echo   PROCESSING:
 echo     --device TYPE                cuda or cpu (default: cuda)
 echo     --auto-roi                   Enable automatic ROI detection
+echo     --enable_parallel true/false Parallel detection (default true)
+echo     --max_workers N              Worker threads for parallel detection
 echo.
 echo   MODE:
 echo     --mode TYPE                  realtime or playback (default: realtime)
@@ -205,7 +209,13 @@ echo     --playback-file PATH         Video file for playback mode
 echo.
 echo   GUI:
 echo     --gui TYPE                   qt, opencv, or headless (default: qt)
-echo     --headless                   Run without GUI
+echo     --use-opencv-gui / --headless
+echo.
+echo   DIAGNOSTICS:
+echo     --log-level LEVEL            DEBUG, INFO, WARNING (default) or ERROR
+echo     --log-file PATH              Also write the log to a file
+echo.
+echo   (--thermal-backend is deprecated and ignored: the backend is chosen per camera)
 echo.
 echo ================================================================================
 echo.
@@ -222,7 +232,7 @@ echo.
 
 :run_with_args
 :: Use package entry point (preferred) or fallback to legacy script
-python -m thermal_inspection %* !ARGS!
+call python -m thermal_inspection %* !ARGS!
 
 echo.
 echo ================================================================================

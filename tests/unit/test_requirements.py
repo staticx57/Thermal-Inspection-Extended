@@ -17,7 +17,7 @@ DISTRIBUTION = {
     "pyqtgraph": "pyqtgraph", "OpenGL": "PyOpenGL", "psutil": "psutil", "serial": "pyserial",
     "pygrabber": "pygrabber", "comtypes": "comtypes", "flirpy": "flirpy", "usb": "pyusb", "pyrealsense2": "pyrealsense2",
     "open3d": "open3d", "torch": "torch", "transformers": "transformers", "torch_directml": "torch-directml",
-    "PySpin": "PySpin", "jtop": "jtop", "vpi": "vpi",
+    "PySpin": "PySpin", "vpi": "vpi",
 }
 # not third-party packages: this project's own top-level modules reached through sys.path tweaks, an env var that
 # looks like an import, or a guarded PyQt5 fallback in a file nothing else imports

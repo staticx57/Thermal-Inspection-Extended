@@ -1,11 +1,10 @@
 @echo off
 cd /d "%~dp0.."
-:: Quick Launch - RGB Priority Mode (Visual Inspection)
+:: Quick Launch - Visual Inspection (viridis palette)
 echo Starting Thermal Inspection Tool in RGB Priority Mode...
-echo - Viridis palette
-echo - Visual inspection focus
+echo - Viridis palette (visual inspection)
 echo.
 
-python -m thermal_inspection --palette viridis --auto-detect-cameras
+call python -m thermal_inspection --palette viridis --auto-detect-cameras
 
 pause
