@@ -11,8 +11,7 @@ Compatible models:
 
 Advantages over rolling shutter:
 - No motion blur for moving objects
-- Accurate object detection in high-speed scenarios
-- Better for automotive/driving applications
+- Accurate measurement of fast-moving subjects (global shutter: no skew)
 
 Installation (Cross-Platform):
 - Windows: Download and install Spinnaker SDK + PySpin from FLIR website

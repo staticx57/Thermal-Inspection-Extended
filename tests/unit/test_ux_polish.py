@@ -280,3 +280,27 @@ class TestControlPanelLayout:
         r, c, rs, cs = lay.getItemPosition(lay.indexOf(cp.theme_btn))
         assert (r, c, cs) == (2, 0, 4)
         assert "View:" in cp.view_mode_btn.text()
+
+
+class TestNoDeveloperMode:
+    """The 'developer mode' toggle was an artifact of the ADAS product this was forked from: it only hid the right-hand
+    panel (and resized the window by a fixed 350 px). It is now a plain View > Side panel toggle."""
+
+    def test_side_panel_toggle_replaces_it(self, win, qapp):
+        assert not hasattr(win, "developer_mode") and not hasattr(win, "_toggle_developer_mode")
+        assert not hasattr(win.control_panel, "show_developer_controls")
+        assert "&View" in [a.text() for a in win.menuBar().actions()]
+        before = win.width()
+        win._side_panel_action.setChecked(False)
+        assert win.right_panel_tabs.isHidden() and win.width() == before          # no size hack
+        win._side_panel_action.setChecked(True)
+        assert not win.right_panel_tabs.isHidden()
+        win._set_side_panel_visible(False)
+        assert not win._side_panel_action.isChecked()                             # menu stays in sync
+        win._set_side_panel_visible(True)
+
+    def test_no_developer_text_left(self, win):
+        assert "Developer" not in win.statusBar().currentMessage()
+        assert all("Ctrl+D" not in d and "eveloper" not in d for _, d in win.SHORTCUTS)
+        from thermal_inspection import __version__
+        assert win.windowTitle().endswith(__version__)

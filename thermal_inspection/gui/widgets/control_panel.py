@@ -176,8 +176,5 @@ class ControlPanel(QWidget):
             ViewMode.PICTURE_IN_PICTURE: "PiP"
         }
         mode_name = mode_names.get(view_mode, "View")
-        self.view_mode_btn.setText(f"👁 {mode_name}")
+        self.view_mode_btn.setText(f"👁 View: {mode_name}")
 
-    def show_developer_controls(self, show: bool):
-        """Legacy method compatibility."""
-        pass

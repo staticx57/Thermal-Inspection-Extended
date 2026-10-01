@@ -50,7 +50,6 @@ logger = logging.getLogger(__name__)
 class InspectionAppWindow(QMainWindow):
     """
     Main inspection application window.
-    Replaces DriverAppWindow with inspection-focused UI.
     """
 
     def __init__(self, app_instance=None):
@@ -60,7 +59,8 @@ class InspectionAppWindow(QMainWindow):
         self.event_bus = getattr(app_instance, 'event_bus', None)
 
         # Window setup
-        self.setWindowTitle("Thermal Inspection Fusion Tool v3.7.0")
+        from thermal_inspection import __version__
+        self.setWindowTitle(f"Thermal Inspection Fusion Tool v{__version__}")
         self.setMinimumSize(1280, 720)
         self.resize(1280, 720)
 
@@ -84,12 +84,11 @@ class InspectionAppWindow(QMainWindow):
 
         QTimer.singleShot(0, center_window)
 
-        # Add status bar
-        self.statusBar().showMessage("Developer Mode: ON (Press Ctrl+D to toggle panels)", 8000)
+        # Add status bar (the camera status fills it in as soon as a camera connects)
+        self.statusBar().showMessage("Starting...", 3000)
 
         # State
         self.current_theme = AUTO_THEME  # follow the OS light/dark setting
-        self.developer_mode = True
         self.recording = False
         self.frozen = False
 
@@ -1395,7 +1394,7 @@ class InspectionAppWindow(QMainWindow):
     SHORTCUTS = (
         ("R", "Start / stop recording"), ("S", "Save a snapshot"), ("Space", "Freeze / unfreeze the view"),
         ("A", "Auto-detect ROIs"), ("V", "Cycle the view mode"), ("C", "Cycle the colour palette"),
-        ("T", "Cycle the theme (auto / light / dark ...)"), ("Ctrl+D", "Show / hide the developer panels"),
+        ("T", "Cycle the theme (auto / light / dark ...)"), ("Ctrl+B", "Show / hide the side panel (more room for the video)"),
         ("F1", "This list"), ("Ctrl+Q", "Quit (asks first while recording)"),
     )
 
@@ -1409,6 +1408,14 @@ class InspectionAppWindow(QMainWindow):
         quit_action.setShortcut(QKeySequence("Ctrl+Q"))
         quit_action.triggered.connect(self.close)
         file_menu.addAction(quit_action)
+        view_menu = bar.addMenu("&View")
+        side_action = QAction("&Side panel", self)
+        side_action.setCheckable(True)
+        side_action.setChecked(True)
+        side_action.setShortcut(QKeySequence("Ctrl+B"))
+        side_action.toggled.connect(self._set_side_panel_visible)
+        view_menu.addAction(side_action)
+        self._side_panel_action = side_action
         help_menu = bar.addMenu("&Help")
         keys_action = QAction("&Keyboard shortcuts", self)
         keys_action.setShortcut(QKeySequence("F1"))
@@ -1459,9 +1466,7 @@ class InspectionAppWindow(QMainWindow):
         key = event.key()
         modifiers = event.modifiers()
 
-        if key == Qt.Key.Key_D and modifiers == Qt.KeyboardModifier.ControlModifier:
-            self._toggle_developer_mode()
-        elif key == Qt.Key.Key_V:
+        if key == Qt.Key.Key_V:
             self._on_view_mode_cycle()
         elif key == Qt.Key.Key_C:
             self._on_palette_cycle()
@@ -1478,21 +1483,13 @@ class InspectionAppWindow(QMainWindow):
         else:
             super().keyPressEvent(event)
 
-    def _toggle_developer_mode(self):
-        """Toggle developer mode (show/hide advanced controls and analysis panel)."""
-        self.developer_mode = not self.developer_mode
-        self.control_panel.show_developer_controls(self.developer_mode)
-        self.right_panel_tabs.setVisible(self.developer_mode)
-
-        if self.developer_mode:
-            self.resize(self.width() + 350, self.height())
-        else:
-            self.resize(self.width() - 350, self.height())
-
-        mode_text = "ON" if self.developer_mode else "OFF"
-        logger.warning(f"********** DEVELOPER MODE: {mode_text} **********")
-        if hasattr(self, 'statusBar'):
-            self.statusBar().showMessage(f"Developer Mode: {mode_text} (Press Ctrl+D to toggle)", 5000)
+    def _set_side_panel_visible(self, visible: bool):
+        """Show or hide the right-hand panel; the video takes the freed width. (This replaces the "developer mode"
+        toggle inherited from the ADAS product this was forked from, which also resized the window by a fixed 350 px.)"""
+        self.right_panel_tabs.setVisible(bool(visible))
+        action = getattr(self, '_side_panel_action', None)
+        if action is not None and action.isChecked() != bool(visible):
+            action.setChecked(bool(visible))
 
     # ========================================================================
     # Theme Methods

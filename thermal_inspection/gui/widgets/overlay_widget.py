@@ -1,6 +1,5 @@
 """
 Inspection overlay widget for drawing ROIs, hot spots, cold spots, and anomalies.
-Replaces AlertOverlayWidget from ADAS system.
 """
 
 import logging
@@ -21,7 +20,6 @@ logger = logging.getLogger(__name__)
 class InspectionOverlayWidget(QWidget):
     """
     Overlay widget for drawing ROIs, hot spots, cold spots, and anomalies.
-    Replaces AlertOverlayWidget from ADAS system.
     """
 
     # Signals for ROI drawing

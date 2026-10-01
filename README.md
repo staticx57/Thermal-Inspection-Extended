@@ -198,7 +198,7 @@ Emissivity, atmospheric temperature, and transmission are applied directly to di
 - Resizable video display with aspect ratio preservation
 - Real-time performance monitoring (FPS, processing time)
 
-**Panel Organization** (right-hand panel; `Ctrl+D` shows or hides it):
+**Panel Organization** (right-hand panel; `Ctrl+B` or View > Side panel shows or hides it):
 - **📊 Analysis** - General (global palette, overlay toggles, detection results), Spot Meters, Overlays (grid), Radiometric (units, scene range, calibration, estimation), ROI Manager (per-ROI statistics, palettes, export), Environmental (emissivity and atmosphere), Isotherm, Line Profile
 - **🔎 Detection** - Automatic and Manual anomaly detection, plus the **Gradient** overlay that highlights where temperature changes quickly (threshold in °C/px, optional direction arrows)
 - **📷 Cameras** - Thermal and RGB panels per camera plugin (Boson, Tau 2, Lepton, Firefly, USB Webcam, GigE Vision, RealSense), plus Calibration and Parallax
@@ -336,8 +336,9 @@ python -m thermal_inspection --disable-rgb
 | `S` | Capture snapshot |
 | `Space` | Freeze / unfreeze the display |
 | `A` | Run automatic ROI detection |
-| `Ctrl+D` | Show / hide the right-hand panel |
-| `Q` / `Esc` | Quit application |
+| `Ctrl+B` | Show / hide the right-hand panel |
+| `F1` | List the keyboard shortcuts |
+| `Ctrl+Q` | Quit (asks first while recording; `Esc` / `Q` no longer quit) |
 
 Mouse: with Spot Meter mode on, click the thermal image to add a spot; with "Enable Line Drawing Mode" on (Analysis > Line Profile), drag to draw a profile line; right-click an ROI for its context menu.
 

@@ -172,7 +172,6 @@ def main():
 
     logger.info("=" * 80)
     logger.info("Thermal Inspection Fusion Tool")
-    logger.info("Transformed from ThermalFusionDrivingAssist")
     logger.info("=" * 80)
 
     # Set logging back to WARNING to prevent hot-plug monitor spam

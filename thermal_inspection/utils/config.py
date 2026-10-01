@@ -30,7 +30,6 @@ class Config:
         # GUI Settings
         'theme': 'dark',  # 'dark' or 'light'
         'theme_mode': 'auto',  # 'auto', 'manual', 'time', 'ambient'
-        'developer_mode': False,  # Start in simple mode by default
         'show_info_panel': False,  # Info panel hidden by default
 
         # Theme Auto-Switching
