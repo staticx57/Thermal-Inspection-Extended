@@ -188,6 +188,8 @@ class BosonFlirpyNativeSDK(CameraSDK):
 
     _GAIN_MODE_MAP = {"high": 0, "low": 1, "auto": 2}
     _FFC_MODE_MAP = {"manual": 0, "auto": 1, "external": 2}
+    _SYNC_MODE_MAP = {"disabled": 0, "master": 1, "slave": 2}
+    _SYNC_MODE_NAMES = {0: "disabled", 1: "master", 2: "slave"}
     _PALETTE_MAP = {
         "white_hot": 0, "black_hot": 1, "rainbow": 2, "rainbow_hc": 3,
         "ironbow": 4, "lava": 5, "arctic": 6, "globow": 7,
@@ -215,6 +217,7 @@ class BosonFlirpyNativeSDK(CameraSDK):
             "connect", "disconnect", "scan_ports", "ffc", "set_gain_mode",
             "set_ffc_mode", "set_palette", "get_fpa_temp", "get_camera_info",
             "set_radiometric_mode", "set_environmental",
+            "set_external_sync_mode", "get_external_sync_mode",
         ]
 
     def execute(self, command: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -242,6 +245,16 @@ class BosonFlirpyNativeSDK(CameraSDK):
                 mode = self._FFC_MODE_MAP.get(str(params.get("mode", "manual")).lower(), 0)
                 return {"success": self._backend.set_ffc_mode(mode)}
 
+            elif command == "set_external_sync_mode":
+                name = str(params.get("mode", "disabled")).lower()
+                if name not in self._SYNC_MODE_MAP:
+                    return {"success": False, "error": f"Unknown sync mode '{name}' (disabled, master, slave)"}
+                return {"success": self._backend.set_external_sync_mode(self._SYNC_MODE_MAP[name]), "mode": name}
+
+            elif command == "get_external_sync_mode":
+                mode = self._backend.get_external_sync_mode()
+                return {"success": mode is not None, "mode": self._SYNC_MODE_NAMES.get(mode)}
+
             elif command == "set_palette":
                 lut = self._PALETTE_MAP.get(str(params.get("palette", "white_hot")).lower(), 0)
                 return {"success": self._backend.set_color_lut(lut)}
@@ -267,6 +280,9 @@ class BosonFlirpyNativeSDK(CameraSDK):
                 gain_mode = self._backend.get_gain_mode()
                 if gain_mode is not None:
                     info["gain_mode"] = self._GAIN_MODE_NAMES.get(gain_mode)
+                sync_mode = self._backend.get_external_sync_mode()
+                if sync_mode is not None:
+                    info["external_sync"] = self._SYNC_MODE_NAMES.get(sync_mode)
                 return info
 
             elif command == "set_radiometric_mode":

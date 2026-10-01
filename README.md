@@ -137,8 +137,7 @@ Built on Qt6 with a themeable GUI (10 themes, including one that follows your sy
 - Configurable output directories and filename templates with timestamps
 
 **Playback Features**:
-- Load recorded videos for post-analysis (`--mode playback --playback-file video.avi`)
-- Seek, pause/resume and playback speed control
+- Play FLIR radiometric recordings (`.seq` / `.fff`) as a live thermal source with exact per-pixel temperatures (`--playback-file rec.seq`, needs flirpy 0.6+; `.csq` must be exported to `.seq` in FLIR Tools). The app's own `.avi` recordings are not played back by this flag.
 
 ### 📷 Universal Camera Plugin Architecture
 
@@ -306,7 +305,7 @@ python -m thermal_inspection --thermal-device 2
 python -m thermal_inspection --fusion-mode detail_inject --palette ironbow
 
 # Play back a recorded video
-python -m thermal_inspection --mode playback --playback-file recordings/inspection.avi
+python -m thermal_inspection --playback-file recordings/inspection.seq
 
 # Enable automatic ROI detection
 python -m thermal_inspection --auto-roi
@@ -402,7 +401,7 @@ options:
   --mode {realtime,playback}
                         Inspection mode (default: realtime)
   --playback-file PLAYBACK_FILE
-                        Video file to play back (required for playback mode)
+                        FLIR radiometric recording (.seq or .fff) to play instead of a live thermal camera (implies --mode playback)
   --auto-roi            Enable automatic ROI detection
   --gui {qt,opencv,headless}
                         GUI type (default: qt)
@@ -792,6 +791,12 @@ python -m thermal_inspection.cameras.camera_calibration --thermal t.png --rgb r.
 ```
 
 (snapshots of the same flat scene taken at the same moment; `--method checkerboard` or `--edges` for thermal-vs-visible). With a distance recorded, the app subtracts the shift the homography already contains while parallax is on; for a file without one it logs a warning, because the baseline shift would otherwise be applied twice.
+
+### FLIR Recordings and External Frame Sync (flirpy 0.6)
+
+**Playback**: `--playback-file rec.seq` (or a single `.fff`) replaces the live thermal camera with the recording, looped at its frame rate. Temperatures come from each frame's own Planck calibration, emissivity and atmosphere stored in the file (flirpy's `raw2temp`), delivered in the same Kelvin x 100 form a radiometric Boson produces, so spot meters, ROIs, isotherms, statistics and snapshots work unchanged and no camera is needed. The whole `.seq` is read into memory. Camera serial/firmware are read directly because flirpy reads those two fields at the wrong offsets.
+
+**External frame sync (Boson)**: Cameras > Thermal > FLIR Boson > *External Frame Sync* sets the camera to *Master* (outputs a sync pulse each frame), *Slave* (captures on an incoming pulse) or *Disabled*. Wire a master's sync output to a slave's sync input so two cameras (or a thermal and a global-shutter RGB camera) expose together; this removes the frame-time offset that otherwise shows up as misalignment when something moves.
 
 ### Custom Palettes
 

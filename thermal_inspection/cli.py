@@ -75,8 +75,10 @@ def build_parser():
     # Inspection settings
     parser.add_argument('--mode', choices=['realtime', 'playback'], default='realtime',
                        help='Inspection mode (default: realtime)')
-    parser.add_argument('--playback-file', type=str,
-                       help='Video file to play back (required for playback mode)')
+    parser.add_argument('--playback-file', type=str, metavar='FILE',
+                       help='Play a FLIR radiometric recording (.seq or .fff) instead of a live thermal camera: '
+                            'exact per-pixel temperatures, looped at the recording frame rate. Implies --mode playback. '
+                            '(.csq must be exported to .seq in FLIR Tools.)')
     parser.add_argument('--auto-roi', action='store_true',
                        help='Enable automatic ROI detection')
 
@@ -103,9 +105,23 @@ def build_parser():
     return parser
 
 
-def parse_arguments():
+def parse_arguments(argv=None):
     """Parse command-line arguments."""
-    return build_parser().parse_args()
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.mode == 'playback' and not args.playback_file:
+        parser.error('--mode playback needs --playback-file FILE')
+    if args.playback_file:
+        import os
+        ext = os.path.splitext(args.playback_file)[1].lower()
+        if ext == '.csq':
+            parser.error('.csq (compressed FLIR sequence) cannot be decoded: export it to .seq in FLIR Tools')
+        if ext not in ('.seq', '.fff'):
+            parser.error(f'--playback-file must be a .seq or .fff FLIR recording, got {ext or "no extension"}')
+        if not os.path.isfile(args.playback_file):
+            parser.error(f'--playback-file not found: {args.playback_file}')
+        args.mode = 'playback'
+    return args
 
 
 def configure_logging(level: str = 'WARNING', log_file: str = None):

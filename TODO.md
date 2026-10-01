@@ -159,3 +159,10 @@ Open (your decision):
 - [ ] flirpy upstream sends the FSLP CRC without bit-stuffing (a CRC byte equal to 0x8E/0x9E/0xAE is sent raw while the camera's own replies stuff it): rare (about 3/256 per packet), not observed on hardware; if CCI commands ever fail intermittently, override `_send_packet` in BosonNative to stuff the CRC.
 - [ ] History scrub of `.claude/settings.local.json` (24 commits): validated on a mirror clone (file gone from all history, 187 vs 190 commits as 3 became empty, trees otherwise identical, bundle backup made) but NOT pushed. Needs an explicit go-ahead because it force-pushes main and the branch and changes every commit hash.
 
+## 2026-10-02 flirpy 0.6 features
+- [x] Boson external frame sync (master/slave/disabled): BosonNative (works on any flirpy), backend, plugin commands, Boson panel group, camera-info readout, tests. NOT tried on hardware (needs a cable between two cameras' sync pins; pin-out per the Boson IDD).
+- [x] FLIR `.seq`/`.fff` playback as a thermal source (`--playback-file`, which was previously parsed but never implemented): `sdk/flir_file_reader.py`, `cameras/flir_file_backend.py`, `plugins/flir_file`, synthetic-file fixture + tests, verified end-to-end in the running app. Requires flirpy >= 0.6 (0.3 cannot parse real files); requirements now `flirpy>=0.6.2` and the main environment was upgraded with `--no-deps` (opencv 4.12 untouched).
+- [ ] Playback not yet verified on a REAL FLIR `.seq` (only synthetic files built to flirpy's parser layout): try one from FLIR Tools/ResearchIR. Known limits: whole file loaded into memory (flirpy), no GUI file picker/seek bar yet (CLI only), `.csq` unsupported, frame rate from the file's FrameRate field (default 9 fps).
+- [ ] flirpy upstream reads camera serial/firmware at decimal offsets 104/114 (ExifTool says 0x104/0x114); worked around in our reader, worth an upstream issue.
+- [ ] Not adopted from 0.6: `ExifToolSplitter`/`Splitter` (needs the external exiftool binary), pyftdi/Lepton/Tau changes (no API differences found).
+

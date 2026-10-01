@@ -79,6 +79,10 @@ _FID_SET_FFC_MODE = 0x00050012
 _FID_GET_LENS_NUMBER = 0x00050039
 _FID_GET_TABLE_NUMBER = 0x0005003B
 
+# EXTERNAL SYNC (frame sync between cameras): 0=disabled, 1=master (outputs sync pulses), 2=slave (follows them)
+_FID_SET_EXT_SYNC_MODE = 0x00050098
+_FID_GET_EXT_SYNC_MODE = 0x00050099
+
 # COLORLUT
 _FID_SET_COLOR_LUT_ID = 0x000B0003
 
@@ -133,6 +137,15 @@ class BosonNative(Boson):
 
     def set_gain_mode(self, mode: int) -> None:
         self._set_uint32(_FID_SET_GAIN_MODE, mode)
+
+    def get_external_sync_mode(self) -> Optional[int]:
+        """0=DISABLED, 1=MASTER (this camera outputs a sync pulse each frame), 2=SLAVE (frames follow an input pulse)."""
+        return self._get_uint32(_FID_GET_EXT_SYNC_MODE)
+
+    def set_external_sync_mode(self, mode: int) -> None:
+        if int(mode) not in (0, 1, 2):
+            raise ValueError(f"external sync mode must be 0, 1 or 2, got {mode!r}")
+        self._set_uint32(_FID_SET_EXT_SYNC_MODE, int(mode))
 
     def set_ffc_mode(self, mode: int) -> None:
         """0=MANUAL, 1=AUTO, 2=EXTERNAL, 3=SHUTTER_TEST."""

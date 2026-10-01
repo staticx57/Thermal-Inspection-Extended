@@ -38,14 +38,13 @@ psutil>=5.9.0               # System and process utilities
 # ============================================================================
 # Camera Interfaces & Hardware Communication
 # ============================================================================
-flirpy>=0.3.0               # FLIR Boson support (flirpy.camera.boson, used by thermal_inspection.sdk.boson_flirpy_ext).
-                            # Verified against 0.3.0 AND 0.6.2 (the version a fresh install resolves to): same Boson API,
-                            # and tests/unit/test_flirpy_wire.py drives BosonNative through each version's real FSLP framing.
-                            # Not verified on radiometric hardware with 0.6.x. 0.6.x depends on opencv-python-headless,
+flirpy>=0.6.2               # FLIR Boson support (flirpy.camera.boson, used by thermal_inspection.sdk.boson_flirpy_ext) and
+                            # FLIR .seq/.fff playback (--playback-file; flirpy.io, which only works from 0.6: 0.3 fails on real
+                            # files). Boson API identical to 0.3.0 (tests/unit/test_flirpy_wire.py drives BosonNative through
+                            # the real FSLP framing). Not verified on radiometric hardware with 0.6.x. 0.6.x depends on opencv-python-headless,
                             # which pip installs NEXT TO opencv-python (same cv2 package): if the two versions differ the
                             # app warns at startup - fix with: pip uninstall -y opencv-python opencv-python-headless &&
                             # pip install opencv-python
-setuptools<81               # only flirpy 0.3.x needs it (it imports pkg_resources, removed in setuptools 81); 0.6.x does not
 pyserial>=3.5               # Serial port communication for FLIR Boson (921600 baud) and FLIR Tau 2 (57600 baud) CCI protocols
 pygrabber>=0.2; sys_platform == "win32"      # Native Windows DirectShow device enumeration & probing (Windows only)
 comtypes>=1.1.7; sys_platform == "win32"     # DirectShow COM interface, required by pygrabber (Windows only)

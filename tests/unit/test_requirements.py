@@ -85,7 +85,8 @@ def test_no_conflicting_or_stale_pins():
     assert not any(ln.startswith("numpy") and "<2" in ln.replace(" ", "") for ln in active), "stale numpy<2 cap"
     pg = next(ln for ln in active if ln.startswith("pyqtgraph"))
     assert ">=0.14" in pg.replace(" ", ""), "the 3D world viewer needs pyqtgraph 0.14's projectionMatrix(region, viewport)"
-    assert any(ln.startswith("setuptools<81") for ln in active), "flirpy needs pkg_resources (removed in setuptools 81)"
+    flirpy = next(ln for ln in active if ln.startswith("flirpy"))
+    assert ">=0.6" in flirpy.replace(" ", ""), "FLIR file playback needs flirpy 0.6+ (0.3 cannot parse real files)"
 
 
 def test_installer_fallbacks_do_not_name_removed_packages():
@@ -107,7 +108,4 @@ def test_installed_environment_satisfies_the_pins():
     assert ver("pyqtgraph") >= (0, 14)
     assert ver("numpy") >= (1, 24)
     assert ver("opencv-python") >= (4, 8)
-    try:
-        assert ver("setuptools") < (81, 0)
-    except md.PackageNotFoundError:
-        pytest.skip("setuptools not installed")
+    assert ver("flirpy") >= (0, 6)

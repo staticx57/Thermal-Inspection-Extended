@@ -939,6 +939,10 @@ class InspectionAppWindow(QMainWindow):
             panel.gain_mode_changed.connect(
                 lambda mode: self._emit_camera_command(role, 'set_gain_mode', {'mode': str(mode)})
             )
+        if hasattr(panel, 'external_sync_changed'):
+            panel.external_sync_changed.connect(
+                lambda mode: self._emit_camera_command(role, 'set_external_sync_mode', {'mode': str(mode)})
+            )
         if hasattr(panel, 'ffc_mode_changed'):
             panel.ffc_mode_changed.connect(
                 lambda mode: self._emit_camera_command(role, 'set_ffc_mode', {'mode': str(mode)})

@@ -35,6 +35,7 @@ class BosonControlPanel(QWidget):
     ffc_triggered = pyqtSignal()
     gain_mode_changed = pyqtSignal(str)  # 'high', 'low', 'auto'
     ffc_mode_changed = pyqtSignal(str)  # 'manual', 'auto', 'external'
+    external_sync_changed = pyqtSignal(str)  # 'disabled', 'master', 'slave'
     color_lut_changed = pyqtSignal(str)  # LUT name
     # AGC signals (Universal - ALL Boson cameras)
     agc_max_gain_changed = pyqtSignal(float)  # Max gain (1.0-4.0)
@@ -121,6 +122,7 @@ class BosonControlPanel(QWidget):
 
         self._create_ffc_controls(simple_layout)
         self._create_gain_controls(simple_layout)
+        self._create_external_sync_controls(simple_layout)
         self._create_color_lut_controls(simple_layout)
 
         simple_layout.addStretch()
@@ -565,6 +567,31 @@ class BosonControlPanel(QWidget):
 
         layout.addWidget(gain_group)
 
+    SYNC_CHOICES = (("Disabled", "disabled"), ("Master (outputs sync pulse)", "master"),
+                    ("Slave (follows sync input)", "slave"))
+
+    def _create_external_sync_controls(self, layout):
+        """Hardware frame sync between cameras (Boson EXT SYNC)."""
+        sync_group = QGroupBox("External Frame Sync")
+        sync_layout = QVBoxLayout(sync_group)
+        self.sync_mode_combo = QComboBox()
+        for label, key in self.SYNC_CHOICES:
+            self.sync_mode_combo.addItem(label, key)
+        self.sync_mode_combo.setMinimumHeight(28)
+        self.sync_mode_combo.setEnabled(False)
+        self.sync_mode_combo.setToolTip(
+            "Master: this camera outputs a sync pulse every frame.\n"
+            "Slave: it captures on an incoming pulse (wire the master's sync output to its sync input),\n"
+            "so two cameras expose together - useful for fusion and 3D mapping with a moving camera.\n"
+            "Disabled: free-running (default).")
+        sync_layout.addWidget(self.sync_mode_combo)
+        self.current_sync_label = QLabel("Current: unknown")
+        self.current_sync_label.setStyleSheet("font-size: 10px; color: #888888;")
+        sync_layout.addWidget(self.current_sync_label)
+        layout.addWidget(sync_group)
+        self.sync_mode_combo.currentIndexChanged.connect(
+            lambda _i: self.external_sync_changed.emit(self.sync_mode_combo.currentData()))
+
     def _create_color_lut_controls(self, layout):
         """Create color LUT controls."""
         lut_group = QGroupBox("Color Lookup Table (LUT)")
@@ -904,6 +931,7 @@ class BosonControlPanel(QWidget):
             self.ffc_button.setEnabled(True)
             self.gain_mode_combo.setEnabled(True)
             self.ffc_mode_combo.setEnabled(True)
+            self.sync_mode_combo.setEnabled(True)
             self.color_lut_combo.setEnabled(True)
             self.agc_max_gain_slider.setEnabled(True)
             self.agc_gamma_slider.setEnabled(True)
@@ -926,6 +954,7 @@ class BosonControlPanel(QWidget):
             self.ffc_button.setEnabled(False)
             self.gain_mode_combo.setEnabled(False)
             self.ffc_mode_combo.setEnabled(False)
+            self.sync_mode_combo.setEnabled(False)
             self.color_lut_combo.setEnabled(False)
             self.agc_max_gain_slider.setEnabled(False)
             self.agc_gamma_slider.setEnabled(False)
@@ -974,6 +1003,16 @@ class BosonControlPanel(QWidget):
         if info.get('table_number') is not None:
             self.info_labels['table'].setText(str(info['table_number']))
             self.info_labels['table'].setStyleSheet("color: #e0e0e0;")
+
+        if info.get('external_sync'):
+            # reflect the camera's real state without re-sending it as a command
+            idx = self.sync_mode_combo.findData(info['external_sync'])
+            if idx >= 0:
+                blocked = self.sync_mode_combo.blockSignals(True)
+                self.sync_mode_combo.setCurrentIndex(idx)
+                self.sync_mode_combo.blockSignals(blocked)
+            self.current_sync_label.setText(f"Current: {info['external_sync']}")
+            self.current_sync_label.setStyleSheet("font-size: 10px; color: #00aaff;")
 
         if info.get('gain_mode'):
             self.current_gain_label.setText(f"Current: {info['gain_mode']}")

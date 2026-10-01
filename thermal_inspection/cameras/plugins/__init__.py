@@ -10,5 +10,6 @@ from . import firefly
 from . import uvc
 from . import gige
 from . import realsense
+from . import flir_file
 
-__all__ = ['boson', 'tau2', 'lepton', 'firefly', 'uvc', 'gige', 'realsense']
+__all__ = ['boson', 'tau2', 'lepton', 'firefly', 'uvc', 'gige', 'realsense', 'flir_file']

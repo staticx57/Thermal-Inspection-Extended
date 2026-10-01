@@ -102,3 +102,56 @@ def test_opencv_mixed_install_is_reported(monkeypatch):
     assert cli.check_opencv_packages() == []
     monkeypatch.setattr(metadata, "version", fake({"opencv-python": "4.12.0.88"}))
     assert cli.check_opencv_packages() == []
+
+
+# ---------------------------------------------------------------- external frame sync (new in flirpy 0.6, ours works on 0.3 too)
+
+def test_external_sync_round_trips_and_validates(boson):
+    boson.set_external_sync_mode(1)
+    assert boson.conn.sent[-1] == (0x00050098, struct.pack(">I", 1))
+    assert boson.get_external_sync_mode() == 1
+    boson.set_external_sync_mode(2)
+    assert boson.get_external_sync_mode() == 2
+    with pytest.raises(ValueError):
+        boson.set_external_sync_mode(3)
+
+
+class _FakeBackend:
+    def __init__(self, mode=0, connected=True):
+        self.mode, self.connected, self.camera = mode, connected, None
+
+    def set_external_sync_mode(self, m):
+        self.mode = m
+        return self.connected
+
+    def get_external_sync_mode(self):
+        return self.mode if self.connected else None
+
+
+def test_plugin_commands_for_external_sync():
+    from thermal_inspection.cameras.plugins.boson.plugin import BosonFlirpyNativeSDK
+    sdk = BosonFlirpyNativeSDK(_FakeBackend())
+    assert {"set_external_sync_mode", "get_external_sync_mode"} <= set(sdk.get_supported_commands())
+    assert sdk.execute("set_external_sync_mode", {"mode": "Master"}) == {"success": True, "mode": "master"}
+    assert sdk._backend.mode == 1
+    assert sdk.execute("get_external_sync_mode") == {"success": True, "mode": "master"}
+    bad = sdk.execute("set_external_sync_mode", {"mode": "sideways"})
+    assert bad["success"] is False and "Unknown sync mode" in bad["error"] and sdk._backend.mode == 1
+    sdk._backend.connected = False
+    assert sdk.execute("get_external_sync_mode") == {"success": False, "mode": None}
+
+
+def test_panel_emits_sync_choice_but_not_when_reflecting_camera_state():
+    pytest.importorskip("PyQt6")
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from thermal_inspection.gui.camera_control.boson_control_panel import BosonControlPanel
+    panel = BosonControlPanel()
+    got = []
+    panel.external_sync_changed.connect(got.append)
+    assert not panel.sync_mode_combo.isEnabled()
+    panel.sync_mode_combo.setCurrentIndex(panel.sync_mode_combo.findData("slave"))
+    assert got == ["slave"]
+    panel.update_camera_info({"external_sync": "master"})                # camera state shown, not re-sent
+    assert got == ["slave"] and panel.sync_mode_combo.currentData() == "master"
+    assert "master" in panel.current_sync_label.text()

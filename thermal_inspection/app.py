@@ -106,6 +106,9 @@ class AppConfig:
     # Geometric alignment calibration file (RGB -> thermal homography), --calibration-file
     calibration_file: Optional[str] = None
 
+    # FLIR radiometric recording (.seq/.fff) played instead of a live thermal camera, --playback-file
+    playback_file: Optional[str] = None
+
     @classmethod
     def from_args(cls, args) -> 'AppConfig':
         """Create config from argparse namespace."""
@@ -126,6 +129,7 @@ class AppConfig:
             headless=getattr(args, 'headless', False),
             auto_cycle_fusion_modes=getattr(args, 'auto_cycle_fusion_modes', None),
             calibration_file=getattr(args, 'calibration_file', None),
+            playback_file=getattr(args, 'playback_file', None),
         )
 
 
@@ -1305,6 +1309,10 @@ class ThermalInspectionApp:
         Uses CameraPluginHost to detect and activate cameras.
         """
         logger.info("Background camera detection starting via PluginHost...")
+        if self.config.playback_file:
+            from .cameras.plugins.flir_file.plugin import set_source
+            set_source(self.config.playback_file)
+            logger.warning(f"Playing FLIR recording instead of live thermal: {self.config.playback_file}")
         with self._camera_lifecycle_lock:
             self._suppress_capture_restart = True
             try:

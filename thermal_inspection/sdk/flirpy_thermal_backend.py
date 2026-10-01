@@ -755,6 +755,35 @@ class FlirpyThermalBackend(ThermalBackend):
             logger.error(f"Error setting gain mode: {e}")
             return False
 
+    def get_external_sync_mode(self) -> Optional[int]:
+        """External (hardware) frame sync: 0=DISABLED, 1=MASTER, 2=SLAVE, or None if unavailable."""
+        if not self._sdk_connected or self.camera is None or not hasattr(self.camera, "get_external_sync_mode"):
+            return None
+        try:
+            return self.camera.get_external_sync_mode()
+        except Exception as e:
+            logger.error(f"Error getting external sync mode: {e}")
+            return None
+
+    def set_external_sync_mode(self, mode: int) -> bool:
+        """
+        Set external frame sync. MASTER makes this camera emit a sync pulse per frame; SLAVE makes it capture on
+        incoming pulses (wire the master's sync output to the slave's sync input), so two cameras - e.g. thermal
+        and a global-shutter RGB - expose together instead of drifting. Takes effect on the camera immediately.
+
+        Args:
+            mode: 0=DISABLED, 1=MASTER, 2=SLAVE
+        """
+        if not self._sdk_connected or self.camera is None:
+            logger.warning("Cannot set external sync mode: camera not connected")
+            return False
+        try:
+            self.camera.set_external_sync_mode(mode)
+            return True
+        except Exception as e:
+            logger.error(f"Error setting external sync mode: {e}")
+            return False
+
     def set_ffc_mode(self, mode: int) -> bool:
         """
         Set FFC mode.
