@@ -174,3 +174,24 @@ Open (your decision):
 - [ ] Lepton not adopted (needs hardware): flirpy's `decode_telemetry` (FPA temperature, FFC state/elapsed, frame counter from the 2 footer rows; strips them from the image) would give the Lepton plugin a real camera-info, FPA temperature and FFC-in-progress flag instead of "N/A"; also makes sure telemetry rows are not rendered as image data. The decode layout is Lepton-3 specific, so verify the row count on the actual PureThermal output first.
 - [ ] Not useful from flirpy: FLIR RGB (Firefly is Spinnaker/PySpin, not flirpy), GigE, UVC, RealSense; `ThreadedBoson`/`ThreadedCamera` (we have our own capture threads); TeaxGrabber (TEAX ThermalCapture digital grabber over FTDI: would give 14-bit radiometric Tau 2 video without CCI on the camera, needs that hardware and pyftdi/libusb).
 
+## 2026-10-02 UI/UX evaluation (screenshots of every tab at 1600x950 and 1280x720, default theme, playback source; no hardware)
+Quick wins
+- [ ] Esc and Q close the whole app instantly (`main_window.keyPressEvent`), even while recording; no `closeEvent` confirmation. Remove Esc/Q or confirm (always when recording).
+- [ ] No source indicator: with a recording (or any camera) active, Cameras > Thermal still lists FLIR Boson/Tau 2/Lepton as "Disconnected"; status bar says "Thermal [dev 0]". Show the active camera (name, resolution, fps, radiometric badge; for recordings file/frame/pause) and hide or grey the other cameras' panels.
+- [ ] Radiometric tab banner claims "(+-2 C)" accuracy unconditionally: an unverified accuracy claim (the no-fake-calibration rule). Show the claim only where a spec supports it, otherwise "uncalibrated / uses factory T-Linear".
+- [ ] Radiometric "Temperature Range -40..550 / Apply Range" no longer changes T-Linear readings (fixed 2026-10-02): relabel "Display range" or hide it for T-Linear sources.
+- [ ] 3D Mapping: Start Mapping looks available with no depth camera and nothing says why it will not work; add the reason inline (needs RealSense). Same for greyed Save/Export buttons.
+- [ ] HUD FPS read 0.0 while frames were flowing (both runs); dark green on black is also low contrast. Verify the source of the number.
+Structure
+- [ ] Tab depth: Cameras > Thermal > Boson > Connection/Controls/Image Enhancement/Radiometric/Environment/Diagnostics is four rows of tabs; Camera Calibration adds a strip plus three pages. Show only the active camera's panel; consider a left-hand list or accordion instead of nested tabs.
+- [ ] Temperature settings live in three places (Analysis > Radiometric, Analysis > Environmental, Cameras > Boson > Radiometric/Environment) plus Temp Calibration: decide one home.
+- [ ] Settings tab is nearly empty (device, lock baseline, theme, SDK COM port showing COM3, storage paths) while real settings are scattered; "Lock Baseline Temp" is unexplained; the SDK COM port is Boson-specific.
+Interaction / accessibility
+- [ ] Single-letter shortcuts (V C T R S Space A, Ctrl+D) are undiscoverable: no menu bar, no shortcut in button tooltips. Add a Help > Shortcuts list and show keys in tooltips.
+- [ ] Button grid is uneven (4+3+2); "Auto: Light" is cryptic (it is the theme cycle); "View Mode" does not show the current mode.
+- [ ] No accessible names or tab order anywhere in gui/; tooltips on 185 of 309 interactive widgets (worst: roi_temperature_panel 1/19, mapping_fusion_panel 1/8, camera_manager_dialog 0/9, gige_control_panel 0/8, isotherm 4/14).
+Visual consistency
+- [ ] 218 setStyleSheet calls and 657 hard-coded hex colours (themes aside, boson_control_panel has 44 stylesheet calls) bypass the theme system; 72 fixed heights. Mixed casing ("Capture & Calibrate" / "Check alignment" / "Fine-Tune (manual)"), mixed monospace and proportional labels, colour emoji icons against the hardware-instrument look.
+- [ ] Camera Calibration page: Registration group has dead space (empty message rows); Measure / Check buttons are much taller than the spin box beside them.
+Not evaluated: real camera states, the OpenGL 3D views (cannot render offscreen), dark theme / other themes, high-DPI, screen readers.
+
