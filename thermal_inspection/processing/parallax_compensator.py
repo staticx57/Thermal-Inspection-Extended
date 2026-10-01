@@ -869,6 +869,24 @@ class ParallaxCompensator:
         """Force the compute device ('cpu', 'cuda', or 'auto') used for depth estimation."""
         self.depth_estimator.set_device(device)
 
+    def measure_scene_distance_m(self, centre_fraction: float = 0.2):
+        """Median valid depth (metres) over the central part of the hardware depth map, or None when no depth camera
+        is wired up or it has no valid pixels there - a measured replacement for typing the scene distance."""
+        source = getattr(self.depth_estimator, "_hardware_depth_source", None)
+        if source is None:
+            return None
+        try:
+            depth = source(None)
+        except Exception:
+            return None
+        if depth is None or depth.ndim < 2:
+            return None
+        h, w = depth.shape[:2]
+        dy, dx = max(1, int(h * centre_fraction / 2)), max(1, int(w * centre_fraction / 2))
+        roi = depth[h // 2 - dy:h // 2 + dy, w // 2 - dx:w // 2 + dx]
+        valid = roi[np.isfinite(roi) & (roi > MIN_VALID_DEPTH_M)]
+        return float(np.median(valid)) if valid.size >= 10 else None
+
     def set_hardware_depth_source(self, source_fn):
         """Wire a real hardware depth source (e.g. a RealSense camera) for depth_method="realsense"."""
         self.depth_estimator.set_hardware_depth_source(source_fn)

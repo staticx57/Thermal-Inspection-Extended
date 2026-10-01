@@ -174,6 +174,7 @@ class FusionProcessor:
         # baseline parallax for that distance; see set_parallax_composition().
         self.calibration_distance_m = None
         self.calibration_info = {}
+        self.calibration_enabled = True     # a loaded calibration can be switched off without discarding it
         self._parallax_composition = None   # (correction_target, shift_px) or None
         # "color" (default) or "grayscale" - see set_fusion_color_mode() and
         # align_rgb_to_thermal()'s apply_color_mode parameter for why this
@@ -904,13 +905,35 @@ class FusionProcessor:
         leaving a constant error equal to that shift at every depth (measured in tests/unit/test_alignment_composition.py)."""
         self._parallax_composition = None if correction_target is None else (correction_target, float(shift_px))
 
-    def effective_calibration_matrix(self) -> Optional[np.ndarray]:
-        """The calibration homography actually applied to the RGB frame: the loaded one, minus the baseline shift
+    def set_calibration(self, homography, working_distance_m=None, info=None):
+        """Install a homography (RGB -> thermal pixels) computed at runtime, with the metadata a saved file carries."""
+        self.calibration_matrix = np.asarray(homography, dtype=np.float32)
+        self.calibration_distance_m = float(working_distance_m) if working_distance_m else None
+        self.calibration_info = dict(info or {})
+        self._parallax_composition = None
+        self.calibration_enabled = True
+
+    def clear_calibration(self):
+        """Discard the calibration: alignment falls back to the aspect-ratio crop."""
+        self.calibration_matrix = None
+        self.calibration_distance_m = None
+        self.calibration_info = {}
+        self._parallax_composition = None
+
+    def set_calibration_enabled(self, enabled: bool):
+        self.calibration_enabled = bool(enabled)
+
+    def effective_calibration_matrix(self, rgb_shape=None, thermal_shape=None) -> Optional[np.ndarray]:
+        """The calibration homography actually applied to the RGB frame: the loaded one (None while switched off),
+        rescaled when the live frames are not the resolution it was calibrated at, minus the baseline shift
         parallax correction already supplies (see set_parallax_composition). For correction_target 'thermal' the
         parallax step moves the THERMAL frame, so the shift is removed in the output (thermal) space; for 'rgb' it
         moves the RGB frame before this warp, so it is removed in the input (RGB) space."""
         H = self.calibration_matrix
-        if H is None or self._parallax_composition is None:
+        if H is None or not self.calibration_enabled:
+            return None
+        H = self._rescaled_to(H, rgb_shape, thermal_shape)
+        if self._parallax_composition is None:
             return H
         target, shift = self._parallax_composition
         if shift == 0.0:
@@ -919,6 +942,22 @@ class FusionProcessor:
         T[0, 2] = shift if target == "thermal" else -shift
         H64 = np.asarray(H, dtype=np.float64)
         return ((T @ H64) if target == "thermal" else (H64 @ T)).astype(np.float32)
+
+    def _rescaled_to(self, H, rgb_shape, thermal_shape):
+        """H maps pixels of the RGB image it was calibrated on to pixels of the thermal image it was calibrated on
+        (shapes recorded in the file). When the live frames have another resolution, pre/post-multiply by the scale
+        between them so the same physical alignment holds."""
+        cal_t = self.calibration_info.get("thermal_shape")
+        cal_r = self.calibration_info.get("rgb_shape")
+        if not (rgb_shape and thermal_shape and cal_t and cal_r):
+            return H
+        sr = (rgb_shape[1] / cal_r[1], rgb_shape[0] / cal_r[0])
+        st = (thermal_shape[1] / cal_t[1], thermal_shape[0] / cal_t[0])
+        if abs(sr[0] - 1) < 1e-6 and abs(sr[1] - 1) < 1e-6 and abs(st[0] - 1) < 1e-6 and abs(st[1] - 1) < 1e-6:
+            return H
+        S_t = np.diag([st[0], st[1], 1.0])
+        S_r_inv = np.diag([1.0 / sr[0], 1.0 / sr[1], 1.0])
+        return (S_t @ np.asarray(H, dtype=np.float64) @ S_r_inv).astype(np.float32)
 
     def align_rgb_to_thermal(self, rgb: np.ndarray, thermal_shape: Tuple[int, int],
                              apply_color_mode: bool = False) -> np.ndarray:
@@ -943,7 +982,7 @@ class FusionProcessor:
         target_h, target_w = thermal_shape
 
         try:
-            effective_matrix = self.effective_calibration_matrix()
+            effective_matrix = self.effective_calibration_matrix(rgb.shape[:2], thermal_shape)
             if effective_matrix is not None:
                 # Use calibration matrix for precise alignment - a real
                 # calibration derived from actual correspondence points

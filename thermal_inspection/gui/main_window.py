@@ -442,13 +442,17 @@ class InspectionAppWindow(QMainWindow):
 
             from thermal_inspection.gui.panels.calibration_panel import CalibrationPanel
             self.calibration_panel = CalibrationPanel()
-            self.cameras_tabs.addTab(self.calibration_panel, "Calibration")
-            logger.info("  [OK] Calibration panel added")
+            self.cameras_tabs.addTab(self.calibration_panel, "Temp Calibration")
+            logger.info("  [OK] Temperature calibration panel added")
 
-            from thermal_inspection.gui.panels.parallax_panel import ParallaxPanel
-            self.parallax_panel = ParallaxPanel()
-            self.cameras_tabs.addTab(self.parallax_panel, "Parallax")
-            logger.info("  [OK] Parallax panel added")
+            # One Camera Calibration tab: Register (fixed homography + fine-tune), Parallax (distance-dependent) and Rig
+            # (baseline/optics). parallax_panel / alignment_panel stay as attributes (they are the pages).
+            from thermal_inspection.gui.panels.alignment_tab import AlignmentTab
+            self.alignment_tab = AlignmentTab()
+            self.parallax_panel = self.alignment_tab.parallax_panel
+            self.alignment_panel = self.alignment_tab.register_panel
+            self.cameras_tabs.addTab(self.alignment_tab, "Camera Calibration")
+            logger.info("  [OK] Camera Calibration tab added (Register / Parallax / Rig)")
 
             self.right_panel_tabs.addTab(self.cameras_tabs, "Cameras")
             logger.info("[OK] Cameras tab added to right panel")
@@ -731,6 +735,20 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("radiometric_panel", "spotmeter_mode_changed", self._on_spotmeter_mode_changed, "(radiometric spotmeter)")
         self._safe_connect("radiometric_panel", "sensor_temps_requested", self._on_sensor_temps_requested, "(radiometric spotmeter)")
 
+        # === ALIGNMENT CALIBRATION PANEL (homography; the Calibration tab is radiometric) ===
+        for sig, bus_sig in (("load_requested", "alignment_load_requested"), ("save_requested", "alignment_save_requested"),
+                             ("clear_requested", "alignment_clear_requested"),
+                             ("enabled_changed", "alignment_enabled_changed"),
+                             ("capture_requested", "alignment_capture_requested")):
+            if self.event_bus:
+                self._safe_connect("alignment_panel", sig, getattr(self.event_bus, bus_sig).emit, "(alignment)")
+
+        if self.event_bus:
+            self._safe_connect("alignment_tab", "measure_distance_requested",
+                               self.event_bus.alignment_measure_distance_requested.emit, "(alignment measure)")
+            self._safe_connect("alignment_tab", "check_alignment_requested",
+                               self.event_bus.alignment_check_requested.emit, "(alignment check)")
+
         # === PARALLAX PANEL ===
         self._safe_connect("parallax_panel", "parallax_toggled", self._on_parallax_toggled, "(parallax)")
         self._safe_connect("parallax_panel", "baseline_changed", self._on_parallax_baseline_changed, "(parallax)")
@@ -738,14 +756,14 @@ class InspectionAppWindow(QMainWindow):
         self._safe_connect("parallax_panel.apply_geometry_btn", "clicked", self._on_parallax_geometry_apply, "(parallax)")
         self._safe_connect("parallax_panel", "show_depth_map_toggled", self._on_show_depth_map_toggled, "(parallax depth)")
         self._safe_connect("parallax_panel", "show_displacement_toggled", self._on_show_displacement_toggled, "(parallax displacement)")
-        self._safe_connect("parallax_panel", "shift_changed", self._on_parallax_shift_changed, "(parallax shift)")
-        self._safe_connect("parallax_panel", "auto_alignment_requested", self._on_parallax_auto_alignment_requested, "(parallax auto-align)")
-        self._safe_connect("parallax_panel", "zoom_changed", self._on_parallax_zoom_changed, "(parallax zoom)")
+        self._safe_connect("alignment_panel", "shift_changed", self._on_parallax_shift_changed, "(parallax shift)")
+        self._safe_connect("alignment_panel", "auto_alignment_requested", self._on_parallax_auto_alignment_requested, "(parallax auto-align)")
+        self._safe_connect("alignment_panel", "zoom_changed", self._on_parallax_zoom_changed, "(parallax zoom)")
         self._safe_connect("parallax_panel", "correction_target_changed", self._on_parallax_correction_target_changed, "(parallax target)")
         self._safe_connect("parallax_panel", "rgb_target_max_width_changed", self._on_parallax_rgb_target_max_width_changed, "(parallax rgb cap)")
-        self._safe_connect("parallax_panel", "auto_crop_requested", self._on_parallax_auto_crop_requested, "(parallax auto-crop)")
-        self._safe_connect("parallax_panel", "crop_reset_requested", self._on_parallax_crop_reset_requested, "(parallax crop reset)")
-        self._safe_connect("parallax_panel", "show_alignment_overlay_toggled", self._on_parallax_show_alignment_overlay_toggled, "(parallax overlay)")
+        self._safe_connect("alignment_panel", "auto_crop_requested", self._on_parallax_auto_crop_requested, "(parallax auto-crop)")
+        self._safe_connect("alignment_panel", "crop_reset_requested", self._on_parallax_crop_reset_requested, "(parallax crop reset)")
+        self._safe_connect("alignment_tab", "show_alignment_overlay_toggled", self._on_parallax_show_alignment_overlay_toggled, "(parallax overlay)")
 
         # === GRADIENT OVERLAY PANEL ===
         self._safe_connect("gradient_panel", "gradient_enabled", self._on_gradient_enabled, "(gradient)")
@@ -844,6 +862,10 @@ class InspectionAppWindow(QMainWindow):
         bus.calibration_export_result.connect(self._on_bus_calibration_export_result)
         bus.calibration_import_result.connect(self._on_bus_calibration_import_result)
         bus.calibration_gui_update_requested.connect(self._on_bus_calibration_gui_update)
+        bus.alignment_status_changed.connect(self._on_bus_alignment_status)
+        bus.alignment_message.connect(self._on_bus_alignment_message)
+        bus.alignment_distance_measured.connect(self._on_bus_alignment_distance)
+        bus.alignment_check_result.connect(self._on_bus_alignment_check)
         bus.parallax_auto_alignment_result.connect(self._on_bus_parallax_auto_alignment_result)
         bus.parallax_auto_crop_result.connect(self._on_bus_parallax_auto_crop_result)
 
@@ -2718,6 +2740,26 @@ class InspectionAppWindow(QMainWindow):
                     self.app.update_calibration_gui() if hasattr(self.app, 'update_calibration_gui') else None
                 )
 
+    def _on_bus_alignment_status(self, status: dict):
+        tab = getattr(self, 'alignment_tab', None)
+        if tab is not None:
+            tab.set_registration_status(status)
+
+    def _on_bus_alignment_distance(self, metres: float):
+        tab = getattr(self, 'alignment_tab', None)
+        if tab is not None:
+            tab.set_distance(metres)
+
+    def _on_bus_alignment_check(self, result: dict):
+        tab = getattr(self, 'alignment_tab', None)
+        if tab is not None:
+            tab.set_check_result(result)
+
+    def _on_bus_alignment_message(self, text: str, is_error: bool):
+        panel = getattr(self, 'alignment_panel', None)
+        if panel is not None:
+            panel.show_message(text, is_error)
+
     # === PARALLAX HANDLERS ===
     def _on_parallax_toggled(self, enabled: bool):
         if self.event_bus:
@@ -2807,8 +2849,8 @@ class InspectionAppWindow(QMainWindow):
 
     def _on_bus_parallax_auto_alignment_result(self, dx: int, dy: int, fov_zoom_factor: float):
         """Reflect a completed auto-alignment calculation in the panel."""
-        if hasattr(self, 'parallax_panel'):
-            self.parallax_panel.set_auto_alignment_result(dx, dy, fov_zoom_factor)
+        if hasattr(self, 'alignment_panel'):
+            self.alignment_panel.set_auto_alignment_result(dx, dy, fov_zoom_factor)
 
     def _on_parallax_auto_crop_requested(self):
         """Request a one-time Auto-Crop calculation from whatever
@@ -2823,8 +2865,8 @@ class InspectionAppWindow(QMainWindow):
 
     def _on_bus_parallax_auto_crop_result(self, rect: object):
         """Reflect a completed Auto-Crop (or Reset Crop) action in the panel."""
-        if hasattr(self, 'parallax_panel'):
-            self.parallax_panel.set_auto_crop_result(rect)
+        if hasattr(self, 'alignment_panel'):
+            self.alignment_panel.set_auto_crop_result(rect)
 
     def _on_parallax_show_alignment_overlay_toggled(self, show: bool):
         """Toggle the thermal/RGB edge-overlay alignment visualization."""

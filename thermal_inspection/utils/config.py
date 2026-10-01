@@ -101,6 +101,11 @@ class Config:
         # Auto-Crop, or None if never run - see
         # ParallaxCompensator.set_crop_rect()/compute_auto_crop().
         'parallax_crop_rect': None,
+
+        # Geometric (RGB -> thermal homography) alignment calibration: the file it was last loaded from/saved to and
+        # whether it is switched on. Restored at startup; --calibration-file overrides the file.
+        'alignment_calibration_file': None,
+        'alignment_calibration_enabled': True,
     }
 
     def __init__(self, config_file: str = 'config.json'):

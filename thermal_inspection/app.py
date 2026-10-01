@@ -6,6 +6,7 @@ a clean interface for the main entry point. Extracted from the monolithic
 ThermalInspectionFusion class in inspection_main.py.
 """
 
+import os
 import sys
 import logging
 import threading
@@ -100,6 +101,9 @@ class AppConfig:
     # requiring manual UI clicking, then exit. None disables it.
     auto_cycle_fusion_modes: Optional[float] = None
 
+    # Geometric alignment calibration file (RGB -> thermal homography), --calibration-file
+    calibration_file: Optional[str] = None
+
     @classmethod
     def from_args(cls, args) -> 'AppConfig':
         """Create config from argparse namespace."""
@@ -119,6 +123,7 @@ class AppConfig:
             gui_type=getattr(args, 'gui', 'qt'),
             headless=getattr(args, 'headless', False),
             auto_cycle_fusion_modes=getattr(args, 'auto_cycle_fusion_modes', None),
+            calibration_file=getattr(args, 'calibration_file', None),
         )
 
 
@@ -157,6 +162,8 @@ class ThermalInspectionApp:
         # Calibration state (delegated)
         from .core.calibration_manager import CalibrationManager
         self.calibration_manager = CalibrationManager()
+        self.alignment_calibration = None   # geometric (homography) alignment; created in _init_processing
+        self._alignment_status_key = None
 
         # Central event bus for GUI ↔ backend communication
         self.event_bus = AppEventBus()
@@ -428,6 +435,15 @@ class ThermalInspectionApp:
         )
         bus.calibration_point_add_requested.connect(self.add_calibration_point)
         bus.calibration_point_removed.connect(self._bus_remove_calibration_point)
+
+        # --- Alignment calibration (RGB -> thermal homography) ---
+        bus.alignment_load_requested.connect(self._bus_alignment_load)
+        bus.alignment_save_requested.connect(self._bus_alignment_save)
+        bus.alignment_clear_requested.connect(self._bus_alignment_clear)
+        bus.alignment_enabled_changed.connect(self._bus_alignment_enabled)
+        bus.alignment_capture_requested.connect(self._bus_alignment_capture)
+        bus.alignment_measure_distance_requested.connect(self._bus_alignment_measure_distance)
+        bus.alignment_check_requested.connect(self._bus_alignment_check)
 
         # --- View / Fusion ---
         bus.view_mode_cycled.connect(self.cycle_view_mode)
@@ -1052,6 +1068,10 @@ class ThermalInspectionApp:
             # Create processors
             self.fusion_processor = FusionProcessor()
             self.fusion_controller.set_fusion_processor(self.fusion_processor)
+
+            from .core.alignment_calibration import AlignmentCalibrationManager
+            self.alignment_calibration = AlignmentCalibrationManager(self.fusion_processor)
+            self.alignment_calibration.restore(self.config.calibration_file)
 
             self.thermal_processor = ThermalProcessor({'device': self.config.device})
             self.thermal_analyzer = ThermalAnalyzer()
@@ -1843,6 +1863,7 @@ class ThermalInspectionApp:
             # already uses for exactly this reason.
             _mapping_needs_alignment = self.view_mode == ViewMode.THREE_D_MAPPING
             self._sync_alignment_composition()      # homography + parallax must not both apply the baseline shift
+            self._refresh_alignment_status_if_changed()
             _corrected_thermal_for_preview = None
             _corrected_rgb_for_preview = None
             if ((_main_view_needs_thermal_rgb_alignment or _preview_needs_alignment
@@ -3036,6 +3057,111 @@ class ThermalInspectionApp:
                 if palettes:
                     self.palette_manager.set_global_palette(palettes[0])
 
+    # --- Alignment calibration handlers -------------------------------------------------------------------------
+    def _publish_alignment_status(self, message: str = None, is_error: bool = False):
+        mgr = self.alignment_calibration
+        if mgr is None or not self.event_bus:
+            return
+        status = mgr.status()
+        status["parallax_on"] = bool(self.parallax_compensator and self.parallax_compensator.enabled)
+        self._alignment_status_key = self._alignment_key(status)
+        self.event_bus.alignment_status_changed.emit(status)
+        if message:
+            self.event_bus.alignment_message.emit(message, is_error)
+
+    @staticmethod
+    def _alignment_key(status):
+        return (status["loaded"], status["enabled"], status["path"], status["distance_m"],
+                status["parallax_composed"], status.get("parallax_on"))
+
+    def _refresh_alignment_status_if_changed(self):
+        """The panel shows whether parallax is composed with the calibration; that follows the parallax toggle, so
+        re-publish when it (or anything else the panel shows) changes. Cheap tuple compare per frame."""
+        mgr = self.alignment_calibration
+        if mgr is None:
+            return
+        st = mgr.status()
+        st["parallax_on"] = bool(self.parallax_compensator and self.parallax_compensator.enabled)
+        if self._alignment_key(st) != self._alignment_status_key:
+            self._publish_alignment_status()
+
+    def _bus_alignment_load(self, path: str):
+        mgr = self.alignment_calibration
+        ok = bool(mgr and mgr.load(path))
+        self._publish_alignment_status(f"Loaded {os.path.basename(path)}" if ok else
+                                       (mgr.last_error if mgr else "Not available"), not ok)
+
+    def _bus_alignment_save(self, path: str):
+        mgr = self.alignment_calibration
+        ok = bool(mgr and mgr.save(path))
+        self._publish_alignment_status(f"Saved {os.path.basename(path)}" if ok else
+                                       (mgr.last_error if mgr else "Not available"), not ok)
+
+    def _bus_alignment_clear(self):
+        if self.alignment_calibration:
+            self.alignment_calibration.clear()
+        self._publish_alignment_status("Alignment calibration cleared")
+
+    def _bus_alignment_enabled(self, enabled: bool):
+        if self.alignment_calibration:
+            self.alignment_calibration.set_enabled(enabled)
+        self._publish_alignment_status()
+
+    def _bus_alignment_measure_distance(self):
+        """Fill the shared scene distance from the depth camera (centre of view)."""
+        d = self.parallax_compensator.measure_scene_distance_m() if self.parallax_compensator else None
+        if d is None:
+            self.event_bus.alignment_message.emit("No depth reading: needs a RealSense (L515/D4xx) with a valid "
+                                                  "centre of view.", True)
+        else:
+            self.event_bus.alignment_distance_measured.emit(d)
+            self.event_bus.alignment_message.emit(f"Scene distance measured: {d:.2f} m", False)
+
+    def _bus_alignment_check(self):
+        """Measure the residual misregistration of the live pair through the SAME corrections the display uses:
+        parallax (when on) then the calibration/aspect-ratio alignment."""
+        from .cameras.camera_calibration import measure_residual, to_gray8
+        capture = self.threaded_capture
+        thermal_raw = rgb = None
+        if capture is not None:
+            thermal_raw, rgb, _ = capture.get_raw_frames()
+            if rgb is self.rgb_placeholder:
+                rgb = None
+        if thermal_raw is None or rgb is None or self.fusion_processor is None:
+            self.event_bus.alignment_check_result.emit(
+                {"level": "unknown", "verdict": "Needs a live thermal and RGB feed."})
+            return
+        thermal = cv2.cvtColor(to_gray8(thermal_raw), cv2.COLOR_GRAY2BGR)
+        comp = self.parallax_compensator
+        if comp is not None and comp.enabled:
+            thermal, rgb = comp.apply_correction(thermal, rgb)
+        self._sync_alignment_composition()
+        aligned = self.fusion_processor.align_rgb_to_thermal(rgb, thermal.shape[:2])
+        dx, dy, response, level, verdict = measure_residual(thermal, aligned)
+        self.event_bus.alignment_check_result.emit(
+            {"level": level, "verdict": verdict, "dx": dx, "dy": dy, "response": response})
+
+    def _bus_alignment_capture(self, distance_m: float, method: str, cols: int, rows: int):
+        """Calibrate from the live feeds: one thermal/RGB pair of the same scene, taken now."""
+        mgr = self.alignment_calibration
+        if mgr is None:
+            return
+        thermal_raw = rgb = None
+        capture = self.threaded_capture
+        if capture is not None:
+            thermal_raw, rgb, _ = capture.get_raw_frames()
+            if rgb is self.rgb_placeholder:
+                rgb = None
+        if thermal_raw is None:
+            thermal_raw = getattr(self, '_last_thermal_frame', None)
+        ok = mgr.capture(thermal_raw, rgb, distance_m, method, (cols, rows))
+        if ok:
+            q = mgr.status()
+            self._publish_alignment_status(
+                f"Calibrated: {q['inliers']}/{q['points']} points, RMS {q['rms_px']:.2f} px, at {distance_m:g} m")
+        else:
+            self._publish_alignment_status(mgr.last_error, True)
+
     def _sync_alignment_composition(self):
         """Keep the static calibration homography and the depth-based parallax correction from double-counting the
         baseline shift. The homography (--calibration-file) contains the parallax of the distance it was calibrated at;
@@ -3043,7 +3169,7 @@ class ThermalInspectionApp:
         FusionProcessor.set_parallax_composition). Cheap arithmetic, so it runs every frame and follows every UI
         toggle (parallax on/off, target, baseline) without any extra signal wiring."""
         fusion, comp = self.fusion_processor, self.parallax_compensator
-        if fusion is None or fusion.calibration_matrix is None:
+        if fusion is None or fusion.calibration_matrix is None or not fusion.calibration_enabled:
             return
         if comp is None or not comp.enabled:
             fusion.set_parallax_composition(None)

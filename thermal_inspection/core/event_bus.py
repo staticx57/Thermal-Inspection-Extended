@@ -171,6 +171,21 @@ class AppEventBus(QObject):
     radiometric_method_changed = pyqtSignal(str)                 # "t-linear" or "lut"
 
     # =====================================================================
+    # Alignment calibration (RGB -> thermal homography; not the radiometric one above)
+    # =====================================================================
+    alignment_load_requested = pyqtSignal(str)                    # path
+    alignment_save_requested = pyqtSignal(str)                    # path
+    alignment_clear_requested = pyqtSignal()
+    alignment_enabled_changed = pyqtSignal(bool)
+    alignment_capture_requested = pyqtSignal(float, str, int, int)  # distance_m, method, board cols, board rows
+    alignment_status_changed = pyqtSignal(dict)                   # AlignmentCalibrationManager.status()
+    alignment_message = pyqtSignal(str, bool)                     # text, is_error
+    alignment_measure_distance_requested = pyqtSignal()
+    alignment_distance_measured = pyqtSignal(float)               # metres
+    alignment_check_requested = pyqtSignal()
+    alignment_check_result = pyqtSignal(dict)                     # level, verdict, dx, dy, response
+
+    # =====================================================================
     # Parallax
     # =====================================================================
     parallax_toggled = pyqtSignal(bool)

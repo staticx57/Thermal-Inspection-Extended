@@ -65,6 +65,29 @@ def edge_image(gray8: np.ndarray) -> np.ndarray:
     return cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
 
 
+def measure_residual(thermal_frame: np.ndarray, rgb_aligned: np.ndarray, margin_fraction: float = 0.15):
+    """How well two same-size views are registered: (dx, dy, response, level, verdict). dx/dy are in pixels of the
+    images given, positive dx = the RGB content sits to the right of the thermal content. Phase correlation on the
+    gradient images (the structure the two modalities share), central region only. `response` is phase correlation's
+    peak strength; below ~0.05 the scene lacks the structure to measure and the verdict says so rather than guess."""
+    t, r = to_gray8(thermal_frame), to_gray8(rgb_aligned)
+    if t.shape != r.shape:
+        r = cv2.resize(r, (t.shape[1], t.shape[0]))
+    h, w = t.shape
+    my, mx = int(h * margin_fraction), int(w * margin_fraction)
+    a = edge_image(t)[my:h - my, mx:w - mx].astype(np.float32)
+    b = edge_image(r)[my:h - my, mx:w - mx].astype(np.float32)
+    win = cv2.createHanningWindow(a.shape[::-1], cv2.CV_32F)
+    (dx, dy), response = cv2.phaseCorrelate(a, b, win)
+    if response < 0.05:
+        return float(dx), float(dy), float(response), "unknown", "Inconclusive: the scene has too little structure to measure."
+    mag = float(np.hypot(dx, dy))
+    level = "good" if mag < 1.5 else "ok" if mag < 4 else "poor"
+    word = {"good": "Aligned", "ok": "Slightly off", "poor": "Misaligned"}[level]
+    side = ("RGB is right of thermal" if dx > 0 else "RGB is left of thermal") if abs(dx) >= 0.5 else ""
+    return float(dx), float(dy), float(response), level, f"{word}: {mag:.1f} px residual (dx {dx:+.1f}, dy {dy:+.1f}). {side}".strip()
+
+
 class CameraCalibrator:
     """Calibrates thermal and RGB cameras for fusion: computes the homography RGB -> thermal."""
 

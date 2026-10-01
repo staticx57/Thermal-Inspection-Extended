@@ -783,7 +783,9 @@ When thermal and RGB cameras are physically separated, parallax errors cause mis
 - **Base** - Balanced speed and accuracy
 - **Large** - Best accuracy, requires GPU
 
-**Using it with a calibration file**: a calibration homography (`--calibration-file`) is exact for one plane, at the distance it was made; parallax correction handles every other distance. They work together only if the file records that distance, so create it with:
+**Camera Calibration tab (Cameras > Camera Calibration; the temperature one is "Temp Calibration")**: everything that registers the thermal and RGB views, in one place. A strip at the top shows registration and parallax status, one shared scene distance (typed, or **Measure** from a depth camera), the alignment overlay, and **Check alignment** (measures the residual misregistration in pixels through all active corrections). Pages: **1 Register** (the fixed part: calibrate from the live feeds, load/save/clear, apply on/off, manual and auto fine-tune shift/zoom, crop), **2 Parallax** (the distance-dependent part: enable, correction target, depth method, depth/displacement views) and **3 Rig** (baseline, lens focal length/sensor width). The calibration is remembered across restarts (`alignment_calibration.json` next to `config.json`) and the strip tells you whether parallax correction is combined with it correctly.
+
+**Using it with a calibration file** (also `--calibration-file`, which previously was parsed but never applied): a calibration homography (`--calibration-file`) is exact for one plane, at the distance it was made; parallax correction handles every other distance. They work together only if the file records that distance, so create it with:
 
 ```
 python -m thermal_inspection.cameras.camera_calibration --thermal t.png --rgb r.png --distance 2.0 --out calibration.json --preview check.png
