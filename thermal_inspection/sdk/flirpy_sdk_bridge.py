@@ -15,6 +15,7 @@ Safety: All operations are tested to not interfere with Y16 video capture.
 """
 
 import logging
+from thermal_inspection.utils.paths import default_serial_port
 from typing import Optional
 from enum import Enum
 
@@ -56,7 +57,7 @@ class FlirpySDKBridge:
     existing flirpy.Boson camera's send/receive methods.
 
     Usage:
-        camera = Boson(port='COM7')
+        camera = Boson(port=default_serial_port())
         bridge = FlirpySDKBridge(camera)
         bridge.set_gain_mode(GainMode.HIGH)
     """

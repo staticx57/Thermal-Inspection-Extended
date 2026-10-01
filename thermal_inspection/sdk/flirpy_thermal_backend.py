@@ -58,7 +58,7 @@ class FlirpyThermalBackend(ThermalBackend):
     - True absolute temperatures (±2°C accuracy when T-Linear enabled)
     """
 
-    def __init__(self, com_port: str = 'COM7', auto_configure: bool = True):
+    def __init__(self, com_port: str = None, auto_configure: bool = True):
         """
         Initialize flirpy backend.
 

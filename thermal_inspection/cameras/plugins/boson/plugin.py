@@ -19,7 +19,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 BOSON_RESOLUTIONS = [(640, 512), (320, 256), (512, 640), (256, 320)]
-DEFAULT_COM_PORT = "COM7"
+from thermal_inspection.utils.paths import default_serial_port
+
+DEFAULT_COM_PORT = default_serial_port()
 
 
 class BosonCameraSDK(CameraSDK):

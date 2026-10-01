@@ -423,7 +423,7 @@ def get_config() -> Config:
     return _config_instance
 
 
-def get_serial_port(plugin_id: str, fallback: str = 'COM7') -> str:
+def get_serial_port(plugin_id: str, fallback: str = None) -> str:
     """
     Resolve the serial control port for a camera plugin.
 
@@ -442,6 +442,9 @@ def get_serial_port(plugin_id: str, fallback: str = 'COM7') -> str:
 
     entry = config.get('serial_ports', {}).get(plugin_id, {})
     key = 'linux_port' if platform.system() != 'Windows' else 'port'
+    if fallback is None:
+        from thermal_inspection.utils.paths import default_serial_port
+        fallback = default_serial_port()
     return entry.get(key) or fallback
 
 

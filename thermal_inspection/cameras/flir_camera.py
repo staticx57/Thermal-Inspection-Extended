@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 from typing import Optional, Tuple
 import logging
+from thermal_inspection.utils.paths import default_serial_port
 
 logger = logging.getLogger(__name__)
 
@@ -69,11 +70,11 @@ class FLIRBosonCamera:
                 config = get_config()
                 import sys
                 if sys.platform.startswith('win'):
-                    self.com_port = config.get('sdk_com_port') or config.get('sdk_com_port_default', 'COM7')
+                    self.com_port = config.get('sdk_com_port') or config.get('sdk_com_port_default') or default_serial_port()
                 else:
                     self.com_port = config.get('sdk_com_port') or config.get('sdk_com_port_linux', '/dev/ttyACM0')
             except ImportError:
-                self.com_port = 'COM7' if __import__('sys').platform.startswith('win') else '/dev/ttyACM0'
+                self.com_port = default_serial_port()
         self.sdk: Optional[BosonSDK] = None
         self.sdk_connected = False
 
@@ -143,7 +144,7 @@ class FLIRBosonCamera:
                 # Open SDK connection for serial control (Phase 7)
                 if self.enable_sdk:
                     try:
-                        self.sdk = BosonSDK(com_port=self.com_port or 'COM7')
+                        self.sdk = BosonSDK(com_port=self.com_port or default_serial_port())
                         if self.sdk.open():
                             self.sdk_connected = True
                             logger.info("[OK] Boson SDK connected - serial control enabled")
@@ -815,7 +816,7 @@ class FLIRBosonCamera:
                     com_port = f"COM{com_port}"
 
             # Create SDK instance
-            actual_port = com_port or 'COM7'
+            actual_port = com_port or default_serial_port()
             self.sdk = BosonSDK(com_port=actual_port)
 
             # Attempt connection
