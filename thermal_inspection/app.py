@@ -1120,6 +1120,7 @@ class ThermalInspectionApp:
         self._mapping_view_mode = "colour"      # viewport colouring: colour / temperature / peak / change
         self._mapping_view_dirty = False
         self._last_thermal_summary_time = 0.0
+        self._composition_warned = set()    # one-time warnings from _sync_alignment_composition
         self._last_mapping_inset_time = 0.0
         self._last_world_view_push = 0.0
         # Throttle live-phase tracking+recolor the same way the existing
@@ -1841,6 +1842,7 @@ class ThermalInspectionApp:
             # only, the same decoupled pattern the point-cloud preview
             # already uses for exactly this reason.
             _mapping_needs_alignment = self.view_mode == ViewMode.THREE_D_MAPPING
+            self._sync_alignment_composition()      # homography + parallax must not both apply the baseline shift
             _corrected_thermal_for_preview = None
             _corrected_rgb_for_preview = None
             if ((_main_view_needs_thermal_rgb_alignment or _preview_needs_alignment
@@ -3033,6 +3035,37 @@ class ThermalInspectionApp:
             except (ValueError, IndexError):
                 if palettes:
                     self.palette_manager.set_global_palette(palettes[0])
+
+    def _sync_alignment_composition(self):
+        """Keep the static calibration homography and the depth-based parallax correction from double-counting the
+        baseline shift. The homography (--calibration-file) contains the parallax of the distance it was calibrated at;
+        when parallax correction is also on, the processor must use the homography minus that shift (see
+        FusionProcessor.set_parallax_composition). Cheap arithmetic, so it runs every frame and follows every UI
+        toggle (parallax on/off, target, baseline) without any extra signal wiring."""
+        fusion, comp = self.fusion_processor, self.parallax_compensator
+        if fusion is None or fusion.calibration_matrix is None:
+            return
+        if comp is None or not comp.enabled:
+            fusion.set_parallax_composition(None)
+            return
+        distance = getattr(fusion, 'calibration_distance_m', None)
+        if not distance:
+            fusion.set_parallax_composition(None)
+            if 'no_distance' not in self._composition_warned:
+                self._composition_warned.add('no_distance')
+                logger.warning(
+                    "Parallax correction is ON together with a calibration file that does not record the distance it "
+                    "was calibrated at: the baseline shift is applied twice, leaving a constant misalignment equal to "
+                    "the parallax at the calibration distance. Re-create the file with "
+                    "'python -m thermal_inspection.cameras.camera_calibration ... --distance METERS' (it records the "
+                    "distance), or turn parallax correction off.")
+            return
+        fusion.set_parallax_composition(comp.correction_target, comp.geometric_shift_px_at(distance))
+        if ((comp.manual_shift_x or comp.manual_shift_y or abs(comp.fov_zoom_factor - 1.0) > 1e-6)
+                and 'manual' not in self._composition_warned):
+            self._composition_warned.add('manual')
+            logger.warning("A calibration homography is loaded AND a manual shift / FOV zoom is set: the homography "
+                           "already contains the static offset and scale, so these are applied on top of it.")
 
     def cycle_view_mode(self):
         """

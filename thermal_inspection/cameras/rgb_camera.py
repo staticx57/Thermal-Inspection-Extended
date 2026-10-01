@@ -8,7 +8,6 @@ import numpy as np
 import logging
 from typing import Tuple, Optional
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

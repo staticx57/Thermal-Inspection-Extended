@@ -783,13 +783,21 @@ When thermal and RGB cameras are physically separated, parallax errors cause mis
 - **Base** - Balanced speed and accuracy
 - **Large** - Best accuracy, requires GPU
 
+**Using it with a calibration file**: a calibration homography (`--calibration-file`) is exact for one plane, at the distance it was made; parallax correction handles every other distance. They work together only if the file records that distance, so create it with:
+
+```
+python -m thermal_inspection.cameras.camera_calibration --thermal t.png --rgb r.png --distance 2.0 --out calibration.json --preview check.png
+```
+
+(snapshots of the same flat scene taken at the same moment; `--method checkerboard` or `--edges` for thermal-vs-visible). With a distance recorded, the app subtracts the shift the homography already contains while parallax is on; for a file without one it logs a warning, because the baseline shift would otherwise be applied twice.
+
 ### Custom Palettes
 
 Palettes are defined in code. See [Adding Custom Palettes](#adding-custom-palettes) in the Development section.
 
 ### Presets and ROI Sets
 
-- Application presets (`utils/preset_manager.py`) and ROI save/load to JSON (`ROIController.save_rois` / `load_rois`) exist as APIs, but are not exposed in the GUI yet.
+- ROI sets (JSON) are saved and loaded from the **ROI Manager** tab (**Save ROI Set... / Load ROI Set...**), including each ROI's lock, visibility, palette and alert. There are no application-level settings presets yet.
 
 ### Temperature Data Export
 

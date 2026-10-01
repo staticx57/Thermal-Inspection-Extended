@@ -11,7 +11,6 @@ import json
 import os
 import importlib.util
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Optional: torch, used only for the GPU-accelerated laplacian_pyramid path
@@ -170,6 +169,12 @@ class FusionProcessor:
         self.fusion_priority = fusion_priority
         self.calibration_matrix = None
         self.calibration_file = calibration_file
+        # Distance (metres) the loaded homography was calibrated at, when the file records it (see
+        # cameras/camera_calibration.py). A homography measured on a plane at that distance already contains the
+        # baseline parallax for that distance; see set_parallax_composition().
+        self.calibration_distance_m = None
+        self.calibration_info = {}
+        self._parallax_composition = None   # (correction_target, shift_px) or None
         # "color" (default) or "grayscale" - see set_fusion_color_mode() and
         # align_rgb_to_thermal()'s apply_color_mode parameter for why this
         # conversion happens where it does rather than in the caller.
@@ -432,7 +437,13 @@ class FusionProcessor:
             # Load homography matrix (3x3)
             if 'homography' in calib_data:
                 self.calibration_matrix = np.array(calib_data['homography'], dtype=np.float32)
-                logger.info(f"Loaded calibration from {calibration_file}")
+                dist = calib_data.get('working_distance_m')
+                self.calibration_distance_m = float(dist) if isinstance(dist, (int, float)) and dist > 0 else None
+                self.calibration_info = {k: v for k, v in calib_data.items() if k != 'homography'}
+                self._parallax_composition = None
+                logger.info(f"Loaded calibration from {calibration_file}"
+                            + (f" (calibrated at {self.calibration_distance_m:g} m)"
+                               if self.calibration_distance_m else " (no calibration distance recorded)"))
                 return True
             else:
                 logger.error("Calibration file missing 'homography' key")
@@ -457,9 +468,10 @@ class FusionProcessor:
                 logger.error("No calibration matrix to save")
                 return False
 
-            calib_data = {
-                'homography': self.calibration_matrix.tolist()
-            }
+            calib_data = dict(self.calibration_info)
+            calib_data['homography'] = self.calibration_matrix.tolist()
+            if self.calibration_distance_m:
+                calib_data['working_distance_m'] = self.calibration_distance_m
 
             with open(calibration_file, 'w') as f:
                 json.dump(calib_data, f, indent=2)
@@ -884,6 +896,30 @@ class FusionProcessor:
 
         return cv2.resize(cropped, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
 
+    def set_parallax_composition(self, correction_target: Optional[str], shift_px: float = 0.0):
+        """Tell the processor that depth-based parallax correction is ALSO active, and how much baseline shift it
+        applies at the distance the homography was calibrated at (ParallaxCompensator.geometric_shift_px_at). Pass
+        None when parallax correction is off. Without this, the shift is applied twice: parallax absorbs the
+        distance-dependent baseline shift and the homography still contains its value at the calibration distance,
+        leaving a constant error equal to that shift at every depth (measured in tests/unit/test_alignment_composition.py)."""
+        self._parallax_composition = None if correction_target is None else (correction_target, float(shift_px))
+
+    def effective_calibration_matrix(self) -> Optional[np.ndarray]:
+        """The calibration homography actually applied to the RGB frame: the loaded one, minus the baseline shift
+        parallax correction already supplies (see set_parallax_composition). For correction_target 'thermal' the
+        parallax step moves the THERMAL frame, so the shift is removed in the output (thermal) space; for 'rgb' it
+        moves the RGB frame before this warp, so it is removed in the input (RGB) space."""
+        H = self.calibration_matrix
+        if H is None or self._parallax_composition is None:
+            return H
+        target, shift = self._parallax_composition
+        if shift == 0.0:
+            return H
+        T = np.eye(3, dtype=np.float64)
+        T[0, 2] = shift if target == "thermal" else -shift
+        H64 = np.asarray(H, dtype=np.float64)
+        return ((T @ H64) if target == "thermal" else (H64 @ T)).astype(np.float32)
+
     def align_rgb_to_thermal(self, rgb: np.ndarray, thermal_shape: Tuple[int, int],
                              apply_color_mode: bool = False) -> np.ndarray:
         """
@@ -907,14 +943,15 @@ class FusionProcessor:
         target_h, target_w = thermal_shape
 
         try:
-            if self.calibration_matrix is not None:
+            effective_matrix = self.effective_calibration_matrix()
+            if effective_matrix is not None:
                 # Use calibration matrix for precise alignment - a real
                 # calibration derived from actual correspondence points
                 # already accounts for the true geometric relationship
                 # between the two cameras (aspect ratio included), so this
                 # path is left as a plain warp to the target canvas size.
                 rgb_aligned = cv2.warpPerspective(
-                    rgb, self.calibration_matrix,
+                    rgb, effective_matrix,
                     (target_w, target_h),
                     flags=cv2.INTER_LINEAR
                 )

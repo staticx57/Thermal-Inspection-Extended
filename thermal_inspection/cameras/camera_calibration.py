@@ -1,476 +1,366 @@
 """
 Camera Calibration Utility for Thermal-RGB Alignment
-Computes homography matrix to align RGB camera to thermal camera coordinate system
+
+Computes a homography that maps RGB-camera pixels onto thermal-camera pixels, from a pair of still images of the SAME
+scene taken at the same moment. The result is a JSON file for `python -m thermal_inspection --calibration-file FILE`
+(read by FusionProcessor, which warps the RGB frame with it).
+
+What a homography can and cannot do: it registers the two views exactly for ONE plane - the one the calibration images
+show - so it captures the fixed geometry (scale, rotation, perspective, lens FOV difference, mounting offset) but not
+parallax, which changes with distance. The file therefore records `working_distance_m` (how far that plane was). When
+depth-based parallax correction is also on, the app removes the shift the homography already contains at that distance
+(FusionProcessor.set_parallax_composition) so the two are not applied twice. Calibrate on a flat target at the distance
+you usually inspect from, and pass --distance.
+
+Command line (no cameras needed, works on saved snapshots):
+
+    python -m thermal_inspection.cameras.camera_calibration --thermal t.png --rgb r.png --distance 2.0 \\
+        --method features --out calibration.json --preview check.png
+
+Methods: `checkerboard` (most accurate; the pattern must be visible to BOTH cameras - a printed pattern is invisible to a
+thermal camera unless it is heated or has contrasting emissivity), `features` (ORB matches; use --edges for the
+cross-modal case, where raw brightness differs between a thermal and a visible image), `manual` (click points).
 """
+import argparse
+import json
+import logging
+import sys
+import time
+from typing import Any, Dict, Optional, Tuple
+
 import cv2
 import numpy as np
-import logging
-import json
-from typing import Tuple, Any
-import time
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+DEFAULT_MAX_RMS_PX = 3.0        # a fit worse than this is refused by the command line
+MIN_INLIERS = 8
+MIN_INLIER_RATIO = 0.3          # of the matches, for the RANSAC methods: random matches yield a few chance inliers
+
+
+def to_gray8(frame: np.ndarray) -> np.ndarray:
+    """Any thermal/RGB frame as an 8-bit single-channel image: BGR(A) -> gray; 16-bit (radiometric Y16) and float
+    frames are stretched between their 1st and 99th percentile so ORB/chessboard detection can see them."""
+    if frame is None:
+        raise ValueError("no image")
+    f = frame
+    if f.ndim == 3:
+        if f.dtype != np.uint8:
+            f = to_gray8(f.mean(axis=2))
+        else:
+            f = cv2.cvtColor(f, cv2.COLOR_BGRA2GRAY if f.shape[2] == 4 else cv2.COLOR_BGR2GRAY)
+    if f.dtype == np.uint8:
+        return f
+    lo, hi = np.percentile(f, (1, 99))
+    if hi <= lo:
+        hi = lo + 1
+    return np.clip((f.astype(np.float32) - lo) * (255.0 / (hi - lo)), 0, 255).astype(np.uint8)
+
+
+def edge_image(gray8: np.ndarray) -> np.ndarray:
+    """Gradient-magnitude image: the structure a thermal and a visible image of the same scene actually share (raw
+    brightness differs completely between the two), so feature matching on it works across the two modalities."""
+    g = cv2.GaussianBlur(gray8, (3, 3), 0)
+    mag = cv2.magnitude(cv2.Sobel(g, cv2.CV_32F, 1, 0), cv2.Sobel(g, cv2.CV_32F, 0, 1))
+    return cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
 
 
 class CameraCalibrator:
-    """
-    Calibrates thermal and RGB cameras for fusion
-    Computes homography matrix to align RGB to thermal coordinate system
-    """
+    """Calibrates thermal and RGB cameras for fusion: computes the homography RGB -> thermal."""
 
     def __init__(self) -> None:
-        """Initialize calibrator"""
         self.homography_matrix = None
         self.thermal_points = []
         self.rgb_points = []
         self.calibration_complete = False
+        self.quality: Dict[str, Any] = {}
+        self.thermal_shape: Optional[Tuple[int, int]] = None      # (height, width) of the images calibrated on
+        self.rgb_shape: Optional[Tuple[int, int]] = None
 
-    def calibrate_with_checkerboard(self, thermal_frame: np.ndarray,
-                                     rgb_frame: np.ndarray,
-                                     checkerboard_size: Tuple[int, int] = (9, 6)) -> bool:
-        """
-        Calibrate using checkerboard pattern
-        Requires both cameras to see the same checkerboard
+    # ------------------------------------------------------------------ shared
 
-        Args:
-            thermal_frame: Thermal frame (grayscale or BGR)
-            rgb_frame: RGB frame (BGR)
-            checkerboard_size: Internal corners of checkerboard (width, height)
+    def _finish(self, pts_rgb: np.ndarray, pts_thermal: np.ndarray, method: str, thermal_frame, rgb_frame,
+                ransac: bool = True, min_inliers: int = MIN_INLIERS) -> bool:
+        """Fit the homography, measure how good it is (RMS reprojection error over the inliers, in thermal pixels)
+        and store it. Returns False when no usable homography results."""
+        if len(pts_rgb) < 4:
+            logger.error(f"Need at least 4 point pairs, got {len(pts_rgb)}")
+            return False
+        H, mask = cv2.findHomography(pts_rgb, pts_thermal, cv2.RANSAC if ransac else 0, 5.0)
+        if H is None:
+            logger.error("Failed to compute homography")
+            return False
+        inliers = np.ones(len(pts_rgb), bool) if mask is None else mask.ravel().astype(bool)
+        if ransac and inliers.sum() < min_inliers:
+            logger.error(f"Only {int(inliers.sum())} inlier matches (need {min_inliers}): not a reliable fit")
+            return False
+        if ransac and inliers.mean() < MIN_INLIER_RATIO:
+            logger.error(f"Only {int(inliers.sum())} of {len(inliers)} matches agree on one homography "
+                         f"(< {MIN_INLIER_RATIO:.0%}): the images do not show a common structure")
+            return False
+        proj = cv2.perspectiveTransform(pts_rgb.reshape(-1, 1, 2).astype(np.float64), H).reshape(-1, 2)
+        err = np.linalg.norm(proj - pts_thermal, axis=1)[inliers]
+        self.homography_matrix = H
+        self.quality = {"method": method, "points": int(len(pts_rgb)), "inliers": int(inliers.sum()),
+                        "rms_px": float(np.sqrt(np.mean(err ** 2)))}
+        self.thermal_shape = tuple(int(v) for v in thermal_frame.shape[:2])
+        self.rgb_shape = tuple(int(v) for v in rgb_frame.shape[:2])
+        self.calibration_complete = True
+        logger.info(f"Calibration ({method}): {self.quality['inliers']}/{self.quality['points']} inliers, "
+                    f"RMS {self.quality['rms_px']:.2f} px")
+        return True
 
-        Returns:
-            True if calibration successful
-        """
+    # ------------------------------------------------------------------ methods
+
+    def calibrate_with_checkerboard(self, thermal_frame: np.ndarray, rgb_frame: np.ndarray,
+                                    checkerboard_size: Tuple[int, int] = (9, 6)) -> bool:
+        """Calibrate from a checkerboard seen by both cameras (internal corners, width x height)."""
         try:
-            # Convert to grayscale
-            if len(thermal_frame.shape) == 3:
-                thermal_gray = cv2.cvtColor(thermal_frame, cv2.COLOR_BGR2GRAY)
-            else:
-                thermal_gray = thermal_frame
-
-            rgb_gray = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2GRAY)
-
-            # Find checkerboard corners
-            logger.info("Finding checkerboard in thermal image...")
-            ret_thermal, corners_thermal = cv2.findChessboardCorners(
-                thermal_gray, checkerboard_size,
-                cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE
-            )
-
-            logger.info("Finding checkerboard in RGB image...")
-            ret_rgb, corners_rgb = cv2.findChessboardCorners(
-                rgb_gray, checkerboard_size,
-                cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE
-            )
-
-            if not ret_thermal or not ret_rgb:
-                logger.error("Failed to find checkerboard in one or both images")
-                logger.info(f"Thermal: {ret_thermal}, RGB: {ret_rgb}")
+            thermal_gray, rgb_gray = to_gray8(thermal_frame), to_gray8(rgb_frame)
+            flags = cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE
+            ret_t, corners_t = cv2.findChessboardCorners(thermal_gray, checkerboard_size, flags)
+            ret_r, corners_r = cv2.findChessboardCorners(rgb_gray, checkerboard_size, flags)
+            if not ret_t or not ret_r:
+                logger.error(f"Checkerboard not found (thermal: {ret_t}, RGB: {ret_r})")
                 return False
-
-            # Refine corner positions
             criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-            corners_thermal = cv2.cornerSubPix(thermal_gray, corners_thermal, (11, 11), (-1, -1), criteria)
-            corners_rgb = cv2.cornerSubPix(rgb_gray, corners_rgb, (11, 11), (-1, -1), criteria)
-
-            # Reshape to 2D points
-            pts_thermal = corners_thermal.reshape(-1, 2)
-            pts_rgb = corners_rgb.reshape(-1, 2)
-
-            # Compute homography (RGB -> Thermal)
-            self.homography_matrix, mask = cv2.findHomography(pts_rgb, pts_thermal, cv2.RANSAC, 5.0)
-
-            if self.homography_matrix is None:
-                logger.error("Failed to compute homography")
-                return False
-
-            logger.info("Calibration successful!")
-            logger.info(f"Homography matrix:\n{self.homography_matrix}")
-            self.calibration_complete = True
-
-            return True
-
+            corners_t = cv2.cornerSubPix(thermal_gray, corners_t, (11, 11), (-1, -1), criteria)
+            corners_r = cv2.cornerSubPix(rgb_gray, corners_r, (11, 11), (-1, -1), criteria)
+            return self._finish(corners_r.reshape(-1, 2), corners_t.reshape(-1, 2), "checkerboard",
+                                thermal_frame, rgb_frame, min_inliers=4)
         except Exception as e:
             logger.error(f"Calibration error: {e}")
             return False
 
-    def calibrate_with_features(self, thermal_frame: np.ndarray,
-                                rgb_frame: np.ndarray,
-                                min_matches: int = 10) -> bool:
-        """
-        Calibrate using feature matching (ORB/SIFT)
-        Good for scenes with natural features
-
-        Args:
-            thermal_frame: Thermal frame (grayscale or BGR)
-            rgb_frame: RGB frame (BGR)
-            min_matches: Minimum feature matches required
-
-        Returns:
-            True if calibration successful
-        """
+    def calibrate_with_features(self, thermal_frame: np.ndarray, rgb_frame: np.ndarray,
+                                min_matches: int = MIN_INLIERS, use_edges: bool = False,
+                                n_features: int = 1500) -> bool:
+        """Calibrate from ORB feature matches between the two images of the same scene. use_edges matches on gradient
+        magnitude instead of brightness, which is what makes thermal-vs-visible matching workable."""
         try:
-            # Convert to grayscale
-            if len(thermal_frame.shape) == 3:
-                thermal_gray = cv2.cvtColor(thermal_frame, cv2.COLOR_BGR2GRAY)
-            else:
-                thermal_gray = thermal_frame
-
-            rgb_gray = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2GRAY)
-
-            # Detect features using ORB (patent-free)
-            orb = cv2.ORB_create(nfeatures=1000)
-
-            logger.info("Detecting features in thermal image...")
-            kp_thermal, des_thermal = orb.detectAndCompute(thermal_gray, None)
-
-            logger.info("Detecting features in RGB image...")
-            kp_rgb, des_rgb = orb.detectAndCompute(rgb_gray, None)
-
-            if des_thermal is None or des_rgb is None:
+            tg, rg = to_gray8(thermal_frame), to_gray8(rgb_frame)
+            if use_edges:
+                tg, rg = edge_image(tg), edge_image(rg)
+            orb = cv2.ORB_create(nfeatures=n_features)
+            kp_t, des_t = orb.detectAndCompute(tg, None)
+            kp_r, des_r = orb.detectAndCompute(rg, None)
+            if des_t is None or des_r is None:
                 logger.error("Failed to detect features")
                 return False
-
-            # Match features
-            logger.info("Matching features...")
-            bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-            matches = bf.match(des_rgb, des_thermal)
-            matches = sorted(matches, key=lambda x: x.distance)
-
+            matches = sorted(cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True).match(des_r, des_t),
+                             key=lambda m: m.distance)
             if len(matches) < min_matches:
                 logger.error(f"Not enough matches: {len(matches)} < {min_matches}")
                 return False
-
-            logger.info(f"Found {len(matches)} feature matches")
-
-            # Use top matches
-            good_matches = matches[:min(50, len(matches))]
-
-            # Extract matched points
-            pts_rgb = np.float32([kp_rgb[m.queryIdx].pt for m in good_matches]).reshape(-1, 2)
-            pts_thermal = np.float32([kp_thermal[m.trainIdx].pt for m in good_matches]).reshape(-1, 2)
-
-            # Compute homography (RGB -> Thermal)
-            self.homography_matrix, mask = cv2.findHomography(pts_rgb, pts_thermal, cv2.RANSAC, 5.0)
-
-            if self.homography_matrix is None:
-                logger.error("Failed to compute homography")
-                return False
-
-            inliers = mask.sum()
-            logger.info(f"Homography computed with {inliers}/{len(good_matches)} inliers")
-            logger.info(f"Homography matrix:\n{self.homography_matrix}")
-            self.calibration_complete = True
-
-            return True
-
+            good = matches[:min(150, len(matches))]
+            pts_r = np.float32([kp_r[m.queryIdx].pt for m in good]).reshape(-1, 2)
+            pts_t = np.float32([kp_t[m.trainIdx].pt for m in good]).reshape(-1, 2)
+            return self._finish(pts_r, pts_t, "features-edges" if use_edges else "features", thermal_frame, rgb_frame,
+                                min_inliers=min_matches)
         except Exception as e:
             logger.error(f"Feature calibration error: {e}")
             return False
 
-    def calibrate_manual(self, thermal_frame: np.ndarray,
-                        rgb_frame: np.ndarray,
-                        n_points: int = 4) -> bool:
-        """
-        Manual calibration by clicking corresponding points
-        User clicks N points in thermal, then same points in RGB
-
-        Args:
-            thermal_frame: Thermal frame (BGR)
-            rgb_frame: RGB frame (BGR)
-            n_points: Number of points to select (minimum 4)
-
-        Returns:
-            True if calibration successful
-        """
-        self.thermal_points = []
-        self.rgb_points = []
-
-        def click_thermal(event, x, y, flags, param):
-            if event == cv2.EVENT_LBUTTONDOWN:
-                self.thermal_points.append([x, y])
-                cv2.circle(param, (x, y), 5, (0, 255, 0), -1)
-                cv2.imshow('Thermal - Click Points', param)
-
-        def click_rgb(event, x, y, flags, param):
-            if event == cv2.EVENT_LBUTTONDOWN:
-                self.rgb_points.append([x, y])
-                cv2.circle(param, (x, y), 5, (0, 255, 0), -1)
-                cv2.imshow('RGB - Click Points', param)
-
+    def calibrate_manual(self, thermal_frame: np.ndarray, rgb_frame: np.ndarray, n_points: int = 4) -> bool:
+        """Manual calibration by clicking corresponding points: first n in the thermal window, then the same n in RGB."""
         try:
-            # Select points in thermal
-            thermal_display = thermal_frame.copy()
-            cv2.imshow('Thermal - Click Points', thermal_display)
-            cv2.setMouseCallback('Thermal - Click Points', click_thermal, thermal_display)
+            self.thermal_points, self.rgb_points = [], []
+            tview = cv2.cvtColor(to_gray8(thermal_frame), cv2.COLOR_GRAY2BGR)
+            rview = rgb_frame.copy() if rgb_frame.ndim == 3 else cv2.cvtColor(rgb_frame, cv2.COLOR_GRAY2BGR)
 
-            logger.info(f"Click {n_points} corresponding points in THERMAL image, then press any key")
+            def click_thermal(event, x, y, flags, param):
+                if event == cv2.EVENT_LBUTTONDOWN and len(self.thermal_points) < n_points:
+                    self.thermal_points.append([x, y])
+                    cv2.circle(tview, (x, y), 5, (0, 255, 0), -1)
+                    cv2.putText(tview, str(len(self.thermal_points)), (x + 8, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                                (0, 255, 0), 2)
 
-            while len(self.thermal_points) < n_points:
-                cv2.waitKey(1)
+            def click_rgb(event, x, y, flags, param):
+                if event == cv2.EVENT_LBUTTONDOWN and len(self.rgb_points) < n_points:
+                    self.rgb_points.append([x, y])
+                    cv2.circle(rview, (x, y), 5, (0, 255, 0), -1)
+                    cv2.putText(rview, str(len(self.rgb_points)), (x + 8, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                                (0, 255, 0), 2)
 
-            cv2.waitKey(0)
-            cv2.destroyWindow('Thermal - Click Points')
-
-            # Select corresponding points in RGB
-            rgb_display = rgb_frame.copy()
-            cv2.imshow('RGB - Click Points', rgb_display)
-            cv2.setMouseCallback('RGB - Click Points', click_rgb, rgb_display)
-
-            logger.info(f"Click the SAME {n_points} points in RGB image (in same order), then press any key")
-
-            while len(self.rgb_points) < n_points:
-                cv2.waitKey(1)
-
-            cv2.waitKey(0)
-            cv2.destroyWindow('RGB - Click Points')
-
-            # Compute homography
-            pts_thermal = np.float32(self.thermal_points)
-            pts_rgb = np.float32(self.rgb_points)
-
-            self.homography_matrix, _ = cv2.findHomography(pts_rgb, pts_thermal)
-
-            if self.homography_matrix is None:
-                logger.error("Failed to compute homography")
-                return False
-
-            logger.info("Manual calibration successful!")
-            logger.info(f"Homography matrix:\n{self.homography_matrix}")
-            self.calibration_complete = True
-
-            return True
-
+            for name, view, cb, pts in (("Thermal - click points in order", tview, click_thermal, self.thermal_points),
+                                        ("RGB - click the SAME points in the same order", rview, click_rgb, self.rgb_points)):
+                cv2.namedWindow(name)
+                cv2.setMouseCallback(name, cb)
+                while len(pts) < n_points:
+                    cv2.imshow(name, view)
+                    if cv2.waitKey(50) & 0xFF == 27:
+                        cv2.destroyAllWindows()
+                        return False
+                cv2.destroyWindow(name)
+            return self._finish(np.float32(self.rgb_points), np.float32(self.thermal_points), "manual",
+                                thermal_frame, rgb_frame, ransac=False)
         except Exception as e:
             logger.error(f"Manual calibration error: {e}")
             return False
 
-    def test_calibration(self, thermal_frame: np.ndarray,
-                        rgb_frame: np.ndarray) -> np.ndarray:
-        """
-        Test calibration by warping RGB to match thermal
+    # ------------------------------------------------------------------ check / persistence
 
-        Args:
-            thermal_frame: Thermal frame (reference)
-            rgb_frame: RGB frame to warp
+    def warp_rgb(self, thermal_frame: np.ndarray, rgb_frame: np.ndarray) -> np.ndarray:
+        h, w = thermal_frame.shape[:2]
+        return cv2.warpPerspective(rgb_frame, self.homography_matrix, (w, h))
 
-        Returns:
-            Side-by-side comparison (thermal | warped RGB)
-        """
+    def test_calibration(self, thermal_frame: np.ndarray, rgb_frame: np.ndarray) -> np.ndarray:
+        """Side-by-side check: thermal | warped RGB."""
+        thermal_bgr = cv2.cvtColor(to_gray8(thermal_frame), cv2.COLOR_GRAY2BGR) if thermal_frame.ndim == 2 or \
+            thermal_frame.dtype != np.uint8 else thermal_frame
         if not self.calibration_complete or self.homography_matrix is None:
             logger.error("No calibration available")
-            return np.hstack([thermal_frame, rgb_frame])
-
+            return np.hstack([thermal_bgr, cv2.resize(rgb_frame, thermal_bgr.shape[1::-1])])
         try:
-            # Warp RGB to thermal coordinate system
-            h, w = thermal_frame.shape[:2]
-            rgb_warped = cv2.warpPerspective(rgb_frame, self.homography_matrix, (w, h))
-
-            # Create side-by-side comparison
-            comparison = np.hstack([thermal_frame, rgb_warped])
-
-            # Add labels
-            cv2.putText(comparison, "THERMAL", (10, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            cv2.putText(comparison, "RGB (WARPED)", (w + 10, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
-            return comparison
-
+            warped = self.warp_rgb(thermal_bgr, rgb_frame)
+            h, w = thermal_bgr.shape[:2]
+            out = np.hstack([thermal_bgr, warped])
+            cv2.putText(out, "THERMAL", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(out, "RGB (WARPED)", (w + 10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            return out
         except Exception as e:
             logger.error(f"Test calibration error: {e}")
-            return np.hstack([thermal_frame, rgb_frame])
+            return thermal_bgr
 
-    def save_calibration(self, filename: str) -> bool:
-        """
-        Save calibration to file
-
-        Args:
-            filename: Output JSON file path
-
-        Returns:
-            True if successful
-        """
+    def save_calibration(self, filename: str, working_distance_m: Optional[float] = None) -> bool:
+        """Write the JSON FusionProcessor.load_calibration reads. working_distance_m is the distance to the plane the
+        calibration images showed: needed so parallax correction and this homography can be used together."""
         if not self.calibration_complete or self.homography_matrix is None:
             logger.error("No calibration to save")
             return False
-
         try:
-            calib_data = {
-                'homography': self.homography_matrix.tolist(),
-                'timestamp': time.time()
+            data = {
+                "homography": np.asarray(self.homography_matrix).tolist(),
+                "timestamp": time.time(),
+                "working_distance_m": float(working_distance_m) if working_distance_m else None,
+                "thermal_shape": list(self.thermal_shape) if self.thermal_shape else None,
+                "rgb_shape": list(self.rgb_shape) if self.rgb_shape else None,
+                **{k: v for k, v in self.quality.items()},
             }
-
-            with open(filename, 'w') as f:
-                json.dump(calib_data, f, indent=2)
-
+            data = {k: v for k, v in data.items() if v is not None}
+            with open(filename, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
             logger.info(f"Calibration saved to {filename}")
             return True
-
         except Exception as e:
             logger.error(f"Failed to save calibration: {e}")
             return False
 
     def load_calibration(self, filename: str) -> bool:
-        """
-        Load calibration from file
-
-        Args:
-            filename: Input JSON file path
-
-        Returns:
-            True if successful
-        """
         try:
-            with open(filename) as f:
-                calib_data = json.load(f)
-
-            self.homography_matrix = np.array(calib_data['homography'], dtype=np.float32)
+            with open(filename, encoding="utf-8") as f:
+                data = json.load(f)
+            self.homography_matrix = np.array(data["homography"], dtype=np.float32)
+            self.thermal_shape = tuple(data["thermal_shape"]) if data.get("thermal_shape") else None
+            self.rgb_shape = tuple(data["rgb_shape"]) if data.get("rgb_shape") else None
+            self.quality = {k: data[k] for k in ("method", "points", "inliers", "rms_px") if k in data}
             self.calibration_complete = True
-
-            logger.info(f"Calibration loaded from {filename}")
-            logger.info(f"Homography matrix:\n{self.homography_matrix}")
             return True
-
         except Exception as e:
             logger.error(f"Failed to load calibration: {e}")
             return False
 
 
-def calibration_wizard(thermal_cam: Any, rgb_cam: Any, output_file: str = "camera_calibration.json") -> None:
-    """
-    Interactive calibration wizard
+# ---------------------------------------------------------------------- command line
 
-    Args:
-        thermal_cam: Thermal camera object (with read() method) - duck-typed,
-            no shared base class across this project's camera backends
-        rgb_cam: RGB camera object (with read() method) - duck-typed, same as above
-        output_file: Output calibration file path
-    """
-    print("="*60)
-    print("CAMERA CALIBRATION WIZARD")
-    print("="*60)
+def _read(path: str) -> np.ndarray:
+    img = cv2.imread(path, cv2.IMREAD_UNCHANGED)           # keeps 16-bit radiometric PNG/TIFF as 16-bit
+    if img is None:
+        raise FileNotFoundError(f"Cannot read image: {path}")
+    return img
 
-    calibrator = CameraCalibrator()
 
-    print("\nCalibration Methods:")
-    print("1. Checkerboard (recommended - most accurate)")
-    print("2. Feature Matching (automatic, works with natural scenes)")
-    print("3. Manual Point Selection (flexible, works anywhere)")
+def main(argv=None) -> int:
+    p = argparse.ArgumentParser(
+        prog="python -m thermal_inspection.cameras.camera_calibration",
+        description="Compute the RGB->thermal alignment homography from a pair of snapshots of the same scene.")
+    p.add_argument("--thermal", required=True, help="thermal snapshot (8-bit or 16-bit)")
+    p.add_argument("--rgb", required=True, help="RGB snapshot taken at the same moment")
+    p.add_argument("--distance", type=float, required=True, metavar="METERS",
+                   help="distance from the cameras to the flat plane/target the images show (recorded in the file)")
+    p.add_argument("--method", choices=["checkerboard", "features"], default="features")
+    p.add_argument("--checkerboard", default="9x6", metavar="CxR", help="internal corners, e.g. 9x6 (default)")
+    p.add_argument("--edges", action="store_true", help="match features on gradient magnitude (thermal vs visible)")
+    p.add_argument("--out", default="camera_calibration.json", help="output JSON (default: camera_calibration.json)")
+    p.add_argument("--preview", metavar="PNG", help="write a thermal | warped-RGB check image")
+    p.add_argument("--max-rms", type=float, default=DEFAULT_MAX_RMS_PX, metavar="PX",
+                   help=f"refuse to save a fit with a larger RMS error (default {DEFAULT_MAX_RMS_PX} px)")
+    args = p.parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    while True:
-        choice = input("\nSelect method (1/2/3): ").strip()
-        if choice in ['1', '2', '3']:
-            break
-        print("Invalid choice!")
+    if args.distance <= 0:
+        p.error("--distance must be positive")
+    try:
+        thermal, rgb = _read(args.thermal), _read(args.rgb)
+    except FileNotFoundError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 2
 
-    # Capture frames
-    print("\nCapturing frames...")
-    ret_thermal, thermal_frame = thermal_cam.read()
-    ret_rgb, rgb_frame = rgb_cam.read()
-
-    if not ret_thermal or not ret_rgb:
-        print("ERROR: Failed to capture frames!")
-        return False
-
-    print(f"Thermal frame: {thermal_frame.shape}")
-    print(f"RGB frame: {rgb_frame.shape}")
-
-    # Show frames
-    cv2.imshow("Thermal Frame", thermal_frame)
-    cv2.imshow("RGB Frame", rgb_frame)
-    cv2.waitKey(1000)
-
-    # Run calibration
-    success = False
-
-    if choice == '1':
-        print("\nUsing CHECKERBOARD calibration")
-        print("Ensure both cameras can see the checkerboard clearly")
-        print("Default: 9x6 internal corners")
-        input("Press Enter when ready...")
-
-        success = calibrator.calibrate_with_checkerboard(thermal_frame, rgb_frame)
-
-    elif choice == '2':
-        print("\nUsing FEATURE MATCHING calibration")
-        print("Ensure both cameras see the same scene with distinctive features")
-        input("Press Enter to start...")
-
-        success = calibrator.calibrate_with_features(thermal_frame, rgb_frame)
-
-    elif choice == '3':
-        print("\nUsing MANUAL calibration")
-        print("You will click 4+ corresponding points in both images")
-        print("Choose distinctive features visible in both cameras")
-        input("Press Enter to start...")
-
-        success = calibrator.calibrate_manual(thermal_frame, rgb_frame, n_points=4)
-
-    if success:
-        print("\n✓ Calibration successful!")
-
-        # Test calibration
-        print("\nTesting calibration...")
-        test_result = calibrator.test_calibration(thermal_frame, rgb_frame)
-        cv2.imshow("Calibration Test (Thermal | Warped RGB)", test_result)
-        print("Press any key to continue...")
-        cv2.waitKey(0)
-
-        # Save calibration
-        if calibrator.save_calibration(output_file):
-            print(f"\n✓ Calibration saved to: {output_file}")
-            print("\nYou can now use this calibration file with fusion_processor.py")
-            return True
-        else:
-            print("\n✗ Failed to save calibration")
-            return False
+    cal = CameraCalibrator()
+    if args.method == "checkerboard":
+        try:
+            cols, rows = (int(v) for v in args.checkerboard.lower().split("x"))
+        except ValueError:
+            p.error("--checkerboard must look like 9x6")
+        ok = cal.calibrate_with_checkerboard(thermal, rgb, (cols, rows))
     else:
-        print("\n✗ Calibration failed!")
+        ok = cal.calibrate_with_features(thermal, rgb, use_edges=args.edges)
+    if not ok:
+        print("ERROR: calibration failed - no usable correspondence between the two images "
+              "(try --edges, --method checkerboard, or a scene with more structure).", file=sys.stderr)
+        return 1
+
+    q = cal.quality
+    print(f"Fit: {q['inliers']}/{q['points']} points, RMS error {q['rms_px']:.2f} px (thermal pixels)")
+    if args.preview:
+        cv2.imwrite(args.preview, cal.test_calibration(thermal, rgb))
+        print(f"Check image written to {args.preview}")
+    if q["rms_px"] > args.max_rms:
+        print(f"ERROR: RMS {q['rms_px']:.2f} px exceeds --max-rms {args.max_rms:g}: not saved.", file=sys.stderr)
+        return 1
+    if not cal.save_calibration(args.out, working_distance_m=args.distance):
+        return 1
+    print(f"Saved {args.out} (calibrated at {args.distance:g} m).\n"
+          f"Use it with:  python -m thermal_inspection --calibration-file {args.out}")
+    return 0
+
+
+def calibration_wizard(thermal_cam: Any, rgb_cam: Any, output_file: str = "camera_calibration.json",
+                       working_distance_m: Optional[float] = None) -> bool:
+    """Interactive wizard for live cameras (objects with a read() method). Prefer the command line on snapshots; this
+    exists for scripting against already-open cameras."""
+    print("=" * 60 + "\nCAMERA CALIBRATION WIZARD\n" + "=" * 60)
+    if working_distance_m is None:
+        while True:
+            try:
+                working_distance_m = float(input("Distance to the target in metres: ").strip())
+                if working_distance_m > 0:
+                    break
+            except ValueError:
+                pass
+            print("Enter a positive number.")
+    cal = CameraCalibrator()
+    choice = ""
+    while choice not in ("1", "2", "3"):
+        choice = input("Method: 1 checkerboard, 2 feature matching, 3 manual points: ").strip()
+    ok_t, thermal = thermal_cam.read()
+    ok_r, rgb = rgb_cam.read()
+    if not ok_t or not ok_r:
+        print("ERROR: failed to capture frames")
         return False
+    input("Press Enter when both cameras see the target...")
+    ok = (cal.calibrate_with_checkerboard(thermal, rgb) if choice == "1"
+          else cal.calibrate_with_features(thermal, rgb, use_edges=True) if choice == "2"
+          else cal.calibrate_manual(thermal, rgb))
+    if not ok:
+        print("Calibration failed")
+        return False
+    print(f"RMS error {cal.quality['rms_px']:.2f} px")
+    cv2.imshow("Calibration check (thermal | warped RGB)", cal.test_calibration(thermal, rgb))
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    return cal.save_calibration(output_file, working_distance_m=working_distance_m)
 
 
 if __name__ == "__main__":
-    """Test calibration with synthetic data"""
-    print("="*60)
-    print("Camera Calibration Test (Synthetic Data)")
-    print("="*60)
-
-    # Create synthetic frames
-    thermal = np.random.randint(0, 255, (512, 640, 3), dtype=np.uint8)
-    rgb = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
-
-    # Draw test pattern
-    for i in range(5):
-        for j in range(5):
-            x, y = 100 + i*100, 100 + j*80
-            cv2.circle(thermal, (x, y), 10, (0, 255, 0), -1)
-            cv2.circle(rgb, (x+10, y+5), 10, (0, 255, 0), -1)  # Slight offset
-
-    print("\nTesting manual calibration...")
-    calibrator = CameraCalibrator()
-
-    # Simulate manual point selection
-    calibrator.thermal_points = [[100, 100], [500, 100], [500, 400], [100, 400]]
-    calibrator.rgb_points = [[110, 105], [510, 105], [510, 405], [110, 405]]
-
-    pts_thermal = np.float32(calibrator.thermal_points)
-    pts_rgb = np.float32(calibrator.rgb_points)
-    calibrator.homography_matrix, _ = cv2.findHomography(pts_rgb, pts_thermal)
-    calibrator.calibration_complete = True
-
-    print("Homography matrix:")
-    print(calibrator.homography_matrix)
-
-    # Test calibration
-    result = calibrator.test_calibration(thermal, rgb)
-    cv2.imshow("Calibration Test", result)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
-    # Save/load test
-    calibrator.save_calibration("test_calibration.json")
-    calibrator2 = CameraCalibrator()
-    calibrator2.load_calibration("test_calibration.json")
-
-    print("\nTest complete!")
+    sys.exit(main())

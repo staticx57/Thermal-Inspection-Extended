@@ -52,7 +52,6 @@ from pathlib import Path
 # Import camera registry for tracking camera roles
 from thermal_inspection.cameras.camera_registry import get_camera_registry, CameraRole
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Try importing Spinnaker/PySpin for FLIR Firefly

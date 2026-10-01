@@ -12,15 +12,16 @@ from dataclasses import dataclass
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
+logger = logging.getLogger(__name__)
+
 try:
     import vpi
     VPI_AVAILABLE = True
 except ImportError:
+    # VPI is NVIDIA Jetson-only: not having it is the normal case on a PC, so this is debug-level, and it must go
+    # through the module logger (a root-level logging.warning() call here silently configured the root logger at import)
     VPI_AVAILABLE = False
-    logging.warning("VPI not available - using OpenCV fallback")
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+    logger.debug("VPI not available - using OpenCV fallback")
 
 
 @dataclass

@@ -38,7 +38,9 @@ psutil>=5.9.0               # System and process utilities
 # ============================================================================
 # Camera Interfaces & Hardware Communication
 # ============================================================================
-flirpy>=0.3.0               # FLIR Boson support (flirpy.camera.boson, used by thermal_inspection.sdk.boson_flirpy_ext)
+flirpy>=0.3.0               # FLIR Boson support (flirpy.camera.boson, used by thermal_inspection.sdk.boson_flirpy_ext).
+                            # Verified with 0.3.0 (2021) only. 0.6.x (April 2026) is untested here: it needs
+                            # opencv-python-headless, which overwrites opencv-python's cv2 - use one OpenCV wheel only.
 setuptools<81               # flirpy imports pkg_resources, which setuptools 81+ removes
 pyserial>=3.5               # Serial port communication for FLIR Boson (921600 baud) and FLIR Tau 2 (57600 baud) CCI protocols
 pygrabber>=0.2; sys_platform == "win32"      # Native Windows DirectShow device enumeration & probing (Windows only)

@@ -1037,6 +1037,12 @@ class ParallaxCompensator:
         compute_disparity_rgb(), applied to a single scalar distance
         instead of a per-pixel depth map.
         """
+        return int(round(self.geometric_shift_px_at(working_distance_m)))
+
+    def geometric_shift_px_at(self, working_distance_m: float) -> float:
+        """The same shift as compute_geometric_shift_px(), unrounded. This is the baseline parallax the depth-based
+        correction applies to a subject at working_distance_m (signed, in the pixel space of the frame
+        correction_target warps) - what a static homography calibrated at that distance has already absorbed."""
         working_distance_m = max(MIN_VALID_DEPTH_M, float(working_distance_m))
         if self.correction_target == "rgb":
             focal_px = (self.geometry.rgb_focal_length_mm /
@@ -1049,7 +1055,7 @@ class ParallaxCompensator:
                       self.geometry.thermal_resolution[0])
             sign = 1.0
         disparity_px = (self.geometry.baseline_mm * focal_px) / (working_distance_m * 1000.0)
-        return int(round(sign * disparity_px))
+        return float(sign * disparity_px)
 
     # Candidate FOV crop-zoom factors tried when searching for the scale
     # that best registers the two cameras' real images (see

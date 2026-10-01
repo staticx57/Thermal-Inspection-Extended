@@ -8,7 +8,6 @@ import numpy as np
 from typing import Optional, Tuple
 import logging
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Optional: Boson SDK integration for advanced control

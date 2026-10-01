@@ -27,7 +27,6 @@ from .materials import (
 )
 
 # Migrated modules from Phase 5
-from .preset_manager import PresetManager
 from .thermal_estimator import ThermalTemperatureEstimator
 from .radiometric_calibration import RadiometricCalibrator
 from .spot_meter_exporter import SpotMeterExporter
@@ -56,7 +55,6 @@ __all__ = [
     'Material', 'MATERIALS', 'DEFAULT_EMISSIVITY',
     'get_materials_by_category', 'get_material', 'get_material_keys',
     # Phase 5 modules
-    'PresetManager',
     'ThermalTemperatureEstimator',
     'RadiometricCalibrator',
     'SpotMeterExporter',

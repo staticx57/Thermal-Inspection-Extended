@@ -19,7 +19,6 @@ import logging
 import time
 from typing import Tuple, Optional
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Warmup budget for a freshly opened camera. Webcams deliver readable but

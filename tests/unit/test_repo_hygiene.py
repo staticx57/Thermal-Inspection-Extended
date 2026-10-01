@@ -53,3 +53,27 @@ def test_running_the_tests_leaves_no_untracked_clutter():
     untracked = [ln[3:] for ln in git("status", "--short", "--untracked-files=all").stdout.splitlines() if ln.startswith("??")]
     clutter = [u for u in untracked if u.endswith((".log", ".ply", ".npz", ".avi", ".mp4", ".csv", ".png", ".pyc"))]
     assert not clutter, clutter
+
+
+def test_importing_the_package_does_not_configure_logging():
+    """Nine library modules used to call logging.basicConfig(level=INFO) at import time, so merely importing the package
+    reconfigured the root logger (and made the CLI's own setup unreliable). Only cli.configure_logging may do that."""
+    import sys
+    code = ("import logging, thermal_inspection.app, thermal_inspection.gui.main_window; "
+            "r = logging.getLogger(); print(len(r.handlers), r.level)")
+    out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, timeout=120,
+                         env={**os.environ, "QT_QPA_PLATFORM": "offscreen"})
+    last = out.stdout.strip().splitlines()[-1]
+    assert last == "0 30", f"root logger was configured at import (handlers, level) = {last!r}; stderr: {out.stderr[-300:]}"
+
+
+def test_no_module_level_basicconfig_in_the_package():
+    import re
+    offenders = []
+    for d, _, files in os.walk(os.path.join(ROOT, "thermal_inspection")):
+        for f in files:
+            if f.endswith(".py") and f != "cli.py":
+                p = os.path.join(d, f)
+                if re.search(r"(?m)^logging\.basicConfig\(", open(p, encoding="utf-8", errors="ignore").read()):
+                    offenders.append(os.path.relpath(p, ROOT))
+    assert not offenders, offenders

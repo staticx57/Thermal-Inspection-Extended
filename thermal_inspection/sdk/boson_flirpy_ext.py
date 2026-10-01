@@ -48,6 +48,30 @@ from flirpy.camera.boson import Boson
 
 logger = logging.getLogger(__name__)
 
+
+def check_flirpy_compatibility() -> list:
+    """BosonNative relies on two PRIVATE flirpy methods (_send_packet / _decode_packet), which upstream has kept
+    unchanged through 0.6.x but does not promise. Returns a list of problems (empty = compatible) so a flirpy upgrade
+    that changes them is reported clearly instead of failing deep inside a CCI call."""
+    import inspect
+    problems = []
+    expected = {"_send_packet": ["function_id", "data", "receive_size"], "_decode_packet": ["data", "receive_size"]}
+    for name, params in expected.items():
+        fn = getattr(Boson, name, None)
+        if fn is None:
+            problems.append(f"flirpy Boson has no {name}")
+            continue
+        have = [p for p in inspect.signature(fn).parameters if p != "self"]
+        if have[:len(params)] != params:
+            problems.append(f"flirpy Boson.{name}{tuple(have)} != expected {tuple(params)}")
+    return problems
+
+
+_problems = check_flirpy_compatibility()
+if _problems:
+    logger.warning("Installed flirpy is not compatible with BosonNative (%s); radiometric/gain/FFC commands will fail. "
+                   "requirements.txt pins the version this was verified with.", "; ".join(_problems))
+
 # SYSCTRL / gain
 _FID_GET_GAIN_MODE = 0x00050015
 _FID_SET_GAIN_MODE = 0x00050014
