@@ -2,7 +2,9 @@
 Data models for camera state and configuration.
 """
 from typing import Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from thermal_inspection.utils.paths import default_serial_port
 
 @dataclass
 class CameraState:
@@ -29,4 +31,4 @@ class CameraConfig:
     height: int = 512
     thermal_backend: str = 'opencv'
     enable_boson_sdk: bool = True
-    boson_com_port: str = 'COM7'
+    boson_com_port: str = field(default_factory=default_serial_port)

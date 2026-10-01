@@ -269,11 +269,11 @@ class RadiometricPanel(QWidget):
         estimation_layout.addWidget(self.apply_scene_range_btn)
 
         # Calibration section
-        calib_label = QLabel("Calibration:")
+        calib_label = QLabel("Estimate offset (the Temp Calibration tab is for 16-bit readings):")
         calib_label.setStyleSheet("font-weight: bold; margin-top: 8px;")
         estimation_layout.addWidget(calib_label)
 
-        self.single_point_calib_btn = QPushButton("Single-Point Calibration")
+        self.single_point_calib_btn = QPushButton("Single-Point Offset")
         self.single_point_calib_btn.setToolTip(
             "Calibrate using one known temperature reference\n"
             "(e.g., ice water = 0°C, room temp = 22°C)"
@@ -282,7 +282,7 @@ class RadiometricPanel(QWidget):
         self.single_point_calib_btn.clicked.connect(self.calibrate_single_point_requested.emit)
         estimation_layout.addWidget(self.single_point_calib_btn)
 
-        self.two_point_calib_btn = QPushButton("Two-Point Calibration")
+        self.two_point_calib_btn = QPushButton("Two-Point Offset")
         self.two_point_calib_btn.setToolTip(
             "Calibrate using hot and cold references\n"
             "(e.g., ice water = 0°C, boiling water = 100°C)"

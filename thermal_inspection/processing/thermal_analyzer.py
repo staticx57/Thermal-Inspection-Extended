@@ -264,6 +264,9 @@ class ThermalAnalyzer:
         self.last_frame_stats: Dict[str, ThermalStatistics] = {}
         self.calibration_offset = self.config.get("calibration_offset", 0.0)
         self.calibration_scale = self.config.get("calibration_scale", 1.0)
+        # Optional Celsius -> Celsius correction (the reference-point calibration from the Temp Calibration tab),
+        # applied wherever this analyzer turns Y16 counts into temperatures. None = readings are uncorrected.
+        self.temperature_correction = None
 
         # Background modeling for anomaly detection
         self.background_model: Optional[np.ndarray] = None
@@ -398,6 +401,8 @@ class ThermalAnalyzer:
             if thermal_frame.dtype == np.uint16:
                 # Y16 format: Kelvin * 100 -> Celsius
                 temp_array = (thermal_frame.astype(np.float32) / 100.0) - 273.15
+                if self.temperature_correction is not None:
+                    temp_array = np.asarray(self.temperature_correction(temp_array), dtype=np.float32)
             else:
                 # 8-bit frame: use raw values (0-255 range)
                 temp_array = thermal_frame.astype(np.float32)
@@ -427,7 +432,10 @@ class ThermalAnalyzer:
         Returns:
             Temperature in Celsius
         """
-        return (value / 100.0) - 273.15
+        temp_c = (value / 100.0) - 273.15
+        if self.temperature_correction is not None:
+            temp_c = float(self.temperature_correction(temp_c))
+        return temp_c
 
     def _estimated_map(self, thermal_frame: np.ndarray) -> Optional[np.ndarray]:
         """

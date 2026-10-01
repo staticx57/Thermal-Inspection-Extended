@@ -20,8 +20,9 @@ METHODS = ("features", "edges", "checkerboard")
 
 
 def default_calibration_path() -> str:
-    """The auto-saved calibration lives next to config.json (the project/working directory)."""
-    return os.path.abspath(DEFAULT_FILENAME)
+    """The auto-saved calibration lives next to config.json (see utils/paths.py for where that is)."""
+    from thermal_inspection.utils.paths import data_path
+    return str(data_path(DEFAULT_FILENAME))
 
 
 class AlignmentCalibrationManager:

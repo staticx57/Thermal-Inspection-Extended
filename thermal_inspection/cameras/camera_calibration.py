@@ -18,7 +18,7 @@ Command line (no cameras needed, works on saved snapshots):
         --method features --out calibration.json --preview check.png
 
 Methods: `checkerboard` (most accurate; the pattern must be visible to BOTH cameras - a printed pattern is invisible to a
-thermal camera unless it is heated or has contrasting emissivity), `features` (ORB matches; use --edges for the
+thermal camera unless it is heated or has contrasting emissivity), `features` (SIFT matches; use --edges for the
 cross-modal case, where raw brightness differs between a thermal and a visible image), `manual` (click points).
 """
 import argparse
@@ -157,25 +157,31 @@ class CameraCalibrator:
 
     def calibrate_with_features(self, thermal_frame: np.ndarray, rgb_frame: np.ndarray,
                                 min_matches: int = MIN_INLIERS, use_edges: bool = False,
-                                n_features: int = 1500) -> bool:
-        """Calibrate from ORB feature matches between the two images of the same scene. use_edges matches on gradient
+                                n_features: int = 2000) -> bool:
+        """Calibrate from SIFT feature matches between the two images of the same scene. use_edges matches on gradient
         magnitude instead of brightness, which is what makes thermal-vs-visible matching workable."""
         try:
             tg, rg = to_gray8(thermal_frame), to_gray8(rgb_frame)
             if use_edges:
                 tg, rg = edge_image(tg), edge_image(rg)
-            orb = cv2.ORB_create(nfeatures=n_features)
-            kp_t, des_t = orb.detectAndCompute(tg, None)
-            kp_r, des_r = orb.detectAndCompute(rg, None)
-            if des_t is None or des_r is None:
+            # SIFT (scale- and rotation-invariant) rather than ORB: the two cameras have different focal lengths and
+            # resolutions, so the same feature appears at a different scale in each image, which ORB matched poorly
+            # (7 inliers on a 1.5x scale difference where SIFT finds >1000). Lowe's ratio test keeps only unambiguous
+            # matches; RANSAC in _finish removes the rest.
+            if hasattr(cv2, "SIFT_create"):
+                det, norm, ratio = cv2.SIFT_create(nfeatures=n_features), cv2.NORM_L2, 0.8
+            else:
+                det, norm, ratio = cv2.ORB_create(nfeatures=n_features), cv2.NORM_HAMMING, 0.8
+            kp_t, des_t = det.detectAndCompute(tg, None)
+            kp_r, des_r = det.detectAndCompute(rg, None)
+            if des_t is None or des_r is None or len(kp_t) < 2 or len(kp_r) < 2:
                 logger.error("Failed to detect features")
                 return False
-            matches = sorted(cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True).match(des_r, des_t),
-                             key=lambda m: m.distance)
-            if len(matches) < min_matches:
-                logger.error(f"Not enough matches: {len(matches)} < {min_matches}")
+            pairs = cv2.BFMatcher(norm).knnMatch(des_r, des_t, k=2)
+            good = [m for m, n in (p for p in pairs if len(p) == 2) if m.distance < ratio * n.distance]
+            if len(good) < min_matches:
+                logger.error(f"Not enough matches: {len(good)} < {min_matches}")
                 return False
-            good = matches[:min(150, len(matches))]
             pts_r = np.float32([kp_r[m.queryIdx].pt for m in good]).reshape(-1, 2)
             pts_t = np.float32([kp_t[m.trainIdx].pt for m in good]).reshape(-1, 2)
             return self._finish(pts_r, pts_t, "features-edges" if use_edges else "features", thermal_frame, rgb_frame,

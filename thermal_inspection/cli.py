@@ -36,8 +36,9 @@ def build_parser():
     # Boson SDK settings
     parser.add_argument('--enable-boson-sdk', action='store_true',
                        help='Enable FLIR Boson SDK for serial control (FFC, gain, temperature)')
-    parser.add_argument('--boson-com-port', type=str, default='COM7',
-                       help='Boson COM port for SDK control (default: COM7)')
+    from thermal_inspection.utils.paths import default_serial_port
+    parser.add_argument('--boson-com-port', type=str, default=default_serial_port(),
+                       help=f'Boson serial port for SDK control (default for this OS: {default_serial_port()})')
 
     # Deprecated: each camera plugin now picks its own backend based on
     # actual hardware capability (e.g. BosonPlugin probes the -R part number

@@ -1,7 +1,8 @@
 """
 Radiometric Controller for Thermal Inspection application.
 
-Manages radiometric temperature measurement settings and calibration.
+Manages radiometric temperature measurement settings. (Reference-point temperature calibration lives in
+core/calibration_manager.py; this controller no longer keeps a second, unused copy of it.)
 Extracted from ThermalInspectionFusion class in inspection_main.py.
 """
 
@@ -40,7 +41,6 @@ class RadiometricState:
     min_temp: float = -40.0
     max_temp: float = 150.0
     estimation_enabled: bool = False
-    calibration_enabled: bool = False
     sdk_connected: bool = False
 
 
@@ -54,15 +54,6 @@ class EnvironmentalParams:
     reflected_temp: float = 20.0  # Celsius
 
 
-@dataclass
-class CalibrationPoint:
-    """Single calibration point."""
-    agc_value: int
-    reference_temp: float
-    x: int = 0
-    y: int = 0
-
-
 class RadiometricController:
     """
     Manages radiometric temperature measurement settings.
@@ -73,8 +64,7 @@ class RadiometricController:
     - Temperature range settings
     - Environmental parameters
     - 8-bit estimation settings
-    - Calibration management
-
+    
     Usage:
         controller = RadiometricController()
         controller.set_thermal_camera(camera)
@@ -89,7 +79,6 @@ class RadiometricController:
         """Initialize RadiometricController."""
         self.state = RadiometricState()
         self.environmental = EnvironmentalParams()
-        self.calibration_points: list = []
 
         # External instances (set by main app)
         self.thermal_camera = None
@@ -98,7 +87,6 @@ class RadiometricController:
         # Callbacks
         self.on_state_change: Optional[Callable[[RadiometricState], None]] = None
         self.on_temperature_update: Optional[Callable[[Dict[str, float]], None]] = None
-        self.on_calibration_changed: Optional[Callable[[list], None]] = None
 
     def set_thermal_camera(self, camera):
         """
@@ -306,71 +294,6 @@ class RadiometricController:
         logger.info(f"8-bit temperature estimation {'enabled' if enabled else 'disabled'}")
         self._notify_state_change()
 
-    # Calibration
-    def add_calibration_point(self, agc_value: int, reference_temp: float, x: int = 0, y: int = 0):
-        """
-        Add a calibration point.
-
-        Args:
-            agc_value: AGC pixel value (0-255)
-            reference_temp: Known reference temperature
-            x, y: Optional pixel coordinates
-        """
-        point = CalibrationPoint(
-            agc_value=agc_value,
-            reference_temp=reference_temp,
-            x=x,
-            y=y
-        )
-        self.calibration_points.append(point)
-
-        logger.info(f"Added calibration point: AGC={agc_value}, Temp={reference_temp:.1f}°C")
-
-        if self.on_calibration_changed:
-            self.on_calibration_changed(self.calibration_points)
-
-    def remove_calibration_point(self, index: int) -> bool:
-        """
-        Remove a calibration point by index.
-
-        Args:
-            index: Index of point to remove
-
-        Returns:
-            True if removed
-        """
-        if 0 <= index < len(self.calibration_points):
-            self.calibration_points.pop(index)
-
-            if self.on_calibration_changed:
-                self.on_calibration_changed(self.calibration_points)
-
-            return True
-        return False
-
-    def clear_calibration(self):
-        """Clear all calibration points."""
-        self.calibration_points.clear()
-        self.state.calibration_enabled = False
-
-        if self.on_calibration_changed:
-            self.on_calibration_changed(self.calibration_points)
-
-        logger.info("Calibration cleared")
-        self._notify_state_change()
-
-    def set_calibration_enabled(self, enabled: bool):
-        """
-        Enable/disable calibration application.
-
-        Args:
-            enabled: True to apply calibration
-        """
-        self.state.calibration_enabled = enabled
-        logger.info(f"Calibration {'enabled' if enabled else 'disabled'}")
-        self._notify_state_change()
-
-    # Temperature conversion utilities
     def celsius_to_fahrenheit(self, celsius: float) -> float:
         """Convert Celsius to Fahrenheit."""
         return celsius * 9.0 / 5.0 + 32.0
@@ -438,11 +361,6 @@ class RadiometricController:
     def is_radiometric(self) -> bool:
         """Check if radiometric mode is active."""
         return self.state.enabled and self.state.capable
-
-    @property
-    def has_calibration(self) -> bool:
-        """Check if calibration points exist."""
-        return len(self.calibration_points) > 0
 
     @property
     def unit(self) -> TemperatureUnit:

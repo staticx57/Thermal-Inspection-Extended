@@ -58,6 +58,7 @@ class RadiometricCalibrator:
         self.calibration_method = "linear"  # "linear" or "polynomial"
         self.polynomial_degree = 2
         self.is_calibrated = False
+        self._fit_range = None      # (min, max) measured temperature the curve was fitted over
 
     def add_calibration_point(self, reference_temp: float, measured_temp: float,
                              x: int, y: int) -> CalibrationPoint:
@@ -132,8 +133,17 @@ class RadiometricCalibrator:
         self.polynomial_degree = degree
 
         # Extract measured and reference temperatures
-        measured = np.array([p.measured_temp for p in self.calibration_points])
-        reference = np.array([p.reference_temp for p in self.calibration_points])
+        measured = np.array([p.measured_temp for p in self.calibration_points], dtype=np.float64)
+        reference = np.array([p.reference_temp for p in self.calibration_points], dtype=np.float64)
+
+        # A fit needs distinct measured values: points that all read the same temperature (e.g. one reference
+        # measured twice) have no slope, and polyfit would return garbage with only a warning.
+        needed = 2 if method == "linear" else int(degree) + 1
+        distinct = np.unique(np.round(measured, 6)).size
+        if distinct < needed:
+            logger.warning(f"Need at least {needed} different measured temperatures for a {method} fit "
+                           f"(got {distinct})")
+            return False
 
         try:
             if method == "linear":
@@ -156,12 +166,29 @@ class RadiometricCalibrator:
                 logger.error(f"Unknown calibration method: {method}")
                 return False
 
+            if not np.all(np.isfinite(self.calibration_curve)):
+                self.calibration_curve = None
+                logger.error("Calibration fit produced non-finite coefficients")
+                return False
+            self._fit_range = (float(measured.min()), float(measured.max()))
             self.is_calibrated = True
             return True
 
         except Exception as e:
             logger.error(f"Error computing calibration: {e}")
             return False
+
+    def _evaluate(self, temps):
+        """The correction curve. A polynomial is only trusted over the range it was fitted on: outside it the
+        correction is held at its value at the nearest end (a degree-3+ curve otherwise swings to absurd
+        temperatures a few degrees past the last reference point). A linear fit extrapolates as a line."""
+        t = np.asarray(temps, dtype=np.float64)
+        out = np.polyval(self.calibration_curve, t)
+        if self.calibration_method == "polynomial" and self._fit_range is not None:
+            lo, hi = self._fit_range
+            edge = np.clip(t, lo, hi)
+            out = np.where((t < lo) | (t > hi), t + (np.polyval(self.calibration_curve, edge) - edge), out)
+        return out if out.ndim else float(out)
 
     def apply_calibration(self, measured_temp: float) -> float:
         """
@@ -176,9 +203,7 @@ class RadiometricCalibrator:
         if not self.is_calibrated or self.calibration_curve is None:
             return measured_temp
 
-        # Apply polynomial correction
-        corrected = np.polyval(self.calibration_curve, measured_temp)
-        return float(corrected)
+        return float(self._evaluate(measured_temp))
 
     def apply_calibration_to_frame(self, temp_frame: np.ndarray) -> np.ndarray:
         """
@@ -193,9 +218,7 @@ class RadiometricCalibrator:
         if not self.is_calibrated or self.calibration_curve is None:
             return temp_frame
 
-        # Apply polynomial correction to entire frame
-        corrected = np.polyval(self.calibration_curve, temp_frame)
-        return corrected.astype(np.float32)
+        return np.asarray(self._evaluate(temp_frame)).astype(np.float32)
 
     def get_calibration_stats(self) -> Dict:
         """
@@ -219,8 +242,14 @@ class RadiometricCalibrator:
             'mean_error': float(np.mean(errors)),
             'std_error': float(np.std(errors)),
             'max_error': float(np.max(np.abs(errors))),
-            'rmse': float(np.sqrt(np.mean(errors**2)))
+            'rmse': float(np.sqrt(np.mean(errors**2)))   # raw error: camera reading vs reference, BEFORE any fit
         }
+        if self.is_calibrated and self.calibration_curve is not None:
+            # what is left AFTER the fit is applied - the number that says how good the calibration is
+            residuals = np.array([float(self._evaluate(p.measured_temp)) - p.reference_temp
+                                  for p in self.calibration_points])
+            stats['fit_rmse'] = float(np.sqrt(np.mean(residuals ** 2)))
+            stats['fit_max_error'] = float(np.max(np.abs(residuals)))
 
         if self.is_calibrated and self.calibration_curve is not None:
             stats['coefficients'] = self.calibration_curve.tolist()
@@ -282,26 +311,24 @@ class RadiometricCalibrator:
             with open(filepath) as f:
                 data = json.load(f)
 
-            # Clear existing calibration
+            # Parse everything first so a bad file cannot leave a half-cleared calibration behind
+            points = [CalibrationPoint(
+                reference_temp=float(pd['reference_temp']),
+                measured_temp=float(pd['measured_temp']),
+                x=pd['x'], y=pd['y'],
+                timestamp=pd.get('timestamp', '')
+            ) for pd in data.get('calibration_points', [])]
+            curve = np.array(data['coefficients'], dtype=np.float64) if data.get('coefficients') is not None else None
+            calibrated = bool(data.get('is_calibrated', False)) and curve is not None
+
             self.clear_calibration_points()
-
-            # Import points
-            for point_data in data.get('calibration_points', []):
-                self.calibration_points.append(CalibrationPoint(
-                    reference_temp=point_data['reference_temp'],
-                    measured_temp=point_data['measured_temp'],
-                    x=point_data['x'],
-                    y=point_data['y'],
-                    timestamp=point_data.get('timestamp', '')
-                ))
-
-            # Import calibration curve
+            self.calibration_points.extend(points)
             self.calibration_method = data.get('method', 'linear')
             self.polynomial_degree = data.get('polynomial_degree', 2)
-            self.is_calibrated = data.get('is_calibrated', False)
-
-            if data.get('coefficients') is not None:
-                self.calibration_curve = np.array(data['coefficients'])
+            self.calibration_curve = curve
+            self.is_calibrated = calibrated
+            self._fit_range = ((min(p.measured_temp for p in points), max(p.measured_temp for p in points))
+                               if points else None)
 
             logger.info(f"Calibration imported from {filepath} ({len(self.calibration_points)} points)")
             return True

@@ -683,6 +683,8 @@ class ParallaxCompensator:
         # distance; a fixed mechanical mounting offset between the two
         # cameras doesn't vary with distance and isn't something depth
         # estimation corrects for at all - this is for that.
+        self._fixed_scale_search = False
+        self.last_auto_alignment_source = "none"   # "image" | "geometry" | "none" - how compute_auto_alignment last decided
         self.manual_shift_x = 0
         self.manual_shift_y = 0
 
@@ -1234,6 +1236,12 @@ class ParallaxCompensator:
             # spectrum, drowning out the real shift signal.
             window = cv2.createHanningWindow((thermal_w, thermal_h), cv2.CV_32F)
 
+            if self._fixed_scale_search:
+                # frames already registered by a calibration homography: the scale is settled, only the residual
+                # shift is measured (a free scale search would "correct" noise, e.g. 5% zoom on a registered pair)
+                dx, dy, conf = self._best_shift_for_scale(moving_edges, fixed_edges, window, 1.0)
+                return sign * dx, sign * dy, 1.0, float(conf)
+
             coarse_lo = float(self._FOV_SCALE_COARSE_CANDIDATES[0])
             coarse_hi = float(self._FOV_SCALE_COARSE_CANDIDATES[-1])
             coarse_step = float(self._FOV_SCALE_COARSE_CANDIDATES[1] - self._FOV_SCALE_COARSE_CANDIDATES[0])
@@ -1395,7 +1403,8 @@ class ParallaxCompensator:
                               rgb_frame: Optional[np.ndarray] = None,
                               thermal_frame: Optional[np.ndarray] = None,
                               thermal_frame_samples: Optional[List[np.ndarray]] = None,
-                              rgb_frame_samples: Optional[List[np.ndarray]] = None) -> Tuple[int, float]:
+                              rgb_frame_samples: Optional[List[np.ndarray]] = None,
+                              allow_geometry_fallback: bool = True) -> Tuple[int, float]:
         """
         One-time alignment calculation, meant to be triggered on demand
         (e.g. a GUI button), not run every frame. The result is stored as
@@ -1451,9 +1460,24 @@ class ParallaxCompensator:
                 necessary via direct testing against real hardware - see
                 that method's docstring).
 
+            allow_geometry_fallback: False when the frames given are ALREADY registered by a calibration homography
+                (the measurement is then a small residual): the baseline/FOV formula describes the whole raw offset,
+                so applying it on top would undo the calibration. When image registration is inconclusive nothing is
+                changed and last_auto_alignment_source is "none".
+
         Returns:
             (dx_px, fov_zoom_factor) - the values that were applied.
         """
+        self.last_auto_alignment_source = "image"
+        self._fixed_scale_search = not allow_geometry_fallback
+        try:
+            return self._compute_auto_alignment(working_distance_m, rgb_frame, thermal_frame, thermal_frame_samples,
+                                                rgb_frame_samples, allow_geometry_fallback)
+        finally:
+            self._fixed_scale_search = False
+
+    def _compute_auto_alignment(self, working_distance_m, rgb_frame, thermal_frame, thermal_frame_samples,
+                                rgb_frame_samples, allow_geometry_fallback):
         resolved_distance_m = working_distance_m
 
         has_multi_samples = (thermal_frame_samples and rgb_frame_samples
@@ -1481,6 +1505,11 @@ class ParallaxCompensator:
                     f"({image_dx}, {image_dy})px, FOV crop-zoom={zoom:.4f}"
                 )
                 return image_dx, zoom
+            if not allow_geometry_fallback:
+                self.last_auto_alignment_source = "none"
+                logger.info("Auto-alignment: image registration inconclusive; not applying the geometry formula on "
+                            "top of an active calibration")
+                return self.manual_shift_x, self.fov_zoom_factor
             logger.info("Auto-alignment: image-based registration inconclusive, "
                        "falling back to geometry-based calculation")
 
@@ -1522,6 +1551,10 @@ class ParallaxCompensator:
             except Exception as e:
                 logger.warning(f"Auto-alignment: depth refinement failed ({e}), using assumed distance")
 
+        if not allow_geometry_fallback:
+            self.last_auto_alignment_source = "none"
+            return self.manual_shift_x, self.fov_zoom_factor
+        self.last_auto_alignment_source = "geometry"
         dx = self.compute_geometric_shift_px(resolved_distance_m)
         zoom = self.compute_fov_crop_factor()
 

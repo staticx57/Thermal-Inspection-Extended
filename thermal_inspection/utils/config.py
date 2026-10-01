@@ -108,13 +108,17 @@ class Config:
         'alignment_calibration_enabled': True,
     }
 
-    def __init__(self, config_file: str = 'config.json'):
+    def __init__(self, config_file: Optional[str] = None):
         """
         Initialize config manager
 
         Args:
             config_file: Path to config file (relative to project root)
         """
+        if config_file is None:
+            from thermal_inspection.utils.paths import data_path
+            config_file = str(data_path('config.json'))
+            os.makedirs(os.path.dirname(config_file) or '.', exist_ok=True)
         self.config_file = config_file
         # DEFAULT_CONFIG nests mutable objects (rgb_resolution/
         # thermal_resolution lists, the serial_ports dict-of-dicts) - a

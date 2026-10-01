@@ -8,6 +8,8 @@ import cv2
 import json
 import numpy as np
 from pathlib import Path
+
+from thermal_inspection.utils.paths import data_path
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
 import logging
@@ -48,7 +50,7 @@ class VideoRecorder:
         self.roi_metadata: List[Dict] = []
 
         # Ensure output directory exists
-        output_dir = Path(config.get('output_path', 'recordings/'))
+        output_dir = data_path(config.get('output_path', 'recordings/'))
         output_dir.mkdir(parents=True, exist_ok=True)
 
     def start_recording(self, frame_shape: Tuple[int, int], fps: int = 30) -> bool:
@@ -69,7 +71,7 @@ class VideoRecorder:
         try:
             # Generate filename with timestamp
             timestamp = datetime.now().strftime(self.config.get('filename_pattern', 'inspection_%Y%m%d_%H%M%S'))
-            output_dir = Path(self.config.get('output_path', 'recordings/'))
+            output_dir = data_path(self.config.get('output_path', 'recordings/'))
             output_dir.mkdir(parents=True, exist_ok=True)
 
             self.output_path = output_dir / f"{timestamp}.avi"
@@ -460,7 +462,7 @@ class SnapshotManager:
         self.config = config
 
         # Ensure output directory exists
-        output_dir = Path(config.get('output_path', 'snapshots/'))
+        output_dir = data_path(config.get('output_path', 'snapshots/'))
         output_dir.mkdir(parents=True, exist_ok=True)
 
     def capture_snapshot(self, frame: np.ndarray,
@@ -488,7 +490,7 @@ class SnapshotManager:
         try:
             # Generate filename with timestamp
             timestamp = datetime.now().strftime(self.config.get('filename_pattern', 'snapshot_%Y%m%d_%H%M%S'))
-            output_dir = Path(self.config.get('output_path', 'snapshots/'))
+            output_dir = data_path(self.config.get('output_path', 'snapshots/'))
             output_dir.mkdir(parents=True, exist_ok=True)
 
             # Determine format

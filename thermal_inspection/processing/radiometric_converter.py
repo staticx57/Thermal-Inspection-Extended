@@ -17,7 +17,6 @@ import logging
 from typing import Optional, Dict
 from pathlib import Path
 import csv
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -34,16 +33,25 @@ class TLinearConverter:
         Initialize radiometric converter
 
         Args:
-            method: Conversion method - "linear" or "lut"
+            method: "linear" (T-Linear: Kelvin = count * kelvin_per_count, the camera's own radiometric output),
+                "lut" (TLinear lookup table file) or "range" (map the full 16-bit span onto min/max temperature -
+                only for sources that are NOT T-Linear, e.g. a scaled/AGC 16-bit stream; an estimate)
             temperature_unit: Temperature unit - "C" (Celsius), "F" (Fahrenheit), or "K" (Kelvin)
         """
         self.method = method
         self.temperature_unit = temperature_unit
         self.lut = None  # Lookup table dict: {pixel_value: temperature}
         self.lut_size = 0
+        self._lut_x = None   # the same table as sorted arrays, for vectorised interpolation (see _set_lut)
+        self._lut_y = None
 
-        # Linear conversion parameters (default for Boson 640)
-        # These are approximate and should be calibrated
+        # T-Linear: the Boson's radiometric Y16 output is temperature in Kelvin / kelvin_per_count (0.01 K per count in
+        # high-resolution mode, which is what flirpy_thermal_backend and the app's own conversions assume). A
+        # linear mapping of the whole 0..65535 span onto -40..550 C (the previous default) is NOT this: it read
+        # ~224 C for a 20 C scene and made the Temperature Range setting change the readings.
+        self.kelvin_per_count = 0.01
+
+        # Range mapping parameters (method="range" only; also the display range other widgets read)
         self.min_temp_celsius = -40.0
         self.max_temp_celsius = 550.0
         self.min_pixel_value = 0
@@ -205,7 +213,8 @@ class TLinearConverter:
 
     def set_temperature_range(self, min_temp: float, max_temp: float):
         """
-        Set expected temperature range for linear conversion
+        Set the expected temperature range. Only the "range" method converts with it; for T-Linear data it is the
+        display/scene range and does not change any reading.
 
         Args:
             min_temp: Minimum temperature in Celsius
@@ -231,6 +240,9 @@ class TLinearConverter:
             # Use calibrated parameters
             return self.calibration_slope * pixel_value + self.calibration_offset
 
+        if self.method != "range":
+            return float(pixel_value) * self.kelvin_per_count - 273.15
+
         # Normalize to 0-1
         normalized = (pixel_value - self.min_pixel_value) / (self.max_pixel_value - self.min_pixel_value)
 
@@ -249,37 +261,12 @@ class TLinearConverter:
         Returns:
             Temperature in Celsius, or None if LUT not loaded
         """
-        if self.lut is None:
+        if self.lut is None or self._lut_x is None:
             logger.warning("TLinear LUT not loaded, falling back to linear conversion")
             return self.pixel_to_temperature_linear(pixel_value)
 
-        # Direct lookup
-        if pixel_value in self.lut:
-            return self.lut[pixel_value]
-
-        # Interpolate if exact value not in LUT
-        keys = sorted(self.lut.keys())
-
-        # Clamp to LUT range
-        if pixel_value < keys[0]:
-            return self.lut[keys[0]]
-        if pixel_value > keys[-1]:
-            return self.lut[keys[-1]]
-
-        # Find surrounding values and interpolate
-        for i in range(len(keys) - 1):
-            if keys[i] <= pixel_value <= keys[i+1]:
-                # Linear interpolation
-                x0, x1 = keys[i], keys[i+1]
-                y0, y1 = self.lut[x0], self.lut[x1]
-
-                if x1 == x0:  # Avoid division by zero
-                    return y0
-
-                t = (pixel_value - x0) / (x1 - x0)
-                return y0 + t * (y1 - y0)
-
-        return None
+        # Linear interpolation inside the table, clamped to its ends
+        return float(np.interp(pixel_value, self._lut_x, self._lut_y))
 
     def pixel_to_temperature(self, pixel_value: int) -> Optional[float]:
         """
@@ -321,18 +308,13 @@ class TLinearConverter:
         temp_frame = np.zeros_like(frame_16bit, dtype=np.float32)
 
         if self.method == "lut" and self.lut is not None:
-            # Vectorized LUT lookup (optimized)
-            unique_values = np.unique(frame_16bit)
-
-            for pixel_val in unique_values:
-                mask = (frame_16bit == pixel_val)
-                temp = self.pixel_to_temperature_lut(int(pixel_val))
-                if temp is not None:
-                    temp_frame[mask] = temp
+            temp_frame = np.interp(frame_16bit, self._lut_x, self._lut_y).astype(np.float32)
         else:
             # Vectorized linear conversion
             if self.is_calibrated and self.calibration_slope is not None:
                 temp_frame = self.calibration_slope * frame_16bit.astype(np.float32) + self.calibration_offset
+            elif self.method != "range":
+                temp_frame = frame_16bit.astype(np.float32) * np.float32(self.kelvin_per_count) - np.float32(273.15)
             else:
                 normalized = (frame_16bit.astype(np.float32) - self.min_pixel_value) / (self.max_pixel_value - self.min_pixel_value)
                 temp_frame = self.min_temp_celsius + (normalized * (self.max_temp_celsius - self.min_temp_celsius))
@@ -451,6 +433,13 @@ class TLinearConverter:
 
         return self.get_roi_temperature_stats(frame_16bit, mask)
 
+    def _set_lut(self, lut_dict: dict):
+        self.lut = lut_dict
+        self.lut_size = len(lut_dict)
+        keys = sorted(lut_dict)
+        self._lut_x = np.asarray(keys, dtype=np.float64)
+        self._lut_y = np.asarray([lut_dict[k] for k in keys], dtype=np.float64)
+
     def load_lut_from_file(self, filepath: str) -> bool:
         """
         Load TLinear lookup table from CSV file
@@ -482,7 +471,7 @@ class TLinearConverter:
 
                     # Skip header if present
                     try:
-                        pixel_val = int(row[0])
+                        pixel_val = int(float(row[0]))
                         temp_c = float(row[1])
                     except ValueError:
                         if i == 0:  # Skip header row
@@ -497,8 +486,7 @@ class TLinearConverter:
                 logger.error(f"LUT has insufficient data points: {len(lut_dict)}")
                 return False
 
-            self.lut = lut_dict
-            self.lut_size = len(lut_dict)
+            self._set_lut(lut_dict)
             self.method = "lut"
 
             logger.info(f"Loaded TLinear LUT from {filepath.name}: {self.lut_size} entries")
@@ -577,12 +565,21 @@ class TLinearConverter:
             logger.error("Need at least 2 reference points for calibration")
             return False
 
-        # Extract pixel values and temperatures
-        pixels = np.array([p[0] for p in reference_points], dtype=np.float32)
-        temps = np.array([p[1] for p in reference_points], dtype=np.float32)
+        # Extract pixel values and temperatures (float64: counts near 30000 times a ~0.01 slope lose digits in float32)
+        pixels = np.array([p[0] for p in reference_points], dtype=np.float64)
+        temps = np.array([p[1] for p in reference_points], dtype=np.float64)
+
+        if np.unique(pixels).size < 2:
+            logger.error("Calibration needs reference points at two or more different pixel values "
+                         "(all points read the same value, so no slope can be fitted)")
+            return False
 
         # Linear regression: temp = slope * pixel + offset
         slope, offset = np.polyfit(pixels, temps, 1)
+        if not (np.isfinite(slope) and np.isfinite(offset)) or slope <= 0:
+            logger.error(f"Calibration rejected: fitted slope {slope} is not a positive finite value "
+                         "(hotter references must read higher)")
+            return False
 
         self.set_calibration(slope, offset)
 
@@ -620,139 +617,12 @@ class TLinearConverter:
         return info
 
 
-class RadiometricCalibration:
-    """
-    Tool for calibrating radiometric temperature conversion
-
-    Helps create calibration curves from known reference temperatures.
-    """
-
-    def __init__(self):
-        self.reference_points = []  # List of (pixel_value, known_temp, timestamp)
-
-    def add_reference_point(self, pixel_value: int, known_temp: float):
-        """
-        Add calibration reference point
-
-        Args:
-            pixel_value: Raw pixel value measured at known temperature
-            known_temp: Known reference temperature in Celsius
-        """
-        timestamp = datetime.now()
-        self.reference_points.append((pixel_value, known_temp, timestamp))
-
-        logger.info(f"Added calibration point: pixel={pixel_value} -> temp={known_temp}°C")
-
-    def clear_points(self):
-        """Clear all reference points"""
-        self.reference_points = []
-        logger.info("Calibration points cleared")
-
-    def compute_calibration(self, converter: TLinearConverter) -> bool:
-        """
-        Compute and apply calibration to converter
-
-        Args:
-            converter: TLinearConverter instance to calibrate
-
-        Returns:
-            True if successful
-        """
-        if len(self.reference_points) < 2:
-            logger.error("Need at least 2 reference points")
-            return False
-
-        # Extract data
-        ref_data = [(p[0], p[1]) for p in self.reference_points]
-
-        # Apply to converter
-        return converter.calibrate_from_references(ref_data)
-
-    def save_calibration_file(self, filepath: str) -> bool:
-        """
-        Save calibration reference points to file
-
-        Args:
-            filepath: Output file path
-
-        Returns:
-            True if saved successfully
-        """
-        try:
-            filepath = Path(filepath)
-            filepath.parent.mkdir(parents=True, exist_ok=True)
-
-            with open(filepath, 'w', newline='') as f:
-                writer = csv.writer(f)
-
-                # Write header
-                writer.writerow(['pixel_value', 'temperature_celsius', 'timestamp'])
-
-                # Write reference points
-                for pixel_val, temp, timestamp in self.reference_points:
-                    writer.writerow([pixel_val, temp, timestamp.isoformat()])
-
-            logger.info(f"Calibration saved: {len(self.reference_points)} points to {filepath}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Error saving calibration: {e}")
-            return False
-
-    def load_calibration_file(self, filepath: str) -> bool:
-        """
-        Load calibration reference points from file
-
-        Args:
-            filepath: Input file path
-
-        Returns:
-            True if loaded successfully
-        """
-        try:
-            filepath = Path(filepath)
-
-            if not filepath.exists():
-                logger.error(f"Calibration file not found: {filepath}")
-                return False
-
-            self.reference_points = []
-
-            with open(filepath) as f:
-                reader = csv.reader(f)
-                next(reader)  # Skip header
-
-                for row in reader:
-                    if len(row) < 2:
-                        continue
-
-                    pixel_val = int(row[0])
-                    temp = float(row[1])
-
-                    # Parse timestamp if present
-                    if len(row) >= 3:
-                        try:
-                            timestamp = datetime.fromisoformat(row[2])
-                        except Exception:
-                            timestamp = datetime.now()
-                    else:
-                        timestamp = datetime.now()
-
-                    self.reference_points.append((pixel_val, temp, timestamp))
-
-            logger.info(f"Loaded calibration: {len(self.reference_points)} points from {filepath}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Error loading calibration: {e}")
-            return False
-
-
 # Convenience function for quick temperature conversion
 def quick_convert_frame(frame_16bit: np.ndarray, min_temp: float = -40.0,
                        max_temp: float = 550.0) -> np.ndarray:
     """
-    Quick conversion of 16-bit frame to temperature using linear method
+    Quick conversion of a 16-bit frame by mapping its full span onto min_temp..max_temp (an estimate for streams that
+    are not T-Linear; for a Boson's radiometric Y16 use TLinearConverter().convert_frame)
 
     Args:
         frame_16bit: Raw 16-bit frame
@@ -762,7 +632,7 @@ def quick_convert_frame(frame_16bit: np.ndarray, min_temp: float = -40.0,
     Returns:
         Temperature frame in Celsius
     """
-    converter = TLinearConverter(method="linear")
+    converter = TLinearConverter(method="range")
     converter.set_temperature_range(min_temp, max_temp)
     return converter.convert_frame(frame_16bit)
 
@@ -776,7 +646,7 @@ if __name__ == "__main__":
     print("="*60)
 
     # Create converter
-    converter = TLinearConverter(method="linear")
+    converter = TLinearConverter(method="range")
     converter.set_temperature_range(-20.0, 150.0)
 
     # Test spot conversion
@@ -797,19 +667,5 @@ if __name__ == "__main__":
         print(f"  Temperature range: {temp_frame.min():.1f}°C to {temp_frame.max():.1f}°C")
         print(f"  Mean temperature: {temp_frame.mean():.1f}°C")
 
-    # Test calibration
-    print("\nCalibration test:")
-    calib = RadiometricCalibration()
-    calib.add_reference_point(7500, 0.0)    # Ice water
-    calib.add_reference_point(45000, 100.0)  # Boiling water
-
-    if calib.compute_calibration(converter):
-        print("  Calibration applied successfully")
-
-        # Test calibrated conversion
-        temp_calibrated = converter.pixel_to_temperature(test_pixel)
-        print(f"  Calibrated temperature at {test_pixel}: {temp_calibrated:.2f}°C")
-
-    print("\n" + "="*60)
     print("Test complete!")
     print("="*60 + "\n")

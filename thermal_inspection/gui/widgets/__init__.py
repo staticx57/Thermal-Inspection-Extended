@@ -14,7 +14,6 @@ from .video_widget import VideoWidget
 # Import migrated widgets from Phase 5
 from .colorbar_widget import ColorbarWidget
 from .temperature_histogram_widget import TemperatureHistogramWidget
-from .spot_alert_dialog import SpotMeterAlertDialog
 
 __all__ = [
     # Phase 2 widgets
@@ -26,5 +25,4 @@ __all__ = [
     # Phase 5 widgets
     'ColorbarWidget',
     'TemperatureHistogramWidget',
-    'SpotMeterAlertDialog',
 ]

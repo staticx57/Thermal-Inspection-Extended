@@ -73,7 +73,7 @@ def _frames():
 
 
 def test_manager_capture_applies_saves_and_restores(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("THERMAL_INSPECTION_HOME", str(tmp_path))
     cfg = FakeConfig()
     f = FusionProcessor()
     mgr = AlignmentCalibrationManager(f, cfg)
@@ -94,7 +94,7 @@ def test_manager_capture_applies_saves_and_restores(tmp_path, monkeypatch):
 
 
 def test_manager_refuses_bad_input_and_clears(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("THERMAL_INSPECTION_HOME", str(tmp_path))
     mgr = AlignmentCalibrationManager(FusionProcessor(), FakeConfig())
     t, r = _frames()
     assert not mgr.capture(t, None, 2.0) and "RGB" in mgr.last_error
@@ -108,7 +108,7 @@ def test_manager_refuses_bad_input_and_clears(tmp_path, monkeypatch):
 
 
 def test_cli_file_wins_over_remembered_and_missing_file_is_not_fatal(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("THERMAL_INSPECTION_HOME", str(tmp_path))
     cfg = FakeConfig(alignment_calibration_file=str(tmp_path / "gone.json"))
     mgr = AlignmentCalibrationManager(FusionProcessor(), cfg)
     assert not mgr.restore() and "not found" in mgr.last_error.lower()

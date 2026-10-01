@@ -29,7 +29,6 @@ from .radiometric_controller import (
     TemperatureUnit,
     RadiometricMethod,
     EnvironmentalParams,
-    CalibrationPoint,
 )
 from .media_manager import MediaManager
 from .calibration_manager import CalibrationManager
@@ -52,7 +51,6 @@ __all__ = [
     'TemperatureUnit',
     'RadiometricMethod',
     'EnvironmentalParams',
-    'CalibrationPoint',
     'MediaManager',
     'CalibrationManager',
     'ThresholdManager',

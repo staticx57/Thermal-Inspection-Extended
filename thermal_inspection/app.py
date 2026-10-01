@@ -12,7 +12,9 @@ import logging
 import threading
 import time
 from typing import Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from .utils.paths import default_serial_port
 
 import cv2
 import numpy as np
@@ -82,7 +84,7 @@ class AppConfig:
     width: int = 640
     height: int = 512
     enable_boson_sdk: bool = True
-    boson_com_port: str = 'COM7'
+    boson_com_port: str = field(default_factory=default_serial_port)
 
     # Fusion settings
     fusion_mode: str = 'thermal_overlay'
@@ -114,7 +116,7 @@ class AppConfig:
             width=getattr(args, 'width', 640),
             height=getattr(args, 'height', 512),
             enable_boson_sdk=getattr(args, 'enable_boson_sdk', True),
-            boson_com_port=getattr(args, 'boson_com_port', 'COM7'),
+            boson_com_port=getattr(args, 'boson_com_port', None) or default_serial_port(),
             fusion_mode=getattr(args, 'fusion_mode', 'thermal_overlay'),
             fusion_alpha=getattr(args, 'fusion_alpha', 0.5),
             device=getattr(args, 'device', 'cuda'),
@@ -1075,6 +1077,7 @@ class ThermalInspectionApp:
 
             self.thermal_processor = ThermalProcessor({'device': self.config.device})
             self.thermal_analyzer = ThermalAnalyzer()
+            self.thermal_analyzer.temperature_correction = self._correct_temperature_c
 
             from .utils.thermal_estimator import ThermalTemperatureEstimator
             self.thermal_estimator = ThermalTemperatureEstimator()
@@ -2620,6 +2623,7 @@ class ThermalInspectionApp:
                                         and _corrected_thermal_for_preview.dtype == np.uint16):
                                     _raw = _corrected_thermal_for_preview.astype(np.float32)
                                     _temp_c = np.where(_raw > 0, _raw / 100.0 - 273.15, np.nan).astype(np.float32)
+                                    _temp_c = np.asarray(self._correct_temperature_c(_temp_c), dtype=np.float32)
                                 else:
                                     self._mapping_temp_note = (
                                         "Temperatures aren't recorded: the thermal camera isn't in radiometric mode."
@@ -2894,7 +2898,7 @@ class ThermalInspectionApp:
                         unit = "°C"
                         cam = self.thermal_camera
                         if cam and hasattr(cam, 'get_spot_temperature'):
-                            temp_c = cam.get_spot_temperature(point.x, point.y)
+                            temp_c = self._correct_temperature_c(cam.get_spot_temperature(point.x, point.y))
                             # get_spot_temperature always returns Celsius - convert
                             # to whatever unit the user picked. Previously only the
                             # 'unit' label below was updated on selection change,
@@ -3467,7 +3471,8 @@ class ThermalInspectionApp:
 
         is_radiometric = getattr(self.camera_state, 'is_radiometric', False)
         if is_radiometric and thermal_16bit is not None and thermal_16bit.dtype == np.uint16:
-            temp_map = thermal_16bit.astype(np.float32) / 100.0 - 273.15
+            temp_map = np.asarray(self._correct_temperature_c(thermal_16bit.astype(np.float32) / 100.0 - 273.15),
+                                  dtype=np.float32)
             if temp_map.shape[:2] != colorized_thermal.shape[:2]:
                 temp_map = cv2.resize(
                     temp_map, (colorized_thermal.shape[1], colorized_thermal.shape[0]),
@@ -3727,6 +3732,19 @@ class ThermalInspectionApp:
 
     # Public alias so GUI code doesn't need to call the private method
     add_calibration_point = _on_add_calibration_point
+
+    def _correct_temperature_c(self, temp_c):
+        """The Temp Calibration tab's reference-point correction (Celsius in, Celsius out; scalar or array). Identity
+        unless a calibration has been computed AND 'Enable Calibration Correction' is on - checked live on every
+        call, so toggling it needs no signal wiring. Applied at every place radiometric Celsius is produced for
+        display or recording (analyzer statistics/spots, spot meters, contour labels, the 3D thermal layer)."""
+        mgr = self.calibration_manager
+        cal = mgr.radiometric_calibrator
+        if temp_c is None or not mgr.calibration_enabled or cal is None or not cal.is_calibrated:
+            return temp_c
+        if isinstance(temp_c, np.ndarray):
+            return cal.apply_calibration_to_frame(temp_c)
+        return cal.apply_calibration(temp_c)
 
     def _get_temperature_frame(self):
         """Return the latest per-pixel temperature frame from the thermal camera."""
@@ -4167,11 +4185,39 @@ class ThermalInspectionApp:
         if refine_from_image and self.threaded_capture:
             thermal_frame_samples, rgb_frame_samples = self._collect_alignment_samples()
 
+        # With a calibration homography active the RGB is already registered to the thermal view: measure the
+        # RESIDUAL on the registered frames (so the fixed offset/scale is not estimated and applied a second
+        # time) and never fall back to the geometry formula, which describes the whole raw offset.
+        calibrated = (self.fusion_processor is not None and self.fusion_processor.calibration_matrix is not None
+                      and self.fusion_processor.calibration_enabled)
+        if calibrated:
+            if not refine_from_image:
+                if self.event_bus:
+                    self.event_bus.alignment_message.emit(
+                        "A calibration is active: auto fine-tune needs 'Refine from image content' (the "
+                        "geometry formula would undo the calibration).", True)
+                return
+
+            def register(pair_rgb, pair_thermal):
+                return self.fusion_processor.align_rgb_to_thermal(pair_rgb, pair_thermal.shape[:2])
+            if thermal_frame is not None and rgb_frame is not None:
+                rgb_frame = register(rgb_frame, thermal_frame)
+            if thermal_frame_samples and rgb_frame_samples:
+                rgb_frame_samples = [register(r, t) for t, r in zip(thermal_frame_samples, rgb_frame_samples)]
+
         dx, zoom = self.parallax_compensator.compute_auto_alignment(
             working_distance_m, rgb_frame, thermal_frame,
             thermal_frame_samples=thermal_frame_samples,
             rgb_frame_samples=rgb_frame_samples,
+            allow_geometry_fallback=not calibrated,
         )
+        if calibrated and self.event_bus:
+            if getattr(self.parallax_compensator, 'last_auto_alignment_source', '') == "none":
+                self.event_bus.alignment_message.emit(
+                    "Auto fine-tune was inconclusive on this scene (too little structure): nothing changed.", True)
+            else:
+                self.event_bus.alignment_message.emit(
+                    "Residual measured on the calibrated view and applied as a fine-tune.", False)
         dy = self.parallax_compensator.manual_shift_y
         self._save_parallax_alignment_to_config()
         if self.event_bus:

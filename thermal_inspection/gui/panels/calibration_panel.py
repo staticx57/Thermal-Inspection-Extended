@@ -307,7 +307,10 @@ class CalibrationPanel(QWidget):
 
             stats_text = f"Points: {stats.get('point_count', 0)} | "
             stats_text += f"Method: {stats.get('method', 'unknown').capitalize()} | "
-            stats_text += f"RMSE: {stats.get('rmse', 0):.2f}°C"
+            if 'fit_rmse' in stats:
+                stats_text += f"Residual after fit: {stats['fit_rmse']:.2f}°C (raw error {stats.get('rmse', 0):.2f}°C)"
+            else:
+                stats_text += f"RMSE: {stats.get('rmse', 0):.2f}°C"
             self.stats_label.setText(stats_text)
 
             self.apply_calibration_checkbox.setEnabled(True)
