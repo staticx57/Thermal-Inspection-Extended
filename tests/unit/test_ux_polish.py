@@ -304,3 +304,28 @@ class TestNoDeveloperMode:
         assert all("Ctrl+D" not in d and "eveloper" not in d for _, d in win.SHORTCUTS)
         from thermal_inspection import __version__
         assert win.windowTitle().endswith(__version__)
+
+
+class TestTextScalingAndDetectionLabels:
+    def test_no_pixel_font_sizes_so_os_text_scaling_reaches_every_control(self):
+        """px font sizes ignore the OS 'make text bigger' setting (buttons and labels stayed small while other text
+        grew); points follow it. 13px == 9.75pt at 96 dpi, so nothing changes visually at 100%."""
+        import os
+        import re
+        offenders = []
+        for d, _, files in os.walk(os.path.join(os.path.dirname(__file__), "..", "..", "thermal_inspection", "gui")):
+            for f in files:
+                if f.endswith(".py"):
+                    text = open(os.path.join(d, f), encoding="utf-8", errors="ignore").read()
+                    if re.search(r"font-size:\s*\d+px", text):
+                        offenders.append(f)
+        assert not offenders, offenders
+
+    def test_detection_tab_uses_title_case_and_honest_rate_label(self, qapp):
+        from PyQt6.QtWidgets import QGroupBox
+        from thermal_inspection.gui.panels.anomaly_widgets import AnomalyWidget, ManualThresholdWidget
+        w = AnomalyWidget()
+        titles = [g.title() for g in w.findChildren(QGroupBox)] + [g.title() for g in ManualThresholdWidget().findChildren(QGroupBox)]
+        assert titles and not [t for t in titles if t.isupper()], titles
+        w.update_performance(115.3, 8.7, 13.0)
+        assert "Analysis rate" in w.fps_label.text() and "FPS" not in w.fps_label.text()

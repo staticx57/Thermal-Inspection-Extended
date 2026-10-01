@@ -35,7 +35,7 @@ class TemperatureHistogramWidget(QWidget):
 
         # Title
         title = QLabel("Temperature Distribution")
-        title.setStyleSheet("font-weight: bold; font-size: 12px;")
+        title.setStyleSheet("font-weight: bold; font-size: 9pt;")
         layout.addWidget(title)
 
         if not HAS_PYQTGRAPH:

@@ -21,7 +21,7 @@ QPushButton {
     border: 2px solid #3f454d;
     border-radius: 8px;
     padding: 6px 16px;
-    font-size: 13px;
+    font-size: 9.75pt;
     font-weight: bold;
     min-width: 120px;
     min-height: 18px;
@@ -58,7 +58,7 @@ QLabel#info_panel {
     border: 1px solid #3f454d;
     border-radius: 5px;
     padding: 10px;
-    font-size: 12px;
+    font-size: 9pt;
     font-family: monospace;
 }
 
@@ -192,7 +192,7 @@ QPushButton {
     border: 2px solid #b7bdc5;
     border-radius: 8px;
     padding: 6px 16px;
-    font-size: 13px;
+    font-size: 9.75pt;
     font-weight: bold;
     min-width: 120px;
     min-height: 18px;
@@ -229,7 +229,7 @@ QLabel#info_panel {
     border: 1px solid #b7bdc5;
     border-radius: 5px;
     padding: 10px;
-    font-size: 12px;
+    font-size: 9pt;
     font-family: monospace;
 }
 
@@ -359,7 +359,7 @@ QPushButton {
     border: 2px solid #93a1a1;
     border-radius: 8px;
     padding: 6px 16px;
-    font-size: 13px;
+    font-size: 9.75pt;
     font-weight: bold;
     min-width: 120px;
     min-height: 18px;
@@ -500,7 +500,7 @@ QLabel#info_panel {
     border: 1px solid #93a1a1;
     border-radius: 5px;
     padding: 10px;
-    font-size: 12px;
+    font-size: 9pt;
     font-family: monospace;
 }
 """
@@ -522,7 +522,7 @@ QPushButton {
     border: 2px solid #4a7c9e;
     border-radius: 8px;
     padding: 6px 16px;
-    font-size: 13px;
+    font-size: 9.75pt;
     font-weight: bold;
     min-width: 120px;
     min-height: 18px;
@@ -673,7 +673,7 @@ QLabel#info_panel {
     border: 1px solid #4a7c9e;
     border-radius: 5px;
     padding: 10px;
-    font-size: 12px;
+    font-size: 9pt;
     font-family: monospace;
 }
 """
@@ -806,11 +806,11 @@ QPushButton[compact="true"] {
     padding: 1px 4px;
     min-width: 0px;
     min-height: 0px;
-    font-size: 12px;
+    font-size: 9pt;
 }
 
 QPushButton[accent="primary"] {
-    background-color: #4CAF50;
+    background-color: #2e7d32;
     color: #ffffff;
 }
 

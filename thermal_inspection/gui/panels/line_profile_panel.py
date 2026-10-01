@@ -45,7 +45,7 @@ class LineProfilePanel(QWidget):
 
         # Title
         title = QLabel("Line Profile Tool")
-        title.setStyleSheet("font-weight: bold; font-size: 13px;")
+        title.setStyleSheet("font-weight: bold; font-size: 9.75pt;")
         layout.addWidget(title)
 
         # Enable line drawing mode
@@ -56,7 +56,7 @@ class LineProfilePanel(QWidget):
 
         # Instructions
         instructions = QLabel("Click and drag to draw a line.\nRelease to analyze temperature profile.")
-        instructions.setStyleSheet("color: #888888; font-size: 10px;")
+        instructions.setStyleSheet("color: #888888; font-size: 7.5pt;")
         instructions.setWordWrap(True)
         layout.addWidget(instructions)
 

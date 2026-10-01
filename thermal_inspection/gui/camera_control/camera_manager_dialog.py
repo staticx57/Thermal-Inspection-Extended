@@ -175,7 +175,7 @@ class CameraManagerDialog(QDialog):
             "QTableWidget { border: 1px solid #334155; border-radius: 4px; }"
             "QTableWidget::item { padding: 4px 6px; }"
             "QHeaderView::section { background:#1e293b; color:#94a3b8; "
-            "  padding:5px; border:none; font-size:12px; }"
+            "  padding:5px; border:none; font-size: 9pt; }"
         )
         grp_layout.addWidget(self._table)
         root.addWidget(grp, 1)
@@ -193,7 +193,7 @@ class CameraManagerDialog(QDialog):
 
         # ── Status label ─────────────────────────────────────────────────
         self._status_label = QLabel("Scanning for cameras…")
-        self._status_label.setStyleSheet("color: #64748b; font-size: 12px;")
+        self._status_label.setStyleSheet("color: #64748b; font-size: 9pt;")
         root.addWidget(self._status_label)
 
         # ── Manual ID fallback ───────────────────────────────────────────
@@ -270,7 +270,7 @@ class CameraManagerDialog(QDialog):
         )
         layout = QVBoxLayout(card)
         lbl = QLabel(value)
-        lbl.setStyleSheet("font-size: 13px; color: #e2e8f0;")
+        lbl.setStyleSheet("font-size: 9.75pt; color: #e2e8f0;")
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl.setObjectName("value_label")
         layout.addWidget(lbl)
@@ -281,7 +281,7 @@ class CameraManagerDialog(QDialog):
         if lbl:
             lbl.setText(text)
             color = "#4ade80" if ok else "#94a3b8"
-            lbl.setStyleSheet(f"font-size: 13px; color: {color};")
+            lbl.setStyleSheet(f"font-size: 9.75pt; color: {color};")
 
     # ── status refresh (called by 1 s timer) ─────────────────────────────────
 

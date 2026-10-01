@@ -1086,7 +1086,7 @@ class BosonControlPanel(QWidget):
     def _set_mode_pill(self, kind: str):
         bg, fg = self.MODE_PILL_COLORS[kind]
         self.radiometric_mode_status.setStyleSheet(
-            f"font-weight: bold; padding: 8px; background-color: {bg}; color: {fg}; border-radius: 3px; font-size: 11px;")
+            f"font-weight: bold; padding: 8px; background-color: {bg}; color: {fg}; border-radius: 3px; font-size: 8.25pt;")
 
     def update_radiometric_mode_status(self, is_radiometric: bool, success: bool = True):
         """Update the radiometric mode status display."""

@@ -33,7 +33,7 @@ QPushButton, QToolButton {
 }
 /* 1px side border + 3px bottom: padding keeps the OUTER size equal to the other themes'
    buttons (2px border + 6px/16px padding) so controls don't change size with the theme. */
-QPushButton { padding: 6px 17px; min-width: 120px; min-height: 18px; font-size: 13px; font-weight: bold; }
+QPushButton { padding: 6px 17px; min-width: 120px; min-height: 18px; font-size: 9.75pt; font-weight: bold; }
 QToolButton { padding: 2px 5px; }
 QPushButton:hover, QToolButton:hover {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 @KEY_HOVER_TOP@, stop:1 @KEY_HOVER_BOT@);
@@ -191,7 +191,7 @@ QScrollBar::add-page, QScrollBar::sub-page { background: none; }
 /* ---- phosphor / LED readout ---- */
 QLabel#info_panel {
     background-color: @INFO_BG@; color: @INFO_TEXT@; border: 2px solid @INFO_EDGE@; border-radius: 3px;
-    padding: 10px; font-size: 12px; font-family: @MONO@;
+    padding: 10px; font-size: 9pt; font-family: @MONO@;
 }
 """
 

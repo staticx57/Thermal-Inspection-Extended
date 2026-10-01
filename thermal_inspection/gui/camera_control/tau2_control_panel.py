@@ -154,7 +154,7 @@ class Tau2ControlPanel(QWidget):
             "Connect via COM port, or Scan if none is listed - some Tau 2 "
             "breakout boards expose no CCI line (video-only)"
         )
-        self.connection_hint.setStyleSheet("font-size: 10px; color: #888888;")
+        self.connection_hint.setStyleSheet("font-size: 7.5pt; color: #888888;")
         self.connection_hint.setWordWrap(True)
         self.connection_hint.setMaximumWidth(350)
         g_layout.addWidget(self.connection_hint)
@@ -216,7 +216,7 @@ class Tau2ControlPanel(QWidget):
         f_layout.addLayout(mode_row)
 
         self.ffc_status_label = QLabel("Status: Ready")
-        self.ffc_status_label.setStyleSheet("font-size: 10px; color: #888888;")
+        self.ffc_status_label.setStyleSheet("font-size: 7.5pt; color: #888888;")
         f_layout.addWidget(self.ffc_status_label)
 
         layout.addWidget(ffc_grp)
@@ -250,7 +250,7 @@ class Tau2ControlPanel(QWidget):
         self.shutter_btn_group.setExclusive(True)
 
         self.shutter_status_label = QLabel("Position: Open")
-        self.shutter_status_label.setStyleSheet("font-size: 10px; color: #888888;")
+        self.shutter_status_label.setStyleSheet("font-size: 7.5pt; color: #888888;")
         shutter_layout.addWidget(self.shutter_status_label)
 
         layout.addWidget(shutter_grp)
@@ -270,7 +270,7 @@ class Tau2ControlPanel(QWidget):
         gg_layout.addLayout(gain_combo_row)
 
         self.current_gain_label = QLabel("Current: High")
-        self.current_gain_label.setStyleSheet("font-size: 10px; color: #888888;")
+        self.current_gain_label.setStyleSheet("font-size: 7.5pt; color: #888888;")
         gg_layout.addWidget(self.current_gain_label)
 
         layout.addWidget(gain_grp)
@@ -292,7 +292,7 @@ class Tau2ControlPanel(QWidget):
         l_layout.addLayout(lut_combo_row)
 
         lut_note = QLabel("Note: Hardware LUT applies before software processing")
-        lut_note.setStyleSheet("font-size: 9px; color: #888888;")
+        lut_note.setStyleSheet("font-size: 6.75pt; color: #888888;")
         lut_note.setWordWrap(True)
         l_layout.addWidget(lut_note)
         layout.addWidget(lut_grp)
@@ -465,7 +465,7 @@ class Tau2ControlPanel(QWidget):
         contract as BosonControlPanel.set_status()."""
         color = "#ff4444" if is_error else "#888888"
         self.ffc_status_label.setText(f"Status: {message}")
-        self.ffc_status_label.setStyleSheet(f"font-size: 10px; color: {color};")
+        self.ffc_status_label.setStyleSheet(f"font-size: 7.5pt; color: {color};")
 
     def update_connection_status(self, connected: bool):
         if connected:

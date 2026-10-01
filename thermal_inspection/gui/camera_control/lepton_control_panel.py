@@ -106,7 +106,7 @@ class LeptonControlPanel(QWidget):
             "No real hardware yet - Connect (Mock) simulates the SDK "
             "against MockLeptonTransport"
         )
-        self.connection_hint.setStyleSheet("font-size: 10px; color: #888888;")
+        self.connection_hint.setStyleSheet("font-size: 7.5pt; color: #888888;")
         self.connection_hint.setWordWrap(True)
         self.connection_hint.setMaximumWidth(350)
         conn_layout.addWidget(self.connection_hint)
@@ -159,7 +159,7 @@ class LeptonControlPanel(QWidget):
         ctrl_layout.addWidget(self.ffc_btn)
 
         self.ffc_status_label = QLabel("Status: Unknown")
-        self.ffc_status_label.setStyleSheet("font-size: 10px; color: #888888;")
+        self.ffc_status_label.setStyleSheet("font-size: 7.5pt; color: #888888;")
         ctrl_layout.addWidget(self.ffc_status_label)
 
         layout.addWidget(ctrl_group)
@@ -277,7 +277,7 @@ class LeptonControlPanel(QWidget):
         layout.addWidget(diag_group)
 
         auto_refresh_note = QLabel("Auto-refreshes every 1s while connected - no manual refresh needed.")
-        auto_refresh_note.setStyleSheet("font-size: 10px; color: #888888;")
+        auto_refresh_note.setStyleSheet("font-size: 7.5pt; color: #888888;")
         layout.addWidget(auto_refresh_note)
 
         layout.addStretch()

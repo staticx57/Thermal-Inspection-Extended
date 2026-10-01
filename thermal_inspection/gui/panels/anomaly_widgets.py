@@ -67,7 +67,7 @@ class ManualThresholdWidget(QWidget):
         content_layout.setSpacing(10)
 
         # Enable/Disable toggle
-        enable_group = QGroupBox("MANUAL THRESHOLD MODE")
+        enable_group = QGroupBox("Manual Threshold Mode")
         enable_layout = QVBoxLayout(enable_group)
 
         self.enable_toggle = QPushButton("Manual Mode: OFF")
@@ -89,7 +89,7 @@ class ManualThresholdWidget(QWidget):
         config_layout.setSpacing(10)
 
         # Value type selection
-        value_type_group = QGroupBox("VALUE TYPE")
+        value_type_group = QGroupBox("Value Type")
         value_type_layout = QHBoxLayout(value_type_group)
 
         self.percent_radio = QPushButton("Percentage")
@@ -113,7 +113,7 @@ class ManualThresholdWidget(QWidget):
         config_layout.addWidget(value_type_group)
 
         # Threshold mode selection
-        mode_group = QGroupBox("THRESHOLD MODE")
+        mode_group = QGroupBox("Threshold Mode")
         mode_layout = QVBoxLayout(mode_group)
 
         mode_label = QLabel("Detection Mode:")
@@ -132,7 +132,7 @@ class ManualThresholdWidget(QWidget):
         config_layout.addWidget(mode_group)
 
         # Threshold values
-        threshold_group = QGroupBox("THRESHOLD VALUES")
+        threshold_group = QGroupBox("Threshold Values")
         threshold_layout = QVBoxLayout(threshold_group)
 
         # Min threshold
@@ -160,13 +160,13 @@ class ManualThresholdWidget(QWidget):
         threshold_layout.addLayout(max_layout)
 
         self.threshold_hint = QLabel("Using percentage (0-100%)")
-        self.threshold_hint.setStyleSheet("font-size: 9px; color: #888888;")
+        self.threshold_hint.setStyleSheet("font-size: 6.75pt; color: #888888;")
         threshold_layout.addWidget(self.threshold_hint)
 
         config_layout.addWidget(threshold_group)
 
         # Visualization mode
-        viz_group = QGroupBox("VISUALIZATION")
+        viz_group = QGroupBox("Visualization")
         viz_layout = QVBoxLayout(viz_group)
 
         viz_label = QLabel("Display Mode:")
@@ -185,15 +185,15 @@ class ManualThresholdWidget(QWidget):
         config_layout.addWidget(viz_group)
 
         # Statistics display
-        stats_group = QGroupBox("DETECTION STATISTICS")
+        stats_group = QGroupBox("Detection Statistics")
         stats_layout = QVBoxLayout(stats_group)
 
         self.anomaly_percentage_label = QLabel("Anomalies: 0.0%")
-        self.anomaly_percentage_label.setStyleSheet("font-size: 12px; font-weight: bold;")
+        self.anomaly_percentage_label.setStyleSheet("font-size: 9pt; font-weight: bold;")
         stats_layout.addWidget(self.anomaly_percentage_label)
 
         self.anomaly_count_label = QLabel("0 / 0 pixels")
-        self.anomaly_count_label.setStyleSheet("font-size: 10px; color: #888888;")
+        self.anomaly_count_label.setStyleSheet("font-size: 7.5pt; color: #888888;")
         stats_layout.addWidget(self.anomaly_count_label)
 
         config_layout.addWidget(stats_group)
@@ -420,20 +420,20 @@ class AnomalyWidget(QWidget):
 
     def _create_main_toggle(self):
         """Create main anomaly priority ON/OFF toggle."""
-        toggle_group = QGroupBox("ANOMALY PRIORITY CONTROL")
+        toggle_group = QGroupBox("Anomaly Priority")
         toggle_layout = QVBoxLayout(toggle_group)
 
-        self.main_toggle = QPushButton("Anomaly Priority: OFF")
+        self.main_toggle = QPushButton("Anomaly Priority: Off")
         self.main_toggle.setCheckable(True)
         self.main_toggle.setMinimumHeight(40)
-        self.main_toggle.setToolTip("Enable/disable anomaly priority gradient fade")
+        self.main_toggle.setToolTip("Fade the image away from detected anomalies so they stand out (see Gradient Fade below)")
 
         toggle_layout.addWidget(self.main_toggle)
         self.content_layout.addWidget(toggle_group)
 
     def _create_type_selector(self):
         """Create anomaly type multi-select checkboxes."""
-        type_group = QGroupBox("ANOMALY TYPES")
+        type_group = QGroupBox("Anomaly Types")
         type_layout = QVBoxLayout(type_group)
 
         info_label = QLabel("Select which detections to highlight:")
@@ -461,7 +461,7 @@ class AnomalyWidget(QWidget):
             self.type_checkboxes[key] = checkbox
 
             count_label = QLabel("(0 found)")
-            count_label.setStyleSheet("font-size: 10px;")
+            count_label.setStyleSheet("font-size: 7.5pt;")
             self.type_count_labels[key] = count_label
 
             row_layout.addWidget(checkbox)
@@ -480,7 +480,7 @@ class AnomalyWidget(QWidget):
 
     def _create_gradient_controls(self):
         """Create gradient fade control sliders."""
-        gradient_group = QGroupBox("GRADIENT FADE")
+        gradient_group = QGroupBox("Gradient Fade")
         gradient_layout = QVBoxLayout(gradient_group)
 
         # Fade Strength slider
@@ -527,7 +527,7 @@ class AnomalyWidget(QWidget):
 
     def _create_detection_settings(self):
         """Create collapsible detection settings section."""
-        self.detection_group = QGroupBox("DETECTION SETTINGS")
+        self.detection_group = QGroupBox("Detection Settings")
         detection_layout = QVBoxLayout(self.detection_group)
 
         self.detection_expand_btn = QPushButton("Expand Settings")
@@ -604,10 +604,10 @@ class AnomalyWidget(QWidget):
 
     def _create_performance_display(self):
         """Create performance metrics display."""
-        perf_group = QGroupBox("PERFORMANCE")
+        perf_group = QGroupBox("Analysis Speed")
         perf_layout = QVBoxLayout(perf_group)
 
-        self.fps_label = QLabel("FPS: --")
+        self.fps_label = QLabel("Analysis rate: --")
         self.processing_time_label = QLabel("Processing: --")
         self.overhead_label = QLabel("Overhead: --")
 
@@ -644,7 +644,7 @@ class AnomalyWidget(QWidget):
 
     def _on_main_toggle_changed(self, checked: bool):
         """Handle main toggle state change."""
-        self.main_toggle.setText(f"Anomaly Priority: {'ON' if checked else 'OFF'}")
+        self.main_toggle.setText(f"Anomaly Priority: {'On' if checked else 'Off'}")
         self.anomaly_priority_toggled.emit(checked)
 
     def _on_type_checkbox_changed(self):
@@ -696,7 +696,7 @@ class AnomalyWidget(QWidget):
 
     def update_performance(self, fps: float, processing_time: float, overhead: float = 0.0):
         """Update performance metrics."""
-        self.fps_label.setText(f"FPS: {fps:.1f}")
+        self.fps_label.setText(f"Analysis rate: up to {fps:.0f} per second")
         self.processing_time_label.setText(f"Processing: {processing_time:.1f}ms")
         self.overhead_label.setText(f"Overhead: {overhead:.1f}%")
         self.overhead_bar.setValue(int(overhead))

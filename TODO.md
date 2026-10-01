@@ -200,3 +200,14 @@ Done (all covered by tests/unit/test_ux_polish.py): Esc/Q no longer quit (File >
 Found only because hardware-populated states were simulated: the Boson camera-info values were near-white (#e0e0e0), invisible on the light theme once a camera connected; the 8-bit "UVC post-colorized" mode pill was styled as a green success; the first design of the mapping availability check would have disabled Start on a real RealSense until its first frame.
 Still open: nesting depth (Cameras > Thermal > camera > 6 tabs) is unchanged - only made state-aware; ~150 inline stylesheets remain in other panels (lepton/tau2/firefly/radiometric banner); real-theme review of the other 8 themes; tab order; keyboard navigation of the 3D viewers; the "Developer Mode" startup message and the v3.7.0 window title are stale.
 
+## 2026-10-02 UI/UX evaluation, round 2 (all 10 themes at 1280x720, plus a 150% text-size and a contrast pass)
+Found and fixed
+- All 44 hard-coded `font-size: Npx` (9 themes' buttons included) are now points: px ignored the OS "make text bigger" setting, so buttons and some labels stayed small while other text grew. Identical at 100% (13px == 9.75pt).
+- Detection > "Performance" showed "FPS: 115" (the anomaly analyzer's throughput) next to the HUD's real 9 fps: now "Analysis Speed / Analysis rate: up to N per second"; its ALL-CAPS group titles are Title Case like every other tab; "Anomaly Priority" says what it does.
+- Primary (green) buttons, e.g. Boson Connect, were white on #4CAF50 = 2.8:1 on the dark themes; now #2e7d32 (5:1).
+Checked and fine: no clipped button/checkbox/label text in any theme at 1280x720 or at 13.5pt (only the deliberately compact Boson "Scan" button); enabled-control contrast is above 3:1 in all themes except the checked-checkbox fill in the two XP themes (2.5:1, indicator only). Disabled controls are low contrast by design.
+Still open
+- RGB tab: a disconnected camera (Firefly) shows its full exposure/gain/white-balance form enabled; it should read as "not connected" and be disabled until it is. Needs the panel's connect signal checked per panel, so not done blind.
+- At larger text the 7 top-level tabs and 8 Analysis sub-tabs overflow into scroll arrows ("Settings" half hidden): consider two-row tabs or a side list.
+- Flaky timing tests under load (contour fill, guided filter fusion) fail when other Python processes are busy; they pass on an idle machine. Both now assert on the median of the runs instead of the single worst run (fixed 2026-10-02); a relative budget against the reference implementation would be stricter still.
+

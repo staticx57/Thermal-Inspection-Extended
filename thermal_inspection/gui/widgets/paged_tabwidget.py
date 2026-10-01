@@ -62,7 +62,7 @@ class PagedTabWidget(QTabWidget):
         button.setAutoRepeatDelay(350)
         button.setAutoRepeatInterval(140)
         button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        button.setStyleSheet("QToolButton { font-size: 20px; font-weight: bold; padding: 0px 0px 3px 0px; }")
+        button.setStyleSheet("QToolButton { font-size: 15pt; font-weight: bold; padding: 0px 0px 3px 0px; }")
         return button
 
     # ---- native scroller plumbing -----------------------------------------------------------------

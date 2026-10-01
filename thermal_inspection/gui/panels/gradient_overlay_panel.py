@@ -99,7 +99,7 @@ class GradientOverlayPanel(QWidget):
 
         # Title
         title = QLabel("Temperature Gradient Overlay")
-        title.setStyleSheet("font-weight: bold; font-size: 13px;")
+        title.setStyleSheet("font-weight: bold; font-size: 9.75pt;")
         layout.addWidget(title)
 
         # Enable checkbox
@@ -112,7 +112,7 @@ class GradientOverlayPanel(QWidget):
         desc = QLabel("Visualizes areas of rapid temperature change. "
                      "Useful for detecting thermal boundaries and anomalies.")
         desc.setWordWrap(True)
-        desc.setStyleSheet("color: #888888; font-size: 10px;")
+        desc.setStyleSheet("color: #888888; font-size: 7.5pt;")
         layout.addWidget(desc)
 
         # Mode selection
@@ -162,7 +162,7 @@ class GradientOverlayPanel(QWidget):
         self.scene_label.setToolTip(
             "Typical = the median gradient (mostly sensor noise); strong = the 99th percentile (clear edges). "
             "A threshold a little above 'typical' shows edges without the noise.")
-        self.scene_label.setStyleSheet("color: #888888; font-size: 10px;")
+        self.scene_label.setStyleSheet("color: #888888; font-size: 7.5pt;")
         threshold_layout.addWidget(self.scene_label)
 
         # Sensitivity slider

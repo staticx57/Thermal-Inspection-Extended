@@ -40,7 +40,7 @@ class GridOverlayPanel(QWidget):
 
         # Title
         title = QLabel("Grid Overlay")
-        title.setStyleSheet("font-weight: bold; font-size: 13px;")
+        title.setStyleSheet("font-weight: bold; font-size: 9.75pt;")
         layout.addWidget(title)
 
         # Enable checkbox

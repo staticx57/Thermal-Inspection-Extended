@@ -3816,7 +3816,7 @@ class InspectionAppWindow(QMainWindow):
         banner = self._hotplug_banner
         bg = "#7c2d12" if warning else "#14532d"    # dark-red / dark-green
         banner.setStyleSheet(
-            f"background:{bg}; color:#f5f5f5; font-size:13px; "
+            f"background:{bg}; color:#f5f5f5; font-size: 9.75pt; "
             "padding:8px 16px; border-radius:6px;"
         )
         banner.setText(message)
@@ -3856,7 +3856,7 @@ class InspectionAppWindow(QMainWindow):
             overlay.setStyleSheet(
                 "background: rgba(10,12,20,200);"
                 "color: #e2e8f0;"
-                "font-size: 15px;"
+                "font-size: 11.25pt;"
                 "font-weight: 600;"
                 "border-radius: 12px;"
                 "padding: 20px 32px;"

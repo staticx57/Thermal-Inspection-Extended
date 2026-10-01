@@ -19,7 +19,7 @@ class InfoPanel(QLabel):
         # light text (the themes' green-on-translucent variants went dark-green-on-black and were hard to read).
         self.setStyleSheet("QLabel#info_panel { background-color: rgba(10, 12, 16, 205); color: #e8eef0; "
                            "border: 1px solid #5b6570; border-radius: 5px; padding: 8px 10px; "
-                           "font-size: 12px; font-family: monospace; }")
+                           "font-size: 9pt; font-family: monospace; }")
         self.setFixedSize(300, 70)  # Increased width for better text display
         self.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         self.setWordWrap(True)

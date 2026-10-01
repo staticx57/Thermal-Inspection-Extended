@@ -22,7 +22,7 @@ QLabel#info_panel {
     border: 1px solid @ACCENT@;
     border-radius: 2px;
     padding: 10px;
-    font-size: 12px;
+    font-size: 9pt;
     font-family: 'Consolas', 'Courier New', monospace;
 }
 """
@@ -55,7 +55,7 @@ QPushButton, QToolButton {
 /* Same outer size as the Dark/Light/Solarized/Colorful buttons (2px border + 6px/16px
    padding, 13px bold, 120px min width) so the controls don't change size with the theme.
    This family has a 1px border, so the padding is 1px larger to compensate. */
-QPushButton { padding: 7px 17px; min-width: 120px; min-height: 18px; font-size: 13px; font-weight: bold; }
+QPushButton { padding: 7px 17px; min-width: 120px; min-height: 18px; font-size: 9.75pt; font-weight: bold; }
 QToolButton { padding: 3px 6px; }
 QPushButton:hover, QToolButton:hover {
     border: 1px solid @BORDER@;
