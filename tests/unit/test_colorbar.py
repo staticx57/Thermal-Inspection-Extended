@@ -91,6 +91,25 @@ class TestWidget:
         assert w.width() >= 8 + w.bar_thickness + 11 + widest                  # nothing clipped on the right
         assert w._header() == "~°F"                                            # unit once, estimate marked
 
+    def test_label_positions_are_fixed_only_the_values_follow_the_range(self, qapp):
+        w = self._bar(qapp, lo=20.0, hi=80.0)
+        before = w._labels()
+        w.set_temperature_range(23.7, 91.2, "°C")
+        after = w._labels()
+        assert [f for f, _ in before] == [f for f, _ in after] == [0.0, 0.25, 0.5, 0.75, 1.0]
+        assert [t for _, t in before] == ["20", "35", "50", "65", "80"]
+        assert [t for _, t in after] == ["24", "41", "57", "74", "91"]
+
+    def test_the_widget_does_not_resize_as_digits_change(self, qapp):
+        w = self._bar(qapp, lo=20.0, hi=80.0)
+        size = (w.width(), w.height())
+        w.set_temperature_range(23.7, 91.2, "°C")
+        assert (w.width(), w.height()) == size
+
+    def test_decimals_follow_the_span_size(self, qapp):
+        assert [t for _, t in self._bar(qapp, lo=20.0, hi=21.0)._labels()][:2] == ["20.00", "20.25"]
+        assert [t for _, t in self._bar(qapp, lo=20.0, hi=30.0)._labels()][:2] == ["20.0", "22.5"]
+
     def test_relative_mode_shows_no_numbers(self, qapp):
         w = self._bar(qapp, lo=0.0, hi=1.0, unit="AGC")
         assert [t for _, t in w._labels()] == ["hot", "cold"] and w._header() == ""
@@ -172,6 +191,29 @@ class TestMainWindowFeed:
         w2 = _Win()
         MainWindow._update_colorbar(w2, None, self._temps(), True, False)     # analyzer result not new
         w2.video_widget.overlay.update_colorbar_range.assert_not_called()
+
+    def test_sensor_noise_in_the_range_does_not_move_the_labels(self, monkeypatch):
+        w = _Win()
+        monkeypatch.setattr("thermal_inspection.gui.main_window.time.monotonic", iter(range(10, 1000)).__next__)
+        MainWindow._update_colorbar(w, None, self._temps(), True, True)
+        noisy = self._temps() + np.float32(0.05)                              # ~0.1% of the span
+        MainWindow._update_colorbar(w, None, noisy, True, True)
+        assert w.video_widget.overlay.update_colorbar_range.call_count == 1
+
+    def test_a_real_range_change_is_shown(self, monkeypatch):
+        w = _Win()
+        monkeypatch.setattr("thermal_inspection.gui.main_window.time.monotonic", iter(range(10, 1000)).__next__)
+        MainWindow._update_colorbar(w, None, self._temps(), True, True)
+        MainWindow._update_colorbar(w, None, self._temps() + np.float32(5.0), True, True)
+        assert w.video_widget.overlay.update_colorbar_range.call_count == 2
+
+    def test_a_unit_change_is_shown_even_if_the_numbers_are_close(self, monkeypatch):
+        w = _Win("C")
+        monkeypatch.setattr("thermal_inspection.gui.main_window.time.monotonic", iter(range(10, 1000)).__next__)
+        MainWindow._update_colorbar(w, None, self._temps(), True, True)
+        w._temp_unit = "K"
+        MainWindow._update_colorbar(w, None, self._temps(), True, True)
+        assert w.video_widget.overlay.update_colorbar_range.call_count == 2
 
     def test_no_overlay_is_safe(self):
         w = _Win()

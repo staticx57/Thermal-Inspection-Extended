@@ -1604,8 +1604,17 @@ class InspectionAppWindow(QMainWindow):
             return
         lo, hi = np.percentile(sample, (1, 99))
         unit = world_units.display_unit(getattr(self, '_temp_unit', 'C'))
-        overlay.update_colorbar_range(world_units.convert_temp(float(lo), unit), world_units.convert_temp(float(hi), unit),
-                                      world_units.unit_symbol(unit))
+        lo, hi = world_units.convert_temp(float(lo), unit), world_units.convert_temp(float(hi), unit)
+        symbol = world_units.unit_symbol(unit)
+        # The labels are round values placed by where they fall in [lo, hi], so a range that wobbles with sensor noise
+        # makes every label crawl along the bar. Keep the shown range until it has really moved (3% of its span).
+        shown = getattr(self, '_colorbar_shown', None)
+        if shown is not None and shown[2] == symbol:
+            tol = 0.03 * max(shown[1] - shown[0], hi - lo, 1e-6)
+            if abs(lo - shown[0]) < tol and abs(hi - shown[1]) < tol:
+                return
+        self._colorbar_shown = (lo, hi, symbol)
+        overlay.update_colorbar_range(lo, hi, symbol)
 
     def _on_show_hot_spots_toggled(self, enabled: bool):
         if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):

@@ -146,21 +146,28 @@ class ColorbarWidget(QWidget):
     def relative(self) -> bool:
         return is_relative_unit(self.unit)
 
-    def _ticks(self) -> List[float]:
-        if self.relative:
-            return []
-        return nice_ticks(self.temp_min, self.temp_max, 6 if self.bar_length >= 200 else 5)
+    def _label_fractions(self) -> List[float]:
+        """Where along the bar (cold 0 .. hot 1) the labels sit. Fixed: only the numbers change, never the positions."""
+        return [0.0, 0.25, 0.5, 0.75, 1.0] if self.bar_length >= 200 else [0.0, 0.5, 1.0]
+
+    @staticmethod
+    def _decimals(span: float) -> int:
+        """Chosen from the span's size class, so it only changes on a big range change - not with every noisy update."""
+        return 0 if span >= 20 else 1 if span >= 2 else 2
 
     def _labels(self):
-        """[(fraction along the bar from cold (0) to hot (1), text)]"""
+        """[(fraction along the bar from cold (0) to hot (1), text)] - labels at fixed places, values follow the range."""
         if self.relative:
             return [(1.0, "hot"), (0.0, "cold")]
         lo, hi = self.temp_min, self.temp_max
-        ticks = self._ticks()
-        if not ticks or hi - lo <= 1e-12:
-            return [(0.5, format_tick(lo, 1.0))]
-        step = tick_step(ticks)
-        return [((v - lo) / (hi - lo), format_tick(v, step)) for v in ticks]
+        if not (math.isfinite(lo) and math.isfinite(hi)):
+            return []
+        decimals = self._decimals(abs(hi - lo))
+        out = []
+        for frac in self._label_fractions():
+            text = f"{lo + frac * (hi - lo):.{decimals}f}"
+            out.append((frac, "0" if text.lstrip("-").strip("0.") == "" else text))
+        return out
 
     def _header(self) -> str:
         if self.relative:
@@ -172,7 +179,8 @@ class ColorbarWidget(QWidget):
     def _update_size(self):
         fm = QFontMetrics(self.font)
         labels = [t for _, t in self._labels()]
-        text_w = max([fm.horizontalAdvance(t) for t in labels] + [fm.horizontalAdvance(self._header())] + [0])
+        floor = [] if self.relative else [fm.horizontalAdvance("-000.0")]    # room for a typical reading: no sideways shift
+        text_w = max([fm.horizontalAdvance(t) for t in labels] + [fm.horizontalAdvance(self._header())] + floor + [0])
         pad = 8
         header_h = fm.height() if self._header() else 0
         if self.position in ("right", "left"):
