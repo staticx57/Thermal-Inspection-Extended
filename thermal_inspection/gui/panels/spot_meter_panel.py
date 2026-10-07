@@ -690,6 +690,30 @@ class SpotMeterPanel(QWidget):
         """Get list of all spot meter data objects."""
         return list(self.spots.values())
 
+    def get_spot(self, spot_id: str) -> Optional[SpotMeterData]:
+        """Get a specific spot meter by ID."""
+        return self.spots.get(spot_id)
+
+    def select_spot(self, spot_id: str):
+        """Select a spot meter in the list (called from video click)."""
+        for i in range(self.spot_list.count()):
+            item = self.spot_list.item(i)
+            if item and item.data(Qt.ItemDataRole.UserRole) == spot_id:
+                self.spot_list.setCurrentItem(item)
+                break
+
+    def get_coords_for_main_loop(self) -> List[Tuple[int, int, str]]:
+        """Get coordinates in format expected by main processing loop.
+
+        Returns:
+            List of (x, y, label) tuples for visible spots
+        """
+        return [
+            (data.x, data.y, data.label)
+            for data in self.spots.values()
+            if data.visible
+        ]
+
     def clear(self):
         """Remove all spot meters."""
         self.spots.clear()
@@ -1293,44 +1317,3 @@ class SpotMeterAlertDialog(QDialog):
             flash_enabled=self.flash_cb.isChecked()   # Phase 2 - Feature 7
         )
         self.accept()
-
-
-
-
-
-
-
-    def get_all_spots(self) -> List[SpotMeterData]:
-        """Get all spot meter data for export."""
-        return list(self.spots.values())
-
-    def get_spot(self, spot_id: str) -> Optional[SpotMeterData]:
-        """Get a specific spot meter by ID."""
-        return self.spots.get(spot_id)
-
-    def select_spot(self, spot_id: str):
-        """Select a spot meter in the list (called from video click)."""
-        for i in range(self.spot_list.count()):
-            item = self.spot_list.item(i)
-            if item and item.data(Qt.ItemDataRole.UserRole) == spot_id:
-                self.spot_list.setCurrentItem(item)
-                break
-
-    def clear(self):
-        """Clear all spot meters (for external use, no confirmation)."""
-        self.spots.clear()
-        self.spot_list.clear()
-        self._update_statistics()
-        self._update_button_states()
-
-    def get_coords_for_main_loop(self) -> List[Tuple[int, int, str]]:
-        """Get coordinates in format expected by main processing loop.
-
-        Returns:
-            List of (x, y, label) tuples for visible spots
-        """
-        return [
-            (data.x, data.y, data.label)
-            for data in self.spots.values()
-            if data.visible
-        ]
