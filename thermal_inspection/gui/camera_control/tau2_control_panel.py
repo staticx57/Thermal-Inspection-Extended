@@ -35,7 +35,7 @@ from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QGroupBox,
     QLabel, QPushButton, QComboBox, QCheckBox, QTabWidget, QRadioButton,
-    QButtonGroup
+    QButtonGroup, QScrollArea, QFrame
 )
 
 from thermal_inspection.gui.themes import set_button_state
@@ -59,11 +59,14 @@ class Tau2ControlPanel(QWidget):
     shutter_position_changed = pyqtSignal(str)       # 'open', 'closed'
     fpa_temp_requested = pyqtSignal()
     housing_temp_requested = pyqtSignal()
+    command_requested = pyqtSignal(str, dict)        # generic (command, params), e.g. the UVC-level video mode
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._init_ui()
         self._connect_signals()
+        self._load_video_mode()
+        self.update_connection_status(False)
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
@@ -78,6 +81,15 @@ class Tau2ControlPanel(QWidget):
         self._create_radiometric_tab()
         self._create_environment_tab()
         self._create_diagnostics_tab()
+
+    def _add_tab(self, tab: QWidget, title: str):
+        """Every tab scrolls (as in BosonControlPanel): without it Qt squeezes a tall tab's groups into the visible height
+        and they overlap instead of scrolling."""
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(tab)
+        self.tabs.addTab(scroll, title)
 
     def _create_connection_tab(self):
         tab = QWidget()
@@ -186,18 +198,43 @@ class Tau2ControlPanel(QWidget):
 
         layout.addWidget(info_grp)
         layout.addStretch()
-        self.tabs.addTab(tab, "Connection")
+        self._add_tab(tab, "Connection")
 
     def _create_controls_tab(self):
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setSpacing(8)
 
+        # Video format is negotiated over plain UVC, so this group works on a video-only board with no control line
+        # (everything else on this tab needs CCI and is greyed out until it exists).
+        mode_grp = QGroupBox("Video Mode (works without a control line)")
+        mode_layout = QVBoxLayout(mode_grp)
+        self.mode_color_radio = QRadioButton("Onboard colour picture")
+        self.mode_color_radio.setToolTip("The camera's own AGC and colour palette. Looks good, but the palette cannot be changed.")
+        self.mode_raw_radio = QRadioButton("Raw 14-bit sensor data")
+        self.mode_raw_radio.setToolTip("Unprocessed sensor counts. The app's own palettes and contrast tools apply to it.")
+        self.mode_color_radio.setChecked(True)
+        mode_layout.addWidget(self.mode_color_radio)
+        mode_layout.addWidget(self.mode_raw_radio)
+        self.mode_note = QLabel(
+            "Colour: the camera picks the palette and it cannot be changed from here. "
+            "Raw: the app's 115 palettes work, but values are sensor counts, not temperatures - "
+            "calibrated temperature needs the control line (T-Linear)."
+        )
+        self.mode_note.setWordWrap(True)
+        self.mode_note.setStyleSheet("font-size: 7.5pt; color: #888888;")
+        mode_layout.addWidget(self.mode_note)
+        self.mode_status_label = QLabel("")
+        self.mode_status_label.setStyleSheet("font-size: 7.5pt; color: #888888;")
+        mode_layout.addWidget(self.mode_status_label)
+        layout.addWidget(mode_grp)
+
         # FFC Box - same widget dimensions/status-caption convention as
         # BosonControlPanel's Flat Field Correction group.
         ffc_grp = QGroupBox("Flat Field Correction (NUC)")
         f_layout = QVBoxLayout(ffc_grp)
 
+        self.ffc_grp = ffc_grp
         self.ffc_btn = QPushButton("Trigger FFC")
         self.ffc_btn.setMinimumHeight(40)
         self.ffc_btn.setToolTip("Manually trigger Flat Field Correction")
@@ -229,6 +266,7 @@ class Tau2ControlPanel(QWidget):
         shutter_layout = QVBoxLayout(shutter_grp)
         shutter_btn_row = QHBoxLayout()
 
+        self.shutter_grp = shutter_grp
         self.shutter_open_btn = QPushButton("Open")
         self.shutter_open_btn.setCheckable(True)
         self.shutter_open_btn.setChecked(True)
@@ -260,6 +298,7 @@ class Tau2ControlPanel(QWidget):
         gain_grp = QGroupBox("Gain Mode")
         gg_layout = QVBoxLayout(gain_grp)
         gain_combo_row = QHBoxLayout()
+        self.gain_grp = gain_grp
         self.gain_combo = QComboBox()
         self.gain_combo.addItems(["High", "Low", "Auto", "Manual"])
         self.gain_combo.setToolTip("Sensor gain mode")
@@ -279,6 +318,7 @@ class Tau2ControlPanel(QWidget):
         lut_grp = QGroupBox("Color Lookup Table (LUT)")
         l_layout = QVBoxLayout(lut_grp)
         lut_combo_row = QHBoxLayout()
+        self.lut_grp = lut_grp
         self.palette_combo = QComboBox()
         self.palette_combo.addItems([
             "White Hot", "Black Hot", "Fusion", "Rainbow",
@@ -298,7 +338,7 @@ class Tau2ControlPanel(QWidget):
         layout.addWidget(lut_grp)
 
         layout.addStretch()
-        self.tabs.addTab(tab, "Controls")
+        self._add_tab(tab, "Controls")
 
     def _create_image_enhancement_tab(self):
         tab = QWidget()
@@ -311,6 +351,7 @@ class Tau2ControlPanel(QWidget):
         agc_label = QLabel("AGC Type:")
         agc_label.setFixedWidth(80)
         agc_combo_row.addWidget(agc_label)
+        self.agc_grp = agc_grp
         self.agc_type_combo = QComboBox()
         self.agc_type_combo.addItems([
             "Plateau", "Linear", "Auto Dynamic", "Once Bright", "Info Based"
@@ -332,7 +373,7 @@ class Tau2ControlPanel(QWidget):
 
         layout.addWidget(agc_grp)
         layout.addStretch()
-        self.tabs.addTab(tab, "Image Enhancement")
+        self._add_tab(tab, "Image Enhancement")
 
     def _create_radiometric_tab(self):
         tab = QWidget()
@@ -341,6 +382,7 @@ class Tau2ControlPanel(QWidget):
         rad_grp = QGroupBox("Advanced Radiometry (T-Linear)")
         r_layout = QVBoxLayout(rad_grp)
 
+        self.rad_grp = rad_grp
         self.tlinear_chk = QCheckBox("Enable T-Linear Radiometric Output")
         self.tlinear_chk.setChecked(True)
         r_layout.addWidget(self.tlinear_chk)
@@ -360,7 +402,7 @@ class Tau2ControlPanel(QWidget):
 
         layout.addWidget(rad_grp)
         layout.addStretch()
-        self.tabs.addTab(tab, "Radiometric")
+        self._add_tab(tab, "Radiometric")
 
     def _create_environment_tab(self):
         tab = QWidget()
@@ -379,7 +421,7 @@ class Tau2ControlPanel(QWidget):
         g_layout.addWidget(note)
         layout.addWidget(grp)
         layout.addStretch()
-        self.tabs.addTab(tab, "Environment")
+        self._add_tab(tab, "Environment")
 
     def _create_diagnostics_tab(self):
         tab = QWidget()
@@ -415,7 +457,7 @@ class Tau2ControlPanel(QWidget):
         layout.addWidget(self.refresh_temps_btn)
 
         layout.addStretch()
-        self.tabs.addTab(tab, "Diagnostics")
+        self._add_tab(tab, "Diagnostics")
 
     def _connect_signals(self):
         self.connect_btn.clicked.connect(self._on_connect_clicked)
@@ -432,6 +474,35 @@ class Tau2ControlPanel(QWidget):
         )
         self.apply_tlinear_btn.clicked.connect(self._on_apply_tlinear)
         self.refresh_temps_btn.clicked.connect(self._on_refresh_temps_clicked)
+        self.mode_color_radio.toggled.connect(lambda on: on and self._on_video_mode_chosen("color"))
+        self.mode_raw_radio.toggled.connect(lambda on: on and self._on_video_mode_chosen("raw"))
+
+    def _load_video_mode(self):
+        """Show the mode the camera will actually open in (the saved choice), without re-triggering a switch."""
+        from thermal_inspection.cameras.plugins.tau2.plugin import get_video_mode
+        raw = get_video_mode() == "raw"
+        for radio, checked in ((self.mode_raw_radio, raw), (self.mode_color_radio, not raw)):
+            radio.blockSignals(True)
+            radio.setChecked(checked)
+            radio.blockSignals(False)
+
+    def _on_video_mode_chosen(self, mode: str):
+        self.mode_status_label.setText("Switching video mode...")
+        self.command_requested.emit("set_video_mode", {"mode": mode})
+
+    def show_video_mode_result(self, result: Dict[str, Any]):
+        if result.get("success"):
+            name = "raw 14-bit" if result.get("mode") == "raw" else "onboard colour"
+            self.mode_status_label.setText(f"Now using {name}")
+        else:
+            self.mode_status_label.setText(f"Could not switch: {result.get('error', 'unknown error')}")
+
+    def _set_cci_controls_enabled(self, enabled: bool):
+        """Everything but the video mode is a CCI command: disable it, with the reason, when there is no control line."""
+        tip = "" if enabled else "Needs the camera's control line (CCI), which this board does not expose yet"
+        for w in (self.ffc_grp, self.shutter_grp, self.gain_grp, self.lut_grp, self.agc_grp, self.rad_grp):
+            w.setEnabled(enabled)
+            w.setToolTip(tip)
 
     def _on_connect_clicked(self):
         port = self.com_combo.currentText().strip()
@@ -468,6 +539,7 @@ class Tau2ControlPanel(QWidget):
         self.ffc_status_label.setStyleSheet(f"font-size: 7.5pt; color: {color};")
 
     def update_connection_status(self, connected: bool):
+        self._set_cci_controls_enabled(connected)
         if connected:
             self.status_lbl.setText("● Connected")
             self.status_lbl.setStyleSheet("color: #4CAF50; font-weight: bold;")

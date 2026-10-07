@@ -62,6 +62,7 @@ comtypes>=1.1.7; sys_platform == "win32"     # DirectShow COM interface, require
 #    needs a libusb/WinUSB driver bound to the device, e.g. via Zadig)
 #
 # pyusb>=1.2.1
+# libusb-package>=1.0.26   # only for tools/tau2_xu_probe.py (reads the USB descriptor; no driver change needed)
 #
 # Optional, Jetson only (installed by NVIDIA, not from PyPI): `vpi` (Vision Programming Interface) for GPU image
 # processing. The app runs without it.

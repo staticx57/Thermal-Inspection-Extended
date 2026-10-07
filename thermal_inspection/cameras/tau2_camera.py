@@ -273,7 +273,7 @@ class Tau2Camera:
         endian read is already correct.
         """
         if self.byte_order == 'swap':
-            return self._decode_byte_swapped(frame_uint16)
+            return self._relabel_sparse_levels(self._decode_byte_swapped(frame_uint16))
         if self.byte_order == 'split':
             return self._decode_split_byte_14bit(frame_uint16)
         return frame_uint16
@@ -293,6 +293,41 @@ class Tau2Camera:
         tlinear handling.
         """
         return (((frame_uint16 & 0xFF) << 8) | (frame_uint16 >> 8)).astype(np.uint16)
+
+    # More distinct values than this in a frame means genuinely wide data, not a quantised 8-bit picture
+    _MAX_SPARSE_LEVELS = 300
+
+    def _relabel_sparse_levels(self, frame_uint16: np.ndarray) -> np.ndarray:
+        """
+        Make a quantised ("~255 distinct values") Y16 frame contiguous so a linear stretch cannot posterise it.
+
+        Measured live: in its smooth 30 fps mode this board's Y16 stream carries only ~255 distinct values, i.e. 8 bits
+        of picture, and how those levels sit in the 16-bit word changes from open to open - sometimes evenly spaced
+        (2..1278), sometimes in two clusters with a big empty gap (0..1016 and 4096..5112). Evenly spaced levels
+        stretch fine, but with a gap a linear stretch crushes one cluster to black and blows the other out (it looks
+        thresholded). Replacing each level by its rank among the levels seen so far is monotone and loses nothing, and
+        makes both layouts identical. The set of levels only grows, so a level missing from one frame cannot shift the
+        others' ranks. Frames with many distinct values (the slow wide-data mode) are returned untouched. This adds no
+        information and is not a temperature.
+        """
+        sample = frame_uint16[::4, ::4]
+        if sample.size < 2048:                    # too few pixels to tell a quantised picture from a small crop
+            return frame_uint16
+        sub = np.unique(sample)
+        if len(sub) > self._MAX_SPARSE_LEVELS:
+            self._levels = None
+            return frame_uint16
+        levels = getattr(self, "_levels", None)
+        if levels is None or not np.isin(sub, levels, assume_unique=True).all():
+            levels = sub if levels is None else np.union1d(levels, sub)
+            if len(levels) > self._MAX_SPARSE_LEVELS:        # drifting values, not a fixed set of levels
+                self._levels = None
+                return frame_uint16
+            self._levels = levels
+            # every possible 16-bit value maps to the rank of the first known level at or above it
+            rank = np.searchsorted(levels, np.arange(65536, dtype=np.int64))
+            self._lut = np.minimum(rank * 255 // max(len(levels) - 1, 1), 255).astype(np.uint16)
+        return self._lut[frame_uint16]
 
     def _decode_split_byte_14bit(self, frame_uint16: np.ndarray) -> np.ndarray:
         """

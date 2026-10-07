@@ -1139,6 +1139,12 @@ class InspectionAppWindow(QMainWindow):
                         self.statusBar().showMessage("FFC complete", 3000)
                 else:
                     panel.set_status("FFC failed", is_error=True)
+            elif command == 'set_video_mode' and hasattr(panel, 'show_video_mode_result'):
+                # Switching UVC format means renegotiating the capture, which the app does by re-activating the camera
+                # (fresh panel included, which reads the saved mode back).
+                panel.show_video_mode_result(result)
+                if success and result.get('reopen_required') and self.app is not None:
+                    QTimer.singleShot(0, lambda r=role: self.app.reconnect_camera(r))
             elif command == 'scan_ports' and result.get('ports'):
                 if hasattr(panel, 'update_ports'):
                     panel.update_ports(result['ports'])

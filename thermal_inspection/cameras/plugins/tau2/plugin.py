@@ -25,6 +25,25 @@ DEFAULT_COM_PORT = "COM5"
 DEFAULT_BAUD_RATE = 57600
 
 
+# UVC video formats the board negotiates without any control line: its own colourised YUY2 picture, or the raw Y16 stream
+VIDEO_MODES = ("color", "raw")
+
+
+def get_video_mode() -> str:
+    from thermal_inspection.utils.config import get_config
+    return "raw" if (get_config().get('tau2') or {}).get('raw_mode', False) else "color"
+
+
+def set_video_mode(mode: str) -> bool:
+    """Persist the choice (tau2.raw_mode, which create_backend reads); True if it differs from the current one."""
+    from thermal_inspection.utils.config import get_config
+    if mode == get_video_mode():
+        return False
+    config = get_config()
+    config.set('tau2', {**(config.get('tau2') or {}), 'raw_mode': mode == "raw"})
+    return True
+
+
 class Tau2CameraSDK(CameraSDK):
     """CameraSDK implementation for FLIR Tau 2 using Tau2Serial CCI protocol."""
 
@@ -88,6 +107,20 @@ class Tau2CameraSDK(CameraSDK):
             elif command == "scan_ports":
                 ports = scan_tau2_ports()
                 return {"success": True, "ports": ports}
+
+            # Video format is a UVC-level choice (DirectShow FOURCC negotiation), so unlike everything below it needs
+            # no CCI link and must work on a video-only breakout board.
+            if command == "get_video_mode":
+                return {"success": True, "mode": get_video_mode()}
+
+            elif command == "set_video_mode":
+                mode = str(params.get("mode", "color")).lower()
+                if mode not in VIDEO_MODES:
+                    return {"success": False, "error": f"Unknown Tau 2 video mode: '{mode}'"}
+                changed = set_video_mode(mode)
+                # The capture has to be re-opened to renegotiate the format; the host does that (it owns the capture
+                # thread), this SDK only records the choice.
+                return {"success": True, "mode": mode, "reopen_required": changed}
 
             if not self.is_connected():
                 return {"success": False, "error": "Tau 2 serial port is not connected"}
@@ -199,7 +232,8 @@ class Tau2CameraSDK(CameraSDK):
             "get_gain_mode", "set_ffc_mode", "set_palette", "set_tlinear",
             "set_radiometric_mode", "get_tlinear", "get_fpa_temp",
             "get_housing_temp", "get_camera_info", "set_shutter_position",
-            "set_agc_type", "get_agc_type", "get_core_status", "set_test_pattern"
+            "set_agc_type", "get_agc_type", "get_core_status", "set_test_pattern",
+            "get_video_mode", "set_video_mode"
         ]
 
 
@@ -288,8 +322,8 @@ class Tau2Plugin(CameraPlugin):
         # is the confirmed-working colorized passthrough.
         from thermal_inspection.utils.config import get_config
         config = get_config()
-        raw_mode = bool(config.get('tau2', {}).get('raw_mode', False))
-        byte_order = config.get('tau2', {}).get('byte_order', 'swap')
+        raw_mode = get_video_mode() == "raw"
+        byte_order = (config.get('tau2') or {}).get('byte_order', 'swap')
 
         self._last_backend = Tau2Backend(
             device_id=match.device_index,

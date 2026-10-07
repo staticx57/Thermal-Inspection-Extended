@@ -817,7 +817,9 @@ class CameraDetector:
             name_lower = raw_name.lower()
 
             # Skip virtual cameras and non-physical devices
-            if any(kw in name_lower for kw in ['obs virtual', 'virtual cam', 'snap camera']):
+            # (Basler GenICam / eBUS filters too: opening one can crash the process natively - see device_scanner)
+            from thermal_inspection.cameras.device_scanner import _is_virtual_source
+            if _is_virtual_source(raw_name) or any(kw in name_lower for kw in ['obs virtual', 'virtual cam', 'snap camera']):
                 logger.info(f"  [{dev_id}] Skipping virtual device: {raw_name}")
                 continue
 

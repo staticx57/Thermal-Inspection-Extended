@@ -15,7 +15,7 @@ REQ = open(os.path.join(ROOT, "requirements.txt"), encoding="utf-8").read()
 DISTRIBUTION = {
     "cv2": "opencv-python", "numpy": "numpy", "scipy": "scipy", "PIL": "Pillow", "PyQt6": "PyQt6",
     "pyqtgraph": "pyqtgraph", "OpenGL": "PyOpenGL", "psutil": "psutil", "serial": "pyserial",
-    "pygrabber": "pygrabber", "comtypes": "comtypes", "flirpy": "flirpy", "usb": "pyusb", "pyrealsense2": "pyrealsense2",
+    "pygrabber": "pygrabber", "comtypes": "comtypes", "flirpy": "flirpy", "usb": "pyusb", "libusb_package": "libusb-package", "pyrealsense2": "pyrealsense2",
     "open3d": "open3d", "torch": "torch", "transformers": "transformers", "torch_directml": "torch-directml",
     "PySpin": "PySpin", "vpi": "vpi",
 }

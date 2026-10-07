@@ -65,6 +65,23 @@ def _fake_hardware(monkeypatch, devices):
     return probed
 
 
+class TestVendorVirtualSources:
+
+    def test_basler_and_ebus_virtual_filters_are_never_opened(self, monkeypatch):
+        probed = _fake_hardware(monkeypatch, [
+            ("Logitech BRIO", 640, 480),
+            ("THERMAL VISION CAMERA TAU-2", 640, 512),
+            ("Basler GenICam Source", 640, 480),
+            ("eBUS DirectShow Source", 640, 480),
+            ("OBS Virtual Camera", 1920, 1080),
+        ])
+
+        devices = scan_video_devices()
+
+        assert probed == [0, 1, 4]                      # opening a vendor filter can crash the process natively
+        assert [d.index for d in devices] == [0, 1, 4]
+
+
 class TestScanCaching:
 
     def test_probes_each_index_once(self, monkeypatch):
@@ -211,3 +228,15 @@ class TestVideoDevice:
 
         assert set(mapping) == {1, 2}
         assert mapping[2].name == "Cam B"
+
+
+def test_camera_detector_also_skips_vendor_virtual_sources(monkeypatch):
+    """The background monitor has its own probe loop; it must not open Basler/eBUS filters either."""
+    from thermal_inspection.cameras.camera_detector import CameraDetector
+    probed = []
+    monkeypatch.setattr(CameraDetector, "_probe_single_windows_camera_safe",
+                        staticmethod(lambda dev_id, name: probed.append(dev_id)))
+    monkeypatch.setattr(device_scanner, "_list_device_names",
+                        lambda: ["Logitech BRIO", "Basler GenICam Source", "eBUS DirectShow Source"])
+    CameraDetector._probe_windows_cameras(skip_device_ids=[])
+    assert probed == [0]                               # never the Basler (1) or eBUS (2) filters

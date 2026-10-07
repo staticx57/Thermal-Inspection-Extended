@@ -32,6 +32,15 @@ logger = logging.getLogger(__name__)
 # Probe this many indices when the OS gives us no device list to size the sweep.
 DEFAULT_MAX_DEVICES = 6
 
+# Vendor-SDK virtual DirectShow sources (Basler GenICam, Pleora eBUS). They never deliver frames, and opening one can
+# raise a native delay-load failure (0xc06d007e) inside OpenCV that no Python except can catch - it killed the whole app
+# on a full scan. GigE cameras are handled by the GigE plugin, not through these filters, so they are not probed.
+_VIRTUAL_SOURCE_HINTS = ("genicam", "ebus")
+
+
+def _is_virtual_source(name: Optional[str]) -> bool:
+    return bool(name) and any(hint in name.lower() for hint in _VIRTUAL_SOURCE_HINTS)
+
 
 @dataclass(frozen=True)
 class VideoDevice:
@@ -291,6 +300,9 @@ def scan_video_devices(force: bool = False) -> List[VideoDevice]:
                 else:
                     complete = False
                     logger.info(f"Device {index} is in use and has no matching prior probe - not probing it")
+                continue
+            if index < len(names) and _is_virtual_source(names[index]):
+                logger.info(f"Device {index} ({names[index].strip()}) is a vendor virtual source - not probing it")
                 continue
             device = _probe_device(index, names)
             if device is not None:
