@@ -16,7 +16,7 @@ For frequent tasks, use these one-click launchers:
 
 ## Interactive Launcher Menu
 
-The main `launch.bat` provides an interactive menu with 7 options:
+The main `launch.bat` provides an interactive menu with 9 options:
 
 ### [1] Quick Start (Default Settings)
 Launches with auto-detected cameras and default configuration.
@@ -131,6 +131,13 @@ Displays comprehensive list of all command-line arguments.
 - Processing (CUDA/CPU, ROI detection)
 - Mode (realtime, playback)
 - GUI (Qt, OpenCV, headless)
+- Diagnostics (log level and file, reset the saved camera scan)
+
+### [8] Diagnostic Run
+Starts the app normally but with detailed (INFO) logging written to `logs\diagnostic.log`. Reproduce the problem, close the app, and open (or send) that file: it records which cameras were found, why one could not be opened, and any errors. The same output is available from the command line with `--log-level INFO --log-file <path>`.
+
+### [9] Repair: forget the saved camera scan
+The app remembers which cameras it found so it starts quickly. If a scan ran while a camera was held by another program or a frozen copy of the app, a short list can be remembered and the missing camera never comes back. This option clears that memory (`python -m thermal_inspection --reset-camera-cache`); the next start scans again. Close every copy of the app first.
 
 ---
 
@@ -190,6 +197,7 @@ Displays comprehensive list of all command-line arguments.
 --log-level LEVEL            # DEBUG, INFO, WARNING (default) or ERROR - the console only shows WARNING+
                              # unless you ask for more
 --log-file PATH              # Also write the log (with timestamps) to this file
+--reset-camera-cache         # Forget the saved camera scan, then exit (see menu option 9)
 ```
 
 ---
@@ -250,10 +258,12 @@ Then use fusion priority toggle in GUI to swap main/PIP views
 ## Troubleshooting
 
 ### Camera Not Detected
-1. Use **Option 7** in launcher to verify camera connections
-2. Try **Thermal Priority Mode > Manual device IDs**
-3. Check camera connections and drivers
-4. Run `scripts\quick-debug.bat` and review `thermal_inspection_debug.log`
+1. Read the banner: when a camera cannot be opened the app now says why (timed out, driver error, or in use / unplugged / missing driver). **Help > About** lists recent camera problems.
+2. Close other programs that use cameras and any frozen copy of the app (Task Manager: `python.exe`). Avoid force-ending the app while it holds a camera.
+3. Use **Option 9** to forget the saved camera scan, then start again
+4. Use **Option 8 (Diagnostic Run)**, reproduce the problem, and read `logs\diagnostic.log`
+5. Try **Thermal Priority Mode > Manual device IDs**
+6. Run `scripts\quick-debug.bat` and review `thermal_inspection_debug.log`
 
 ### Wrong COM Port
 1. Device Manager → Ports → Find Boson Serial
@@ -293,7 +303,8 @@ The launcher will detect direct arguments and bypass the menu.
 - **scripts/quick-rgb.bat** - One-click RGB priority
 - **scripts/quick-debug.bat** - One-click debug mode (verbose log to `thermal_inspection_debug.log`)
 - **scripts/install_windows.bat / install_linux.sh** - Installers (`--with-firefly`, `--with-3d-mapping`, `--with-realsense-l515` on Windows)
-- **scripts/repair_windows.bat / repair_linux.sh** - Re-install/upgrade dependencies for an existing checkout
+- **scripts/repair_windows.bat / repair_linux.sh** - Re-install/upgrade dependencies for an existing checkout, and forget the saved camera scan
+- **logs/diagnostic.log** - Created by menu option 8 (not tracked by git)
 - **scripts/install_realsense_l515.ps1** - Builds pyrealsense2 for an Intel RealSense L515 (pip's wheels dropped it)
 - **scripts/run_vpi.sh, run_with_gpu.sh, setup_jetson_gpu.sh** - Jetson / CUDA helpers
 - **LAUNCHER_GUIDE.md** - This documentation

@@ -148,7 +148,7 @@ The application features a modular, role-based camera plugin architecture with a
 | Plugin | Role | Interface / Protocol | Resolutions | Key Capabilities |
 | :--- | :--- | :--- | :--- | :--- |
 | **FLIR Boson** | Thermal | USB UVC + COM Port (921600 baud CCI) | 640×512, 320×256 | FFC, Gain Modes (High/Low/Auto), AGC Tuning, Shutter, T-Linear 16-bit Radiometry, FPA Telemetry |
-| **FLIR Tau 2** | Thermal | USB Y16 DirectShow/V4L2 + COM Port (57600 baud CCI) | 640×512, 336×256, 324×256, 160×128 | 14-bit Radiometric Frame Ingestion, T-Linear Temperature Map Decoding, Shutter Control, FPA Temp |
+| **FLIR Tau 2** | Thermal | USB UVC video (DirectShow/V4L2) + COM Port (57600 baud CCI) when the board exposes one | 640×512, 336×256, 324×256, 160×128 | **Video Mode** (works without a control line): the camera's own colour picture, or the raw Y16 stream. With a control line: FFC, gain, palette (LUT), AGC type, shutter, T-Linear temperature map, FPA/housing temperature. **Video-only breakout boards** (no serial/CDC interface in Device Manager) get the video modes only - see [Tau 2 limits](#flir-tau-2-palette-stuck-or-not-radiometric) |
 | **FLIR Lepton** | Thermal | SPI / VoSPI / UVC Telemetry | 160×120, 80×60 | Telemetry Ingestion, Radiometric Conversion, FFC |
 | **FLIR Firefly RGB** | RGB | Spinnaker SDK / GenICam USB3 Vision | 1440×1080, 1920×1080 | Microsecond Exposure, Gain (dB), White Balance R/B Ratios, Software/Hardware Trigger, Gamma |
 | **Generic USB Webcam** | RGB | DirectShow (Windows) / V4L2 (Linux) | 640×480, 720p, 1080p, 2K, 4K | Dedicated Webcam Panel: Resolution Presets, Brightness, Contrast, Saturation, Sharpness, Auto/Manual Exposure, Focus |
@@ -322,6 +322,8 @@ python -m thermal_inspection --disable-rgb
 4. **Fusion Mode**: The default is `thermal_overlay`; try `detail_inject` or `edge_enhanced` for best thermal-RGB fusion quality.
 5. **Palette**: `ironbow`, `rainbow_hc`, or `lava` are good starting palettes. See the [Palette Reference](#palette-reference).
 6. **Theme**: The default "Auto" follows your system's light/dark setting; pick another in Settings > Theme or press `T`.
+7. **Status banner**: the box in the corner of the video shows `FPS` (frames the camera is delivering) and `Loop` (how fast the processing loop is running, usually far higher). Hide it with Analysis > General > *Show Status Banner*.
+8. **Help > About** shows the version, your Python/Qt/OpenCV versions, which optional features are installed, where your settings live, and any camera problems since the app started.
 
 ---
 
@@ -413,6 +415,13 @@ options:
   --max_workers MAX_WORKERS
                         Maximum number of worker threads for parallel
                         detection (default: 5)
+  --log-level {DEBUG,INFO,WARNING,ERROR}
+                        Console log level (default: WARNING - INFO lines are
+                        hidden unless you ask for them)
+  --log-file PATH       Also write the log, with timestamps, to this file
+  --reset-camera-cache  Forget the saved camera scan (rebuilt on the next
+                        start), then exit. Use it if a camera is missing after
+                        a crash or force-quit
 ```
 
 ---
@@ -659,6 +668,7 @@ Thermal-Inspection/
 ├── README.md, CHANGELOG.md, requirements.txt
 ├── launch.bat
 ├── scripts/                         # install/repair/quick-launch scripts
+├── tools/                           # standalone helpers: tau2_xu_probe.py (read-only Tau 2 USB control probe), mapping_motion_test.py
 │
 ├── thermal_inspection/              # Main application package
 │   ├── app.py                       # ThermalInspectionApp coordinator
@@ -885,6 +895,32 @@ If this is a **radiometric (-R)** Boson: as of v3.7.0 this shouldn't happen anym
 4. **Lower Resolution**: Use 320x256 Boson instead of 640x512
 5. **GPU Acceleration**: Ensure CUDA is installed and detected (`--device cuda`)
 6. **Close Other Apps**: Free up system resources
+
+### A Camera Won't Open, or Disappears After a Crash
+<a id="camera-wont-open"></a>
+
+**Problem**: A camera is missing, or the app shows a banner such as *"Could not open FLIR Tau 2 for the Thermal slot: ..."*.
+
+**What the banner means**: it gives the reason, one of: the camera did not open within 10 s (a hung driver, or another program or a frozen copy of this app is holding it); the driver reported a specific error (quoted); or the device would not open (in use by another program, unplugged, or missing its driver). Help > About lists the recent problems.
+
+**Solutions**:
+1. Close other programs that use cameras, and any frozen copy of this app (Task Manager: end `python.exe`). **Closing the app normally is safe; force-ending it while it holds a camera can leave the camera busy.**
+2. Forget the saved camera scan: launcher option **[9]**, `scripts\repair_windows.bat`, or `python -m thermal_inspection --reset-camera-cache`. A scan that ran while a camera was held can be remembered with a short device list.
+3. Record what happened: launcher option **[8] Diagnostic Run** writes `logs\diagnostic.log` (or use `--log-level INFO --log-file debug.log`).
+4. Vendor "virtual" DirectShow sources (Basler GenICam, Pleora eBUS) are deliberately never opened: they deliver no frames and opening one can crash the process.
+
+### FLIR Tau 2: Palette Stuck or Not Radiometric
+<a id="flir-tau-2-palette-stuck-or-not-radiometric"></a>
+
+**Problem**: A Tau 2 breakout board is stuck on one palette and shows no temperatures.
+
+**Cause**: Changing the palette, and the temperature (T-Linear) output, are camera commands sent over the Tau 2's serial control line (CCI). Many breakout boards expose only the USB video interface (Device Manager shows one camera and no COM/serial device), so the app cannot send them. The control groups on the Tau 2 panel are greyed out in that case, with the reason.
+
+**What works without a control line** (Cameras > FLIR Tau 2 > Controls > *Video Mode*):
+- **Onboard colour picture** - the camera's own AGC and palette. Looks good; the palette cannot be changed.
+- **Raw sensor data** - the app's palettes and contrast tools apply, so you can pick any of the 100+ palettes. On the boards tested this stream carries roughly 8 bits of picture detail (about 255 levels), not 14, and the values are **not temperatures**. Sparse levels are spread evenly so the picture does not look thresholded. Opening it can also give a slow (~1 fps) wide-range mode that degrades; switch modes to reopen.
+
+Real temperatures and palette control need a control line: a board with a working serial/CDC or UVC-control path (a hardware revision is awaited for the one tested). `python tools/tau2_xu_probe.py` is a read-only helper that reports what vendor controls a board exposes over USB.
 
 ### Intel RealSense L515 Not Detected
 <a id="realsense-l515-not-detected"></a>

@@ -4,7 +4,7 @@ Last updated: 2026-09-23. Read this first if picking up a new session on `camera
 
 ## Status
 
-Two features are **code-complete, tested (625 passed / 8 skipped / 0 failed), reviewed, and merged** into `camera-plugin-architecture-and-perf-fixes` (local commits, not yet pushed to origin):
+Two features are **code-complete, tested (625 passed / 8 skipped / 0 failed), reviewed, and merged** into `camera-plugin-architecture-and-perf-fixes` (pushed to origin; merge to `main` not done):
 
 1. **Spot-meter distance** — Spot Meter reports distance-to-point whenever a RealSense camera is the active RGB source, any view mode.
 2. **3D Mapping Fusion** — new persistent-world 3D mapping mode: scan once with a RealSense camera (Open3D RGB-D odometry), freeze the geometry, then track the camera and re-texture live without rebuilding. New "3D Mapping" tab.

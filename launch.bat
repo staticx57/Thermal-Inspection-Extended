@@ -29,11 +29,13 @@ echo   [4] Playback Mode (analyze recorded video)
 echo   [5] Headless Mode (no GUI, processing only)
 echo   [6] Custom Arguments
 echo   [7] View Available Options
+echo   [8] Diagnostic Run (saves a log to logs\diagnostic.log)
+echo   [9] Repair: forget the saved camera scan (cameras missing after a crash)
 echo   [0] Exit
 echo.
 echo ================================================================================
 
-set /p choice="Enter your choice [0-7]: "
+set /p choice="Enter your choice [0-9]: "
 
 if "%choice%"=="0" goto :exit
 if "%choice%"=="1" goto :quick_start
@@ -43,6 +45,8 @@ if "%choice%"=="4" goto :playback_mode
 if "%choice%"=="5" goto :headless_mode
 if "%choice%"=="6" goto :custom_args
 if "%choice%"=="7" goto :show_options
+if "%choice%"=="8" goto :diagnostic_run
+if "%choice%"=="9" goto :reset_camera_cache
 
 echo.
 echo Invalid choice. Please try again.
@@ -173,6 +177,39 @@ if /i "!ARGS!"=="help" (
 
 goto :run
 
+:diagnostic_run
+cls
+echo ================================================================================
+echo   DIAGNOSTIC RUN
+echo ================================================================================
+echo.
+echo   Starts the app with detailed logging (INFO) written to logs\diagnostic.log.
+echo   Reproduce the problem, close the app, then send or open that file: it records
+echo   which cameras were found, why one could not be opened, and any errors.
+echo.
+if not exist logs mkdir logs
+set ARGS=--log-level INFO --log-file logs\diagnostic.log
+goto :run
+
+:reset_camera_cache
+cls
+echo ================================================================================
+echo   REPAIR: FORGET THE SAVED CAMERA SCAN
+echo ================================================================================
+echo.
+echo   The app remembers which cameras it found so it can start quickly. If a scan ran
+echo   while a camera was held by another program (or a frozen copy of this app), the
+echo   short list can be remembered and the missing camera never reappears.
+echo   This clears that memory; the next start scans the cameras again.
+echo.
+echo   Close every copy of the app first (a frozen copy can hold a camera: check Task
+echo   Manager for python.exe).
+echo.
+call python -m thermal_inspection --reset-camera-cache
+echo.
+pause
+goto :main_menu
+
 :show_options
 cls
 echo ================================================================================
@@ -214,6 +251,7 @@ echo.
 echo   DIAGNOSTICS:
 echo     --log-level LEVEL            DEBUG, INFO, WARNING (default) or ERROR
 echo     --log-file PATH              Also write the log to a file
+echo     --reset-camera-cache         Forget the saved camera scan, then exit
 echo.
 echo   (--thermal-backend is deprecated and ignored: the backend is chosen per camera)
 echo.

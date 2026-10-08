@@ -53,11 +53,11 @@ if [ -f "$STDLIB_DIR/EXTERNALLY-MANAGED" ] && [ -z "$VIRTUAL_ENV" ]; then
 fi
 
 # Step 1: Update Python packages
-echo -e "${BLUE}[1/4] Updating Python packages...${NC}"
+echo -e "${BLUE}[1/5] Updating Python packages...${NC}"
 pip3 install --user --upgrade pip
 
 # Step 2: Install/update PyQt6 (required for v3.x Qt GUI)
-echo -e "${BLUE}[2/4] Installing/updating PyQt6...${NC}"
+echo -e "${BLUE}[2/5] Installing/updating PyQt6...${NC}"
 pip3 install --user --upgrade PyQt6
 
 # Verify PyQt6
@@ -68,7 +68,7 @@ python3 -c "from PyQt6.QtWidgets import QApplication; print('✓ PyQt6 verified'
 }
 
 # Step 3: Update requirements
-echo -e "${BLUE}[3/4] Updating project dependencies...${NC}"
+echo -e "${BLUE}[3/5] Updating project dependencies...${NC}"
 if [ -f requirements.txt ]; then
     pip3 install --user --upgrade -r requirements.txt
 else
@@ -76,8 +76,15 @@ else
     pip3 install --user --upgrade numpy scipy opencv-python Pillow PyQt6 "pyqtgraph>=0.14" psutil pyserial flirpy "setuptools<81"
 fi
 
-# Step 4: Verify installation
-echo -e "${BLUE}[4/4] Verifying repaired installation...${NC}"
+# Step 4: Forget the saved camera scan. A scan that ran while a camera was held by another (or a hung) copy of the app
+# can save a short device list that the app then trusts on every start, so a camera never reappears.
+echo -e "${BLUE}[4/5] Forgetting the saved camera scan (rebuilt on the next start)...${NC}"
+echo -e "${YELLOW}      If a frozen copy of the app is holding a camera, stop it first (pkill -f thermal_inspection).${NC}"
+python3 -m thermal_inspection --reset-camera-cache
+echo ""
+
+# Step 5: Verify installation
+echo -e "${BLUE}[5/5] Verifying repaired installation...${NC}"
 echo ""
 
 VERIFICATION_FAILED=false
@@ -184,6 +191,7 @@ echo -e "  • Thermal/RGB fusion modes, 100+ palettes, ROI Manager, spot meters
 echo -e "  • Boson/Tau2/Lepton thermal camera plugins; optional 3D Fusion / 3D Mapping (see requirements.txt)"
 echo ""
 echo -e "${GREEN}Ready to run: python3 -m thermal_inspection${NC}"
+echo -e "${GREEN}Cameras missing after a crash: python3 -m thermal_inspection --reset-camera-cache${NC}"
 echo -e "${GREEN}Troubleshooting: python3 -m thermal_inspection --log-level DEBUG --log-file debug.log${NC}"
 echo -e "${GREEN}Or use the quick-launch scripts in scripts/ (see LAUNCHER_GUIDE.md)${NC}"
 echo ""

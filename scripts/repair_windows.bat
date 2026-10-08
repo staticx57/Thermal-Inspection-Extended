@@ -46,11 +46,11 @@ call python --version
 echo.
 
 REM Step 1: Update pip
-echo %BLUE%[1/4] Updating pip...%NC%
+echo %BLUE%[1/5] Updating pip...%NC%
 call python -m pip install --upgrade pip
 
 REM Step 2: Install/update PyQt6
-echo %BLUE%[2/4] Installing/updating PyQt6...%NC%
+echo %BLUE%[2/5] Installing/updating PyQt6...%NC%
 call python -m pip install --upgrade PyQt6
 
 REM Verify PyQt6
@@ -63,7 +63,7 @@ if errorlevel 1 (
 )
 
 REM Step 3: Update requirements
-echo %BLUE%[3/4] Updating project dependencies...%NC%
+echo %BLUE%[3/5] Updating project dependencies...%NC%
 if exist requirements.txt (
     echo %GREEN%Found requirements.txt - updating...%NC%
     call python -m pip install --upgrade -r requirements.txt
@@ -72,8 +72,15 @@ if exist requirements.txt (
     call python -m pip install --upgrade numpy scipy opencv-python Pillow PyQt6 "pyqtgraph>=0.14" psutil pyserial flirpy "setuptools<81"
 )
 
-REM Step 4: Verify installation
-echo %BLUE%[4/4] Verifying repaired installation...%NC%
+REM Step 4: Forget the saved camera scan. A scan that ran while a camera was held by another (or a frozen) copy of
+REM the app can save a short device list that the app then trusts on every start, so a camera never reappears.
+echo %BLUE%[4/5] Forgetting the saved camera scan (rebuilt on the next start)...%NC%
+echo %YELLOW%      If a frozen copy of the app is holding a camera, end python.exe in Task Manager first.%NC%
+call python -m thermal_inspection --reset-camera-cache
+echo.
+
+REM Step 5: Verify installation
+echo %BLUE%[5/5] Verifying repaired installation...%NC%
 echo.
 
 echo %BLUE%Testing Python modules...%NC%
@@ -85,6 +92,8 @@ call python -c "import pyqtgraph; print('  ✓ pyqtgraph', pyqtgraph.__version__
 call python -c "import scipy; print('  ✓ SciPy')" 2>nul || echo   ✗ SciPy - FAILED
 call python -c "import flirpy; print('  ✓ flirpy (Boson)')" 2>nul || echo   ✗ flirpy - FAILED
 call python -c "import psutil; print('  ✓ psutil')" 2>nul || echo   ✗ psutil - FAILED
+call python -c "import pygrabber, comtypes; print('  ✓ pygrabber + comtypes (Windows camera list)')" 2>nul || echo   ✗ pygrabber / comtypes - FAILED ^(camera names will be missing^)
+call python -c "import libusb_package; print('  ✓ libusb-package (optional: Tau 2 USB probe tool)')" 2>nul || echo   - libusb-package not installed ^(optional^)
 
 echo.
 echo %BLUE%Checking project files...%NC%
@@ -111,6 +120,7 @@ echo.
 echo %GREEN%Ready to run:%NC%
 echo   python -m thermal_inspection
 echo   python -m thermal_inspection --enable-boson-sdk
+echo   Cameras missing after a crash: python -m thermal_inspection --reset-camera-cache
 echo   Troubleshooting: python -m thermal_inspection --log-level DEBUG --log-file debug.log
 echo   Or use the quick-launch scripts in scripts\ (see LAUNCHER_GUIDE.md)
 echo.
