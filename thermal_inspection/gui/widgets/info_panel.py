@@ -23,10 +23,14 @@ class InfoPanel(QLabel):
         self.setFixedSize(300, 70)  # Increased width for better text display
         self.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         self.setWordWrap(True)
+        self.setToolTip("FPS: frames the camera is delivering.  Loop: how fast the processing loop is running "
+                        "(its capacity - it can be far above the camera's rate).")
 
-    def update_info(self, fps: float, roi_count: int, thermal_connected: bool, rgb_connected: bool, recording: bool = False):
-        """Update inspection status information. `fps` is the CAMERA frame rate (frames actually arriving), not the
-        render loop's capacity. The dot says whether frames are arriving, not whether the rate is "good": a radiometric
+    def update_info(self, fps: float, roi_count: int, thermal_connected: bool, rgb_connected: bool, recording: bool = False,
+                    loop_fps: float = None):
+        """Update inspection status information. `fps` is the CAMERA frame rate (frames actually arriving); `loop_fps`,
+        when given, is how fast the processing loop is running (its capacity, often far above the camera's rate), shown
+        beside it. The dot says whether frames are arriving, not whether the rate is "good": a radiometric
         Boson at 9 Hz is healthy, and the old 25/15 fps thresholds painted it red."""
         if fps > 0:
             quality = '<span style="color:#6fdc8c">&#9679;</span> '      # frames arriving
@@ -41,8 +45,9 @@ class InfoPanel(QLabel):
         # Recording indicator
         rec_indicator = " [⏺ REC]" if recording else ""
 
+        loop_text = f"  &middot;  Loop: {loop_fps:.0f}" if loop_fps else ""
         info_text = (
-            f"{quality}FPS: {fps:.1f}{rec_indicator}<br>"
+            f"{quality}FPS: {fps:.1f}{loop_text}{rec_indicator}<br>"
             f"ROIs: {roi_count}<br>"
             f"Thermal:{thermal_status} RGB:{rgb_status}"
         )

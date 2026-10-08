@@ -99,6 +99,9 @@ def build_parser():
     # Diagnostics
     parser.add_argument('--log-level', type=str.upper, choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], default='WARNING',
                        help='Console log level (default: WARNING - INFO and DEBUG lines are hidden unless you ask)')
+    parser.add_argument('--reset-camera-cache', action='store_true',
+                       help='Forget the saved camera scan (it is rebuilt on the next start), then exit. Use it if cameras '
+                            'are missing after a crash or a force-quit')
     parser.add_argument('--log-file', type=str, default=None, metavar='PATH',
                        help='Also write the log (at --log-level) to this file')
 
@@ -166,9 +169,24 @@ def check_opencv_packages():
     return problems
 
 
+def reset_camera_cache() -> bool:
+    """Drop the persisted camera scan so the next start probes the hardware again. True if there was one to drop.
+
+    A scan that ran while a camera was held by another (or a hung) process can save a short device list; the app then
+    trusts it on every start until the camera name list changes."""
+    from thermal_inspection.utils.config import get_config
+    config = get_config()
+    had = config.config.pop('video_device_cache', None) is not None
+    config.save()
+    return had
+
+
 def main():
     """Main entry point for the Thermal Inspection application."""
     args = parse_arguments()
+    if args.reset_camera_cache:
+        print("Saved camera scan cleared." if reset_camera_cache() else "There was no saved camera scan.")
+        return 0
 
     logger.info("=" * 80)
     logger.info("Thermal Inspection Fusion Tool")

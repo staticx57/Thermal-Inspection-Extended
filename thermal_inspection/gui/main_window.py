@@ -527,10 +527,12 @@ class InspectionAppWindow(QMainWindow):
             self.analysis_panel.show_cold_spots_toggled.connect(self._on_show_cold_spots_toggled)
             self.analysis_panel.show_anomalies_toggled.connect(self._on_show_anomalies_toggled)
             self.analysis_panel.show_colorbar_toggled.connect(self._on_show_colorbar_toggled)
+            self.analysis_panel.show_status_banner_toggled.connect(self._on_show_status_banner_toggled)
 
             # Info panel (overlay on video widget)
             self.info_panel = InfoPanel(self.video_widget)
             self.info_panel.move(10, 10)
+            self._restore_status_banner()
             logger.info("[OK] Info panel created")
 
             # Connect signals
@@ -874,6 +876,7 @@ class InspectionAppWindow(QMainWindow):
         bus.camera_connected.connect(self._on_bus_camera_connected)
         bus.camera_disconnected.connect(self._on_bus_camera_disconnected)
         bus.sdk_connected.connect(self._on_bus_sdk_connected)
+        bus.camera_open_failed.connect(self._on_bus_camera_open_failed)
         bus.sdk_disconnected.connect(self._on_bus_sdk_disconnected)
         bus.panel_ready.connect(self._on_bus_panel_ready)
         bus.ports_scan_result.connect(self._on_bus_ports_scan_result)
@@ -1238,6 +1241,14 @@ class InspectionAppWindow(QMainWindow):
             self.statusBar().showMessage(msg, 5000)
         self._show_hotplug_banner(msg, warning=False)
 
+    def _on_bus_camera_open_failed(self, role: str, camera: str, reason: str):
+        """A camera could not be opened: say so, and why, instead of leaving the cause in the log."""
+        label = "Thermal" if role == 'thermal' else "RGB" if role == 'rgb' else role
+        msg = f"⚠  Could not open {camera} for the {label} slot: {reason}."
+        if hasattr(self, 'statusBar'):
+            self.statusBar().showMessage(msg, 15000)
+        self._show_hotplug_banner(msg, warning=True)
+
     def _on_bus_camera_disconnected(self, role: str):
         """React to camera hardware disconnection."""
         logger.info(f"Camera disconnected for role '{role}'")
@@ -1427,7 +1438,10 @@ class InspectionAppWindow(QMainWindow):
         keys_action.setShortcut(QKeySequence("F1"))
         keys_action.triggered.connect(self._show_shortcuts)
         help_menu.addAction(keys_action)
-        self._menu_actions = (quit_action, keys_action)
+        about_action = QAction("&About", self)
+        about_action.triggered.connect(self._show_about)
+        help_menu.addAction(about_action)
+        self._menu_actions = (quit_action, keys_action, about_action)
 
         # show the key in the tooltip of the buttons it triggers
         cp = getattr(self, 'control_panel', None)
@@ -1454,6 +1468,14 @@ class InspectionAppWindow(QMainWindow):
     def _show_shortcuts(self):
         rows = "".join(f"<tr><td><b>{k}</b>&nbsp;&nbsp;</td><td>{d}</td></tr>" for k, d in self.SHORTCUTS)
         QMessageBox.information(self, "Keyboard shortcuts", f"<table cellspacing='4'>{rows}</table>")
+
+    def _show_about(self):
+        from thermal_inspection import __version__
+        from thermal_inspection.utils.about_info import about_html
+        from thermal_inspection.utils.paths import data_dir
+        host = getattr(getattr(self, 'app', None), 'plugin_host', None)
+        failures = host.describe_failures() if host is not None and hasattr(host, 'describe_failures') else ""
+        QMessageBox.about(self, "About", about_html(__version__, str(data_dir()), failures))
 
     def closeEvent(self, event):
         """Closing mid-recording would silently end it (and can leave a truncated file): ask first."""
@@ -1573,6 +1595,29 @@ class InspectionAppWindow(QMainWindow):
         elif self.app and hasattr(self.app, 'thermal_analyzer'):
             self.app.thermal_analyzer.max_hot_spots = count
         logger.info(f"Max hot spots set to: {count}")
+
+    def _restore_status_banner(self):
+        """Apply the saved show/hide choice for the status banner (shown by default)."""
+        try:
+            from thermal_inspection.utils.config import get_config
+            shown = bool(get_config().get('show_status_banner', True))
+        except Exception:
+            shown = True
+        self.info_panel.setVisible(shown)
+        box = getattr(getattr(self, 'analysis_panel', None), 'show_status_banner_checkbox', None)
+        if box is not None and box.isChecked() != shown:
+            box.blockSignals(True)
+            box.setChecked(shown)
+            box.blockSignals(False)
+
+    def _on_show_status_banner_toggled(self, enabled: bool):
+        """Show or hide the FPS / ROI / connection banner in the corner of the video, and remember the choice."""
+        self.info_panel.setVisible(bool(enabled))
+        try:
+            from thermal_inspection.utils.config import get_config
+            get_config().set('show_status_banner', bool(enabled))
+        except Exception as exc:
+            logger.debug(f"Could not save the status banner choice: {exc}")
 
     def _on_show_colorbar_toggled(self, enabled: bool):
         if hasattr(self, 'video_widget') and hasattr(self.video_widget, 'overlay'):
@@ -3159,9 +3204,10 @@ class InspectionAppWindow(QMainWindow):
             if grid_panel is not None:
                 grid_panel.set_thermal_resolution(width, height)
 
-    def update_metrics(self, fps: float, roi_count: int, thermal_connected: bool, rgb_connected: bool):
-        """Update info panel metrics."""
-        self.info_panel.update_info(fps, roi_count, thermal_connected, rgb_connected, self.recording)
+    def update_metrics(self, fps: float, roi_count: int, thermal_connected: bool, rgb_connected: bool,
+                       loop_fps: float = None):
+        """Update info panel metrics (`fps` = camera rate, `loop_fps` = processing loop speed)."""
+        self.info_panel.update_info(fps, roi_count, thermal_connected, rgb_connected, self.recording, loop_fps)
 
     def update_rois(self, rois: List[ROI], all_rois: Optional[List[ROI]] = None):
         """Update ROI visualization and lists. `rois` are the visible ROIs (drawn and measured); `all_rois` also

@@ -207,8 +207,10 @@ class TestEmptyStates:
 
         def rendered(widget):
             widget.resize(300, 120)
-            img = widget.grab().toImage()
-            return img.convertToFormat(QImage.Format.Format_RGB32).bits().asstring(img.sizeInBytes())
+            # size and bits must come from the SAME (converted) image: the grab can be a wider format on some displays, and
+            # reading its larger byte count out of the smaller RGB32 buffer ran off the end (access violation)
+            img = widget.grab().toImage().convertToFormat(QImage.Format.Format_RGB32)
+            return img.bits().asstring(img.sizeInBytes())
 
         plain, hinted = HintListWidget(""), HintListWidget("Nothing here yet")
         assert rendered(plain) != rendered(hinted)

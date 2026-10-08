@@ -41,6 +41,7 @@ class ThermalAnalysisPanel(QWidget):
     show_cold_spots_toggled = pyqtSignal(bool)
     show_anomalies_toggled = pyqtSignal(bool)
     show_colorbar_toggled = pyqtSignal(bool)
+    show_status_banner_toggled = pyqtSignal(bool)
 
     # Spot Meter Signals
     spot_meter_toggled = pyqtSignal(bool)
@@ -132,6 +133,13 @@ class ThermalAnalysisPanel(QWidget):
             "Show the colour scale (palette with temperatures) in the corner of the thermal view")
         self.show_colorbar_checkbox.setMinimumHeight(28)
         self.general_layout.addWidget(self.show_colorbar_checkbox)
+
+        self.show_status_banner_checkbox = QCheckBox("Show Status Banner")
+        self.show_status_banner_checkbox.setChecked(True)
+        self.show_status_banner_checkbox.setToolTip(
+            "Show the FPS (camera rate and loop speed), ROI count and connection status in the corner of the video")
+        self.show_status_banner_checkbox.setMinimumHeight(28)
+        self.general_layout.addWidget(self.show_status_banner_checkbox)
 
         self.general_layout.addWidget(create_separator())
 
@@ -314,6 +322,7 @@ class ThermalAnalysisPanel(QWidget):
         self.show_cold_spots_checkbox.toggled.connect(self.show_cold_spots_toggled.emit)
         self.show_anomalies_checkbox.toggled.connect(self.show_anomalies_toggled.emit)
         self.show_colorbar_checkbox.toggled.connect(self.show_colorbar_toggled.emit)
+        self.show_status_banner_checkbox.toggled.connect(self.show_status_banner_toggled.emit)
 
     def _on_global_palette_changed(self, palette_name: str):
         """Handle global palette change."""

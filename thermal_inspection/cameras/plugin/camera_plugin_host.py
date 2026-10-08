@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
+from collections import deque
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, List, Tuple, Union, TYPE_CHECKING
+from typing import Deque, Optional, Dict, Any, List, Tuple, Union, TYPE_CHECKING
 import numpy as np
 
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
@@ -32,7 +34,8 @@ logger = logging.getLogger(__name__)
 BACKEND_OPEN_TIMEOUT_S = 10.0
 
 
-def _open_with_timeout(backend: Any, timeout_seconds: float, plugin_id: str) -> bool:
+def _open_with_timeout(backend: Any, timeout_seconds: float, plugin_id: str,
+                       failure: Optional[Dict[str, str]] = None) -> bool:
     """
     Call backend.open() with a bounded wait.
 
@@ -40,6 +43,9 @@ def _open_with_timeout(backend: Any, timeout_seconds: float, plugin_id: str) -> 
     thread is simply abandoned (daemon=True, so it won't block process exit)
     and this returns False — matching the old CameraInitializer's behavior
     that this replaces.
+
+    If ``failure`` is given, a failed open fills ``failure['reason']`` with a one-line explanation a user can act on
+    (timed out / the driver raised / the device refused to open).
 
     An abandoned open() that eventually DOES succeed (a slow driver, not a
     dead one) releases the backend itself. Before, nothing ever released it:
@@ -84,11 +90,20 @@ def _open_with_timeout(backend: Any, timeout_seconds: float, plugin_id: str) -> 
             f"backend.open() for plugin '{plugin_id}' did not return within "
             f"{timeout_seconds}s — treating as failed open (driver may be hung)"
         )
+        if failure is not None:
+            failure['reason'] = (f"it did not open within {timeout_seconds:.0f} s - the driver may be hung, or another "
+                                 "program (or a stuck copy of this app) is holding the device")
         return False
 
     if 'error' in result:
         logger.error(f"backend.open() for plugin '{plugin_id}' raised: {result['error']}")
     ok = bool(result.get('ok', False))
+    if not ok and failure is not None:
+        if 'error' in result:
+            failure['reason'] = f"the driver reported: {result['error']}"
+        else:
+            failure['reason'] = ("the device would not open - it may be in use by another program, unplugged, or "
+                                 "missing its driver")
     if not ok:
         # open() returned (so nothing is still running inside it) but failed
         # - release whatever it partially acquired. Deliberately NOT done on
@@ -129,13 +144,31 @@ class CameraPluginHost(QObject):
     sdk_disconnected = pyqtSignal(str)                # (role_str)
     panel_ready = pyqtSignal(str, object)             # (role_str, panel_widget)
     scan_result = pyqtSignal(list)                    # list of match dicts
+    camera_open_failed = pyqtSignal(str, str, str)    # (role_str, camera name, reason a user can act on)
 
     def __init__(self, registry: Optional[CameraPluginRegistry] = None, parent=None):
         super().__init__(parent)
         self.registry = registry or get_registry()
         self._active_cameras: Dict[str, ActiveCamera] = {}   # 'thermal' -> ActiveCamera, 'rgb' -> ActiveCamera
         self._lock = threading.RLock()
+        # Recent open failures, newest last - the "why isn't my camera working" record (see describe_failures)
+        self.failure_log: Deque[Dict[str, Any]] = deque(maxlen=20)
         logger.info("CameraPluginHost initialized")
+
+    def _record_failure(self, role_key: str, name: str, device_index: Any, reason: str) -> None:
+        """Remember and announce why a camera could not be activated (the log alone is WARNING-only in the console)."""
+        self.failure_log.append({"time": time.time(), "role": role_key, "camera": name,
+                                 "device": device_index, "reason": reason})
+        logger.error(f"Could not activate '{name}' (device {device_index}) for '{role_key}': {reason}")
+        self.camera_open_failed.emit(role_key, name, reason)
+
+    def describe_failures(self) -> str:
+        """The recent failures as plain text, newest first; '' if there were none."""
+        lines = []
+        for f in reversed(self.failure_log):
+            when = time.strftime("%H:%M:%S", time.localtime(f["time"]))
+            lines.append(f"{when}  {f['camera']} (device {f['device']}, {f['role']} slot): {f['reason']}")
+        return "\n".join(lines)
 
     def _get_role_key(self, role: Union[CameraRole, str]) -> str:
         if isinstance(role, CameraRole):
@@ -183,6 +216,9 @@ class CameraPluginHost(QObject):
         plugin = self.registry.get_plugin(target_match.plugin_id)
         if not plugin:
             logger.error(f"Cannot activate camera: unknown plugin ID '{target_match.plugin_id}'")
+            self._record_failure(self._get_role_key(role_or_match) if isinstance(role_or_match, (str, CameraRole)) else "?",
+                                 str(target_match.plugin_id), target_match.device_index,
+                                 "no driver plugin with that name is installed")
             return False
 
         role_key = self._get_role_key(role_or_match if isinstance(role_or_match, (str, CameraRole)) else plugin.camera_role)
@@ -197,13 +233,18 @@ class CameraPluginHost(QObject):
             backend = plugin.create_backend(target_match)
             if not backend:
                 logger.error(f"Plugin '{plugin.plugin_id}' returned None backend")
+                self._record_failure(role_key, plugin.display_name, target_match.device_index,
+                                     "the driver plugin could not create a capture for it")
                 return False
 
             # 2. Open backend (bounded — see _open_with_timeout)
             # A failed open is released inside _open_with_timeout (only once
             # open() has actually returned - see its docstring).
-            if not _open_with_timeout(backend, BACKEND_OPEN_TIMEOUT_S, plugin.plugin_id):
+            failure: Dict[str, str] = {}
+            if not _open_with_timeout(backend, BACKEND_OPEN_TIMEOUT_S, plugin.plugin_id, failure):
                 logger.error(f"Failed to open backend for plugin '{plugin.plugin_id}'")
+                self._record_failure(role_key, plugin.display_name, target_match.device_index,
+                                     failure.get('reason', "it would not open"))
                 return False
 
             # 3. Instantiate SDK & Control Panel
@@ -262,6 +303,7 @@ class CameraPluginHost(QObject):
 
         except Exception as e:
             logger.error(f"Exception activating camera plugin '{plugin.plugin_id}': {e}", exc_info=True)
+            self._record_failure(role_key, plugin.display_name, target_match.device_index, f"unexpected error: {e}")
             return False
 
     def deactivate_camera(self, role: Union[CameraRole, str]):

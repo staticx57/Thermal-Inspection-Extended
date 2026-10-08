@@ -405,6 +405,7 @@ class ThermalInspectionApp:
         self.plugin_host.camera_disconnected.connect(bus.camera_disconnected)
 
         self.plugin_host.sdk_connected.connect(bus.sdk_connected)
+        self.plugin_host.camera_open_failed.connect(bus.camera_open_failed)
         self.plugin_host.sdk_disconnected.connect(bus.sdk_disconnected)
         self.plugin_host.panel_ready.connect(bus.panel_ready)
 
@@ -2810,6 +2811,7 @@ class ThermalInspectionApp:
                     _cam_fps = max(_live_fps(_cap.thermal_capture), _live_fps(_cap.rgb_capture))
                 self.gui.update_metrics(
                     fps=_cam_fps if _cam_fps > 0 else 0.0,
+                    loop_fps=self.smoothed_fps,
                     roi_count=len(self.roi_controller.rois) if self.roi_controller else 0,
                     thermal_connected=state.thermal_connected,
                     rgb_connected=state.rgb_available

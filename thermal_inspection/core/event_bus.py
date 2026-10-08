@@ -41,6 +41,7 @@ class AppEventBus(QObject):
     camera_connected = pyqtSignal(str, dict)                # (role, capabilities_dict)
     camera_disconnected = pyqtSignal(str)                   # (role)
     sdk_connected = pyqtSignal(str, dict)                   # (role, info_dict)
+    camera_open_failed = pyqtSignal(str, str, str)          # (role, camera name, reason a user can act on)
     sdk_disconnected = pyqtSignal(str)                      # (role)
     panel_ready = pyqtSignal(str, object)                   # (role, QWidget)
     ports_scan_result = pyqtSignal(list)                    # list of COM ports
