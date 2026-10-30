@@ -16,6 +16,7 @@ Features:
 import binascii
 import logging
 import struct
+import time
 from enum import IntEnum
 from typing import Optional, Tuple, List
 
@@ -228,6 +229,13 @@ class Tau2Serial:
 
         # 5. Read argument bytes if present
         resp_args = b""
+        if resp_count == 0:
+            # flirpy (a working Tau 2 driver) reads 10 bytes for a reply with no arguments: the camera also sends a
+            # 2-byte CRC2 field. Drop any such trailing bytes so they cannot be mistaken for the next reply's header.
+            time.sleep(0.01)
+            pending = self.ser.in_waiting
+            if pending:
+                self.ser.read(pending)
         if resp_count > 0:
             resp_args = self.ser.read(resp_count)
             resp_crc2_bytes = self.ser.read(2)
@@ -259,7 +267,8 @@ class Tau2Serial:
         """Returns firmware build revision string."""
         _, data = self.send_command(CMD_GET_REVISION)
         if len(data) >= 4:
-            sw_major, sw_minor, f_major, f_minor = struct.unpack(">BBBB", data[:4])
+            # The IDD reply is 8 bytes: four 16-bit fields (SW major/minor, firmware major/minor)
+            sw_major, sw_minor, f_major, f_minor = struct.unpack(">HHHH", data[:8]) if len(data) >= 8                 else struct.unpack(">BBBB", data[:4])
             return f"v{sw_major}.{sw_minor} (FW v{f_major}.{f_minor})"
         return "Unknown"
 

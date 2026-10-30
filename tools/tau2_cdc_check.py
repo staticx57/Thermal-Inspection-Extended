@@ -42,32 +42,46 @@ def list_ports() -> int:
     return 0
 
 
+def _try_frame(ser: serial.Serial, frame: bytes) -> bytes:
+    ser.reset_input_buffer()
+    ser.write(frame)
+    ser.flush()
+    reply = ser.read(8)
+    if len(reply) == 8:
+        extra = ser.read(2)            # some cores append a 2-byte CRC2 field even when there are no arguments
+        reply += extra
+    return reply
+
+
 def raw_step(port: str, baud: int) -> bool:
     frame = noop_frame()
+    # flirpy (an independent, working Tau 2 driver) sends 3 extra zero bytes after the header of an argument-less command
+    variants = [("8-byte header only (our app)", frame), ("header + 3 zero bytes (flirpy style)", frame + bytes(3))]
     print(f"Step 1: raw NO-OP at {baud} 8N1 on {port}")
-    print(f"  sent     {frame.hex(' ').upper()}")
     try:
         with serial.Serial(port, baud, bytesize=8, parity="N", stopbits=1, timeout=1.5) as ser:
-            ser.reset_input_buffer()
-            ser.write(frame)
-            ser.flush()
-            reply = ser.read(8)
+            for label, f in variants:
+                print(f"  sent     {f.hex(' ').upper()}   ({label})")
+                reply = _try_frame(ser, f)
+                if not reply:
+                    print("  no reply")
+                    continue
+                print(f"  received {reply.hex(' ').upper()}")
+                if len(reply) < 8:
+                    print("  short reply (expected an 8-byte header)")
+                    continue
+                crc_ok = struct.unpack(">H", reply[6:8])[0] == binascii.crc_hqx(reply[:6], 0)
+                status = reply[1]
+                print(f"  process code 0x{reply[0]:02X}, status 0x{status:02X}, header CRC {'ok' if crc_ok else 'BAD'}")
+                if reply[0] == 0x6E and status == 0 and crc_ok:
+                    print("  PASS" + ("" if f is frame else "   (only the padded frame worked: tell the app's author)"))
+                    return f is frame
+                print("  not a valid OK header (status 0x02 = camera not ready, retry)")
     except serial.SerialException as e:
         print(f"  FAIL     could not open or use the port: {e}")
         return False
-    if not reply:
-        print("  FAIL     no reply (wrong port or baud, bridge not forwarding, or camera not powered)")
-        return False
-    print(f"  received {reply.hex(' ').upper()}")
-    if len(reply) < 8:
-        print("  FAIL     short reply (expected an 8-byte header)")
-        return False
-    crc_ok = struct.unpack(">H", reply[6:8])[0] == binascii.crc_hqx(reply[:6], 0)
-    status = reply[1]
-    print(f"  process code 0x{reply[0]:02X}, status 0x{status:02X}, header CRC {'ok' if crc_ok else 'BAD'}")
-    ok = reply[0] == 0x6E and status == 0 and crc_ok
-    print("  PASS" if ok else "  FAIL     reply is not a valid OK header (status 0x02 = camera not ready, retry)")
-    return ok
+    print("  FAIL     no valid reply (wrong port or baud, bridge not forwarding, or camera not powered)")
+    return False
 
 
 def class_step(port: str, baud: int) -> bool:

@@ -35,6 +35,10 @@ class FakeSerial:
         out, self._rx = self._rx[:n], self._rx[n:]
         return out
 
+    @property
+    def in_waiting(self):
+        return len(self._rx)
+
     def reset_input_buffer(self):
         self._rx_backup = self._rx
 
@@ -184,3 +188,19 @@ class TestCommands:
     def test_plugin_exposes_the_new_commands(self):
         from thermal_inspection.cameras.plugins.tau2.plugin import Tau2CameraSDK
         assert {"get_core_status", "set_test_pattern"} <= set(Tau2CameraSDK().get_supported_commands())
+
+
+def test_revision_reads_four_16bit_fields():
+    cam = Tau2Serial.__new__(Tau2Serial)
+    cam.ser = FakeSerial()
+    cam.ser.queue_response(t2.CMD_GET_REVISION, struct.pack(">HHHH", 10, 2, 3, 4))
+    assert cam.get_revision() == "v10.2 (FW v3.4)"
+
+
+def test_trailing_crc2_after_argumentless_reply_is_dropped():
+    cam = Tau2Serial.__new__(Tau2Serial)
+    cam.ser = FakeSerial()
+    cam.ser.queue_response(t2.CMD_NO_OP)
+    cam.ser._rx += bytes(2)          # the camera's CRC2 field for a reply with no arguments
+    assert cam.ping() is True
+    assert cam.ser.in_waiting == 0
