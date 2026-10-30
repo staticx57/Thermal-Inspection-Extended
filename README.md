@@ -666,7 +666,7 @@ Thermal-Inspection/
 ├── README.md, CHANGELOG.md, requirements.txt
 ├── launch.bat
 ├── scripts/                         # install/repair/quick-launch scripts
-├── tools/                           # standalone helpers: tau2_xu_probe.py (read-only Tau 2 USB control probe), mapping_motion_test.py
+├── tools/                           # standalone helpers: tau2_xu_probe.py (read-only Tau 2 USB control probe), tau2_cdc_check.py (Tau 2 serial link check), mapping_motion_test.py
 │
 ├── thermal_inspection/              # Main application package
 │   ├── app.py                       # ThermalInspectionApp coordinator
@@ -918,7 +918,7 @@ If this is a **radiometric (-R)** Boson: this shouldn't happen: the control pane
 - **Onboard colour picture** - the camera's own AGC and palette. Looks good; the palette cannot be changed.
 - **Raw sensor data** - the app's palettes and contrast tools apply, so you can pick any of the 100+ palettes. On the boards tested this stream carries roughly 8 bits of picture detail (about 255 levels), not 14, and the values are **not temperatures**. Sparse levels are spread evenly so the picture does not look thresholded. Opening it can also give a slow (~1 fps) wide-range mode that degrades; switch modes to reopen.
 
-Real temperatures and palette control need a control line: a board with a working serial/CDC or UVC-control path. `python tools/tau2_xu_probe.py` is a read-only helper that reports what vendor controls a board exposes over USB.
+Real temperatures and palette control need a control line: a board with a working serial/CDC or UVC-control path. `python tools/tau2_xu_probe.py` is a read-only helper that reports what vendor controls a board exposes over USB. If a board does expose a serial (CDC) control line, `python tools/tau2_cdc_check.py --port COM5` sends read-only commands to it and reports PASS or FAIL for each (`--list-ports` shows what is available). Scan only lists ports named like Tau/FTDI, so a generic "USB Serial Device" must be typed into the COM Port box by hand.
 
 ### Intel RealSense L515 Not Detected
 <a id="realsense-l515-not-detected"></a>
