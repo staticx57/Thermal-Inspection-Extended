@@ -11,7 +11,7 @@ Professional-grade thermal imaging application combining FLIR Boson/Lepton therm
 
 ## Overview
 
-**Thermal Inspection Fusion Tool** is a production-ready Python application designed for thermal imaging professionals, engineers, and technicians performing:
+**Thermal Inspection Fusion Tool** is a Python application designed for thermal imaging professionals, engineers, and technicians performing:
 
 - **Circuit Board Inspection** - Component temperature monitoring, thermal runaway detection, pre/post-repair thermal profiling
 - **Building & HVAC Inspection** - Thermal leaks, insulation defects, moisture detection, energy audits
@@ -216,7 +216,7 @@ Scan a space once with a RealSense depth camera, then keep tracking the camera i
 - **Save / Load / Export:** worlds save as `.ply` with a `.thermal.npz` sidecar; temperatures export to CSV.
 - Snapshot and record in this mode capture the RGB feed.
 
-Status: scanning, tracking, save/load and the viewer have been exercised on a real L515 with a held-still camera; moving-camera scans and real thermal temperatures are still being validated. See `TODO.md`.
+Status: scanning, tracking, save/load and the viewer are verified on a real L515 with a held-still camera. Moving-camera scans and per-point thermal temperatures have not yet been verified on hardware.
 
 ### ⚡ Performance Optimization
 
@@ -256,8 +256,8 @@ Status: scanning, tracking, save/load and the viewer have been exercised on a re
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/Thermal-Inspection.git
-cd Thermal-Inspection
+git clone https://github.com/staticx57/Thermal-Inspection-Extended.git
+cd Thermal-Inspection-Extended
 
 # Install Python dependencies
 pip install -r requirements.txt
@@ -428,7 +428,7 @@ options:
 
 ## Palette Reference
 
-The app ships **115 thermal palettes** in 10 categories. Pick one from **Analysis → General → Global Palette** (each row previews its colours as 4-8 swatches, cold → hot, and shows a friendly name), per-ROI from the **ROI Manager**, from the ROI right-click menu, cycle with `p`, or start with `--palette <id>`. The **ID** column is the name used in `config.json`, presets and the `--palette` flag.
+The app ships **115 thermal palettes** in 10 categories. Pick one from **Analysis → General → Global Palette** (each row previews its colours as 4-8 swatches, cold → hot, and shows a friendly name), per-ROI from the **ROI Manager**, from the ROI right-click menu, cycle with `C`, or start with `--palette <id>`. The **ID** column is the name used in `config.json`, presets and the `--palette` flag.
 
 **Choosing a palette**
 
@@ -649,13 +649,11 @@ Colour data for the additional palettes is sampled from matplotlib colormaps, Co
 - **OS**: Windows 11 / Ubuntu 22.04 / NVIDIA Jetson Orin with JetPack 6.0
 
 ### Tested Platforms
-- **Windows 11** (x86-64) - Primary development platform
-- **Windows 10** (x86-64) - Fully supported
-- **Ubuntu 22.04 LTS** (x86-64) - Tested
-- **NVIDIA Jetson Orin Nano** - Hardware-accelerated fusion and VPI support
+- **Windows 11** (x86-64) - the development and test platform
+- **Linux and NVIDIA Jetson** - install and run scripts are provided in `scripts/` but are not regularly tested
 
 ### Tested Hardware
-- **FLIR Boson 640** (radiometric -R and non-radiometric) and **FLIR Tau 2** (video-only so far)
+- **FLIR Boson 640** (radiometric -R and non-radiometric) and **FLIR Tau 2** (video only; serial control untested)
 - **Intel RealSense D455** and **L515** - both confirmed live end-to-end (color + real metric depth)
 - Generic UVC webcams, GigE Vision cameras
 
@@ -795,7 +793,7 @@ When thermal and RGB cameras are physically separated, parallax errors cause mis
 
 **Camera Calibration tab (Cameras > Camera Calibration; the temperature one is "Temp Calibration")**: everything that registers the thermal and RGB views, in one place. A strip at the top shows registration and parallax status, one shared scene distance (typed, or **Measure** from a depth camera), the alignment overlay, and **Check alignment** (measures the residual misregistration in pixels through all active corrections). Pages: **1 Register** (the fixed part: calibrate from the live feeds, load/save/clear, apply on/off, manual and auto fine-tune shift/zoom, crop), **2 Parallax** (the distance-dependent part: enable, correction target, depth method, depth/displacement views) and **3 Rig** (baseline, lens focal length/sensor width). The calibration is remembered across restarts (`alignment_calibration.json` next to `config.json`) and the strip tells you whether parallax correction is combined with it correctly.
 
-**Using it with a calibration file** (also `--calibration-file`, which previously was parsed but never applied): a calibration homography (`--calibration-file`) is exact for one plane, at the distance it was made; parallax correction handles every other distance. They work together only if the file records that distance, so create it with:
+**Using it with a calibration file** (`--calibration-file`): a calibration homography is exact for one plane, at the distance it was made; parallax correction handles every other distance. They work together only if the file records that distance, so create it with:
 
 ```
 python -m thermal_inspection.cameras.camera_calibration --thermal t.png --rgb r.png --distance 2.0 --out calibration.json --preview check.png
@@ -853,7 +851,7 @@ Exported values use the unit selected in the Radiometric panel.
 
 **Problem**: SDK connection fails with error 255 or "Cannot connect to camera" (the SDK files ARE present, but the camera itself won't connect).
 
-If this is a **radiometric (-R)** Boson: as of v3.7.0 this shouldn't happen anymore - the control panel now shares the same connection flirpy uses for video instead of opening a second, competing one (which is what error 255 meant: the port was already open elsewhere). If you still see it, that's a regression, not a known limitation.
+If this is a **radiometric (-R)** Boson: this shouldn't happen: the control panel shares the same connection flirpy uses for video instead of opening a second, competing one (error 255 meant: the port was already open elsewhere). If you still see it, please report it.
 
 **Solutions** (non-radiometric Boson, or anything else still hitting this):
 1. **Check COM Port**: Open Device Manager > Ports, find "FLIR Control" device. The app auto-detects this port at startup — `--boson-com-port` only needs to be passed to override it.
@@ -914,13 +912,13 @@ If this is a **radiometric (-R)** Boson: as of v3.7.0 this shouldn't happen anym
 
 **Problem**: A Tau 2 breakout board is stuck on one palette and shows no temperatures.
 
-**Cause**: Changing the palette, and the temperature (T-Linear) output, are camera commands sent over the Tau 2's serial control line (CCI). Many breakout boards expose only the USB video interface (Device Manager shows one camera and no COM/serial device), so the app cannot send them. The control groups on the Tau 2 panel are greyed out in that case, with the reason.
+**Cause**: Changing the palette, and the temperature (T-Linear) output, are camera commands sent over the Tau 2's serial control line (CCI). Many breakout boards expose only the USB video interface (Device Manager shows one camera and no COM/serial device), so the app cannot send them. The serial path is implemented from the Tau 2 IDD but has not been tested on real hardware. The control groups on the Tau 2 panel are greyed out in that case, with the reason.
 
 **What works without a control line** (Cameras > FLIR Tau 2 > Controls > *Video Mode*):
 - **Onboard colour picture** - the camera's own AGC and palette. Looks good; the palette cannot be changed.
 - **Raw sensor data** - the app's palettes and contrast tools apply, so you can pick any of the 100+ palettes. On the boards tested this stream carries roughly 8 bits of picture detail (about 255 levels), not 14, and the values are **not temperatures**. Sparse levels are spread evenly so the picture does not look thresholded. Opening it can also give a slow (~1 fps) wide-range mode that degrades; switch modes to reopen.
 
-Real temperatures and palette control need a control line: a board with a working serial/CDC or UVC-control path (a hardware revision is awaited for the one tested). `python tools/tau2_xu_probe.py` is a read-only helper that reports what vendor controls a board exposes over USB.
+Real temperatures and palette control need a control line: a board with a working serial/CDC or UVC-control path. `python tools/tau2_xu_probe.py` is a read-only helper that reports what vendor controls a board exposes over USB.
 
 ### Intel RealSense L515 Not Detected
 <a id="realsense-l515-not-detected"></a>
@@ -954,8 +952,6 @@ This needs git, CMake, and a Visual Studio install with the C++ ATL component (`
 - **README.md** - Project overview, quick start, features, palette reference (this file)
 - **CHANGELOG.md** - Version history, major changes, implementation details
 - **LAUNCHER_GUIDE.md** - Using `launch.bat` and its startup modes
-- **TODO.md** - Open work and handoff notes
-- **docs/** - Design specs and implementation plans (3D mapping fusion, spot-meter distance)
 
 ---
 
@@ -1020,7 +1016,7 @@ A palette is a 256 x 3 array of BGR values (`uint8`); the stops are interpolated
 ### Running Tests
 
 ```bash
-# Run full test suite (780+ tests)
+# Run full test suite (1400+ tests)
 pytest tests/ -v
 
 # Run camera plugin and driver tests
@@ -1055,7 +1051,7 @@ Contributions welcome! Please open an issue or pull request on GitHub.
 
 ## License
 
-MIT License - See LICENSE file for details.
+MIT License.
 
 ---
 
@@ -1073,18 +1069,15 @@ MIT License - See LICENSE file for details.
 
 ## Version
 
-**Version**: 3.7.0
-**Status**: Production-ready with full radiometric support, runtime mode switching, ML + hardware depth estimation, universal camera plugin architecture
-**Last Updated**: 2026-09-30
-**Tested**: Windows 11, FLIR Boson 640 (radiometric + non-radiometric), Intel RealSense D455 & L515, FLIR Firefly RGB
+**Version**: 3.7.0 (see [CHANGELOG.md](CHANGELOG.md))
+**Tested hardware**: FLIR Boson 640 (radiometric and non-radiometric), Intel RealSense D455 and L515. FLIR Tau 2 is video-only.
 
 ---
 
 ## Contact & Support
 
-- **Issues**: Report bugs and feature requests on GitHub Issues
-- **Documentation**: See README.md and CHANGELOG.md
-- **Community**: Discussions on GitHub Discussions
+- **Issues**: https://github.com/staticx57/Thermal-Inspection-Extended/issues
+- **Documentation**: this README, CHANGELOG.md and LAUNCHER_GUIDE.md
 
 ---
 
