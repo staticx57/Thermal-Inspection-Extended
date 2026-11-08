@@ -638,7 +638,7 @@ Colour data for the additional palettes is sampled from matplotlib colormaps, Co
 - **RAM**: 8 GB
 - **Storage**: 500 MB for application + storage for recordings
 - **Camera**: FLIR Boson/Lepton thermal camera (USB UVC)
-- **OS**: Windows 10/11, Ubuntu 20.04+, NVIDIA Jetson JetPack 5.0+
+- **OS**: Windows 10/11, Ubuntu 22.04+ (Python 3.10-3.12), NVIDIA Jetson JetPack 5.0+
 
 ### Recommended Configuration
 - **CPU**: Intel Core i7 (8th gen+) / AMD Ryzen 7 / NVIDIA Jetson Orin

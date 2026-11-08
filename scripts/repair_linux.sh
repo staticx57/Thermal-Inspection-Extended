@@ -11,6 +11,9 @@ cd "$(dirname "$0")/.."
 
 set -e  # Exit on error
 
+# `pip install --user` is an error inside a virtualenv, so only use it outside one
+PIP_USER="--user"; [ -n "$VIRTUAL_ENV" ] && PIP_USER=""
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -54,11 +57,11 @@ fi
 
 # Step 1: Update Python packages
 echo -e "${BLUE}[1/5] Updating Python packages...${NC}"
-pip3 install --user --upgrade pip
+pip3 install $PIP_USER --upgrade pip
 
 # Step 2: Install/update PyQt6 (required for v3.x Qt GUI)
 echo -e "${BLUE}[2/5] Installing/updating PyQt6...${NC}"
-pip3 install --user --upgrade PyQt6
+pip3 install $PIP_USER --upgrade PyQt6
 
 # Verify PyQt6
 python3 -c "from PyQt6.QtWidgets import QApplication; print('✓ PyQt6 verified')" || {
@@ -70,10 +73,10 @@ python3 -c "from PyQt6.QtWidgets import QApplication; print('✓ PyQt6 verified'
 # Step 3: Update requirements
 echo -e "${BLUE}[3/5] Updating project dependencies...${NC}"
 if [ -f requirements.txt ]; then
-    pip3 install --user --upgrade -r requirements.txt
+    pip3 install $PIP_USER --upgrade -r requirements.txt
 else
     echo -e "${YELLOW}⚠ requirements.txt not found. Updating core packages...${NC}"
-    pip3 install --user --upgrade numpy scipy opencv-python Pillow PyQt6 "pyqtgraph>=0.14" psutil pyserial flirpy "setuptools<81"
+    pip3 install $PIP_USER --upgrade numpy scipy opencv-python Pillow PyQt6 "pyqtgraph>=0.14" psutil pyserial flirpy "setuptools<81"
 fi
 
 # Step 4: Forget the saved camera scan. A scan that ran while a camera was held by another (or a hung) copy of the app

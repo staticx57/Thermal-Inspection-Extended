@@ -18,6 +18,9 @@ cd "$(dirname "$0")/.."
 
 set -e  # Exit on error
 
+# `pip install --user` is an error inside a virtualenv (the recommended route on Ubuntu 23.04+), so only use it outside one
+PIP_USER="--user"; [ -n "$VIRTUAL_ENV" ] && PIP_USER=""
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -109,7 +112,7 @@ if [ "$IS_JETSON" = true ]; then
 else
     # Generic Linux - install OpenCV via pip
     echo -e "${YELLOW}Installing OpenCV via pip...${NC}"
-    pip3 install --user opencv-python
+    pip3 install $PIP_USER opencv-python
 fi
 
 # Step 4: Install V4L2 utilities (for UVC webcam debugging)
@@ -123,10 +126,10 @@ v4l2-ctl --list-devices || echo -e "${YELLOW}⚠ No cameras detected${NC}"
 # Step 5: Install project dependencies
 echo -e "${BLUE}[5/8] Installing project Python dependencies...${NC}"
 if [ -f requirements.txt ]; then
-    pip3 install --user -r requirements.txt
+    pip3 install $PIP_USER -r requirements.txt
 else
     echo -e "${YELLOW}⚠ requirements.txt not found. Installing core packages manually...${NC}"
-    pip3 install --user numpy scipy opencv-python Pillow PyQt6 "pyqtgraph>=0.14" psutil pyserial flirpy "setuptools<81"
+    pip3 install $PIP_USER numpy scipy opencv-python Pillow PyQt6 "pyqtgraph>=0.14" psutil pyserial flirpy "setuptools<81"
 fi
 
 # Step 5.5: Install PyQt6 for Qt GUI
@@ -136,17 +139,17 @@ if [ "$IS_JETSON" = true ]; then
     echo -e "${YELLOW}Attempting system PyQt6 installation...${NC}"
     sudo apt-get install -y python3-pyqt6 python3-pyqt6.qtsvg python3-pyqt6.qtopengl || {
         echo -e "${YELLOW}⚠ System PyQt6 failed. Installing via pip...${NC}"
-        pip3 install --user PyQt6
+        pip3 install $PIP_USER PyQt6
     }
 else
     # Generic Linux: pip installation
-    pip3 install --user PyQt6
+    pip3 install $PIP_USER PyQt6
 fi
 
 # Verify PyQt6
 python3 -c "from PyQt6.QtWidgets import QApplication; print('✓ PyQt6 installed successfully')" || {
     echo -e "${RED}✗ PyQt6 installation failed${NC}"
-    echo -e "${YELLOW}⚠ Qt GUI may not work. Try: pip3 install --user PyQt6${NC}"
+    echo -e "${YELLOW}⚠ Qt GUI may not work. Try: pip3 install $PIP_USER PyQt6${NC}"
 }
 
 # Step 6: OPTIONAL - Install FLIR Firefly Spinnaker SDK
@@ -213,15 +216,15 @@ if [ "$INSTALL_FIREFLY" = true ]; then
         echo -e "${BLUE}Installing PySpin (Python wrapper)...${NC}"
         if [ "$ARCH" = "aarch64" ]; then
             # Jetson ARM64
-            pip3 install --user spinnaker_python*.whl || {
+            pip3 install $PIP_USER spinnaker_python*.whl || {
                 echo -e "${YELLOW}⚠ PySpin wheel not found. Trying pip install...${NC}"
-                pip3 install --user spinnaker-python
+                pip3 install $PIP_USER spinnaker-python
             }
         else
             # x86-64
-            pip3 install --user spinnaker_python*.whl || {
+            pip3 install $PIP_USER spinnaker_python*.whl || {
                 echo -e "${YELLOW}⚠ PySpin wheel not found. Trying pip install...${NC}"
-                pip3 install --user spinnaker-python
+                pip3 install $PIP_USER spinnaker-python
             }
         fi
 
@@ -245,7 +248,7 @@ fi
 # Optional: 3D Mapping packages
 if [ "$INSTALL_3D" = true ]; then
     echo -e "${BLUE}Installing 3D Mapping packages (Open3D, PyOpenGL)...${NC}"
-    pip3 install --user "open3d>=0.18.0" "PyOpenGL>=3.1.0" || {
+    pip3 install $PIP_USER "open3d>=0.18.0" "PyOpenGL>=3.1.0" || {
         echo -e "${YELLOW}⚠ 3D Mapping packages failed to install - the 3D Mapping view will show a placeholder.${NC}"
         echo -e "${YELLOW}  (Open3D has no wheel for every ARM/Python combination; see requirements.txt)${NC}"
     }
@@ -318,6 +321,16 @@ else
     echo -e "${GREEN}✓ Qt GUI ready${NC}"
 fi
 
+# Test 2b: system libraries, groups and serial access that pip cannot install (Qt would abort at start-up without them)
+echo ""
+echo -e "${BLUE}Checking system libraries and device access...${NC}"
+if ./scripts/linux_setup.sh; then
+    echo -e "${GREEN}✓ System libraries and device access${NC}"
+else
+    VERIFICATION_FAILED=true
+    echo -e "${YELLOW}⚠ Fix with: ./scripts/linux_setup.sh --fix${NC}"
+fi
+
 # Test 3: Project files
 echo ""
 echo -e "${BLUE}Checking project files...${NC}"
@@ -371,7 +384,7 @@ echo -e "  • Isotherms, gradient overlays, 3D Fusion / 3D Mapping (optional), 
 echo ""
 echo -e "${BLUE}Next Steps:${NC}"
 echo -e "  ${BLUE}1.${NC} Connect RGB camera (UVC webcam or FLIR Firefly)"
-echo -e "  ${BLUE}2.${NC} Run system: ${GREEN}python3 -m thermal_inspection${NC}"
+echo -e "  ${BLUE}2.${NC} Run system: ${GREEN}./scripts/run_linux.sh${NC}  (or python3 -m thermal_inspection)"
 echo -e "  ${BLUE}3.${NC} Or use a quick-launch script in scripts/ (see LAUNCHER_GUIDE.md)"
 echo -e "  ${BLUE}4.${NC} Troubleshooting: ${GREEN}python3 -m thermal_inspection --log-level DEBUG --log-file debug.log${NC}"
 echo ""

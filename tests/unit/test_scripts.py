@@ -80,7 +80,7 @@ class TestCliDiagnostics:
 class TestFlagsAreReal:
     INSTALLER_FLAGS = {"--with-firefly", "--with-3d-mapping", "--with-realsense-l515", "--help",
                        "--system-site-packages", "--user", "--upgrade", "--index-url", "--version", "--list-devices",
-                       "--break-system-packages"}
+                       "--break-system-packages", "--fix", "--mm-ignore"}      # --fix/--mm-ignore: scripts/linux_setup.sh
 
     def real_options(self):
         opts = set(cli.build_parser()._option_string_actions)
@@ -94,7 +94,7 @@ class TestFlagsAreReal:
         (systemctl --reload-rules, cmake --build, git --depth ...), so there only app launches count."""
         lines = open(file, encoding="utf-8", errors="ignore").read().splitlines()
         name = os.path.basename(file)
-        if name.startswith(("install_", "repair_", "setup_")):
+        if name.startswith(("install_", "repair_", "setup_", "linux_setup")):
             return [ln for ln in lines if "thermal_inspection" in ln and "--" in ln]
         return lines
 

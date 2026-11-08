@@ -102,6 +102,9 @@ def build_parser():
     parser.add_argument('--reset-camera-cache', action='store_true',
                        help='Forget the saved camera scan (it is rebuilt on the next start), then exit. Use it if cameras '
                             'are missing after a crash or a force-quit')
+    parser.add_argument('--system-info', action='store_true',
+                       help='Print a report of this machine (OS, Python packages, serial ports with VID:PID, video '
+                            'devices, missing system libraries), then exit. Paste it when asking for help')
     parser.add_argument('--log-file', type=str, default=None, metavar='PATH',
                        help='Also write the log (at --log-level) to this file')
 
@@ -181,12 +184,37 @@ def reset_camera_cache() -> bool:
     return had
 
 
+def _dependencies_ok(headless: bool = False) -> bool:
+    """Say what is missing in plain words instead of crashing with an ImportError traceback halfway through start-up.
+
+    Only a hard requirement stops the app; everything else is printed as a warning and the app still starts."""
+    from thermal_inspection.utils.system_info import preflight
+    blocking, warnings = preflight(headless)
+    for line in warnings:
+        print(f"Warning: {line}", file=sys.stderr)
+    if blocking:
+        print("Thermal Inspection cannot start:", file=sys.stderr)
+        for line in blocking:
+            print(f"  - {line}", file=sys.stderr)
+        print("Run `python -m thermal_inspection --system-info` for a full report.", file=sys.stderr)
+        return False
+    return True
+
+
 def main():
     """Main entry point for the Thermal Inspection application."""
     args = parse_arguments()
     if args.reset_camera_cache:
         print("Saved camera scan cleared." if reset_camera_cache() else "There was no saved camera scan.")
         return 0
+
+    if args.system_info:
+        from thermal_inspection.utils.system_info import collect_report
+        print(collect_report())
+        return 0
+
+    if not _dependencies_ok(headless=args.headless or args.gui == 'headless'):
+        return 1
 
     logger.info("=" * 80)
     logger.info("Thermal Inspection Fusion Tool")
