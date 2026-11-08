@@ -132,9 +132,15 @@ class TestPacketsMatchFlirpy:
         if arg:
             assert theirs == ours
         else:
-            # flirpy pads argument-less commands with three extra zero bytes; the IDD packet is header + CRC1 only
-            # (8 bytes), which is what we send. The meaningful part is identical.
-            assert theirs[:len(ours)] == ours and set(theirs[len(ours):]) <= {0} and len(ours) == 8
+            # argument-less commands: header + CRC1 + three zero bytes (11 bytes), exactly flirpy's frame. The bare
+            # 8-byte IDD frame gets no reply from the Tau 2 video board.
+            assert theirs == ours and len(ours) == 11
+
+
+def test_noop_frame_matches_the_sellers_working_capture(tau):
+    answer(tau, t2.CMD_NO_OP)
+    tau.send_command(t2.CMD_NO_OP)
+    assert tau.ser.written == bytes.fromhex("6E000000000 0DFBB000000".replace(" ", ""))
 
 
 class TestCommands:
@@ -204,3 +210,51 @@ def test_trailing_crc2_after_argumentless_reply_is_dropped():
     cam.ser._rx += bytes(2)          # the camera's CRC2 field for a reply with no arguments
     assert cam.ping() is True
     assert cam.ser.in_waiting == 0
+
+
+class PickySerial(FakeSerial):
+    """Answers only frames of one length, like boards that accept just the padded or just the bare frame."""
+
+    def __init__(self, accepts_len):
+        super().__init__()
+        self.accepts_len, self.frames = accepts_len, []
+
+    def write(self, data):
+        self.frames.append(bytes(data))
+        if len(data) == self.accepts_len:
+            self.queue_response(t2.CMD_NO_OP)
+
+
+def _picky_tau(accepts_len):
+    t = Tau2Serial.__new__(Tau2Serial)
+    t.port, t.baudrate, t.timeout = "FAKE", 57600, 0.1
+    t.ser = PickySerial(accepts_len)
+    return t
+
+
+def test_padded_only_board_answers_on_first_try_and_is_remembered():
+    t = _picky_tau(11)
+    assert t.ping() and [len(f) for f in t.ser.frames] == [11]
+    assert t.ping() and [len(f) for f in t.ser.frames] == [11, 11]
+    assert t._pad_argless is True
+
+
+def test_bare_only_board_falls_back_then_goes_straight_to_bare():
+    t = _picky_tau(8)
+    assert t.ping() and [len(f) for f in t.ser.frames] == [11, 8]
+    assert t.ping() and [len(f) for f in t.ser.frames] == [11, 8, 8]
+    assert t._pad_argless is False
+
+
+def test_silent_board_times_out_after_trying_both_frames():
+    t = _picky_tau(99)
+    with pytest.raises(t2.Tau2TimeoutError):
+        t.send_command(t2.CMD_NO_OP)
+    assert [len(f) for f in t.ser.frames] == [11, 8] and t._pad_argless is None
+
+
+def test_commands_with_arguments_are_never_padded_or_retried():
+    t = _picky_tau(99)
+    with pytest.raises(t2.Tau2TimeoutError):
+        t.send_command(t2.CMD_GAIN_MODE, struct.pack(">H", 1))
+    assert [len(f) for f in t.ser.frames] == [12]

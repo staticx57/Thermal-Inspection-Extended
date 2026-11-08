@@ -142,6 +142,8 @@ class Tau2Serial:
     Serial controller interface for FLIR Tau 2 cameras.
     """
 
+    _pad_argless: Optional[bool] = None   # None = not yet learned; True = padded frame answered; False = bare frame
+
     def __init__(self, port: str, baudrate: int = 57600, timeout: float = 1.5):
         self.port = port
         self.baudrate = baudrate
@@ -207,13 +209,25 @@ class Tau2Serial:
             packet.extend(arg_bytes)
             packet.extend(struct.pack(">H", crc2))
 
-        # 3. Transmit
-        self.ser.reset_input_buffer()
-        self.ser.write(packet)
-        self.ser.flush()
+        # Argument-less commands: some boards answer only the padded 11-byte frame (header + CRC1 + three zero bytes,
+        # what flirpy sends; the Tau 2 video board seller confirmed this 2026-11), others only the bare 8-byte IDD
+        # frame. Try the padded one first, fall back to the bare one on a timeout, and remember which one answered.
+        frames = [bytes(packet)]
+        if byte_count == 0:
+            bare, padded = bytes(packet), bytes(packet) + b"\x00\x00\x00"
+            frames = [bare, padded] if self._pad_argless is False else [padded, bare]
 
-        # 4. Read 8-byte response header
-        resp_header = self.ser.read(8)
+        # 3./4. Transmit, then read the 8-byte response header
+        resp_header = b""
+        for frame in frames:
+            self.ser.reset_input_buffer()
+            self.ser.write(frame)
+            self.ser.flush()
+            resp_header = self.ser.read(8)
+            if len(resp_header) == 8:
+                if byte_count == 0:
+                    self._pad_argless = len(frame) > 8
+                break
         if len(resp_header) < 8:
             raise Tau2TimeoutError("Tau 2 command timed out waiting for header")
 
